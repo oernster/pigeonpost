@@ -154,6 +154,10 @@ export function SyncAccount(arg1) {
   return window['go']['main']['App']['SyncAccount'](arg1);
 }
 
+export function SyncFolder(arg1) {
+  return window['go']['main']['App']['SyncFolder'](arg1);
+}
+
 export function UpdateAccount(arg1) {
   return window['go']['main']['App']['UpdateAccount'](arg1);
 }

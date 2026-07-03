@@ -40,9 +40,8 @@ function emlFilename(subject: string): string {
 // new print rather than accumulating frames.
 const printFrameId = 'pp-print-frame'
 
-// autoSyncDebounceMs delays the sync triggered by an action (move, copy, delete) so a run of actions
-// coalesces into a single refresh; autoSyncIntervalMs is the periodic background refresh.
-const autoSyncDebounceMs = 1500
+// autoSyncIntervalMs is how often the folder on screen is refreshed from the server in the background,
+// so new mail in the open folder appears without a manual sync.
 const millisPerMinute = 60 * 1000
 const autoSyncIntervalMs = 5 * millisPerMinute
 
@@ -120,12 +119,19 @@ function App() {
     const [purgingMessage, setPurgingMessage] = useState<boolean>(false)
     const [contextMenu, setContextMenu] = useState<{message: Message; x: number; y: number} | null>(null)
     const [tabs, setTabs] = useState<Message[]>([])
+    // Tracks the folder currently on screen, so a background refresh only replaces the list when the
+    // user has not navigated away since it started.
+    const selectedFolderRef = useRef<string>('')
 
     const searchActive = searchQuery.trim() !== ''
     const [appVersion, setAppVersion] = useState<string>('')
     const [appAuthor, setAppAuthor] = useState<string>('')
     const [splashVisible, setSplashVisible] = useState<boolean>(true)
     const [splashFading, setSplashFading] = useState<boolean>(false)
+
+    useEffect(() => {
+        selectedFolderRef.current = selectedFolder
+    }, [selectedFolder])
 
     useEffect(() => {
         applyTheme(theme)
@@ -265,6 +271,26 @@ function App() {
         }
     }, [loadTags, selectedMessage])
 
+    // loadFolderMessages shows a folder's cached messages immediately (so it opens instantly), then
+    // refreshes it from the server and updates the list if the user is still on that folder. This is
+    // what makes a message moved or deleted into a folder appear when the folder is opened. A sync
+    // failure (offline) simply leaves the cached view in place.
+    const loadFolderMessages = useCallback(async (id: string) => {
+        try {
+            setMessages(await api.listMessages(id))
+        } catch (e) {
+            setError(String(e))
+        }
+        try {
+            await api.syncFolder(id)
+            if (selectedFolderRef.current === id) {
+                setMessages(await api.listMessages(id))
+            }
+        } catch {
+            // Offline or a transient failure: the cached view stands.
+        }
+    }, [])
+
     const selectAccount = useCallback(async (id: string) => {
         setSelectedAccount(id)
         setSelectedMessage(null)
@@ -275,26 +301,29 @@ function App() {
             // are visible without a manual click.
             const inbox = fetched.find((f) => f.kind === 'inbox') ?? fetched[0]
             if (inbox) {
+                selectedFolderRef.current = inbox.id
                 setSelectedFolder(inbox.id)
-                setMessages(await api.listMessages(inbox.id))
+                await loadFolderMessages(inbox.id)
             } else {
+                selectedFolderRef.current = ''
                 setSelectedFolder('')
                 setMessages([])
             }
         } catch (e) {
             setError(String(e))
         }
-    }, [])
+    }, [loadFolderMessages])
 
     const selectFolder = useCallback(async (id: string) => {
+        selectedFolderRef.current = id
         setSelectedFolder(id)
         setSelectedMessage(null)
         try {
-            setMessages(await api.listMessages(id))
+            await loadFolderMessages(id)
         } catch (e) {
             setError(String(e))
         }
-    }, [])
+    }, [loadFolderMessages])
 
     // On first load (or after the account list changes) open the default account automatically, so the
     // app lands on a populated inbox rather than an empty pane.
@@ -339,31 +368,27 @@ function App() {
         void refreshOutbox()
     }, [refreshOutbox])
 
-    // scheduleSync runs a background sync shortly after a message action (move, copy, delete), so the
-    // change is mirrored into every folder's cache (a moved message appears in its destination, a
-    // deleted one in Trash) without the user pressing Sync. Rapid actions coalesce into one sync.
-    const autoSyncTimer = useRef<number | null>(null)
-    const scheduleSync = useCallback(() => {
-        if (!selectedAccount) {
-            return
-        }
-        if (autoSyncTimer.current !== null) {
-            window.clearTimeout(autoSyncTimer.current)
-        }
-        autoSyncTimer.current = window.setTimeout(() => {
-            autoSyncTimer.current = null
-            void sync()
-        }, autoSyncDebounceMs)
-    }, [selectedAccount, sync])
-
-    // Periodic background sync keeps the mailbox fresh while the app is open.
+    // Periodic light refresh of the folder on screen: syncs only that folder (not the whole account)
+    // and reloads it, so new mail in the open folder appears without a manual sync.
     useEffect(() => {
-        if (!selectedAccount) {
+        if (!selectedFolder) {
             return
         }
-        const interval = window.setInterval(() => void sync(), autoSyncIntervalMs)
+        const interval = window.setInterval(() => {
+            void (async () => {
+                try {
+                    await api.syncFolder(selectedFolder)
+                    // Only replace the list if the user is still on this folder.
+                    if (selectedFolderRef.current === selectedFolder) {
+                        setMessages(await api.listMessages(selectedFolder))
+                    }
+                } catch {
+                    // A background refresh failure (offline) must not disrupt the UI.
+                }
+            })()
+        }, autoSyncIntervalMs)
         return () => window.clearInterval(interval)
-    }, [selectedAccount, sync])
+    }, [selectedFolder])
 
     const onAccountSaved = useCallback(async (email: string) => {
         setSettingUp(false)
@@ -412,13 +437,12 @@ function App() {
             setTabs((prev) => prev.filter((m) => m.id !== id))
             setSelectedMessage((prev) => (prev?.id === id ? next : prev))
             setMessageToDelete(null)
-            scheduleSync()
         } catch (e) {
             setError(String(e))
         } finally {
             setDeletingMessage(false)
         }
-    }, [messageToDelete, searchActive, searchResults, messages, scheduleSync])
+    }, [messageToDelete, searchActive, searchResults, messages])
 
     // deletePermanent is the confirmed, irreversible delete behind Shift+Delete: it removes the message
     // from the server without moving it to Trash, then advances the selection.
@@ -438,13 +462,12 @@ function App() {
             setTabs((prev) => prev.filter((m) => m.id !== id))
             setSelectedMessage((prev) => (prev?.id === id ? next : prev))
             setMessageToPurge(null)
-            scheduleSync()
         } catch (e) {
             setError(String(e))
         } finally {
             setPurgingMessage(false)
         }
-    }, [messageToPurge, searchActive, searchResults, messages, scheduleSync])
+    }, [messageToPurge, searchActive, searchResults, messages])
 
     // requestDelete always asks for confirmation before deleting. The confirmed delete moves the
     // message to Trash where the account has one, or removes it permanently otherwise (the dialog says
@@ -558,11 +581,10 @@ function App() {
             setSearchResults((prev) => prev.filter((m) => m.id !== messageId))
             setTabs((prev) => prev.filter((m) => m.id !== messageId))
             setSelectedMessage((prev) => (prev?.id === messageId ? null : prev))
-            scheduleSync()
         } catch (e) {
             setError(String(e))
         }
-    }, [scheduleSync])
+    }, [])
 
     const moveMessage = useCallback(
         (message: Message, destFolderId: string) => moveMessageById(message.id, destFolderId),
@@ -585,11 +607,10 @@ function App() {
         setError('')
         try {
             await api.copyMessage(message.id, destFolderId)
-            scheduleSync()
         } catch (e) {
             setError(String(e))
         }
-    }, [scheduleSync])
+    }, [])
 
     const refreshFolders = useCallback(async () => {
         if (selectedAccount) {

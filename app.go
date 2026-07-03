@@ -119,6 +119,12 @@ func (a *App) SyncAccount(accountID string) error {
 	return a.sync.SyncAccount(a.ctx, accountID)
 }
 
+// SyncFolder refreshes a single folder's messages from the server, the light path used when a folder
+// is opened rather than syncing the whole account.
+func (a *App) SyncFolder(folderID string) error {
+	return a.sync.SyncFolder(a.ctx, folderID)
+}
+
 // MarkRead sets or clears a message's read (Seen) state on the server and in the local cache.
 func (a *App) MarkRead(messageID string, read bool) error {
 	return a.actions.MarkRead(a.ctx, messageID, read)

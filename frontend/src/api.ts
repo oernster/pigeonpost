@@ -39,6 +39,7 @@ import {
     SendMessage,
     SetMessageTag,
     SyncAccount,
+    SyncFolder,
     UpdateAccount,
     Version,
 } from '../wailsjs/go/main/App'
@@ -111,6 +112,7 @@ export const api = {
     messageBody: (messageId: string): Promise<MessageBody> => GetMessageBody(messageId),
     openExternal: (url: string): Promise<void> => OpenExternal(url),
     syncAccount: (accountId: string): Promise<void> => SyncAccount(accountId),
+    syncFolder: (folderId: string): Promise<void> => SyncFolder(folderId),
     markRead: (messageId: string, read: boolean): Promise<void> => MarkRead(messageId, read),
     markFlagged: (messageId: string, flagged: boolean): Promise<void> => MarkFlagged(messageId, flagged),
     deleteMessage: (messageId: string): Promise<void> => DeleteMessage(messageId),

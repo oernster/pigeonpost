@@ -132,3 +132,96 @@ func TestSyncAccountErrors(t *testing.T) {
 		}
 	})
 }
+
+// seedFolderForSync puts folder f1 into the store so SyncFolder can resolve it by id.
+func seedFolderForSync(t *testing.T, mail *fakeMailStore) {
+	t.Helper()
+	mail.folders["a1"] = []domain.Folder{testFolder(t, "f1", "a1", "INBOX")}
+}
+
+func TestSyncFolderHappyPath(t *testing.T) {
+	_, mail, _, _, svc := newSyncFixture(t)
+	seedFolderForSync(t, mail)
+
+	if err := svc.SyncFolder(context.Background(), "f1"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(mail.messages["f1"]) != 2 {
+		t.Errorf("expected 2 messages saved for f1, got %d", len(mail.messages["f1"]))
+	}
+}
+
+func TestSyncFolderAppliesRules(t *testing.T) {
+	_, mail, source, rules, svc := newSyncFixture(t)
+	seedFolderForSync(t, mail)
+	from, err := domain.NewEmailAddress("", "news@example.com")
+	if err != nil {
+		t.Fatalf("address: %v", err)
+	}
+	msg, err := domain.NewMessageSummary(domain.MessageSummaryInput{
+		ID: "m9", FolderID: "f1", UID: 5, From: from, Subject: "Weekly", Size: 1, Flags: domain.NewFlags(0),
+	})
+	if err != nil {
+		t.Fatalf("message: %v", err)
+	}
+	source.messagesByFolder = map[string][]domain.MessageSummary{"f1": {msg}}
+	rule, err := domain.NewRule("r1", "News", domain.RuleFieldFrom, "news@", domain.RuleMarkRead)
+	if err != nil {
+		t.Fatalf("rule: %v", err)
+	}
+	rules.rules = []domain.Rule{rule}
+
+	if err := svc.SyncFolder(context.Background(), "f1"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	saved := mail.messages["f1"]
+	if len(saved) != 1 || !saved[0].IsRead() {
+		t.Errorf("expected the matching message marked read, got %+v", saved)
+	}
+}
+
+func TestSyncFolderErrors(t *testing.T) {
+	t.Run("load folder", func(t *testing.T) {
+		_, mail, _, _, svc := newSyncFixture(t)
+		mail.getFolderErr = errBoom
+		if err := svc.SyncFolder(context.Background(), "f1"); !errors.Is(err, errBoom) {
+			t.Errorf("error = %v, want wrapped boom", err)
+		}
+	})
+
+	t.Run("load account", func(t *testing.T) {
+		accounts, mail, _, _, svc := newSyncFixture(t)
+		seedFolderForSync(t, mail)
+		accounts.getErr = errBoom
+		if err := svc.SyncFolder(context.Background(), "f1"); !errors.Is(err, errBoom) {
+			t.Errorf("error = %v, want wrapped boom", err)
+		}
+	})
+
+	t.Run("load rules", func(t *testing.T) {
+		_, mail, _, rules, svc := newSyncFixture(t)
+		seedFolderForSync(t, mail)
+		rules.listErr = errBoom
+		if err := svc.SyncFolder(context.Background(), "f1"); !errors.Is(err, errBoom) {
+			t.Errorf("error = %v, want wrapped boom", err)
+		}
+	})
+
+	t.Run("fetch messages", func(t *testing.T) {
+		_, mail, source, _, svc := newSyncFixture(t)
+		seedFolderForSync(t, mail)
+		source.fetchMessagesErr = errBoom
+		if err := svc.SyncFolder(context.Background(), "f1"); !errors.Is(err, errBoom) {
+			t.Errorf("error = %v, want wrapped boom", err)
+		}
+	})
+
+	t.Run("save messages", func(t *testing.T) {
+		_, mail, _, _, svc := newSyncFixture(t)
+		seedFolderForSync(t, mail)
+		mail.saveMessagesErr = errBoom
+		if err := svc.SyncFolder(context.Background(), "f1"); !errors.Is(err, errBoom) {
+			t.Errorf("error = %v, want wrapped boom", err)
+		}
+	})
+}

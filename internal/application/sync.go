@@ -57,3 +57,30 @@ func (s *SyncService) SyncAccount(ctx context.Context, accountID string) error {
 	}
 	return nil
 }
+
+// SyncFolder refreshes a single folder's message summaries from the server, applies the filter rules
+// and writes them into the local store. It is the light path taken when a folder is opened or on the
+// periodic refresh, avoiding a full account sync of every mailbox.
+func (s *SyncService) SyncFolder(ctx context.Context, folderID string) error {
+	folder, err := s.mail.GetFolder(ctx, folderID)
+	if err != nil {
+		return fmt.Errorf("sync: load folder %q: %w", folderID, err)
+	}
+	account, err := s.accounts.GetAccount(ctx, folder.AccountID())
+	if err != nil {
+		return fmt.Errorf("sync: load account %q: %w", folder.AccountID(), err)
+	}
+	rules, err := s.rules.ListRules(ctx)
+	if err != nil {
+		return fmt.Errorf("sync: load rules: %w", err)
+	}
+	messages, err := s.source.FetchMessages(ctx, account, folder)
+	if err != nil {
+		return fmt.Errorf("sync: fetch messages for %q: %w", folder.Path(), err)
+	}
+	messages = domain.ApplyRules(messages, rules)
+	if err := s.mail.SaveMessages(ctx, folder.ID(), messages); err != nil {
+		return fmt.Errorf("sync: save messages for %q: %w", folder.Path(), err)
+	}
+	return nil
+}
