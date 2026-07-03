@@ -20,6 +20,9 @@ func TestNewAttachment(t *testing.T) {
 	if string(a.Content()) != "hello" {
 		t.Errorf("Content = %q", a.Content())
 	}
+	if a.Size() != len("hello") {
+		t.Errorf("Size = %d, want %d", a.Size(), len("hello"))
+	}
 
 	// The stored content is a copy: mutating the caller's slice does not change the attachment, and
 	// the getter itself returns a copy.

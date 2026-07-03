@@ -38,3 +38,6 @@ func (a Attachment) ContentType() string { return a.contentType }
 
 // Content returns a copy of the attachment's raw bytes.
 func (a Attachment) Content() []byte { return append([]byte(nil), a.content...) }
+
+// Size returns the attachment's size in bytes without copying its content.
+func (a Attachment) Size() int { return len(a.content) }

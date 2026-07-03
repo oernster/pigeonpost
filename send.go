@@ -28,6 +28,12 @@ type ComposeRequest struct {
 // rfc822ContentType is the MIME type for a whole email attached to another email.
 const rfc822ContentType = "message/rfc822"
 
+const (
+	bytesPerMebibyte        = 1 << 20
+	maxAttachmentMebibytes  = 25
+	maxTotalAttachmentBytes = maxAttachmentMebibytes * bytesPerMebibyte
+)
+
 // SendMessage parses the request's addresses and sends the message through the compose use case.
 func (a *App) SendMessage(req ComposeRequest) error {
 	to, err := parseAddresses(req.To)
@@ -110,7 +116,16 @@ func (a *App) composeAttachments(req ComposeRequest) ([]domain.Attachment, error
 	if err != nil {
 		return nil, err
 	}
-	return append(files, messages...), nil
+	all := append(files, messages...)
+	total := 0
+	for _, attachment := range all {
+		total += attachment.Size()
+	}
+	if total > maxTotalAttachmentBytes {
+		return nil, fmt.Errorf("attachments total %d MB, over the %d MB limit",
+			total/bytesPerMebibyte, maxAttachmentMebibytes)
+	}
+	return all, nil
 }
 
 // messageAttachments fetches each referenced message's raw bytes and wraps it as a message/rfc822
