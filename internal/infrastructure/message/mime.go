@@ -4,6 +4,7 @@
 package message
 
 import (
+	"encoding/base64"
 	stdmime "mime"
 	"net/mail"
 	"strings"
@@ -11,6 +12,9 @@ import (
 
 	"github.com/oernster/pigeonpost/internal/domain"
 )
+
+// base64LineLength is the maximum characters per base64 line in an encoded attachment (RFC 2045).
+const base64LineLength = 76
 
 // BuildMIME renders an outgoing message into RFC 5322 wire bytes. The date and message id are passed
 // in (rather than read from the clock here) so the output is deterministic and testable. When the
@@ -28,15 +32,72 @@ func BuildMIME(msg domain.OutgoingMessage, date time.Time, messageID string) []b
 	b.WriteString("Message-ID: <" + messageID + ">\r\n")
 	b.WriteString("MIME-Version: 1.0\r\n")
 
+	if attachments := msg.Attachments(); len(attachments) > 0 {
+		writeMixedBody(&b, msg, messageID, attachments)
+	} else {
+		writeContent(&b, msg, messageID)
+	}
+	return []byte(b.String())
+}
+
+// writeContent writes the message body's Content-Type header and body: a multipart/alternative when an
+// HTML alternative is present, otherwise a single text/plain body.
+func writeContent(b *strings.Builder, msg domain.OutgoingMessage, messageID string) {
 	if html := msg.HTMLBody(); html != "" {
-		writeMultipartBody(&b, msg.Body(), html, messageID)
+		writeMultipartBody(b, msg.Body(), html, messageID)
 	} else {
 		b.WriteString("Content-Type: text/plain; charset=utf-8\r\n")
 		b.WriteString("Content-Transfer-Encoding: 8bit\r\n")
 		b.WriteString("\r\n")
 		b.WriteString(normaliseBody(msg.Body()))
 	}
-	return []byte(b.String())
+}
+
+// writeMixedBody wraps the message content and its attachments in a multipart/mixed body: the content
+// (text or multipart/alternative) is the first part, followed by one part per attachment.
+func writeMixedBody(b *strings.Builder, msg domain.OutgoingMessage, messageID string, attachments []domain.Attachment) {
+	boundary := "=_pigeonpost_mixed_" + messageID
+	b.WriteString("Content-Type: multipart/mixed; boundary=\"" + boundary + "\"\r\n")
+	b.WriteString("\r\n")
+	b.WriteString("--" + boundary + "\r\n")
+	writeContent(b, msg, messageID)
+	b.WriteString("\r\n")
+	for _, attachment := range attachments {
+		writeAttachmentPart(b, boundary, attachment)
+	}
+	b.WriteString("--" + boundary + "--\r\n")
+}
+
+// writeAttachmentPart writes one base64-encoded attachment as a multipart/mixed part.
+func writeAttachmentPart(b *strings.Builder, boundary string, attachment domain.Attachment) {
+	name := quoteParam(attachment.Filename())
+	b.WriteString("--" + boundary + "\r\n")
+	b.WriteString("Content-Type: " + attachment.ContentType() + "; name=\"" + name + "\"\r\n")
+	b.WriteString("Content-Transfer-Encoding: base64\r\n")
+	b.WriteString("Content-Disposition: attachment; filename=\"" + name + "\"\r\n")
+	b.WriteString("\r\n")
+	b.WriteString(base64Lines(attachment.Content()))
+}
+
+// quoteParam makes a filename safe to place inside a quoted MIME parameter by removing the characters
+// that would terminate or escape the quoted string.
+func quoteParam(name string) string {
+	return strings.NewReplacer("\"", "", "\\", "", "\r", "", "\n", "").Replace(name)
+}
+
+// base64Lines encodes content as base64 wrapped to the RFC 2045 line length, each line ended with CRLF.
+func base64Lines(content []byte) string {
+	encoded := base64.StdEncoding.EncodeToString(content)
+	var b strings.Builder
+	for start := 0; start < len(encoded); start += base64LineLength {
+		end := start + base64LineLength
+		if end > len(encoded) {
+			end = len(encoded)
+		}
+		b.WriteString(encoded[start:end])
+		b.WriteString("\r\n")
+	}
+	return b.String()
 }
 
 // writeMultipartBody writes a multipart/alternative body carrying the plain-text and HTML variants.

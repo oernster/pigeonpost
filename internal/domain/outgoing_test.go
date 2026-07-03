@@ -14,6 +14,15 @@ func mustAddr(t *testing.T, address string) EmailAddress {
 	return a
 }
 
+func mustAttachment(t *testing.T, filename, contentType string, content []byte) Attachment {
+	t.Helper()
+	a, err := NewAttachment(filename, contentType, content)
+	if err != nil {
+		t.Fatalf("attachment %q: %v", filename, err)
+	}
+	return a
+}
+
 func TestNewOutgoingMessage(t *testing.T) {
 	msg, err := NewOutgoingMessage(OutgoingMessageInput{
 		From:     mustAddr(t, "me@example.com"),
@@ -23,9 +32,15 @@ func TestNewOutgoingMessage(t *testing.T) {
 		Subject:  "  Hello  ",
 		Body:     "Body text",
 		HTMLBody: "<p>Body text</p>",
+		Attachments: []Attachment{
+			mustAttachment(t, "note.txt", "text/plain", []byte("hi")),
+		},
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(msg.Attachments()) != 1 || msg.Attachments()[0].Filename() != "note.txt" {
+		t.Errorf("attachments wrong: %+v", msg.Attachments())
 	}
 	if msg.From().Address() != "me@example.com" {
 		t.Errorf("From = %q", msg.From().Address())

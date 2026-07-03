@@ -29,6 +29,7 @@ var (
 	ErrEmptyRuleMatch      = errors.New("rule match text is empty")
 	ErrInvalidRuleField    = errors.New("rule field is not valid")
 	ErrInvalidRuleAction   = errors.New("rule action is not valid")
+	ErrEmptyAttachmentName = errors.New("attachment filename is empty")
 )
 
 // ErrOffline marks a failure caused by the mail server being unreachable (a connection could not be

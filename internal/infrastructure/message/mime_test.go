@@ -1,6 +1,7 @@
 package message
 
 import (
+	"encoding/base64"
 	"strings"
 	"testing"
 	"time"
@@ -81,6 +82,48 @@ func TestBuildMIMEMultipartAlternative(t *testing.T) {
 	// The plain part must come before the HTML part (least-to-most rich per RFC 2046).
 	if strings.Index(out, "text/plain") > strings.Index(out, "text/html") {
 		t.Error("text/plain part must precede text/html part")
+	}
+}
+
+func TestBuildMIMEWithAttachment(t *testing.T) {
+	attachment, err := domain.NewAttachment("report.txt", "text/plain", []byte("hello attachment"))
+	if err != nil {
+		t.Fatalf("attachment: %v", err)
+	}
+	msg, err := domain.NewOutgoingMessage(domain.OutgoingMessageInput{
+		From:        addr(t, "", "me@example.com"),
+		To:          []domain.EmailAddress{addr(t, "", "a@example.com")},
+		Subject:     "With file",
+		Body:        "see attached",
+		Attachments: []domain.Attachment{attachment},
+	})
+	if err != nil {
+		t.Fatalf("build message: %v", err)
+	}
+	out := string(BuildMIME(msg, time.Unix(0, 0).UTC(), "mid99"))
+
+	wants := []string{
+		`Content-Type: multipart/mixed; boundary="=_pigeonpost_mixed_mid99"` + "\r\n",
+		"--=_pigeonpost_mixed_mid99\r\n",
+		"Content-Type: text/plain; charset=utf-8\r\n",
+		"\r\nsee attached\r\n",
+		`Content-Type: text/plain; name="report.txt"` + "\r\n",
+		"Content-Transfer-Encoding: base64\r\n",
+		`Content-Disposition: attachment; filename="report.txt"` + "\r\n",
+		"--=_pigeonpost_mixed_mid99--\r\n",
+	}
+	for _, w := range wants {
+		if !strings.Contains(out, w) {
+			t.Errorf("attachment output missing %q\n---\n%s", w, out)
+		}
+	}
+	// The body part must precede the attachment part.
+	if strings.Index(out, "see attached") > strings.Index(out, "filename=") {
+		t.Error("message body must precede the attachment part")
+	}
+	// The base64 content must decode back to the original bytes.
+	if !strings.Contains(out, base64.StdEncoding.EncodeToString([]byte("hello attachment"))) {
+		t.Errorf("attachment base64 content missing\n---\n%s", out)
 	}
 }
 

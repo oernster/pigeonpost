@@ -5,25 +5,27 @@ import "strings"
 // OutgoingMessage is a validated message ready to be handed to a transport for sending. It is
 // immutable once constructed.
 type OutgoingMessage struct {
-	from     EmailAddress
-	to       []EmailAddress
-	cc       []EmailAddress
-	bcc      []EmailAddress
-	subject  string
-	body     string
-	htmlBody string
+	from        EmailAddress
+	to          []EmailAddress
+	cc          []EmailAddress
+	bcc         []EmailAddress
+	subject     string
+	body        string
+	htmlBody    string
+	attachments []Attachment
 }
 
 // OutgoingMessageInput carries the fields needed to build an OutgoingMessage. Body is the plain-text
 // content and is always present; HTMLBody is optional and, when set, is sent as the rich alternative.
 type OutgoingMessageInput struct {
-	From     EmailAddress
-	To       []EmailAddress
-	Cc       []EmailAddress
-	Bcc      []EmailAddress
-	Subject  string
-	Body     string
-	HTMLBody string
+	From        EmailAddress
+	To          []EmailAddress
+	Cc          []EmailAddress
+	Bcc         []EmailAddress
+	Subject     string
+	Body        string
+	HTMLBody    string
+	Attachments []Attachment
 }
 
 // NewOutgoingMessage validates and constructs a message. It requires a sender and at least one
@@ -48,13 +50,14 @@ func NewOutgoingMessage(in OutgoingMessageInput) (OutgoingMessage, error) {
 		return OutgoingMessage{}, err
 	}
 	return OutgoingMessage{
-		from:     in.From,
-		to:       to,
-		cc:       cc,
-		bcc:      bcc,
-		subject:  strings.TrimSpace(in.Subject),
-		body:     in.Body,
-		htmlBody: in.HTMLBody,
+		from:        in.From,
+		to:          to,
+		cc:          cc,
+		bcc:         bcc,
+		subject:     strings.TrimSpace(in.Subject),
+		body:        in.Body,
+		htmlBody:    in.HTMLBody,
+		attachments: append([]Attachment(nil), in.Attachments...),
 	}, nil
 }
 
@@ -79,13 +82,14 @@ func NewDraftMessage(in OutgoingMessageInput) (OutgoingMessage, error) {
 		return OutgoingMessage{}, err
 	}
 	return OutgoingMessage{
-		from:     in.From,
-		to:       to,
-		cc:       cc,
-		bcc:      bcc,
-		subject:  strings.TrimSpace(in.Subject),
-		body:     in.Body,
-		htmlBody: in.HTMLBody,
+		from:        in.From,
+		to:          to,
+		cc:          cc,
+		bcc:         bcc,
+		subject:     strings.TrimSpace(in.Subject),
+		body:        in.Body,
+		htmlBody:    in.HTMLBody,
+		attachments: append([]Attachment(nil), in.Attachments...),
 	}, nil
 }
 
@@ -112,6 +116,11 @@ func (m OutgoingMessage) Cc() []EmailAddress { return append([]EmailAddress(nil)
 // Bcc returns a copy of the blind-carbon-copy recipients. These are delivered to (they appear in
 // Recipients) but never written to the message headers, so other recipients cannot see them.
 func (m OutgoingMessage) Bcc() []EmailAddress { return append([]EmailAddress(nil), m.bcc...) }
+
+// Attachments returns a copy of the files carried by the message.
+func (m OutgoingMessage) Attachments() []Attachment {
+	return append([]Attachment(nil), m.attachments...)
+}
 
 // Subject returns the subject line.
 func (m OutgoingMessage) Subject() string { return m.subject }
