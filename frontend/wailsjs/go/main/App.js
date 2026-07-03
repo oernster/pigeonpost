@@ -14,6 +14,10 @@ export function Author() {
   return window['go']['main']['App']['Author']();
 }
 
+export function CancelOutboxItem(arg1) {
+  return window['go']['main']['App']['CancelOutboxItem'](arg1);
+}
+
 export function CopyMessage(arg1, arg2) {
   return window['go']['main']['App']['CopyMessage'](arg1, arg2);
 }
@@ -60,6 +64,10 @@ export function ListFolders(arg1) {
 
 export function ListMessages(arg1) {
   return window['go']['main']['App']['ListMessages'](arg1);
+}
+
+export function ListOutbox() {
+  return window['go']['main']['App']['ListOutbox']();
 }
 
 export function ListRules() {

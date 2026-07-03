@@ -16,6 +16,7 @@ import {ConfirmDialog} from './components/ConfirmDialog'
 import {PromptDialog} from './components/PromptDialog'
 import {TagManagerModal} from './components/TagManagerModal'
 import {RuleManagerModal} from './components/RuleManagerModal'
+import {OutboxModal} from './components/OutboxModal'
 import {Splash} from './components/Splash'
 
 function escapeHtml(s: string): string {
@@ -102,6 +103,7 @@ function App() {
     const [managingTags, setManagingTags] = useState<boolean>(false)
     const [rules, setRules] = useState<Rule[]>([])
     const [managingRules, setManagingRules] = useState<boolean>(false)
+    const [viewingOutbox, setViewingOutbox] = useState<boolean>(false)
     const [messageBody, setMessageBody] = useState<MessageBody | null>(null)
     const [bodyLoading, setBodyLoading] = useState<boolean>(false)
     const [searchQuery, setSearchQuery] = useState<string>('')
@@ -703,7 +705,7 @@ function App() {
     useEffect(() => {
         const overlayOpen =
             splashVisible || composing || settingUp || Boolean(accountToEdit) || managingTags ||
-            managingRules || Boolean(about) || Boolean(licence) || Boolean(folderPrompt) ||
+            managingRules || viewingOutbox || Boolean(about) || Boolean(licence) || Boolean(folderPrompt) ||
             Boolean(messageToDelete) || Boolean(accountToDelete) || Boolean(folderToDelete) ||
             Boolean(messageToPurge) || Boolean(contextMenu)
         const list = searchActive ? searchResults : messages
@@ -744,7 +746,7 @@ function App() {
         searchActive, searchResults, messages, selectedMessage, requestDelete,
         splashVisible, composing, settingUp, accountToEdit, managingTags, managingRules, about,
         licence, folderPrompt, messageToDelete, accountToDelete, folderToDelete, messageToPurge,
-        contextMenu,
+        contextMenu, viewingOutbox,
     ])
 
     return (
@@ -772,9 +774,13 @@ function App() {
                         {syncing ? 'Syncing...' : 'Sync'}
                     </button>
                     {outboxCount > 0 && (
-                        <span className="outbox-pill" title="Messages queued while offline; they send on the next sync">
+                        <button
+                            className="outbox-pill"
+                            title="Messages queued while offline; click to review or cancel them"
+                            onClick={() => setViewingOutbox(true)}
+                        >
                             {outboxCount} queued
-                        </span>
+                        </button>
                     )}
                     <MenuBar
                         theme={theme}
@@ -872,6 +878,9 @@ function App() {
             )}
             {managingRules && (
                 <RuleManagerModal rules={rules} onChanged={() => void loadRules()} onClose={() => setManagingRules(false)}/>
+            )}
+            {viewingOutbox && (
+                <OutboxModal onClose={() => setViewingOutbox(false)} onChanged={() => void refreshOutbox()}/>
             )}
             {messageToDelete && (
                 <ConfirmDialog

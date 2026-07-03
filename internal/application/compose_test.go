@@ -254,6 +254,38 @@ func TestComposePendingOutbox(t *testing.T) {
 	}
 }
 
+func TestComposeOutboxItems(t *testing.T) {
+	d := newComposeDeps().withAccount(t)
+	d.outbox.items = []domain.OutboxItem{outboxItem(t, "q1", "a1", domain.OutboxSend)}
+	items, err := d.service().OutboxItems(context.Background())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(items) != 1 || items[0].ID() != "q1" {
+		t.Errorf("items = %+v, want the queued q1", items)
+	}
+
+	d.outbox.listErr = errBoom
+	if _, err := d.service().OutboxItems(context.Background()); !errors.Is(err, errBoom) {
+		t.Errorf("error = %v, want wrapped boom", err)
+	}
+}
+
+func TestComposeCancelOutbox(t *testing.T) {
+	d := newComposeDeps().withAccount(t)
+	if err := d.service().CancelOutbox(context.Background(), "q1"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(d.outbox.deleted) != 1 || d.outbox.deleted[0] != "q1" {
+		t.Errorf("deleted = %v, want [q1]", d.outbox.deleted)
+	}
+
+	d.outbox.deleteErr = errBoom
+	if err := d.service().CancelOutbox(context.Background(), "q1"); !errors.Is(err, errBoom) {
+		t.Errorf("error = %v, want wrapped boom", err)
+	}
+}
+
 func TestComposeReplayOutbox(t *testing.T) {
 	t.Run("sends and drafts", func(t *testing.T) {
 		d := newComposeDeps().withAccount(t).withDrafts(t)

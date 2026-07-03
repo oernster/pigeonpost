@@ -8,6 +8,8 @@ export function AddAccount(arg1:main.AccountSetupRequest):Promise<void>;
 
 export function Author():Promise<string>;
 
+export function CancelOutboxItem(arg1:string):Promise<void>;
+
 export function CopyMessage(arg1:string,arg2:string):Promise<void>;
 
 export function CreateFolder(arg1:string,arg2:string):Promise<void>;
@@ -31,6 +33,8 @@ export function ListAccounts():Promise<Array<main.AccountDTO>>;
 export function ListFolders(arg1:string):Promise<Array<main.FolderDTO>>;
 
 export function ListMessages(arg1:string):Promise<Array<main.MessageDTO>>;
+
+export function ListOutbox():Promise<Array<main.OutboxItemDTO>>;
 
 export function ListRules():Promise<Array<main.RuleDTO>>;
 

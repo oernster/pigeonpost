@@ -131,6 +131,24 @@ func (s *ComposeService) PendingOutbox(ctx context.Context) (int, error) {
 	return len(items), nil
 }
 
+// OutboxItems returns the queued outgoing operations, oldest first, so the user can review or cancel
+// mail waiting to be sent.
+func (s *ComposeService) OutboxItems(ctx context.Context) ([]domain.OutboxItem, error) {
+	items, err := s.outbox.ListOutbox(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("compose: list outbox: %w", err)
+	}
+	return items, nil
+}
+
+// CancelOutbox removes a queued operation before it is sent, discarding it.
+func (s *ComposeService) CancelOutbox(ctx context.Context, id string) error {
+	if err := s.outbox.DeleteOutbox(ctx, id); err != nil {
+		return fmt.Errorf("compose: cancel outbox item %q: %w", id, err)
+	}
+	return nil
+}
+
 // ReplayOutbox attempts every queued operation, oldest first. A successful operation is removed from
 // the queue. If the server is still unreachable, replay stops and the remaining items stay queued. An
 // operation that fails for any other reason (the account is gone, the message is rejected) is removed

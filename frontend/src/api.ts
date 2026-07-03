@@ -24,6 +24,8 @@ import {
     MoveMessage,
     RenameFolder,
     SaveRule,
+    CancelOutboxItem,
+    ListOutbox,
     OpenExternal,
     OpenReleasesPage,
     OutboxCount,
@@ -52,6 +54,7 @@ export type AboutInfo = main.AboutDTO
 export type Tag = main.TagDTO
 export type Rule = main.RuleDTO
 export type MessageBody = main.MessageBodyDTO
+export type OutboxItem = main.OutboxItemDTO
 
 export interface RuleInput {
     id: string
@@ -130,6 +133,8 @@ export const api = {
     send: (req: ComposeInput): Promise<void> => SendMessage(main.ComposeRequest.createFrom(req)),
     saveDraft: (req: ComposeInput): Promise<void> => SaveDraft(main.ComposeRequest.createFrom(req)),
     outboxCount: (): Promise<number> => OutboxCount(),
+    listOutbox: (): Promise<OutboxItem[]> => ListOutbox(),
+    cancelOutboxItem: (id: string): Promise<void> => CancelOutboxItem(id),
     pickAttachments: (): Promise<string[]> => PickAttachments(),
     replayOutbox: (): Promise<number> => ReplayOutbox(),
 }
