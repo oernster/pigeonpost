@@ -17,6 +17,7 @@ interface MessageContextMenuProps {
     onCopy: (message: Message, destFolderId: string) => void
     onSetTag: (messageId: string, tagId: string, assigned: boolean) => void
     onSaveAs: (message: Message) => void
+    onPrint: (message: Message) => void
     onDelete: (message: Message) => void
     onDeletePermanent: (message: Message) => void
 }
@@ -115,6 +116,9 @@ export function MessageContextMenu(props: MessageContextMenuProps) {
             <div className="context-sep"/>
             <button className="context-item" role="menuitem" onClick={act(() => props.onSaveAs(message))}>
                 Save as...
+            </button>
+            <button className="context-item" role="menuitem" onClick={act(() => props.onPrint(message))}>
+                Print...
             </button>
             <div className="context-sep"/>
             <button className="context-item" role="menuitem" onClick={act(() => props.onToggleRead(message))}>

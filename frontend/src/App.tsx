@@ -35,6 +35,29 @@ function emlFilename(subject: string): string {
     return `${cleaned || 'message'}.eml`
 }
 
+// printFrameId identifies the hidden iframe used for printing, so a previous one is removed before a
+// new print rather than accumulating frames.
+const printFrameId = 'pp-print-frame'
+
+// printDocument renders a standalone HTML document for printing one message: a short header (subject,
+// sender, date) followed by the message body. The body HTML is already sanitised server-side, so it is
+// safe to inline here as it is in the reader.
+function printDocument(subject: string, sender: string, date: string, contentHtml: string): string {
+    const head =
+        '<!doctype html><html><head><meta charset="utf-8">' +
+        `<title>${subject}</title>` +
+        '<style>body{font-family:sans-serif;color:#000;padding:24px}' +
+        '.print-head{margin-bottom:16px;border-bottom:1px solid #ccc;padding-bottom:8px}' +
+        '.print-subject{font-size:20px;font-weight:600;margin-bottom:6px}' +
+        '.print-meta{color:#444;font-size:13px}img{max-width:100%}</style></head><body>'
+    const header =
+        `<div class="print-head"><div class="print-subject">${subject}</div>` +
+        `<div class="print-meta">From: ${sender}</div>` +
+        (date ? `<div class="print-meta">Date: ${date}</div>` : '') +
+        '</div>'
+    return `${head}${header}${contentHtml}</body></html>`
+}
+
 // neighbourAfterRemoval returns the message that selection should land on once the message with
 // removedId is deleted from list: the following message, or the preceding one when it was last, or
 // null when it was the only message. This keeps keyboard triage moving without a manual re-select.
@@ -423,6 +446,39 @@ function App() {
     const saveMessageAs = useCallback(async (message: Message) => {
         try {
             await api.saveMessageAs(message.id, emlFilename(message.subject || ''))
+        } catch (e) {
+            setError(String(e))
+        }
+    }, [])
+
+    // printMessage prints one message by rendering it into a hidden iframe and invoking the browser's
+    // print dialog on that frame, so only the message (not the whole app window) is printed. Remote
+    // images, parked in the reader for privacy, are restored for the printed copy.
+    const printMessage = useCallback(async (message: Message) => {
+        try {
+            const body = await api.messageBody(message.id)
+            const html = body.html?.trim() ? body.html.replace(/data-pp-src=/g, 'src=') : ''
+            const content = html || `<pre>${escapeHtml(body.plain || message.snippet || '')}</pre>`
+            const sender = escapeHtml(message.fromName || message.fromAddress || '(unknown sender)')
+            const when = message.date ? escapeHtml(new Date(message.date).toLocaleString()) : ''
+            const doc = printDocument(escapeHtml(message.subject || '(no subject)'), sender, when, content)
+
+            document.getElementById(printFrameId)?.remove()
+            const frame = document.createElement('iframe')
+            frame.id = printFrameId
+            frame.setAttribute('aria-hidden', 'true')
+            frame.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0'
+            frame.onload = () => {
+                const win = frame.contentWindow
+                if (!win) {
+                    return
+                }
+                win.onafterprint = () => frame.remove()
+                win.focus()
+                win.print()
+            }
+            document.body.appendChild(frame)
+            frame.srcdoc = doc
         } catch (e) {
             setError(String(e))
         }
@@ -820,6 +876,7 @@ function App() {
                     onCopy={(m, dest) => void copyMessage(m, dest)}
                     onSetTag={(id, tagId, assigned) => void setMessageTagById(id, tagId, assigned)}
                     onSaveAs={(m) => void saveMessageAs(m)}
+                    onPrint={(m) => void printMessage(m)}
                     onDelete={requestDelete}
                     onDeletePermanent={(m) => setMessageToPurge(m)}
                 />
