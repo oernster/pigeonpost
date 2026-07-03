@@ -461,6 +461,40 @@ func (f *fakeMailActions) Copy(_ context.Context, _ domain.Account, _ domain.Fol
 	return nil
 }
 
+// fakeFolderActions is a hand-written FolderActions recording the folder operations it was asked for.
+type fakeFolderActions struct {
+	createErr error
+	renameErr error
+	deleteErr error
+	created   []string
+	renamed   [][2]string
+	deleted   []string
+}
+
+func (f *fakeFolderActions) CreateFolder(_ context.Context, _ domain.Account, path string) error {
+	if f.createErr != nil {
+		return f.createErr
+	}
+	f.created = append(f.created, path)
+	return nil
+}
+
+func (f *fakeFolderActions) RenameFolder(_ context.Context, _ domain.Account, oldPath, newPath string) error {
+	if f.renameErr != nil {
+		return f.renameErr
+	}
+	f.renamed = append(f.renamed, [2]string{oldPath, newPath})
+	return nil
+}
+
+func (f *fakeFolderActions) DeleteFolder(_ context.Context, _ domain.Account, path string) error {
+	if f.deleteErr != nil {
+		return f.deleteErr
+	}
+	f.deleted = append(f.deleted, path)
+	return nil
+}
+
 // fakeMailTransport is a hand-written MailTransport that records sent messages.
 type fakeMailTransport struct {
 	sendErr error

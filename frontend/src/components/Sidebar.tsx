@@ -10,6 +10,9 @@ interface SidebarProps {
     onSelectFolder: (id: string) => void
     onEditAccount: (account: Account) => void
     onDeleteAccount: (account: Account) => void
+    onNewFolder: () => void
+    onRenameFolder: (folder: Folder) => void
+    onDeleteFolder: (folder: Folder) => void
 }
 
 const folderIcon: Record<string, string> = {
@@ -86,7 +89,17 @@ function SidebarContent(props: SidebarProps) {
 
             {selectedAccount && (
                 <>
-                    <div className="section-label">Folders</div>
+                    <div className="section-header">
+                        <span className="section-label">Folders</span>
+                        <button
+                            className="section-action"
+                            title="New folder"
+                            aria-label="New folder"
+                            onClick={props.onNewFolder}
+                        >
+                            &#43;
+                        </button>
+                    </div>
                     {folders.length === 0 ? (
                         <p className="empty-body indented">No folders cached. Press Sync to fetch them.</p>
                     ) : (
@@ -102,6 +115,32 @@ function SidebarContent(props: SidebarProps) {
                                         {folder.name}
                                     </span>
                                     {folder.unread > 0 && <span className="badge">{folder.unread}</span>}
+                                    {folder.kind === 'custom' && (
+                                        <span className="account-actions">
+                                            <button
+                                                className="account-action"
+                                                aria-label={`Rename ${folder.name}`}
+                                                title="Rename folder"
+                                                onClick={(e) => {
+                                                    e.stopPropagation()
+                                                    props.onRenameFolder(folder)
+                                                }}
+                                            >
+                                                &#9998;
+                                            </button>
+                                            <button
+                                                className="account-action delete"
+                                                aria-label={`Delete ${folder.name}`}
+                                                title="Delete folder"
+                                                onClick={(e) => {
+                                                    e.stopPropagation()
+                                                    props.onDeleteFolder(folder)
+                                                }}
+                                            >
+                                                &times;
+                                            </button>
+                                        </span>
+                                    )}
                                 </li>
                             ))}
                         </ul>

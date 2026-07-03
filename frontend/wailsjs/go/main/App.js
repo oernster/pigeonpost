@@ -62,6 +62,18 @@ export function CopyMessage(arg1, arg2) {
   return window['go']['main']['App']['CopyMessage'](arg1, arg2);
 }
 
+export function CreateFolder(arg1, arg2) {
+  return window['go']['main']['App']['CreateFolder'](arg1, arg2);
+}
+
+export function RenameFolder(arg1, arg2) {
+  return window['go']['main']['App']['RenameFolder'](arg1, arg2);
+}
+
+export function DeleteFolder(arg1) {
+  return window['go']['main']['App']['DeleteFolder'](arg1);
+}
+
 export function MoveMessage(arg1, arg2) {
   return window['go']['main']['App']['MoveMessage'](arg1, arg2);
 }

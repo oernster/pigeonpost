@@ -70,8 +70,9 @@ func run() error {
 	tagService := application.NewTagService(store)
 	bodyService := application.NewMessageBodyService(store, store, source)
 	actionService := application.NewMessageActionService(store, store, source)
+	folderService := application.NewFolderService(store, store, source, source)
 
-	app := NewApp(store.Close, accountService, setupService, mailboxService, syncService, composeService, tagService, bodyService, actionService)
+	app := NewApp(store.Close, accountService, setupService, mailboxService, syncService, composeService, tagService, bodyService, actionService, folderService)
 
 	err = wails.Run(&options.App{
 		Title:            appName + " " + version(),

@@ -97,3 +97,21 @@ func TestFolderWithCounts(t *testing.T) {
 		t.Errorf("invalid WithCounts error = %v", err)
 	}
 }
+
+func TestFolderRenamedTo(t *testing.T) {
+	nested, err := NewFolder("id", "a1", "Parent/Old", FolderCustom, 0, 0)
+	if err != nil {
+		t.Fatalf("build nested folder: %v", err)
+	}
+	if got := nested.RenamedTo("New"); got != "Parent/New" {
+		t.Errorf("nested RenamedTo = %q, want Parent/New", got)
+	}
+
+	top, err := NewFolder("id2", "a1", "Old", FolderCustom, 0, 0)
+	if err != nil {
+		t.Fatalf("build top folder: %v", err)
+	}
+	if got := top.RenamedTo("New"); got != "New" {
+		t.Errorf("top-level RenamedTo = %q, want New", got)
+	}
+}

@@ -19,6 +19,7 @@ type App struct {
 	tags     *application.TagService
 	body     *application.MessageBodyService
 	actions  *application.MessageActionService
+	folders  *application.FolderService
 }
 
 // NewApp constructs the facade with its injected use-case services and a closer for shutdown.
@@ -32,6 +33,7 @@ func NewApp(
 	tags *application.TagService,
 	body *application.MessageBodyService,
 	actions *application.MessageActionService,
+	folders *application.FolderService,
 ) *App {
 	return &App{
 		closer:   closer,
@@ -43,6 +45,7 @@ func NewApp(
 		tags:     tags,
 		body:     body,
 		actions:  actions,
+		folders:  folders,
 	}
 }
 
@@ -137,4 +140,19 @@ func (a *App) MoveMessage(messageID, destFolderID string) error {
 // CopyMessage duplicates a message into another folder in the same account, leaving the original.
 func (a *App) CopyMessage(messageID, destFolderID string) error {
 	return a.actions.Copy(a.ctx, messageID, destFolderID)
+}
+
+// CreateFolder creates a new mailbox on the account's server and refreshes the cached folder list.
+func (a *App) CreateFolder(accountID, name string) error {
+	return a.folders.Create(a.ctx, accountID, name)
+}
+
+// RenameFolder renames a folder on the server and refreshes the cached folder list.
+func (a *App) RenameFolder(folderID, newName string) error {
+	return a.folders.Rename(a.ctx, folderID, newName)
+}
+
+// DeleteFolder deletes a folder on the server, clears its cached messages and refreshes the list.
+func (a *App) DeleteFolder(folderID string) error {
+	return a.folders.Delete(a.ctx, folderID)
 }

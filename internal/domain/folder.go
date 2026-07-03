@@ -117,6 +117,15 @@ func (f Folder) Unread() int { return f.unread }
 // Total returns the cached total message count.
 func (f Folder) Total() int { return f.total }
 
+// RenamedTo returns the full path this folder would have if its leaf name were changed to newLeaf,
+// keeping the same parent hierarchy. It builds the destination path for a server-side rename.
+func (f Folder) RenamedTo(newLeaf string) string {
+	if idx := strings.LastIndex(f.path, folderPathSeparator); idx >= 0 {
+		return f.path[:idx+len(folderPathSeparator)] + newLeaf
+	}
+	return newLeaf
+}
+
 // WithCounts returns a copy with new unread and total counts, validated.
 func (f Folder) WithCounts(unread, total int) (Folder, error) {
 	if err := validateCounts(unread, total); err != nil {

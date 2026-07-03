@@ -242,6 +242,46 @@ func (s *Source) Copy(ctx context.Context, account domain.Account, folder domain
 	return nil
 }
 
+// CreateFolder creates a mailbox at path on the server. It satisfies application.FolderActions.
+func (s *Source) CreateFolder(ctx context.Context, account domain.Account, path string) error {
+	client, err := s.connect(ctx, account)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = client.Logout().Wait() }()
+	if err := client.Create(path, nil).Wait(); err != nil {
+		return fmt.Errorf("imap: create mailbox %q: %w", path, err)
+	}
+	return nil
+}
+
+// RenameFolder renames the mailbox at oldPath to newPath on the server. It satisfies
+// application.FolderActions.
+func (s *Source) RenameFolder(ctx context.Context, account domain.Account, oldPath, newPath string) error {
+	client, err := s.connect(ctx, account)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = client.Logout().Wait() }()
+	if err := client.Rename(oldPath, newPath, nil).Wait(); err != nil {
+		return fmt.Errorf("imap: rename mailbox %q to %q: %w", oldPath, newPath, err)
+	}
+	return nil
+}
+
+// DeleteFolder deletes the mailbox at path on the server. It satisfies application.FolderActions.
+func (s *Source) DeleteFolder(ctx context.Context, account domain.Account, path string) error {
+	client, err := s.connect(ctx, account)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = client.Logout().Wait() }()
+	if err := client.Delete(path).Wait(); err != nil {
+		return fmt.Errorf("imap: delete mailbox %q: %w", path, err)
+	}
+	return nil
+}
+
 // SaveDraft appends a message to the account's Drafts mailbox, flagged \Draft and \Seen, so it is
 // available from any device. It satisfies application.DraftSaver. The message is rendered to RFC 5322
 // bytes with a generated Date and Message-ID so the draft is a well-formed message on the server.

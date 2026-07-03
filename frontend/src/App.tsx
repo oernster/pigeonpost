@@ -12,6 +12,7 @@ import {LicenceModal} from './components/LicenceModal'
 import {ComposeInitial, ComposeModal} from './components/ComposeModal'
 import {AccountSetupModal} from './components/AccountSetupModal'
 import {ConfirmDialog} from './components/ConfirmDialog'
+import {PromptDialog} from './components/PromptDialog'
 import {TagManagerModal} from './components/TagManagerModal'
 import {Splash} from './components/Splash'
 
@@ -43,6 +44,9 @@ function App() {
     const [settingUp, setSettingUp] = useState<boolean>(false)
     const [accountToEdit, setAccountToEdit] = useState<Account | null>(null)
     const [accountToDelete, setAccountToDelete] = useState<Account | null>(null)
+    const [folderPrompt, setFolderPrompt] = useState<{mode: 'create' | 'rename'; folder?: Folder} | null>(null)
+    const [folderToDelete, setFolderToDelete] = useState<Folder | null>(null)
+    const [folderBusy, setFolderBusy] = useState<boolean>(false)
     const [deleting, setDeleting] = useState<boolean>(false)
     const [tags, setTags] = useState<Tag[]>([])
     const [messageTags, setMessageTags] = useState<Tag[]>([])
@@ -331,6 +335,56 @@ function App() {
         }
     }, [])
 
+    const refreshFolders = useCallback(async () => {
+        if (selectedAccount) {
+            setFolders(await api.listFolders(selectedAccount))
+        }
+    }, [selectedAccount])
+
+    // submitFolderPrompt handles both create and rename from the shared PromptDialog.
+    const submitFolderPrompt = useCallback(async (value: string) => {
+        if (!folderPrompt) {
+            return
+        }
+        setFolderBusy(true)
+        setError('')
+        try {
+            if (folderPrompt.mode === 'create') {
+                await api.createFolder(selectedAccount, value)
+            } else if (folderPrompt.folder) {
+                await api.renameFolder(folderPrompt.folder.id, value)
+            }
+            await refreshFolders()
+            setFolderPrompt(null)
+        } catch (e) {
+            setError(String(e))
+        } finally {
+            setFolderBusy(false)
+        }
+    }, [folderPrompt, selectedAccount, refreshFolders])
+
+    const confirmDeleteFolder = useCallback(async () => {
+        if (!folderToDelete) {
+            return
+        }
+        setFolderBusy(true)
+        setError('')
+        try {
+            await api.deleteFolder(folderToDelete.id)
+            if (folderToDelete.id === selectedFolder) {
+                setSelectedFolder('')
+                setMessages([])
+                setSelectedMessage(null)
+            }
+            await refreshFolders()
+            setFolderToDelete(null)
+        } catch (e) {
+            setError(String(e))
+        } finally {
+            setFolderBusy(false)
+        }
+    }, [folderToDelete, selectedFolder, refreshFolders])
+
     // quoteFor returns the quoted original for reply/forward: the fetched HTML body when available,
     // otherwise the plain text (or snippet) escaped into a paragraph.
     const quoteFor = (message: Message): string => {
@@ -482,6 +536,9 @@ function App() {
                     onSelectFolder={(id) => void selectFolder(id)}
                     onEditAccount={(account) => setAccountToEdit(account)}
                     onDeleteAccount={(account) => setAccountToDelete(account)}
+                    onNewFolder={() => setFolderPrompt({mode: 'create'})}
+                    onRenameFolder={(folder) => setFolderPrompt({mode: 'rename', folder})}
+                    onDeleteFolder={(folder) => setFolderToDelete(folder)}
                 />
                 <MessageList
                     messages={searchActive ? searchResults : messages}
@@ -556,6 +613,27 @@ function App() {
                     busy={deleting}
                     onConfirm={() => void removeAccount()}
                     onCancel={() => setAccountToDelete(null)}
+                />
+            )}
+            {folderPrompt && (
+                <PromptDialog
+                    title={folderPrompt.mode === 'create' ? 'New folder' : 'Rename folder'}
+                    label={folderPrompt.mode === 'create' ? 'Folder name' : 'New name'}
+                    initialValue={folderPrompt.mode === 'rename' ? folderPrompt.folder?.name : ''}
+                    confirmLabel={folderPrompt.mode === 'create' ? 'Create' : 'Rename'}
+                    busy={folderBusy}
+                    onSubmit={(value) => void submitFolderPrompt(value)}
+                    onCancel={() => setFolderPrompt(null)}
+                />
+            )}
+            {folderToDelete && (
+                <ConfirmDialog
+                    title="Delete folder"
+                    message={`Delete the folder "${folderToDelete.name}" on the server? Its messages are removed from this device. This cannot be undone.`}
+                    confirmLabel="Delete folder"
+                    busy={folderBusy}
+                    onConfirm={() => void confirmDeleteFolder()}
+                    onCancel={() => setFolderToDelete(null)}
                 />
             )}
         </div>

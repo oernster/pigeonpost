@@ -85,6 +85,14 @@ type MailTransport interface {
 	Send(ctx context.Context, account domain.Account, msg domain.OutgoingMessage) error
 }
 
+// FolderActions creates, renames and deletes mailboxes on a remote server. It is separate from the
+// message-level MailActions because it changes the folder structure rather than messages.
+type FolderActions interface {
+	CreateFolder(ctx context.Context, account domain.Account, path string) error
+	RenameFolder(ctx context.Context, account domain.Account, oldPath, newPath string) error
+	DeleteFolder(ctx context.Context, account domain.Account, path string) error
+}
+
 // DraftSaver appends a message to an account's Drafts mailbox on the server, flagged \Draft, so the
 // draft is available from any device. It is separate from MailTransport because saving a draft does
 // not send anything.

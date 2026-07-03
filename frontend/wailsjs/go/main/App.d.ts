@@ -32,6 +32,12 @@ export function MessageTags(arg1:string):Promise<Array<main.TagDTO>>;
 
 export function CopyMessage(arg1:string,arg2:string):Promise<void>;
 
+export function CreateFolder(arg1:string,arg2:string):Promise<void>;
+
+export function RenameFolder(arg1:string,arg2:string):Promise<void>;
+
+export function DeleteFolder(arg1:string):Promise<void>;
+
 export function MoveMessage(arg1:string,arg2:string):Promise<void>;
 
 export function OpenExternal(arg1:string):Promise<void>;
