@@ -16,17 +16,21 @@ func mustAddr(t *testing.T, address string) EmailAddress {
 
 func TestNewOutgoingMessage(t *testing.T) {
 	msg, err := NewOutgoingMessage(OutgoingMessageInput{
-		From:    mustAddr(t, "me@example.com"),
-		To:      []EmailAddress{mustAddr(t, "a@example.com"), mustAddr(t, "b@example.com")},
-		Cc:      []EmailAddress{mustAddr(t, "c@example.com")},
-		Subject: "  Hello  ",
-		Body:    "Body text",
+		From:     mustAddr(t, "me@example.com"),
+		To:       []EmailAddress{mustAddr(t, "a@example.com"), mustAddr(t, "b@example.com")},
+		Cc:       []EmailAddress{mustAddr(t, "c@example.com")},
+		Subject:  "  Hello  ",
+		Body:     "Body text",
+		HTMLBody: "<p>Body text</p>",
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if msg.From().Address() != "me@example.com" {
 		t.Errorf("From = %q", msg.From().Address())
+	}
+	if msg.HTMLBody() != "<p>Body text</p>" {
+		t.Errorf("HTMLBody = %q", msg.HTMLBody())
 	}
 	if len(msg.To()) != 2 || len(msg.Cc()) != 1 {
 		t.Errorf("recipients wrong: to=%d cc=%d", len(msg.To()), len(msg.Cc()))

@@ -26,16 +26,25 @@ func NewSource(passwords PasswordProvider) *Source {
 	return &Source{passwords: passwords}
 }
 
+// connect dials and logs in using the account's stored keychain password. It is used by the fetch
+// operations, which run against a saved account.
 func (s *Source) connect(ctx context.Context, account domain.Account) (*imapclient.Client, error) {
-	incoming := account.Incoming()
-	address := fmt.Sprintf("%s:%d", incoming.Host(), incoming.Port())
-
 	password, err := s.passwords.Password(ctx, account)
 	if err != nil {
 		return nil, fmt.Errorf("imap: password for %q: %w", account.ID(), err)
 	}
+	return s.login(account, password)
+}
 
-	var client *imapclient.Client
+// login dials the account's incoming server and authenticates with the given password.
+func (s *Source) login(account domain.Account, password string) (*imapclient.Client, error) {
+	incoming := account.Incoming()
+	address := fmt.Sprintf("%s:%d", incoming.Host(), incoming.Port())
+
+	var (
+		client *imapclient.Client
+		err    error
+	)
 	switch incoming.Security() {
 	case domain.SecurityStartTLS:
 		client, err = imapclient.DialStartTLS(address, nil)
@@ -53,6 +62,20 @@ func (s *Source) connect(ctx context.Context, account domain.Account) (*imapclie
 		return nil, fmt.Errorf("imap: login %q: %w", account.ID(), err)
 	}
 	return client, nil
+}
+
+// Verify proves a candidate password against the account's incoming server by logging in and out
+// again. It satisfies application.AccountVerifier and runs before an account is persisted, so the
+// keychain is never written with an unverified secret.
+func (s *Source) Verify(_ context.Context, account domain.Account, password string) error {
+	client, err := s.login(account, password)
+	if err != nil {
+		return err
+	}
+	if err := client.Logout().Wait(); err != nil {
+		return fmt.Errorf("imap: logout %q: %w", account.ID(), err)
+	}
+	return nil
 }
 
 // FetchFolders lists the selectable mailboxes on the server for an account.
@@ -80,6 +103,144 @@ func (s *Source) FetchFolders(ctx context.Context, account domain.Account) ([]do
 		folders = append(folders, folder)
 	}
 	return folders, nil
+}
+
+// SetSeen sets or clears the \Seen flag for one message by UID on the server. It satisfies
+// application.MailActions. The mailbox is selected read-write so the STORE is permitted.
+func (s *Source) SetSeen(ctx context.Context, account domain.Account, folder domain.Folder, uid uint32, seen bool) error {
+	client, err := s.connect(ctx, account)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = client.Logout().Wait() }()
+
+	if _, err := client.Select(folder.Path(), nil).Wait(); err != nil {
+		return fmt.Errorf("imap: select %q: %w", folder.Path(), err)
+	}
+
+	uidSet := imap.UIDSet{}
+	uidSet.AddNum(imap.UID(uid))
+	op := imap.StoreFlagsDel
+	if seen {
+		op = imap.StoreFlagsAdd
+	}
+	store := &imap.StoreFlags{Op: op, Silent: true, Flags: []imap.Flag{imap.FlagSeen}}
+	if err := client.Store(uidSet, store, nil).Close(); err != nil {
+		return fmt.Errorf("imap: store \\Seen uid %d: %w", uid, err)
+	}
+	return nil
+}
+
+// SetFlagged sets or clears the \Flagged flag for one message by UID on the server. It satisfies
+// application.MailActions.
+func (s *Source) SetFlagged(ctx context.Context, account domain.Account, folder domain.Folder, uid uint32, flagged bool) error {
+	client, err := s.connect(ctx, account)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = client.Logout().Wait() }()
+
+	if _, err := client.Select(folder.Path(), nil).Wait(); err != nil {
+		return fmt.Errorf("imap: select %q: %w", folder.Path(), err)
+	}
+
+	uidSet := imap.UIDSet{}
+	uidSet.AddNum(imap.UID(uid))
+	op := imap.StoreFlagsDel
+	if flagged {
+		op = imap.StoreFlagsAdd
+	}
+	store := &imap.StoreFlags{Op: op, Silent: true, Flags: []imap.Flag{imap.FlagFlagged}}
+	if err := client.Store(uidSet, store, nil).Close(); err != nil {
+		return fmt.Errorf("imap: store \\Flagged uid %d: %w", uid, err)
+	}
+	return nil
+}
+
+// Delete removes a message by UID: it moves it to trashPath when that is set, otherwise marks it
+// \Deleted and expunges it permanently. It satisfies application.MailActions.
+func (s *Source) Delete(ctx context.Context, account domain.Account, folder domain.Folder, uid uint32, trashPath string) error {
+	client, err := s.connect(ctx, account)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = client.Logout().Wait() }()
+
+	if _, err := client.Select(folder.Path(), nil).Wait(); err != nil {
+		return fmt.Errorf("imap: select %q: %w", folder.Path(), err)
+	}
+
+	uidSet := imap.UIDSet{}
+	uidSet.AddNum(imap.UID(uid))
+
+	if trashPath != "" {
+		if _, err := client.Move(uidSet, trashPath).Wait(); err != nil {
+			return fmt.Errorf("imap: move uid %d to %q: %w", uid, trashPath, err)
+		}
+		return nil
+	}
+
+	store := &imap.StoreFlags{Op: imap.StoreFlagsAdd, Silent: true, Flags: []imap.Flag{imap.FlagDeleted}}
+	if err := client.Store(uidSet, store, nil).Close(); err != nil {
+		return fmt.Errorf("imap: mark \\Deleted uid %d: %w", uid, err)
+	}
+	if err := client.Expunge().Close(); err != nil {
+		return fmt.Errorf("imap: expunge uid %d: %w", uid, err)
+	}
+	return nil
+}
+
+// Move relocates a message by UID from its folder to destPath on the server. It satisfies
+// application.MailActions.
+func (s *Source) Move(ctx context.Context, account domain.Account, folder domain.Folder, uid uint32, destPath string) error {
+	client, err := s.connect(ctx, account)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = client.Logout().Wait() }()
+
+	if _, err := client.Select(folder.Path(), nil).Wait(); err != nil {
+		return fmt.Errorf("imap: select %q: %w", folder.Path(), err)
+	}
+
+	uidSet := imap.UIDSet{}
+	uidSet.AddNum(imap.UID(uid))
+	if _, err := client.Move(uidSet, destPath).Wait(); err != nil {
+		return fmt.Errorf("imap: move uid %d to %q: %w", uid, destPath, err)
+	}
+	return nil
+}
+
+// FetchBody fetches and parses the full body of one message by UID, returning its plain-text and HTML
+// forms. It satisfies application.MailSource.
+func (s *Source) FetchBody(ctx context.Context, account domain.Account, folder domain.Folder, uid uint32) (string, string, error) {
+	client, err := s.connect(ctx, account)
+	if err != nil {
+		return "", "", err
+	}
+	defer func() { _ = client.Logout().Wait() }()
+
+	if _, err := client.Select(folder.Path(), &imap.SelectOptions{ReadOnly: true}).Wait(); err != nil {
+		return "", "", fmt.Errorf("imap: select %q: %w", folder.Path(), err)
+	}
+
+	uidSet := imap.UIDSet{}
+	uidSet.AddNum(imap.UID(uid))
+	section := &imap.FetchItemBodySection{}
+	options := &imap.FetchOptions{UID: true, BodySection: []*imap.FetchItemBodySection{section}}
+
+	buffers, err := client.Fetch(uidSet, options).Collect()
+	if err != nil {
+		return "", "", fmt.Errorf("imap: fetch body uid %d: %w", uid, err)
+	}
+	if len(buffers) == 0 {
+		return "", "", nil
+	}
+	raw := buffers[0].FindBodySection(section)
+	if raw == nil {
+		return "", "", nil
+	}
+	return parseBody(raw)
 }
 
 // FetchMessages returns the header-level summaries for every message in a folder.

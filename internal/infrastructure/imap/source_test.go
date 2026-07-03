@@ -47,6 +47,9 @@ func TestSourceLive(t *testing.T) {
 	}
 
 	source := NewSource(staticPassword{secret: password})
+	if err := source.Verify(context.Background(), account, password); err != nil {
+		t.Fatalf("verify: %v", err)
+	}
 	folders, err := source.FetchFolders(context.Background(), account)
 	if err != nil {
 		t.Fatalf("fetch folders: %v", err)

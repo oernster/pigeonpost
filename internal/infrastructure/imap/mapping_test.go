@@ -141,3 +141,86 @@ func TestHasAttr(t *testing.T) {
 		t.Error("did not expect Sent")
 	}
 }
+
+func TestParseBodyMultipartAlternative(t *testing.T) {
+	raw := "From: a@b.com\r\n" +
+		"To: c@d.com\r\n" +
+		"Subject: Test\r\n" +
+		"MIME-Version: 1.0\r\n" +
+		"Content-Type: multipart/alternative; boundary=\"bd\"\r\n" +
+		"\r\n" +
+		"--bd\r\n" +
+		"Content-Type: text/plain; charset=utf-8\r\n" +
+		"\r\n" +
+		"Hello plain\r\n" +
+		"--bd\r\n" +
+		"Content-Type: text/html; charset=utf-8\r\n" +
+		"\r\n" +
+		"<p>Hello <b>html</b></p>\r\n" +
+		"--bd--\r\n"
+
+	plain, html, err := parseBody([]byte(raw))
+	if err != nil {
+		t.Fatalf("parseBody: %v", err)
+	}
+	if !strings.Contains(plain, "Hello plain") {
+		t.Errorf("plain = %q, want it to contain Hello plain", plain)
+	}
+	if !strings.Contains(html, "<b>html</b>") {
+		t.Errorf("html = %q, want it to contain the html part", html)
+	}
+}
+
+func TestParseBodyHTMLOnlyDerivesPlain(t *testing.T) {
+	raw := "From: a@b.com\r\n" +
+		"To: c@d.com\r\n" +
+		"Subject: Test\r\n" +
+		"MIME-Version: 1.0\r\n" +
+		"Content-Type: text/html; charset=utf-8\r\n" +
+		"\r\n" +
+		"<p>Line one</p><p>Line two</p>\r\n"
+
+	plain, html, err := parseBody([]byte(raw))
+	if err != nil {
+		t.Fatalf("parseBody: %v", err)
+	}
+	if !strings.Contains(html, "Line one") {
+		t.Errorf("html = %q", html)
+	}
+	if !strings.Contains(plain, "Line one") || !strings.Contains(plain, "Line two") {
+		t.Errorf("derived plain = %q, want both lines", plain)
+	}
+}
+
+func TestHTMLToTextDropsScriptAndBreaks(t *testing.T) {
+	out := htmlToText("<p>A</p><script>evil()</script><p>B<br>C</p>")
+	if strings.Contains(out, "evil") {
+		t.Errorf("script content leaked into %q", out)
+	}
+	for _, want := range []string{"A", "B", "C"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("output %q missing %q", out, want)
+		}
+	}
+}
+
+func TestParseBodySanitizesHTML(t *testing.T) {
+	raw := "MIME-Version: 1.0\r\n" +
+		"Content-Type: text/html; charset=utf-8\r\n" +
+		"\r\n" +
+		`<p>Safe <b>text</b></p><script>alert('xss')</script>` +
+		`<a href="javascript:evil()">bad</a><img src="http://x/pixel.gif" onerror="steal()">` + "\r\n"
+
+	_, html, err := parseBody([]byte(raw))
+	if err != nil {
+		t.Fatalf("parseBody: %v", err)
+	}
+	for _, banned := range []string{"<script", "javascript:", "onerror", "alert("} {
+		if strings.Contains(strings.ToLower(html), banned) {
+			t.Errorf("sanitised html still contains %q: %s", banned, html)
+		}
+	}
+	if !strings.Contains(html, "Safe") || !strings.Contains(html, "<b>text</b>") {
+		t.Errorf("sanitiser removed safe formatting: %s", html)
+	}
+}

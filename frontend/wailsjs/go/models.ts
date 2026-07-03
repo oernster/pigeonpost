@@ -61,6 +61,12 @@ export namespace main {
 	    displayName: string;
 	    email: string;
 	    protocol: string;
+	    inHost: string;
+	    inPort: number;
+	    inSecurity: string;
+	    outHost: string;
+	    outPort: number;
+	    outSecurity: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new AccountDTO(source);
@@ -72,6 +78,40 @@ export namespace main {
 	        this.displayName = source["displayName"];
 	        this.email = source["email"];
 	        this.protocol = source["protocol"];
+	        this.inHost = source["inHost"];
+	        this.inPort = source["inPort"];
+	        this.inSecurity = source["inSecurity"];
+	        this.outHost = source["outHost"];
+	        this.outPort = source["outPort"];
+	        this.outSecurity = source["outSecurity"];
+	    }
+	}
+	export class AccountSetupRequest {
+	    displayName: string;
+	    email: string;
+	    password: string;
+	    inHost: string;
+	    inPort: number;
+	    inSecurity: string;
+	    outHost: string;
+	    outPort: number;
+	    outSecurity: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new AccountSetupRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.displayName = source["displayName"];
+	        this.email = source["email"];
+	        this.password = source["password"];
+	        this.inHost = source["inHost"];
+	        this.inPort = source["inPort"];
+	        this.inSecurity = source["inSecurity"];
+	        this.outHost = source["outHost"];
+	        this.outPort = source["outPort"];
+	        this.outSecurity = source["outSecurity"];
 	    }
 	}
 	export class ComposeRequest {
@@ -80,6 +120,7 @@ export namespace main {
 	    cc: string[];
 	    subject: string;
 	    body: string;
+	    htmlBody: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new ComposeRequest(source);
@@ -92,6 +133,7 @@ export namespace main {
 	        this.cc = source["cc"];
 	        this.subject = source["subject"];
 	        this.body = source["body"];
+	        this.htmlBody = source["htmlBody"];
 	    }
 	}
 	
@@ -119,6 +161,20 @@ export namespace main {
 	        this.total = source["total"];
 	    }
 	}
+	export class MessageBodyDTO {
+	    plain: string;
+	    html: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new MessageBodyDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.plain = source["plain"];
+	        this.html = source["html"];
+	    }
+	}
 	export class MessageDTO {
 	    id: string;
 	    folderId: string;
@@ -128,6 +184,7 @@ export namespace main {
 	    date: string;
 	    size: number;
 	    read: boolean;
+	    flagged: boolean;
 	    hasAttachments: boolean;
 	    snippet: string;
 	
@@ -145,8 +202,41 @@ export namespace main {
 	        this.date = source["date"];
 	        this.size = source["size"];
 	        this.read = source["read"];
+	        this.flagged = source["flagged"];
 	        this.hasAttachments = source["hasAttachments"];
 	        this.snippet = source["snippet"];
+	    }
+	}
+	export class TagDTO {
+	    id: string;
+	    name: string;
+	    colour: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new TagDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.colour = source["colour"];
+	    }
+	}
+	export class TagRequest {
+	    id: string;
+	    name: string;
+	    colour: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new TagRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.colour = source["colour"];
 	    }
 	}
 

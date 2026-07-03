@@ -11,7 +11,7 @@ import (
 )
 
 // schemaVersion is the current on-disk schema version, tracked via SQLite's PRAGMA user_version.
-const schemaVersion = 1
+const schemaVersion = 4
 
 const driverName = "sqlite"
 
@@ -65,6 +65,46 @@ CREATE VIRTUAL TABLE IF NOT EXISTS message_fts USING fts5(
 );
 `
 
+// schemaV2 adds the coloured-tag tables: tags and their many-to-many link to messages.
+const schemaV2 = `
+CREATE TABLE IF NOT EXISTS tag (
+    id     TEXT PRIMARY KEY,
+    name   TEXT NOT NULL,
+    colour TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS message_tag (
+    message_id TEXT NOT NULL,
+    tag_id     TEXT NOT NULL,
+    PRIMARY KEY (message_id, tag_id)
+);
+CREATE INDEX IF NOT EXISTS idx_message_tag_message ON message_tag(message_id);
+CREATE INDEX IF NOT EXISTS idx_message_tag_tag ON message_tag(tag_id);
+`
+
+// schemaV3 adds the local cache of full message bodies (plain plus original HTML).
+const schemaV3 = `
+CREATE TABLE IF NOT EXISTS message_body (
+    message_id TEXT PRIMARY KEY,
+    plain      TEXT NOT NULL,
+    html       TEXT NOT NULL
+);
+`
+
+// schemaV4 replaces the original contentless message_fts (which could not map matches back to
+// messages) with a queryable FTS5 table keyed by an unindexed message_id, and backfills it from the
+// messages already cached.
+const schemaV4 = `
+DROP TABLE IF EXISTS message_fts;
+CREATE VIRTUAL TABLE message_fts USING fts5(message_id UNINDEXED, subject, snippet, from_address);
+INSERT INTO message_fts(message_id, subject, snippet, from_address)
+    SELECT id, subject, snippet, from_address FROM message;
+`
+
+// migrations is the ordered list of schema steps. Index i upgrades the database from version i to
+// version i+1, so a fresh database applies them all and an existing one applies only what it lacks.
+var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4}
+
 // Store is the SQLite-backed implementation of the application storage ports.
 type Store struct {
 	db *sql.DB
@@ -110,8 +150,10 @@ func (s *Store) migrate(ctx context.Context) error {
 	if version >= schemaVersion {
 		return nil
 	}
-	if _, err := s.db.ExecContext(ctx, schemaV1); err != nil {
-		return fmt.Errorf("apply schema v1: %w", err)
+	for step := version; step < schemaVersion; step++ {
+		if _, err := s.db.ExecContext(ctx, migrations[step]); err != nil {
+			return fmt.Errorf("apply schema step %d: %w", step+1, err)
+		}
 	}
 	// PRAGMA user_version does not accept a bound parameter, so the trusted constant is formatted in.
 	if _, err := s.db.ExecContext(ctx, fmt.Sprintf("PRAGMA user_version = %d;", schemaVersion)); err != nil {

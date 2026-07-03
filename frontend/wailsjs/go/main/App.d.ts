@@ -4,7 +4,15 @@ import {main} from '../models';
 
 export function About():Promise<main.AboutDTO>;
 
+export function AddAccount(arg1:main.AccountSetupRequest):Promise<void>;
+
 export function Author():Promise<string>;
+
+export function DeleteMessage(arg1:string):Promise<void>;
+
+export function DeleteTag(arg1:string):Promise<void>;
+
+export function GetMessageBody(arg1:string):Promise<main.MessageBodyDTO>;
 
 export function LicenceText():Promise<string>;
 
@@ -14,12 +22,32 @@ export function ListFolders(arg1:string):Promise<Array<main.FolderDTO>>;
 
 export function ListMessages(arg1:string):Promise<Array<main.MessageDTO>>;
 
+export function ListTags():Promise<Array<main.TagDTO>>;
+
+export function MarkFlagged(arg1:string,arg2:boolean):Promise<void>;
+
 export function MarkRead(arg1:string,arg2:boolean):Promise<void>;
+
+export function MessageTags(arg1:string):Promise<Array<main.TagDTO>>;
+
+export function MoveMessage(arg1:string,arg2:string):Promise<void>;
+
+export function OpenExternal(arg1:string):Promise<void>;
 
 export function OpenReleasesPage():Promise<void>;
 
+export function RemoveAccount(arg1:string):Promise<void>;
+
+export function SaveTag(arg1:main.TagRequest):Promise<void>;
+
+export function SearchMessages(arg1:string):Promise<Array<main.MessageDTO>>;
+
 export function SendMessage(arg1:main.ComposeRequest):Promise<void>;
 
+export function SetMessageTag(arg1:string,arg2:string,arg3:boolean):Promise<void>;
+
 export function SyncAccount(arg1:string):Promise<void>;
+
+export function UpdateAccount(arg1:main.AccountSetupRequest):Promise<void>;
 
 export function Version():Promise<string>;

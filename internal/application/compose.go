@@ -10,10 +10,11 @@ import (
 // Draft is the user-supplied content of a message to send. The sender is taken from the account, so
 // it is not part of the draft.
 type Draft struct {
-	To      []domain.EmailAddress
-	Cc      []domain.EmailAddress
-	Subject string
-	Body    string
+	To       []domain.EmailAddress
+	Cc       []domain.EmailAddress
+	Subject  string
+	Body     string
+	HTMLBody string
 }
 
 // ComposeService is the use-case boundary for sending mail.
@@ -35,11 +36,12 @@ func (s *ComposeService) Send(ctx context.Context, accountID string, draft Draft
 		return fmt.Errorf("compose: load account %q: %w", accountID, err)
 	}
 	msg, err := domain.NewOutgoingMessage(domain.OutgoingMessageInput{
-		From:    account.Address(),
-		To:      draft.To,
-		Cc:      draft.Cc,
-		Subject: draft.Subject,
-		Body:    draft.Body,
+		From:     account.Address(),
+		To:       draft.To,
+		Cc:       draft.Cc,
+		Subject:  draft.Subject,
+		Body:     draft.Body,
+		HTMLBody: draft.HTMLBody,
 	})
 	if err != nil {
 		return fmt.Errorf("compose: build message: %w", err)

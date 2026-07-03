@@ -5,20 +5,23 @@ import "strings"
 // OutgoingMessage is a validated message ready to be handed to a transport for sending. It is
 // immutable once constructed.
 type OutgoingMessage struct {
-	from    EmailAddress
-	to      []EmailAddress
-	cc      []EmailAddress
-	subject string
-	body    string
+	from     EmailAddress
+	to       []EmailAddress
+	cc       []EmailAddress
+	subject  string
+	body     string
+	htmlBody string
 }
 
-// OutgoingMessageInput carries the fields needed to build an OutgoingMessage.
+// OutgoingMessageInput carries the fields needed to build an OutgoingMessage. Body is the plain-text
+// content and is always present; HTMLBody is optional and, when set, is sent as the rich alternative.
 type OutgoingMessageInput struct {
-	From    EmailAddress
-	To      []EmailAddress
-	Cc      []EmailAddress
-	Subject string
-	Body    string
+	From     EmailAddress
+	To       []EmailAddress
+	Cc       []EmailAddress
+	Subject  string
+	Body     string
+	HTMLBody string
 }
 
 // NewOutgoingMessage validates and constructs a message. It requires a sender and at least one
@@ -39,11 +42,12 @@ func NewOutgoingMessage(in OutgoingMessageInput) (OutgoingMessage, error) {
 		return OutgoingMessage{}, err
 	}
 	return OutgoingMessage{
-		from:    in.From,
-		to:      to,
-		cc:      cc,
-		subject: strings.TrimSpace(in.Subject),
-		body:    in.Body,
+		from:     in.From,
+		to:       to,
+		cc:       cc,
+		subject:  strings.TrimSpace(in.Subject),
+		body:     in.Body,
+		htmlBody: in.HTMLBody,
 	}, nil
 }
 
@@ -72,6 +76,9 @@ func (m OutgoingMessage) Subject() string { return m.subject }
 
 // Body returns the plain-text body.
 func (m OutgoingMessage) Body() string { return m.body }
+
+// HTMLBody returns the optional rich-text (HTML) body. It is empty for a plain-text-only message.
+func (m OutgoingMessage) HTMLBody() string { return m.htmlBody }
 
 // Recipients returns every address the message must be delivered to (To plus Cc).
 func (m OutgoingMessage) Recipients() []EmailAddress {

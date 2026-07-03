@@ -4,7 +4,11 @@ interface MessageListProps {
     messages: Message[]
     selectedMessage: Message | null
     folderSelected: boolean
+    searchQuery: string
+    searchActive: boolean
+    onSearchChange: (query: string) => void
     onSelectMessage: (message: Message) => void
+    onToggleFlag: (message: Message) => void
 }
 
 function formatDate(iso: string): string {
@@ -21,25 +25,19 @@ function formatDate(iso: string): string {
 }
 
 export function MessageList(props: MessageListProps) {
-    const {messages, selectedMessage, folderSelected} = props
+    const {messages, selectedMessage, folderSelected, searchQuery, searchActive} = props
 
-    if (!folderSelected) {
+    const content = () => {
+        if (searchActive) {
+            if (messages.length === 0) {
+                return <div className="empty-state"><p className="empty-body">No messages match your search.</p></div>
+            }
+        } else if (!folderSelected) {
+            return <div className="empty-state"><p className="empty-body">Select a folder to see its messages.</p></div>
+        } else if (messages.length === 0) {
+            return <div className="empty-state"><p className="empty-body">No messages in this folder.</p></div>
+        }
         return (
-            <section className="pane message-list">
-                <div className="empty-state"><p className="empty-body">Select a folder to see its messages.</p></div>
-            </section>
-        )
-    }
-    if (messages.length === 0) {
-        return (
-            <section className="pane message-list">
-                <div className="empty-state"><p className="empty-body">No messages in this folder.</p></div>
-            </section>
-        )
-    }
-
-    return (
-        <section className="pane message-list">
             <ul className="list">
                 {messages.map((message) => (
                     <li
@@ -52,6 +50,18 @@ export function MessageList(props: MessageListProps) {
                         onClick={() => props.onSelectMessage(message)}
                     >
                         <div className="message-row-top">
+                            <button
+                                className={'message-star' + (message.flagged ? ' on' : '')}
+                                aria-label={message.flagged ? 'Remove star' : 'Add star'}
+                                aria-pressed={message.flagged}
+                                title={message.flagged ? 'Starred' : 'Star'}
+                                onClick={(e) => {
+                                    e.stopPropagation()
+                                    props.onToggleFlag(message)
+                                }}
+                            >
+                                {message.flagged ? '★' : '☆'}
+                            </button>
                             <span className="message-from">
                                 {message.fromName || message.fromAddress || '(unknown sender)'}
                             </span>
@@ -65,6 +75,26 @@ export function MessageList(props: MessageListProps) {
                     </li>
                 ))}
             </ul>
+        )
+    }
+
+    return (
+        <section className="pane message-list">
+            <div className="message-search">
+                <input
+                    className="message-search-input"
+                    value={searchQuery}
+                    placeholder="Search mail…"
+                    aria-label="Search mail"
+                    onChange={(e) => props.onSearchChange(e.target.value)}
+                />
+                {searchQuery !== '' && (
+                    <button className="message-search-clear" aria-label="Clear search" onClick={() => props.onSearchChange('')}>
+                        &times;
+                    </button>
+                )}
+            </div>
+            <div className="message-list-scroll">{content()}</div>
         </section>
     )
 }

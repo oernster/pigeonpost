@@ -34,8 +34,9 @@ func (v *Vault) Password(_ context.Context, account domain.Account) (string, err
 	return secret, nil
 }
 
-// SetPassword stores (or replaces) the secret for an account.
-func (v *Vault) SetPassword(account domain.Account, secret string) error {
+// SetPassword stores (or replaces) the secret for an account. The context is part of the
+// application.CredentialStore contract; the underlying keyring call is synchronous and does not use it.
+func (v *Vault) SetPassword(_ context.Context, account domain.Account, secret string) error {
 	if err := keyring.Set(v.service, account.ID(), secret); err != nil {
 		return fmt.Errorf("keychain: set password for %q: %w", account.ID(), err)
 	}
@@ -43,7 +44,7 @@ func (v *Vault) SetPassword(account domain.Account, secret string) error {
 }
 
 // DeletePassword removes the stored secret for an account.
-func (v *Vault) DeletePassword(account domain.Account) error {
+func (v *Vault) DeletePassword(_ context.Context, account domain.Account) error {
 	if err := keyring.Delete(v.service, account.ID()); err != nil {
 		return fmt.Errorf("keychain: delete password for %q: %w", account.ID(), err)
 	}

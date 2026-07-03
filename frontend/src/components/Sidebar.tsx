@@ -7,6 +7,8 @@ interface SidebarProps {
     selectedFolder: string
     onSelectAccount: (id: string) => void
     onSelectFolder: (id: string) => void
+    onEditAccount: (account: Account) => void
+    onDeleteAccount: (account: Account) => void
 }
 
 const folderIcon: Record<string, string> = {
@@ -28,7 +30,7 @@ export function Sidebar(props: SidebarProps) {
                 <div className="empty-state">
                     <div className="empty-title">No accounts yet</div>
                     <p className="empty-body">
-                        Account setup arrives in a later phase. This is the phase 1 read-only skeleton.
+                        Use "Add account" to configure a mail account.
                     </p>
                 </div>
             </aside>
@@ -42,11 +44,37 @@ export function Sidebar(props: SidebarProps) {
                 {accounts.map((account) => (
                     <li
                         key={account.id}
-                        className={'list-item' + (account.id === selectedAccount ? ' selected' : '')}
+                        className={'list-item account' + (account.id === selectedAccount ? ' selected' : '')}
                         onClick={() => props.onSelectAccount(account.id)}
                     >
-                        <span className="item-title">{account.displayName}</span>
-                        <span className="item-sub">{account.email}</span>
+                        <span className="item-text">
+                            <span className="item-title">{account.displayName}</span>
+                            <span className="item-sub">{account.email}</span>
+                        </span>
+                        <span className="account-actions">
+                            <button
+                                className="account-action"
+                                aria-label={`Edit ${account.email}`}
+                                title="Edit account"
+                                onClick={(e) => {
+                                    e.stopPropagation()
+                                    props.onEditAccount(account)
+                                }}
+                            >
+                                &#9998;
+                            </button>
+                            <button
+                                className="account-action delete"
+                                aria-label={`Remove ${account.email}`}
+                                title="Remove account"
+                                onClick={(e) => {
+                                    e.stopPropagation()
+                                    props.onDeleteAccount(account)
+                                }}
+                            >
+                                &times;
+                            </button>
+                        </span>
                     </li>
                 ))}
             </ul>

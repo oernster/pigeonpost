@@ -6,8 +6,24 @@ export function About() {
   return window['go']['main']['App']['About']();
 }
 
+export function AddAccount(arg1) {
+  return window['go']['main']['App']['AddAccount'](arg1);
+}
+
 export function Author() {
   return window['go']['main']['App']['Author']();
+}
+
+export function DeleteMessage(arg1) {
+  return window['go']['main']['App']['DeleteMessage'](arg1);
+}
+
+export function DeleteTag(arg1) {
+  return window['go']['main']['App']['DeleteTag'](arg1);
+}
+
+export function GetMessageBody(arg1) {
+  return window['go']['main']['App']['GetMessageBody'](arg1);
 }
 
 export function LicenceText() {
@@ -26,20 +42,60 @@ export function ListMessages(arg1) {
   return window['go']['main']['App']['ListMessages'](arg1);
 }
 
+export function ListTags() {
+  return window['go']['main']['App']['ListTags']();
+}
+
+export function MarkFlagged(arg1, arg2) {
+  return window['go']['main']['App']['MarkFlagged'](arg1, arg2);
+}
+
 export function MarkRead(arg1, arg2) {
   return window['go']['main']['App']['MarkRead'](arg1, arg2);
+}
+
+export function MessageTags(arg1) {
+  return window['go']['main']['App']['MessageTags'](arg1);
+}
+
+export function MoveMessage(arg1, arg2) {
+  return window['go']['main']['App']['MoveMessage'](arg1, arg2);
+}
+
+export function OpenExternal(arg1) {
+  return window['go']['main']['App']['OpenExternal'](arg1);
 }
 
 export function OpenReleasesPage() {
   return window['go']['main']['App']['OpenReleasesPage']();
 }
 
+export function RemoveAccount(arg1) {
+  return window['go']['main']['App']['RemoveAccount'](arg1);
+}
+
+export function SaveTag(arg1) {
+  return window['go']['main']['App']['SaveTag'](arg1);
+}
+
+export function SearchMessages(arg1) {
+  return window['go']['main']['App']['SearchMessages'](arg1);
+}
+
 export function SendMessage(arg1) {
   return window['go']['main']['App']['SendMessage'](arg1);
 }
 
+export function SetMessageTag(arg1, arg2, arg3) {
+  return window['go']['main']['App']['SetMessageTag'](arg1, arg2, arg3);
+}
+
 export function SyncAccount(arg1) {
   return window['go']['main']['App']['SyncAccount'](arg1);
+}
+
+export function UpdateAccount(arg1) {
+  return window['go']['main']['App']['UpdateAccount'](arg1);
 }
 
 export function Version() {

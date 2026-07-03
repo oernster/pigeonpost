@@ -167,6 +167,9 @@ func (m MessageSummary) Snippet() string { return m.snippet }
 // IsRead reports whether the message has been read.
 func (m MessageSummary) IsRead() bool { return m.flags.IsSeen() }
 
+// IsFlagged reports whether the message is flagged (starred / important).
+func (m MessageSummary) IsFlagged() bool { return m.flags.Has(FlagFlagged) }
+
 // WithFlags returns a copy carrying a new flag set.
 func (m MessageSummary) WithFlags(flags Flags) MessageSummary {
 	copied := m

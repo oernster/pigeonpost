@@ -36,10 +36,11 @@ func (s *MailboxService) Messages(ctx context.Context, folderID string) ([]domai
 	return messages, nil
 }
 
-// MarkRead sets or clears the read (Seen) state of a message in the local cache.
-func (s *MailboxService) MarkRead(ctx context.Context, messageID string, read bool) error {
-	if err := s.mail.SetSeen(ctx, messageID, read); err != nil {
-		return fmt.Errorf("mark message %q read=%t: %w", messageID, read, err)
+// Search returns cached messages matching a free-text query, most relevant first.
+func (s *MailboxService) Search(ctx context.Context, query string) ([]domain.MessageSummary, error) {
+	messages, err := s.mail.SearchMessages(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("search messages for %q: %w", query, err)
 	}
-	return nil
+	return messages, nil
 }

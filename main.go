@@ -61,12 +61,16 @@ func run() error {
 	source := imap.NewSource(vault)
 	transport := smtp.NewTransport(vault, systemClock{}, newMessageID)
 
-	accountService := application.NewAccountService(store)
+	accountService := application.NewAccountService(store, vault, store)
+	setupService := application.NewAccountSetupService(store, vault, source)
 	mailboxService := application.NewMailboxService(store)
 	syncService := application.NewSyncService(store, store, source)
 	composeService := application.NewComposeService(store, transport)
+	tagService := application.NewTagService(store)
+	bodyService := application.NewMessageBodyService(store, store, source)
+	actionService := application.NewMessageActionService(store, store, source)
 
-	app := NewApp(store.Close, accountService, mailboxService, syncService, composeService)
+	app := NewApp(store.Close, accountService, setupService, mailboxService, syncService, composeService, tagService, bodyService, actionService)
 
 	err = wails.Run(&options.App{
 		Title:            appName + " " + version(),

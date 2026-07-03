@@ -1,6 +1,8 @@
 package main
 
 import (
+	"strings"
+
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
@@ -42,9 +44,12 @@ func (a *App) About() AboutDTO {
 			{Name: "Wails", Licence: "MIT"},
 			{Name: "React", Licence: "MIT"},
 			{Name: "Vite", Licence: "MIT"},
+			{Name: "TipTap", Licence: "MIT"},
+			{Name: "google/uuid", Licence: "BSD-3-Clause"},
 			{Name: "emersion go-imap", Licence: "MIT"},
 			{Name: "emersion go-smtp", Licence: "MIT"},
 			{Name: "emersion go-message", Licence: "MIT"},
+			{Name: "microcosm-cc/bluemonday", Licence: "BSD-3-Clause"},
 			{Name: "emersion go-sasl", Licence: "MIT"},
 			{Name: "modernc.org/sqlite", Licence: "BSD-3-Clause"},
 			{Name: "zalando/go-keyring", Licence: "MIT"},
@@ -55,6 +60,15 @@ func (a *App) About() AboutDTO {
 // OpenReleasesPage opens the GitHub releases page in the user's default browser.
 func (a *App) OpenReleasesPage() {
 	runtime.BrowserOpenURL(a.ctx, releasesURL)
+}
+
+// OpenExternal opens an http(s) or mailto link from message content in the user's default browser.
+// Other schemes are ignored so a message cannot drive the app to arbitrary URI handlers.
+func (a *App) OpenExternal(url string) {
+	u := strings.TrimSpace(url)
+	if strings.HasPrefix(u, "http://") || strings.HasPrefix(u, "https://") || strings.HasPrefix(u, "mailto:") {
+		runtime.BrowserOpenURL(a.ctx, u)
+	}
 }
 
 // LicenceText returns the full GPL-3.0 licence text bundled with the application.

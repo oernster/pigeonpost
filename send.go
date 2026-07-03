@@ -16,6 +16,7 @@ type ComposeRequest struct {
 	Cc        []string `json:"cc"`
 	Subject   string   `json:"subject"`
 	Body      string   `json:"body"`
+	HTMLBody  string   `json:"htmlBody"`
 }
 
 // SendMessage parses the request's addresses and sends the message through the compose use case.
@@ -29,10 +30,11 @@ func (a *App) SendMessage(req ComposeRequest) error {
 		return err
 	}
 	return a.compose.Send(a.ctx, req.AccountID, application.Draft{
-		To:      to,
-		Cc:      cc,
-		Subject: req.Subject,
-		Body:    req.Body,
+		To:       to,
+		Cc:       cc,
+		Subject:  req.Subject,
+		Body:     req.Body,
+		HTMLBody: req.HTMLBody,
 	})
 }
 

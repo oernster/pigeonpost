@@ -6,12 +6,19 @@ import (
 	"github.com/oernster/pigeonpost/internal/domain"
 )
 
-// AccountDTO is the JSON-serialisable view of an account sent to the front end.
+// AccountDTO is the JSON-serialisable view of an account sent to the front end. Server settings are
+// included so the edit wizard can prefill them; the password is never part of this view.
 type AccountDTO struct {
 	ID          string `json:"id"`
 	DisplayName string `json:"displayName"`
 	Email       string `json:"email"`
 	Protocol    string `json:"protocol"`
+	InHost      string `json:"inHost"`
+	InPort      int    `json:"inPort"`
+	InSecurity  string `json:"inSecurity"`
+	OutHost     string `json:"outHost"`
+	OutPort     int    `json:"outPort"`
+	OutSecurity string `json:"outSecurity"`
 }
 
 // FolderDTO is the JSON-serialisable view of a folder.
@@ -35,8 +42,38 @@ type MessageDTO struct {
 	Date           string `json:"date"`
 	Size           int    `json:"size"`
 	Read           bool   `json:"read"`
+	Flagged        bool   `json:"flagged"`
 	HasAttachments bool   `json:"hasAttachments"`
 	Snippet        string `json:"snippet"`
+}
+
+// MessageBodyDTO is the JSON-serialisable full body of a message.
+type MessageBodyDTO struct {
+	Plain string `json:"plain"`
+	HTML  string `json:"html"`
+}
+
+func toMessageBodyDTO(b domain.MessageBody) MessageBodyDTO {
+	return MessageBodyDTO{Plain: b.Plain(), HTML: b.HTML()}
+}
+
+// TagDTO is the JSON-serialisable view of a coloured tag.
+type TagDTO struct {
+	ID     string `json:"id"`
+	Name   string `json:"name"`
+	Colour string `json:"colour"`
+}
+
+func toTagDTO(t domain.Tag) TagDTO {
+	return TagDTO{ID: t.ID(), Name: t.Name(), Colour: t.Colour().Hex()}
+}
+
+func toTagDTOs(tags []domain.Tag) []TagDTO {
+	out := make([]TagDTO, 0, len(tags))
+	for _, t := range tags {
+		out = append(out, toTagDTO(t))
+	}
+	return out
 }
 
 func toAccountDTO(a domain.Account) AccountDTO {
@@ -45,6 +82,12 @@ func toAccountDTO(a domain.Account) AccountDTO {
 		DisplayName: a.DisplayName(),
 		Email:       a.Address().Address(),
 		Protocol:    a.Protocol().String(),
+		InHost:      a.Incoming().Host(),
+		InPort:      a.Incoming().Port(),
+		InSecurity:  a.Incoming().Security().String(),
+		OutHost:     a.Outgoing().Host(),
+		OutPort:     a.Outgoing().Port(),
+		OutSecurity: a.Outgoing().Security().String(),
 	}
 }
 
@@ -74,6 +117,7 @@ func toMessageDTO(m domain.MessageSummary) MessageDTO {
 		Date:           date,
 		Size:           m.Size(),
 		Read:           m.IsRead(),
+		Flagged:        m.IsFlagged(),
 		HasAttachments: m.HasAttachments(),
 		Snippet:        m.Snippet(),
 	}

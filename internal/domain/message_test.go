@@ -155,4 +155,12 @@ func TestMessageSummaryWithFlags(t *testing.T) {
 	if !m.IsRead() {
 		t.Error("WithFlags must not mutate the original")
 	}
+
+	if m.IsFlagged() {
+		t.Error("expected not flagged by default")
+	}
+	flagged := m.WithFlags(m.Flags().With(FlagFlagged))
+	if !flagged.IsFlagged() {
+		t.Error("expected flagged after setting FlagFlagged")
+	}
 }

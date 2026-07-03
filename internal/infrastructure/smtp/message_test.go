@@ -51,6 +51,39 @@ func TestBuildMIME(t *testing.T) {
 	}
 }
 
+func TestBuildMIMEMultipartAlternative(t *testing.T) {
+	msg, err := domain.NewOutgoingMessage(domain.OutgoingMessageInput{
+		From:     addr(t, "", "me@example.com"),
+		To:       []domain.EmailAddress{addr(t, "", "a@example.com")},
+		Subject:  "Rich",
+		Body:     "plain text",
+		HTMLBody: "<p>rich <b>text</b></p>",
+	})
+	if err != nil {
+		t.Fatalf("build message: %v", err)
+	}
+	out := string(BuildMIME(msg, time.Unix(0, 0).UTC(), "mid42"))
+
+	wants := []string{
+		`Content-Type: multipart/alternative; boundary="=_pigeonpost_mid42"` + "\r\n",
+		"--=_pigeonpost_mid42\r\n",
+		"Content-Type: text/plain; charset=utf-8\r\n",
+		"\r\nplain text\r\n",
+		"Content-Type: text/html; charset=utf-8\r\n",
+		"\r\n<p>rich <b>text</b></p>\r\n",
+		"--=_pigeonpost_mid42--\r\n",
+	}
+	for _, w := range wants {
+		if !strings.Contains(out, w) {
+			t.Errorf("multipart output missing %q\n---\n%s", w, out)
+		}
+	}
+	// The plain part must come before the HTML part (least-to-most rich per RFC 2046).
+	if strings.Index(out, "text/plain") > strings.Index(out, "text/html") {
+		t.Error("text/plain part must precede text/html part")
+	}
+}
+
 func TestBuildMIMEWithoutCc(t *testing.T) {
 	msg, _ := domain.NewOutgoingMessage(domain.OutgoingMessageInput{
 		From: addr(t, "", "me@example.com"),

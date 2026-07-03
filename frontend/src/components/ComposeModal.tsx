@@ -1,8 +1,28 @@
 import {useState} from 'react'
+import {EditorContent, useEditor} from '@tiptap/react'
+import StarterKit from '@tiptap/starter-kit'
+import Link from '@tiptap/extension-link'
 import {api, ComposeInput} from '../api'
+
+// normaliseUrl gives a bare host a scheme so the link is absolute rather than treated as relative.
+function normaliseUrl(url: string): string {
+    const trimmed = url.trim()
+    if (trimmed === '' || /^(https?:|mailto:)/i.test(trimmed)) {
+        return trimmed
+    }
+    return `https://${trimmed}`
+}
+
+// ComposeInitial pre-fills the compose window, used by reply and forward.
+export interface ComposeInitial {
+    to?: string
+    subject?: string
+    bodyHtml?: string
+}
 
 interface ComposeModalProps {
     accountId: string
+    initial?: ComposeInitial
     onClose: () => void
 }
 
@@ -10,23 +30,55 @@ function splitAddresses(value: string): string[] {
     return value.split(',').map((part) => part.trim()).filter(Boolean)
 }
 
-export function ComposeModal({accountId, onClose}: ComposeModalProps) {
-    const [to, setTo] = useState('')
+export function ComposeModal({accountId, initial, onClose}: ComposeModalProps) {
+    const [to, setTo] = useState(initial?.to ?? '')
     const [cc, setCc] = useState('')
-    const [subject, setSubject] = useState('')
-    const [body, setBody] = useState('')
+    const [subject, setSubject] = useState(initial?.subject ?? '')
     const [sending, setSending] = useState(false)
     const [error, setError] = useState('')
+    const [linkOpen, setLinkOpen] = useState(false)
+    const [linkUrl, setLinkUrl] = useState('')
+
+    const editor = useEditor({
+        extensions: [StarterKit, Link.configure({openOnClick: false, autolink: true, linkOnPaste: true})],
+        content: initial?.bodyHtml ?? '',
+    })
+
+    const openLinkEditor = () => {
+        setLinkUrl((editor?.getAttributes('link').href as string) ?? '')
+        setLinkOpen(true)
+    }
+
+    const applyLink = () => {
+        const href = normaliseUrl(linkUrl)
+        if (href === '') {
+            editor?.chain().focus().extendMarkRange('link').unsetLink().run()
+        } else {
+            editor?.chain().focus().extendMarkRange('link').setLink({href}).run()
+        }
+        setLinkOpen(false)
+        setLinkUrl('')
+    }
+
+    const removeLink = () => {
+        editor?.chain().focus().extendMarkRange('link').unsetLink().run()
+        setLinkOpen(false)
+        setLinkUrl('')
+    }
 
     const send = async () => {
         setSending(true)
         setError('')
+        const text = editor?.getText() ?? ''
+        const html = editor?.getHTML() ?? ''
         const req: ComposeInput = {
             accountId,
             to: splitAddresses(to),
             cc: splitAddresses(cc),
             subject,
-            body,
+            body: text,
+            // Only send an HTML alternative when the body is non-empty, so an empty message stays plain.
+            htmlBody: text.trim() === '' ? '' : html,
         }
         try {
             await api.send(req)
@@ -36,6 +88,20 @@ export function ComposeModal({accountId, onClose}: ComposeModalProps) {
             setSending(false)
         }
     }
+
+    const btn = (active: boolean, label: string, title: string, onClick: () => void) => (
+        <button
+            type="button"
+            className={'compose-tool' + (active ? ' active' : '')}
+            title={title}
+            aria-label={title}
+            aria-pressed={active}
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={onClick}
+        >
+            {label}
+        </button>
+    )
 
     return (
         <div className="modal-backdrop" onClick={onClose}>
@@ -54,13 +120,40 @@ export function ComposeModal({accountId, onClose}: ComposeModalProps) {
                     <span>Subject</span>
                     <input value={subject} onChange={(e) => setSubject(e.target.value)}/>
                 </label>
-                <textarea
-                    className="compose-body"
-                    value={body}
-                    rows={12}
-                    onChange={(e) => setBody(e.target.value)}
-                    placeholder="Write your message..."
-                />
+
+                <div className="compose-toolbar">
+                    {btn(editor?.isActive('bold') ?? false, 'B', 'Bold', () => editor?.chain().focus().toggleBold().run())}
+                    {btn(editor?.isActive('italic') ?? false, 'I', 'Italic', () => editor?.chain().focus().toggleItalic().run())}
+                    {btn(editor?.isActive('strike') ?? false, 'S', 'Strikethrough', () => editor?.chain().focus().toggleStrike().run())}
+                    <span className="compose-tool-sep"/>
+                    {btn(editor?.isActive('heading', {level: 2}) ?? false, 'H', 'Heading', () => editor?.chain().focus().toggleHeading({level: 2}).run())}
+                    {btn(editor?.isActive('bulletList') ?? false, '•', 'Bullet list', () => editor?.chain().focus().toggleBulletList().run())}
+                    {btn(editor?.isActive('orderedList') ?? false, '1.', 'Numbered list', () => editor?.chain().focus().toggleOrderedList().run())}
+                    {btn(editor?.isActive('blockquote') ?? false, '”', 'Quote', () => editor?.chain().focus().toggleBlockquote().run())}
+                    <span className="compose-tool-sep"/>
+                    {btn(editor?.isActive('link') ?? false, '🔗', 'Link', openLinkEditor)}
+                </div>
+                {linkOpen && (
+                    <div className="compose-link-row">
+                        <input
+                            className="tag-name-input"
+                            value={linkUrl}
+                            autoFocus
+                            placeholder="https://example.com"
+                            onChange={(e) => setLinkUrl(e.target.value)}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                    e.preventDefault()
+                                    applyLink()
+                                }
+                            }}
+                        />
+                        <button className="btn primary" onClick={applyLink}>Apply</button>
+                        <button className="btn" onClick={removeLink}>Remove</button>
+                    </div>
+                )}
+                <EditorContent editor={editor} className="compose-editor"/>
+
                 <div className="modal-actions spread">
                     <button className="btn" onClick={onClose} disabled={sending}>Cancel</button>
                     <button className="btn primary" onClick={() => void send()} disabled={sending || to.trim() === ''}>

@@ -66,6 +66,14 @@ func (s *Store) SaveAccount(ctx context.Context, a domain.Account) error {
 	return nil
 }
 
+// DeleteAccount removes an account row. Deleting an account that does not exist is not an error.
+func (s *Store) DeleteAccount(ctx context.Context, id string) error {
+	if _, err := s.db.ExecContext(ctx, "DELETE FROM account WHERE id = ?;", id); err != nil {
+		return fmt.Errorf("delete account %q: %w", id, err)
+	}
+	return nil
+}
+
 // scanner abstracts *sql.Row and *sql.Rows so scanAccount can serve both.
 type scanner interface {
 	Scan(dest ...any) error
