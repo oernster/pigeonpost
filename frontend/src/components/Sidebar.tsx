@@ -26,6 +26,16 @@ const folderIcon: Record<string, string> = {
     custom: '\u{1F4C1}',
 }
 
+// specialFolderOrder is the canonical top-to-bottom order for the well-known mailboxes, so Inbox,
+// Sent and the rest sit at the top rather than wherever the server happens to list them. Any kind not
+// named here (custom folders) ranks after all of these and keeps its original relative order.
+const specialFolderOrder = ['inbox', 'drafts', 'sent', 'archive', 'junk', 'trash']
+
+function folderRank(kind: string): number {
+    const idx = specialFolderOrder.indexOf(kind)
+    return idx === -1 ? specialFolderOrder.length : idx
+}
+
 export function Sidebar(props: SidebarProps) {
     return (
         <aside className="pane sidebar">
@@ -165,6 +175,44 @@ function ancestorPaths(path: string, sep: string): string[] {
     return out
 }
 
+// orderFolders reorders the folders for display so the well-known mailboxes lead (see
+// specialFolderOrder) while every subtree stays contiguous under its parent. It walks the tree from
+// the roots, sorting siblings at each level by folder rank; the sort is stable, so same-rank siblings
+// (in particular custom folders) keep their original server order.
+function orderFolders(folders: Folder[], sep: string): Folder[] {
+    const byPath = new Map(folders.map((f) => [f.path, f]))
+    const nearestParent = (f: Folder): string | null => {
+        const ancestors = ancestorPaths(f.path, sep)
+        for (let i = ancestors.length - 1; i >= 0; i--) {
+            if (byPath.has(ancestors[i])) {
+                return ancestors[i]
+            }
+        }
+        return null
+    }
+    const childrenOf = new Map<string, Folder[]>()
+    const roots: Folder[] = []
+    folders.forEach((f) => {
+        const parent = nearestParent(f)
+        if (parent === null) {
+            roots.push(f)
+            return
+        }
+        const siblings = childrenOf.get(parent) ?? []
+        siblings.push(f)
+        childrenOf.set(parent, siblings)
+    })
+    const sortSiblings = (arr: Folder[]) =>
+        [...arr].sort((a, b) => folderRank(a.kind) - folderRank(b.kind))
+    const ordered: Folder[] = []
+    const walk = (f: Folder) => {
+        ordered.push(f)
+        sortSiblings(childrenOf.get(f.path) ?? []).forEach(walk)
+    }
+    sortSiblings(roots).forEach(walk)
+    return ordered
+}
+
 // FolderTree renders the folders as a nested, collapsible tree derived from their paths. The collapsed
 // state is persisted per account in localStorage, so it survives restarts.
 function FolderTree(props: FolderTreeProps) {
@@ -200,8 +248,9 @@ function FolderTree(props: FolderTreeProps) {
     const paths = folders.map((f) => f.path)
     const sep = detectSeparator(paths)
     const hasChildren = (path: string) => paths.some((p) => p.startsWith(path + sep))
+    const ordered = orderFolders(folders, sep)
     // A folder is visible only when none of its ancestors are collapsed.
-    const visible = folders.filter((f) => ancestorPaths(f.path, sep).every((a) => !collapsed.has(a)))
+    const visible = ordered.filter((f) => ancestorPaths(f.path, sep).every((a) => !collapsed.has(a)))
 
     return (
         <ul className="list">
