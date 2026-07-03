@@ -5,6 +5,7 @@ import {AboutInfo, Account, api, Folder, Message, MessageBody, Rule, Tag} from '
 import {applyTheme, loadTheme, Theme} from './theme'
 import {Sidebar} from './components/Sidebar'
 import {MessageList} from './components/MessageList'
+import {MessageContextMenu} from './components/MessageContextMenu'
 import {Reader} from './components/Reader'
 import {MenuBar} from './components/MenuBar'
 import {AboutModal} from './components/AboutModal'
@@ -79,6 +80,7 @@ function App() {
     const [deletingMessage, setDeletingMessage] = useState<boolean>(false)
     const [messageToPurge, setMessageToPurge] = useState<Message | null>(null)
     const [purgingMessage, setPurgingMessage] = useState<boolean>(false)
+    const [contextMenu, setContextMenu] = useState<{message: Message; x: number; y: number} | null>(null)
 
     const searchActive = searchQuery.trim() !== ''
     const [appVersion, setAppVersion] = useState<string>('')
@@ -374,6 +376,42 @@ function App() {
         }
     }, [messageToPurge, searchActive, searchResults, messages])
 
+    // requestDelete routes a (reversible) Delete: it trashes the message silently when it can be moved
+    // to Trash, or opens the confirmation dialog when the delete would be permanent (already in Trash,
+    // no Trash folder, or an unresolvable folder). Shared by the Delete key and the context menu.
+    const requestDelete = useCallback((message: Message) => {
+        const hasTrash = folders.some((f) => f.kind === 'trash')
+        const folder = folders.find((f) => f.id === message.folderId)
+        const permanent = !folder || folder.kind === 'trash' || !hasTrash
+        if (permanent) {
+            setMessageToDelete(message)
+        } else {
+            void trashMessage(message)
+        }
+    }, [folders, trashMessage])
+
+    const closeContextMenu = useCallback(() => setContextMenu(null), [])
+
+    // openContextMenu selects the right-clicked message (so the reader and actions target it) and opens
+    // the menu at the cursor.
+    const openContextMenu = useCallback((message: Message, x: number, y: number) => {
+        setSelectedMessage(message)
+        setContextMenu({message, x, y})
+    }, [])
+
+    // setMessageTagById toggles a tag on any message (not only the selected one), used by the context
+    // menu. When it targets the open message, its tag chips are refreshed too.
+    const setMessageTagById = useCallback(async (messageId: string, tagId: string, assigned: boolean) => {
+        try {
+            await api.setMessageTag(messageId, tagId, assigned)
+            if (selectedMessage?.id === messageId) {
+                setMessageTags(await api.messageTags(messageId))
+            }
+        } catch (e) {
+            setError(String(e))
+        }
+    }, [selectedMessage])
+
     const toggleFlag = useCallback(async (message: Message) => {
         const next = !message.flagged
         setError('')
@@ -565,19 +603,8 @@ function App() {
             splashVisible || composing || settingUp || Boolean(accountToEdit) || managingTags ||
             managingRules || Boolean(about) || Boolean(licence) || Boolean(folderPrompt) ||
             Boolean(messageToDelete) || Boolean(accountToDelete) || Boolean(folderToDelete) ||
-            Boolean(messageToPurge)
+            Boolean(messageToPurge) || Boolean(contextMenu)
         const list = searchActive ? searchResults : messages
-        const hasTrash = folders.some((f) => f.kind === 'trash')
-        // A delete is permanent (so it must be confirmed) when the message already lives in Trash or
-        // the account has no Trash folder to move it to. If the folder cannot be resolved we treat it
-        // as permanent too, so an unknown context always confirms rather than silently deleting.
-        const wouldBePermanent = (m: Message): boolean => {
-            const folder = folders.find((f) => f.id === m.folderId)
-            if (!folder) {
-                return true
-            }
-            return folder.kind === 'trash' || !hasTrash
-        }
         const onKeyDown = (e: KeyboardEvent) => {
             if (overlayOpen) {
                 return
@@ -604,19 +631,18 @@ function App() {
                 e.preventDefault()
                 if (e.shiftKey) {
                     setMessageToPurge(selectedMessage)
-                } else if (wouldBePermanent(selectedMessage)) {
-                    setMessageToDelete(selectedMessage)
                 } else {
-                    void trashMessage(selectedMessage)
+                    requestDelete(selectedMessage)
                 }
             }
         }
         window.addEventListener('keydown', onKeyDown)
         return () => window.removeEventListener('keydown', onKeyDown)
     }, [
-        searchActive, searchResults, messages, selectedMessage, folders, trashMessage,
+        searchActive, searchResults, messages, selectedMessage, requestDelete,
         splashVisible, composing, settingUp, accountToEdit, managingTags, managingRules, about,
         licence, folderPrompt, messageToDelete, accountToDelete, folderToDelete, messageToPurge,
+        contextMenu,
     ])
 
     return (
@@ -691,6 +717,7 @@ function App() {
                     onSearchChange={setSearchQuery}
                     onSelectMessage={setSelectedMessage}
                     onToggleFlag={(m) => void toggleFlag(m)}
+                    onContextMenu={openContextMenu}
                 />
                 <Reader
                     message={selectedMessage}
@@ -758,6 +785,26 @@ function App() {
                     busy={purgingMessage}
                     onConfirm={() => void deletePermanent()}
                     onCancel={() => setMessageToPurge(null)}
+                />
+            )}
+            {contextMenu && (
+                <MessageContextMenu
+                    message={contextMenu.message}
+                    x={contextMenu.x}
+                    y={contextMenu.y}
+                    folders={folders}
+                    tags={tags}
+                    onClose={closeContextMenu}
+                    onReply={openReply}
+                    onReplyAll={openReplyAll}
+                    onForward={openForward}
+                    onToggleRead={(m) => void toggleRead(m)}
+                    onToggleFlag={(m) => void toggleFlag(m)}
+                    onMove={(m, dest) => void moveMessage(m, dest)}
+                    onCopy={(m, dest) => void copyMessage(m, dest)}
+                    onSetTag={(id, tagId, assigned) => void setMessageTagById(id, tagId, assigned)}
+                    onDelete={requestDelete}
+                    onDeletePermanent={(m) => setMessageToPurge(m)}
                 />
             )}
             {accountToDelete && (

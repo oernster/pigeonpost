@@ -9,6 +9,7 @@ interface MessageListProps {
     onSearchChange: (query: string) => void
     onSelectMessage: (message: Message) => void
     onToggleFlag: (message: Message) => void
+    onContextMenu: (message: Message, x: number, y: number) => void
 }
 
 function formatDate(iso: string): string {
@@ -48,6 +49,10 @@ export function MessageList(props: MessageListProps) {
                             (selectedMessage?.id === message.id ? ' selected' : '')
                         }
                         onClick={() => props.onSelectMessage(message)}
+                        onContextMenu={(e) => {
+                            e.preventDefault()
+                            props.onContextMenu(message, e.clientX, e.clientY)
+                        }}
                     >
                         <div className="message-row-top">
                             <button
