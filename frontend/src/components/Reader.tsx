@@ -1,6 +1,7 @@
 import {useEffect, useRef, useState} from 'react'
 import type {MouseEvent as ReactMouseEvent} from 'react'
 import {api, Folder, Message, MessageBody, Tag} from '../api'
+import {ReaderTabs} from './ReaderTabs'
 
 // handleBodyClick opens links from rendered message HTML in the external browser rather than letting
 // them navigate the app's own webview. The HTML is sanitised server-side, so anchors are safe.
@@ -30,12 +31,19 @@ interface ReaderProps {
     onToggleTag: (tagId: string, assigned: boolean) => void
     body: MessageBody | null
     bodyLoading: boolean
+    tabs: Message[]
+    onSelectTab: (message: Message) => void
+    onCloseTab: (id: string) => void
 }
 
-export function Reader({message, onToggleRead, onReply, onReplyAll, onForward, onDelete, folders, onMove, onCopy, tags, messageTags, onToggleTag, body, bodyLoading}: ReaderProps) {
+export function Reader({message, onToggleRead, onReply, onReplyAll, onForward, onDelete, folders, onMove, onCopy, tags, messageTags, onToggleTag, body, bodyLoading, tabs, onSelectTab, onCloseTab}: ReaderProps) {
     const [tagMenuOpen, setTagMenuOpen] = useState(false)
     const [imagesShown, setImagesShown] = useState(false)
     const menuRef = useRef<HTMLDivElement>(null)
+
+    const tabStrip = tabs.length > 0
+        ? <ReaderTabs tabs={tabs} activeMessageId={message?.id ?? ''} onSelectTab={onSelectTab} onCloseTab={onCloseTab}/>
+        : null
 
     useEffect(() => {
         if (!tagMenuOpen) {
@@ -59,6 +67,7 @@ export function Reader({message, onToggleRead, onReply, onReplyAll, onForward, o
     if (!message) {
         return (
             <section className="pane reader">
+                {tabStrip}
                 <div className="empty-state"><p className="empty-body">Select a message to read.</p></div>
             </section>
         )
@@ -78,6 +87,7 @@ export function Reader({message, onToggleRead, onReply, onReplyAll, onForward, o
 
     return (
         <section className="pane reader">
+            {tabStrip}
             <div className="reader-header">
                 <div className="reader-toolbar">
                     <button className="btn" onClick={() => onReply(message)}>Reply</button>

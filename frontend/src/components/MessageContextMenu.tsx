@@ -16,6 +16,7 @@ interface MessageContextMenuProps {
     onMove: (message: Message, destFolderId: string) => void
     onCopy: (message: Message, destFolderId: string) => void
     onSetTag: (messageId: string, tagId: string, assigned: boolean) => void
+    onOpenInNewTab: (message: Message) => void
     onSaveAs: (message: Message) => void
     onPrint: (message: Message) => void
     onAttachToNew: (message: Message) => void
@@ -103,6 +104,10 @@ export function MessageContextMenu(props: MessageContextMenuProps) {
 
     const root = (
         <>
+            <button className="context-item" role="menuitem" onClick={act(() => props.onOpenInNewTab(message))}>
+                Open in new tab
+            </button>
+            <div className="context-sep"/>
             <button className="context-item" role="menuitem" onClick={act(() => props.onReply(message))}>
                 Reply
             </button>

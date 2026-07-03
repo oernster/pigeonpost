@@ -10,6 +10,7 @@ interface MessageListProps {
     onSelectMessage: (message: Message) => void
     onToggleFlag: (message: Message) => void
     onContextMenu: (message: Message, x: number, y: number) => void
+    onOpenInNewTab: (message: Message) => void
 }
 
 function formatDate(iso: string): string {
@@ -49,6 +50,7 @@ export function MessageList(props: MessageListProps) {
                             (selectedMessage?.id === message.id ? ' selected' : '')
                         }
                         onClick={() => props.onSelectMessage(message)}
+                        onDoubleClick={() => props.onOpenInNewTab(message)}
                         onContextMenu={(e) => {
                             e.preventDefault()
                             props.onContextMenu(message, e.clientX, e.clientY)

@@ -355,6 +355,61 @@
     padding: 20px 24px;
 }
 
+.reader-tabs {
+    display: flex;
+    gap: 2px;
+    overflow-x: auto;
+    margin: -20px -24px 14px -24px;
+    background-color: var(--bg-elev);
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: -20px;
+    z-index: 2;
+}
+
+.reader-tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    max-width: 200px;
+    padding: 7px 10px;
+    cursor: pointer;
+    border-right: 1px solid var(--border);
+    color: var(--text-dim);
+    font-size: 13px;
+    white-space: nowrap;
+}
+
+.reader-tab:hover {
+    background-color: var(--bg-elev-2);
+}
+
+.reader-tab.active {
+    color: var(--text);
+    background-color: var(--bg-elev-2);
+    box-shadow: inset 0 -2px 0 var(--accent);
+}
+
+.reader-tab-title {
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.reader-tab-close {
+    background: transparent;
+    border: none;
+    color: var(--text-dim);
+    cursor: pointer;
+    font-size: 15px;
+    line-height: 1;
+    padding: 0;
+    flex-shrink: 0;
+}
+
+.reader-tab-close:hover {
+    color: var(--danger);
+}
+
 .reader-header {
     border-bottom: 1px solid var(--border);
     padding-bottom: 14px;

@@ -111,6 +111,7 @@ function App() {
     const [messageToPurge, setMessageToPurge] = useState<Message | null>(null)
     const [purgingMessage, setPurgingMessage] = useState<boolean>(false)
     const [contextMenu, setContextMenu] = useState<{message: Message; x: number; y: number} | null>(null)
+    const [tabs, setTabs] = useState<Message[]>([])
 
     const searchActive = searchQuery.trim() !== ''
     const [appVersion, setAppVersion] = useState<string>('')
@@ -376,6 +377,7 @@ function App() {
             await api.deleteMessage(id)
             setMessages((prev) => prev.filter((m) => m.id !== id))
             setSearchResults((prev) => prev.filter((m) => m.id !== id))
+            setTabs((prev) => prev.filter((m) => m.id !== id))
             setSelectedMessage((prev) => (prev?.id === id ? next : prev))
         } catch (e) {
             setError(String(e))
@@ -397,6 +399,7 @@ function App() {
             await api.deleteMessagePermanent(id)
             setMessages((prev) => prev.filter((m) => m.id !== id))
             setSearchResults((prev) => prev.filter((m) => m.id !== id))
+            setTabs((prev) => prev.filter((m) => m.id !== id))
             setSelectedMessage((prev) => (prev?.id === id ? next : prev))
             setMessageToPurge(null)
         } catch (e) {
@@ -421,6 +424,23 @@ function App() {
     }, [folders, trashMessage])
 
     const closeContextMenu = useCallback(() => setContextMenu(null), [])
+
+    // openInNewTab pins a message as a reader tab (if not already open) and shows it.
+    const openInNewTab = useCallback((message: Message) => {
+        setTabs((prev) => (prev.some((t) => t.id === message.id) ? prev : [...prev, message]))
+        setSelectedMessage(message)
+    }, [])
+
+    // closeTab removes a tab; if it was the message on screen, selection moves to the neighbouring tab
+    // (or clears when none remain).
+    const closeTab = useCallback((id: string) => {
+        setTabs((prev) => {
+            const idx = prev.findIndex((t) => t.id === id)
+            const next = prev.filter((t) => t.id !== id)
+            setSelectedMessage((sel) => (sel?.id === id ? (next[Math.min(idx, next.length - 1)] ?? null) : sel))
+            return next
+        })
+    }, [])
 
     // openContextMenu selects the right-clicked message (so the reader and actions target it) and opens
     // the menu at the cursor.
@@ -504,6 +524,7 @@ function App() {
             await api.moveMessage(message.id, destFolderId)
             setMessages((prev) => prev.filter((m) => m.id !== message.id))
             setSearchResults((prev) => prev.filter((m) => m.id !== message.id))
+            setTabs((prev) => prev.filter((m) => m.id !== message.id))
             setSelectedMessage((prev) => (prev?.id === message.id ? null : prev))
         } catch (e) {
             setError(String(e))
@@ -799,6 +820,7 @@ function App() {
                     onSelectMessage={setSelectedMessage}
                     onToggleFlag={(m) => void toggleFlag(m)}
                     onContextMenu={openContextMenu}
+                    onOpenInNewTab={openInNewTab}
                 />
                 <Reader
                     message={selectedMessage}
@@ -815,6 +837,9 @@ function App() {
                     onToggleTag={(tagId, assigned) => void toggleTag(tagId, assigned)}
                     body={messageBody}
                     bodyLoading={bodyLoading}
+                    tabs={tabs}
+                    onSelectTab={setSelectedMessage}
+                    onCloseTab={closeTab}
                 />
             </div>
             )}
@@ -884,6 +909,7 @@ function App() {
                     onMove={(m, dest) => void moveMessage(m, dest)}
                     onCopy={(m, dest) => void copyMessage(m, dest)}
                     onSetTag={(id, tagId, assigned) => void setMessageTagById(id, tagId, assigned)}
+                    onOpenInNewTab={openInNewTab}
                     onSaveAs={(m) => void saveMessageAs(m)}
                     onPrint={(m) => void printMessage(m)}
                     onAttachToNew={attachToNewMessage}
