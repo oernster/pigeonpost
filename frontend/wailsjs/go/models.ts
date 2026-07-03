@@ -243,6 +243,46 @@ export namespace main {
 		    return a;
 		}
 	}
+	export class RuleDTO {
+	    id: string;
+	    name: string;
+	    field: string;
+	    contains: string;
+	    action: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new RuleDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.field = source["field"];
+	        this.contains = source["contains"];
+	        this.action = source["action"];
+	    }
+	}
+	export class RuleRequest {
+	    id: string;
+	    name: string;
+	    field: string;
+	    contains: string;
+	    action: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new RuleRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.field = source["field"];
+	        this.contains = source["contains"];
+	        this.action = source["action"];
+	    }
+	}
 	export class TagDTO {
 	    id: string;
 	    name: string;
@@ -273,46 +313,6 @@ export namespace main {
 	        this.id = source["id"];
 	        this.name = source["name"];
 	        this.colour = source["colour"];
-	    }
-	}
-	export class RuleDTO {
-	    id: string;
-	    name: string;
-	    field: string;
-	    contains: string;
-	    action: string;
-
-	    static createFrom(source: any = {}) {
-	        return new RuleDTO(source);
-	    }
-
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.id = source["id"];
-	        this.name = source["name"];
-	        this.field = source["field"];
-	        this.contains = source["contains"];
-	        this.action = source["action"];
-	    }
-	}
-	export class RuleRequest {
-	    id: string;
-	    name: string;
-	    field: string;
-	    contains: string;
-	    action: string;
-
-	    static createFrom(source: any = {}) {
-	        return new RuleRequest(source);
-	    }
-
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.id = source["id"];
-	        this.name = source["name"];
-	        this.field = source["field"];
-	        this.contains = source["contains"];
-	        this.action = source["action"];
 	    }
 	}
 

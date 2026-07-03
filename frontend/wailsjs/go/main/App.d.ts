@@ -8,7 +8,15 @@ export function AddAccount(arg1:main.AccountSetupRequest):Promise<void>;
 
 export function Author():Promise<string>;
 
+export function CopyMessage(arg1:string,arg2:string):Promise<void>;
+
+export function CreateFolder(arg1:string,arg2:string):Promise<void>;
+
+export function DeleteFolder(arg1:string):Promise<void>;
+
 export function DeleteMessage(arg1:string):Promise<void>;
+
+export function DeleteRule(arg1:string):Promise<void>;
 
 export function DeleteTag(arg1:string):Promise<void>;
 
@@ -22,6 +30,8 @@ export function ListFolders(arg1:string):Promise<Array<main.FolderDTO>>;
 
 export function ListMessages(arg1:string):Promise<Array<main.MessageDTO>>;
 
+export function ListRules():Promise<Array<main.RuleDTO>>;
+
 export function ListTags():Promise<Array<main.TagDTO>>;
 
 export function MarkFlagged(arg1:string,arg2:boolean):Promise<void>;
@@ -29,14 +39,6 @@ export function MarkFlagged(arg1:string,arg2:boolean):Promise<void>;
 export function MarkRead(arg1:string,arg2:boolean):Promise<void>;
 
 export function MessageTags(arg1:string):Promise<Array<main.TagDTO>>;
-
-export function CopyMessage(arg1:string,arg2:string):Promise<void>;
-
-export function CreateFolder(arg1:string,arg2:string):Promise<void>;
-
-export function RenameFolder(arg1:string,arg2:string):Promise<void>;
-
-export function DeleteFolder(arg1:string):Promise<void>;
 
 export function MoveMessage(arg1:string,arg2:string):Promise<void>;
 
@@ -48,15 +50,13 @@ export function OutboxCount():Promise<number>;
 
 export function RemoveAccount(arg1:string):Promise<void>;
 
+export function RenameFolder(arg1:string,arg2:string):Promise<void>;
+
 export function ReplayOutbox():Promise<number>;
 
 export function SaveDraft(arg1:main.ComposeRequest):Promise<void>;
 
-export function ListRules():Promise<Array<main.RuleDTO>>;
-
 export function SaveRule(arg1:main.RuleRequest):Promise<void>;
-
-export function DeleteRule(arg1:string):Promise<void>;
 
 export function SaveTag(arg1:main.TagRequest):Promise<void>;
 

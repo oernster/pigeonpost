@@ -14,8 +14,24 @@ export function Author() {
   return window['go']['main']['App']['Author']();
 }
 
+export function CopyMessage(arg1, arg2) {
+  return window['go']['main']['App']['CopyMessage'](arg1, arg2);
+}
+
+export function CreateFolder(arg1, arg2) {
+  return window['go']['main']['App']['CreateFolder'](arg1, arg2);
+}
+
+export function DeleteFolder(arg1) {
+  return window['go']['main']['App']['DeleteFolder'](arg1);
+}
+
 export function DeleteMessage(arg1) {
   return window['go']['main']['App']['DeleteMessage'](arg1);
+}
+
+export function DeleteRule(arg1) {
+  return window['go']['main']['App']['DeleteRule'](arg1);
 }
 
 export function DeleteTag(arg1) {
@@ -42,6 +58,10 @@ export function ListMessages(arg1) {
   return window['go']['main']['App']['ListMessages'](arg1);
 }
 
+export function ListRules() {
+  return window['go']['main']['App']['ListRules']();
+}
+
 export function ListTags() {
   return window['go']['main']['App']['ListTags']();
 }
@@ -56,22 +76,6 @@ export function MarkRead(arg1, arg2) {
 
 export function MessageTags(arg1) {
   return window['go']['main']['App']['MessageTags'](arg1);
-}
-
-export function CopyMessage(arg1, arg2) {
-  return window['go']['main']['App']['CopyMessage'](arg1, arg2);
-}
-
-export function CreateFolder(arg1, arg2) {
-  return window['go']['main']['App']['CreateFolder'](arg1, arg2);
-}
-
-export function RenameFolder(arg1, arg2) {
-  return window['go']['main']['App']['RenameFolder'](arg1, arg2);
-}
-
-export function DeleteFolder(arg1) {
-  return window['go']['main']['App']['DeleteFolder'](arg1);
 }
 
 export function MoveMessage(arg1, arg2) {
@@ -94,6 +98,10 @@ export function RemoveAccount(arg1) {
   return window['go']['main']['App']['RemoveAccount'](arg1);
 }
 
+export function RenameFolder(arg1, arg2) {
+  return window['go']['main']['App']['RenameFolder'](arg1, arg2);
+}
+
 export function ReplayOutbox() {
   return window['go']['main']['App']['ReplayOutbox']();
 }
@@ -102,16 +110,8 @@ export function SaveDraft(arg1) {
   return window['go']['main']['App']['SaveDraft'](arg1);
 }
 
-export function ListRules() {
-  return window['go']['main']['App']['ListRules']();
-}
-
 export function SaveRule(arg1) {
   return window['go']['main']['App']['SaveRule'](arg1);
-}
-
-export function DeleteRule(arg1) {
-  return window['go']['main']['App']['DeleteRule'](arg1);
 }
 
 export function SaveTag(arg1) {

@@ -128,18 +128,39 @@ interface FolderTreeProps {
     onDeleteFolder: (folder: Folder) => void
 }
 
-const FOLDER_SEPARATOR = '/'
-
 function collapseKey(accountId: string): string {
     return `pigeonpost.collapsed.${accountId}`
 }
 
-// ancestorPaths returns every parent path of a folder path, e.g. "A/B/C" -> ["A", "A/B"].
-function ancestorPaths(path: string): string[] {
-    const parts = path.split(FOLDER_SEPARATOR)
+// detectSeparator infers the server's mailbox hierarchy delimiter from the folder paths. A character
+// is the delimiter when some folder's path, split on it, yields a parent that is itself a folder (e.g.
+// "Archived.Debt" alongside "Archived" means the delimiter is "."). It checks the two common IMAP
+// delimiters and falls back to "/".
+function detectSeparator(paths: string[]): string {
+    const set = new Set(paths)
+    for (const sep of ['.', '/']) {
+        for (const p of paths) {
+            const idx = p.lastIndexOf(sep)
+            if (idx > 0 && set.has(p.slice(0, idx))) {
+                return sep
+            }
+        }
+    }
+    return '/'
+}
+
+// leafName returns the last segment of a path under the given separator.
+function leafName(path: string, sep: string): string {
+    const idx = path.lastIndexOf(sep)
+    return idx >= 0 ? path.slice(idx + 1) : path
+}
+
+// ancestorPaths returns every parent path of a folder path under the given separator.
+function ancestorPaths(path: string, sep: string): string[] {
+    const parts = path.split(sep)
     const out: string[] = []
     for (let i = 1; i < parts.length; i++) {
-        out.push(parts.slice(0, i).join(FOLDER_SEPARATOR))
+        out.push(parts.slice(0, i).join(sep))
     }
     return out
 }
@@ -177,14 +198,16 @@ function FolderTree(props: FolderTreeProps) {
     }
 
     const paths = folders.map((f) => f.path)
-    const hasChildren = (path: string) => paths.some((p) => p.startsWith(path + FOLDER_SEPARATOR))
+    const sep = detectSeparator(paths)
+    const hasChildren = (path: string) => paths.some((p) => p.startsWith(path + sep))
     // A folder is visible only when none of its ancestors are collapsed.
-    const visible = folders.filter((f) => ancestorPaths(f.path).every((a) => !collapsed.has(a)))
+    const visible = folders.filter((f) => ancestorPaths(f.path, sep).every((a) => !collapsed.has(a)))
 
     return (
         <ul className="list">
             {visible.map((folder) => {
-                const depth = folder.path.split(FOLDER_SEPARATOR).length - 1
+                const leaf = leafName(folder.path, sep)
+                const depth = ancestorPaths(folder.path, sep).length
                 const parent = hasChildren(folder.path)
                 const isCollapsed = collapsed.has(folder.path)
                 return (
@@ -198,7 +221,7 @@ function FolderTree(props: FolderTreeProps) {
                             {parent ? (
                                 <button
                                     className="folder-toggle"
-                                    aria-label={isCollapsed ? `Expand ${folder.name}` : `Collapse ${folder.name}`}
+                                    aria-label={isCollapsed ? `Expand ${leaf}` : `Collapse ${leaf}`}
                                     onClick={(e) => {
                                         e.stopPropagation()
                                         toggle(folder.path)
@@ -210,7 +233,7 @@ function FolderTree(props: FolderTreeProps) {
                                 <span className="folder-toggle-spacer"/>
                             )}
                             <span className="folder-icon">{folderIcon[folder.kind] ?? folderIcon.custom}</span>
-                            {folder.name}
+                            {leaf}
                         </span>
                         {folder.unread > 0 && <span className="badge">{folder.unread}</span>}
                         {folder.kind === 'custom' && (
