@@ -46,6 +46,26 @@ func TestNewOutgoingMessage(t *testing.T) {
 	}
 }
 
+func TestRecipientsDeduplicatesAcrossToAndCc(t *testing.T) {
+	// The same mailbox in both To and Cc must yield one envelope recipient, compared case-insensitively,
+	// so the transport does not issue a duplicate RCPT for it.
+	msg, err := NewOutgoingMessage(OutgoingMessageInput{
+		From: mustAddr(t, "me@example.com"),
+		To:   []EmailAddress{mustAddr(t, "friend@example.com"), mustAddr(t, "other@example.com")},
+		Cc:   []EmailAddress{mustAddr(t, "FRIEND@example.com")},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	got := msg.Recipients()
+	if len(got) != 2 {
+		t.Fatalf("Recipients = %d, want 2 distinct", len(got))
+	}
+	if got[0].Address() != "friend@example.com" || got[1].Address() != "other@example.com" {
+		t.Errorf("Recipients = %v, want To ordering with the Cc duplicate dropped", got)
+	}
+}
+
 func TestNewOutgoingMessageInvalid(t *testing.T) {
 	valid := mustAddr(t, "ok@example.com")
 	cases := map[string]struct {

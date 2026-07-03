@@ -106,10 +106,26 @@ func (m OutgoingMessage) Body() string { return m.body }
 // HTMLBody returns the optional rich-text (HTML) body. It is empty for a plain-text-only message.
 func (m OutgoingMessage) HTMLBody() string { return m.htmlBody }
 
-// Recipients returns every address the message must be delivered to (To plus Cc).
+// Recipients returns every distinct address the message must be delivered to (To plus Cc), compared
+// case-insensitively. An address listed in both To and Cc yields a single envelope recipient, so the
+// mailbox is delivered one copy rather than the transport issuing a duplicate RCPT for it. To ordering
+// is kept first, then any Cc addresses not already present.
 func (m OutgoingMessage) Recipients() []EmailAddress {
 	out := make([]EmailAddress, 0, len(m.to)+len(m.cc))
-	out = append(out, m.to...)
-	out = append(out, m.cc...)
+	seen := make(map[string]struct{}, len(m.to)+len(m.cc))
+	add := func(addr EmailAddress) {
+		key := strings.ToLower(addr.Address())
+		if _, ok := seen[key]; ok {
+			return
+		}
+		seen[key] = struct{}{}
+		out = append(out, addr)
+	}
+	for _, addr := range m.to {
+		add(addr)
+	}
+	for _, addr := range m.cc {
+		add(addr)
+	}
 	return out
 }
