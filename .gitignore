@@ -16,6 +16,10 @@
 coverage.*
 *.coverprofile
 profile.cov
+*.cov
+# Stray ad-hoc coverage profile from a manual `go test -coverprofile=...`
+# (test.ps1 itself writes to %TEMP%, never the repo)
+$coverProfile
 
 # Dependency directories (remove the comment below to include it)
 # vendor/
@@ -30,3 +34,17 @@ go.work.sum
 # Editor/IDE
 # .idea/
 # .vscode/
+
+# Node / frontend
+node_modules/
+frontend/dist/
+# Wails npm dependency-hash cache (regenerated on every build)
+frontend/package.json.md5
+
+# Wails build output
+build/bin/
+
+# Local scratch
+NOTES.md
+*.db
+*.db-*

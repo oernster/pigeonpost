@@ -1,0 +1,11 @@
+{
+  "$schema": "https://wails.io/schemas/config.v2.json",
+  "name": "PigeonPostSetup",
+  "outputfilename": "PigeonPostSetup",
+  "frontend:install": "cmd /c echo skip",
+  "frontend:build": "cmd /c echo skip",
+  "author": {
+    "name": "Oliver Ernster",
+    "email": "oernster@codecrafter.uk"
+  }
+}

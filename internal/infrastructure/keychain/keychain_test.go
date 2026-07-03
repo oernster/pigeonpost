@@ -1,0 +1,69 @@
+package keychain
+
+import (
+	"context"
+	"errors"
+	"testing"
+
+	"github.com/zalando/go-keyring"
+
+	"github.com/oernster/pigeonpost/internal/domain"
+)
+
+func testAccount(t *testing.T) domain.Account {
+	t.Helper()
+	addr, err := domain.NewEmailAddress("", "user@example.com")
+	if err != nil {
+		t.Fatalf("address: %v", err)
+	}
+	sc, err := domain.NewServerConfig("host.example.com", 993, domain.SecurityTLS)
+	if err != nil {
+		t.Fatalf("server config: %v", err)
+	}
+	account, err := domain.NewAccount("acc-1", "Test", addr, domain.ProtocolIMAP, sc, sc, domain.AuthPassword)
+	if err != nil {
+		t.Fatalf("account: %v", err)
+	}
+	return account
+}
+
+func TestVaultRoundTrip(t *testing.T) {
+	keyring.MockInit()
+	vault := NewVault()
+	account := testAccount(t)
+
+	if err := vault.SetPassword(account, "s3cret"); err != nil {
+		t.Fatalf("set: %v", err)
+	}
+	secret, err := vault.Password(context.Background(), account)
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	if secret != "s3cret" {
+		t.Errorf("secret = %q, want s3cret", secret)
+	}
+
+	if err := vault.DeletePassword(account); err != nil {
+		t.Fatalf("delete: %v", err)
+	}
+	if _, err := vault.Password(context.Background(), account); err == nil {
+		t.Error("expected error reading a deleted secret")
+	}
+}
+
+func TestVaultWrapsErrors(t *testing.T) {
+	boom := errors.New("keychain unavailable")
+	keyring.MockInitWithError(boom)
+	vault := NewVault()
+	account := testAccount(t)
+
+	if err := vault.SetPassword(account, "x"); !errors.Is(err, boom) {
+		t.Errorf("SetPassword error = %v, want wrapped boom", err)
+	}
+	if _, err := vault.Password(context.Background(), account); !errors.Is(err, boom) {
+		t.Errorf("Password error = %v, want wrapped boom", err)
+	}
+	if err := vault.DeletePassword(account); !errors.Is(err, boom) {
+		t.Errorf("DeletePassword error = %v, want wrapped boom", err)
+	}
+}

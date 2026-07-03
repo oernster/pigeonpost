@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>PigeonPost Setup</title>
+    <style>
+        :root {
+            --bg: #16181d;
+            --bg-elev: #1e222a;
+            --bg-elev-2: #262b34;
+            --border: #303743;
+            --text: #e6e9ef;
+            --text-dim: #9aa4b2;
+            --accent: #7fb0ff;
+            --accent-ink: #0b1220;
+            --danger: #ff6b6b;
+            --ok: #6ee7a0;
+            --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+        }
+
+        * { box-sizing: border-box; }
+
+        html, body {
+            height: 100%;
+            margin: 0;
+        }
+
+        body {
+            background: radial-gradient(700px 460px at 50% 0%, #1d2430 0%, var(--bg) 70%);
+            color: var(--text);
+            font-family: var(--font);
+            font-size: 14px;
+            user-select: none;
+            overflow: hidden;
+        }
+
+        .app {
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            padding: 26px 30px 22px;
+        }
+
+        .head {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            padding-bottom: 18px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .head img { width: 46px; height: 46px; }
+
+        .head .title { font-size: 17px; font-weight: 700; }
+
+        .head .sub { font-size: 12px; color: var(--text-dim); }
+
+        .body {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .screen { display: none; }
+
+        .screen.active { display: block; }
+
+        h1 {
+            font-size: 22px;
+            margin: 0 0 8px;
+            letter-spacing: -0.3px;
+        }
+
+        p.lead {
+            color: var(--text-dim);
+            margin: 0 0 18px;
+            line-height: 1.6;
+        }
+
+        .infobox {
+            background: var(--bg-elev);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 12px 14px;
+            font-size: 13px;
+            color: var(--text-dim);
+            word-break: break-all;
+        }
+
+        .infobox .path { color: var(--text); }
+
+        .option {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 16px;
+            cursor: pointer;
+        }
+
+        .option input { display: none; }
+
+        .check {
+            width: 20px;
+            height: 20px;
+            border-radius: 5px;
+            border: 1px solid var(--border);
+            background: var(--bg-elev);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            transition: all 0.15s ease;
+        }
+
+        .option input:checked + .check {
+            background: var(--accent);
+            border-color: var(--accent);
+        }
+
+        .check::after {
+            content: "";
+            width: 6px;
+            height: 10px;
+            border: solid var(--accent-ink);
+            border-width: 0 2px 2px 0;
+            transform: rotate(45deg) scale(0);
+            transition: transform 0.15s ease;
+        }
+
+        .option input:checked + .check::after { transform: rotate(45deg) scale(1); }
+
+        .option .label { font-size: 14px; }
+
+        .option .hint { font-size: 12px; color: var(--text-dim); }
+
+        .version-flow {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 18px;
+            margin: 6px 0 18px;
+        }
+
+        .version-flow .old { color: var(--text-dim); }
+
+        .version-flow .arrow { color: var(--accent); }
+
+        .version-flow .new { color: var(--text); font-weight: 700; }
+
+        .footer {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            padding-top: 18px;
+            border-top: 1px solid var(--border);
+        }
+
+        .btn {
+            border: 1px solid var(--border);
+            background: var(--bg-elev-2);
+            color: var(--text);
+            border-radius: 8px;
+            padding: 10px 20px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            font-family: inherit;
+        }
+
+        .btn:hover { border-color: var(--accent); }
+
+        .btn.primary {
+            background: var(--accent);
+            color: var(--accent-ink);
+            border-color: var(--accent);
+        }
+
+        .btn.danger {
+            border-color: rgba(255, 107, 107, 0.5);
+            color: var(--danger);
+        }
+
+        .btn.danger:hover {
+            background: rgba(255, 107, 107, 0.12);
+            border-color: var(--danger);
+        }
+
+        .progress-track {
+            height: 10px;
+            background: var(--bg-elev);
+            border: 1px solid var(--border);
+            border-radius: 999px;
+            overflow: hidden;
+            margin: 18px 0 10px;
+        }
+
+        .progress-fill {
+            height: 100%;
+            width: 0;
+            background: var(--accent);
+            border-radius: 999px;
+            transition: width 0.25s ease;
+        }
+
+        .status { color: var(--text-dim); font-size: 13px; }
+
+        .result-icon {
+            font-size: 40px;
+            margin-bottom: 10px;
+        }
+
+        .center { text-align: center; }
+    </style>
+</head>
+<body>
+<div class="app">
+    <div class="head">
+        <img src="icon.png" alt="PigeonPost"/>
+        <div>
+            <div class="title">PigeonPost Setup</div>
+            <div class="sub" id="head-sub">Local-first email, by Oliver Ernster</div>
+        </div>
+    </div>
+
+    <div class="body">
+        <!-- Install -->
+        <section class="screen" id="screen-install">
+            <h1 id="install-title">Install PigeonPost</h1>
+            <p class="lead">A calmer, local-first desktop email client. This installs for your user account only, no administrator rights needed.</p>
+            <div class="infobox">Install location<br/><span class="path" id="install-path"></span></div>
+            <label class="option">
+                <input type="checkbox" id="boot-install"/>
+                <span class="check"></span>
+                <span>
+                    <span class="label">Launch PigeonPost when I sign in</span><br/>
+                    <span class="hint">Start automatically at login.</span>
+                </span>
+            </label>
+        </section>
+
+        <!-- Manage (installed) -->
+        <section class="screen" id="screen-manage">
+            <h1 id="manage-title">PigeonPost is installed</h1>
+            <p class="lead" id="manage-lead">You can repair the installation, change startup options or remove PigeonPost.</p>
+            <label class="option">
+                <input type="checkbox" id="boot-manage"/>
+                <span class="check"></span>
+                <span class="label">Launch PigeonPost when I sign in</span>
+            </label>
+        </section>
+
+        <!-- Upgrade -->
+        <section class="screen" id="screen-upgrade">
+            <h1>Update available</h1>
+            <p class="lead">A newer version of PigeonPost is ready to install. Your accounts and mail are kept.</p>
+            <div class="version-flow">
+                <span class="old" id="upgrade-old"></span>
+                <span class="arrow">&rarr;</span>
+                <span class="new" id="upgrade-new"></span>
+            </div>
+        </section>
+
+        <!-- Uninstall -->
+        <section class="screen" id="screen-uninstall">
+            <h1>Remove PigeonPost?</h1>
+            <p class="lead">This removes PigeonPost and its shortcuts from your computer.</p>
+            <label class="option">
+                <input type="checkbox" id="remove-data"/>
+                <span class="check"></span>
+                <span>
+                    <span class="label">Also delete my mail data</span><br/>
+                    <span class="hint">Removes the local cache and settings. Cannot be undone.</span>
+                </span>
+            </label>
+        </section>
+
+        <!-- Progress -->
+        <section class="screen" id="screen-progress">
+            <h1 id="progress-title">Working...</h1>
+            <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
+            <div class="status" id="progress-status">Starting...</div>
+        </section>
+
+        <!-- Done -->
+        <section class="screen center" id="screen-done">
+            <div class="result-icon" style="color: var(--ok)">&#10003;</div>
+            <h1 id="done-title">All done</h1>
+            <p class="lead" id="done-msg"></p>
+        </section>
+
+        <!-- Error -->
+        <section class="screen center" id="screen-error">
+            <div class="result-icon" style="color: var(--danger)">&#9888;</div>
+            <h1>Something went wrong</h1>
+            <p class="lead" id="error-msg"></p>
+        </section>
+    </div>
+
+    <div class="footer" id="footer"></div>
+</div>
+
+<script>
+    const $ = (id) => document.getElementById(id)
+
+    function backend() {
+        return window.go && window.go.main && window.go.main.App
+    }
+
+    function showScreen(name) {
+        document.querySelectorAll('.screen').forEach((el) => el.classList.remove('active'))
+        $('screen-' + name).classList.add('active')
+    }
+
+    function setFooter(buttons) {
+        const footer = $('footer')
+        footer.innerHTML = ''
+        buttons.forEach((b) => {
+            const el = document.createElement('button')
+            el.className = 'btn' + (b.kind ? ' ' + b.kind : '')
+            el.textContent = b.label
+            el.onclick = b.onClick
+            footer.appendChild(el)
+        })
+    }
+
+    function onProgress(p) {
+        $('progress-fill').style.width = p.pct + '%'
+        $('progress-status').textContent = p.msg
+    }
+
+    async function run(fn, title, doneTitle, doneMsg, finalButtons) {
+        $('progress-title').textContent = title
+        $('progress-fill').style.width = '0'
+        $('progress-status').textContent = 'Starting...'
+        setFooter([])
+        showScreen('progress')
+        try {
+            await fn()
+            $('done-title').textContent = doneTitle
+            $('done-msg').textContent = doneMsg
+            showScreen('done')
+            setFooter(finalButtons || [{label: 'Close', kind: 'primary', onClick: () => backend().Quit()}])
+        } catch (e) {
+            $('error-msg').textContent = String(e)
+            showScreen('error')
+            setFooter([{label: 'Close', kind: 'primary', onClick: () => backend().Quit()}])
+        }
+    }
+
+    function routeInstall(state) {
+        $('install-title').textContent = 'Install PigeonPost ' + state.thisVersion
+        $('install-path').textContent = state.installDir
+        $('boot-install').checked = false
+        showScreen('install')
+        setFooter([
+            {label: 'Cancel', onClick: () => backend().Quit()},
+            {
+                label: 'Install', kind: 'primary', onClick: () => run(
+                    () => backend().Install($('boot-install').checked),
+                    'Installing PigeonPost', 'PigeonPost installed', 'You can launch it from the Start Menu.')
+            },
+        ])
+    }
+
+    function routeUpgrade(state) {
+        $('upgrade-old').textContent = 'v' + state.installedVersion
+        $('upgrade-new').textContent = 'v' + state.thisVersion
+        showScreen('upgrade')
+        setFooter([
+            {label: 'Uninstall', kind: 'danger', onClick: () => routeUninstall(state)},
+            {label: 'Later', onClick: () => backend().Quit()},
+            {
+                label: 'Update', kind: 'primary', onClick: () => run(
+                    () => backend().Install(state.launchOnBoot),
+                    'Updating PigeonPost', 'PigeonPost updated', 'You are now on v' + state.thisVersion + '.')
+            },
+        ])
+    }
+
+    function routeManage(state) {
+        $('manage-title').textContent = 'PigeonPost ' + state.installedVersion + ' is installed'
+        const boot = $('boot-manage')
+        boot.checked = state.launchOnBoot
+        boot.onchange = () => backend().SetLaunchOnBoot(boot.checked)
+        showScreen('manage')
+        setFooter([
+            {label: 'Uninstall', kind: 'danger', onClick: () => routeUninstall(state)},
+            {label: 'Close', onClick: () => backend().Quit()},
+            {
+                label: 'Repair', kind: 'primary', onClick: () => run(
+                    () => backend().Repair(), 'Repairing PigeonPost', 'Repair complete', 'PigeonPost has been reinstalled.')
+            },
+        ])
+    }
+
+    function routeUninstall(state) {
+        $('remove-data').checked = false
+        showScreen('uninstall')
+        setFooter([
+            {label: 'Cancel', onClick: () => state.installed ? routeManage(state) : backend().Quit()},
+            {
+                label: 'Uninstall', kind: 'danger', onClick: () => run(
+                    () => backend().Uninstall($('remove-data').checked),
+                    'Removing PigeonPost', 'PigeonPost removed', 'PigeonPost has been uninstalled.')
+            },
+        ])
+    }
+
+    function route(state) {
+        if (state.mode === 'uninstall') {
+            routeUninstall(state)
+        } else if (state.mode === 'manage') {
+            if (state.upgradeAvailable) {
+                routeUpgrade(state)
+            } else {
+                routeManage(state)
+            }
+        } else {
+            routeInstall(state)
+        }
+    }
+
+    async function init() {
+        let tries = 0
+        while (!backend() && tries < 100) {
+            await new Promise((r) => setTimeout(r, 50))
+            tries++
+        }
+        if (!backend()) {
+            $('error-msg').textContent = 'Could not connect to the installer backend.'
+            showScreen('error')
+            return
+        }
+        window.runtime.EventsOn('progress', onProgress)
+        const state = await backend().DetectState()
+        route(state)
+    }
+
+    window.addEventListener('DOMContentLoaded', init)
+</script>
+</body>
+</html>

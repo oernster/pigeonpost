@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>PigeonPost — a calmer email client</title>
+    <meta name="description"
+          content="PigeonPost is a local-first, cross-platform desktop email, calendar and address book client. Go core, React front end. GPL-3.0."/>
+    <link rel="icon" type="image/png" href="pigeonpost.png"/>
+    <style>
+        :root {
+            --bg: #16181d;
+            --bg-elev: #1e222a;
+            --bg-elev-2: #262b34;
+            --border: #303743;
+            --text: #e6e9ef;
+            --text-dim: #9aa4b2;
+            --accent: #7fb0ff;
+            --accent-ink: #0b1220;
+            --radius: 12px;
+            --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            background: radial-gradient(1200px 600px at 50% -10%, #1d2430 0%, var(--bg) 60%);
+            color: var(--text);
+            font-family: var(--font);
+            line-height: 1.6;
+        }
+
+        a { color: var(--accent); }
+
+        .wrap {
+            max-width: 1040px;
+            margin: 0 auto;
+            padding: 0 24px;
+        }
+
+        header.site {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 20px 0;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-weight: 700;
+            font-size: 18px;
+        }
+
+        .logo img { width: 34px; height: 34px; }
+
+        .nav a {
+            color: var(--text-dim);
+            text-decoration: none;
+            margin-left: 20px;
+            font-size: 14px;
+        }
+
+        .nav a:hover { color: var(--text); }
+
+        .hero {
+            text-align: center;
+            padding: 48px 0 20px;
+        }
+
+        .hero img.mark {
+            width: 128px;
+            height: 128px;
+            filter: drop-shadow(0 12px 30px rgba(0, 0, 0, 0.45));
+        }
+
+        .hero h1 {
+            font-size: 44px;
+            margin: 20px 0 8px;
+            letter-spacing: -0.5px;
+        }
+
+        .hero p.tagline {
+            font-size: 19px;
+            color: var(--text-dim);
+            max-width: 620px;
+            margin: 0 auto 12px;
+        }
+
+        .badge {
+            display: inline-block;
+            font-size: 12px;
+            color: var(--accent);
+            border: 1px solid var(--border);
+            border-radius: 999px;
+            padding: 3px 12px;
+            margin-bottom: 8px;
+        }
+
+        .cta {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-top: 24px;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            text-decoration: none;
+            border-radius: 8px;
+            padding: 12px 22px;
+            font-weight: 600;
+            font-size: 15px;
+            border: 1px solid var(--border);
+            color: var(--text);
+            background: var(--bg-elev-2);
+        }
+
+        .btn.primary {
+            background: var(--accent);
+            color: var(--accent-ink);
+            border-color: var(--accent);
+        }
+
+        .btn:hover { border-color: var(--accent); }
+
+        .platforms {
+            margin-top: 14px;
+            color: var(--text-dim);
+            font-size: 13px;
+        }
+
+        .shot {
+            margin: 40px 0 20px;
+        }
+
+        .shot-frame {
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            background: var(--bg-elev);
+            overflow: hidden;
+            box-shadow: 0 24px 60px rgba(0, 0, 0, 0.4);
+        }
+
+        .shot-frame img { display: block; width: 100%; height: auto; }
+
+        /* Placeholder shown until a real screenshot is dropped in. Replace the .shot-placeholder
+           block with: <img src="screenshot.png" alt="PigeonPost screenshot"/> */
+        .shot-placeholder {
+            aspect-ratio: 16 / 10;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            color: var(--text-dim);
+            background:
+                repeating-linear-gradient(45deg, #1b2028, #1b2028 12px, #1e232c 12px, #1e232c 24px);
+        }
+
+        .section {
+            padding: 40px 0;
+            border-top: 1px solid var(--border);
+        }
+
+        .section h2 {
+            font-size: 26px;
+            margin: 0 0 6px;
+        }
+
+        .section p.lead {
+            color: var(--text-dim);
+            margin: 0 0 28px;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 16px;
+        }
+
+        .card {
+            background: var(--bg-elev);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 20px;
+        }
+
+        .card .ico {
+            font-size: 22px;
+            margin-bottom: 8px;
+        }
+
+        .card h3 {
+            margin: 0 0 6px;
+            font-size: 16px;
+        }
+
+        .card p {
+            margin: 0;
+            color: var(--text-dim);
+            font-size: 14px;
+        }
+
+        .stack {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .chip {
+            font-size: 13px;
+            color: var(--text-dim);
+            border: 1px solid var(--border);
+            border-radius: 999px;
+            padding: 5px 12px;
+            background: var(--bg-elev);
+        }
+
+        footer.site {
+            border-top: 1px solid var(--border);
+            padding: 28px 0 48px;
+            color: var(--text-dim);
+            font-size: 14px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: space-between;
+        }
+
+        footer.site a { color: var(--text-dim); }
+
+        @media (max-width: 640px) {
+            .hero h1 { font-size: 34px; }
+        }
+    </style>
+</head>
+<body>
+<div class="wrap">
+    <header class="site">
+        <div class="logo">
+            <img src="pigeonpost.png" alt="PigeonPost"/>
+            <span>PigeonPost</span>
+        </div>
+        <nav class="nav">
+            <a href="#features">Features</a>
+            <a href="#stack">Built with</a>
+            <a href="https://github.com/oernster/pigeonpost">GitHub</a>
+            <a href="https://github.com/oernster/pigeonpost/releases">Download</a>
+        </nav>
+    </header>
+
+    <section class="hero">
+        <img class="mark" src="pigeonpost.png" alt="PigeonPost icon"/>
+        <div><span class="badge">In active development</span></div>
+        <h1>Email that stays out of your way</h1>
+        <p class="tagline">
+            A calmer, local-first desktop email, calendar and address book client. Your mail lives on
+            your machine, not in someone else's cloud.
+        </p>
+        <div class="cta">
+            <a class="btn primary" href="https://github.com/oernster/pigeonpost/releases">Download for Windows</a>
+            <a class="btn" href="https://github.com/oernster/pigeonpost">View source</a>
+        </div>
+        <div class="platforms">Windows today; macOS and Linux builds planned.</div>
+    </section>
+
+    <section class="shot">
+        <div class="shot-frame">
+            <!-- Replace this placeholder with: <img src="screenshot.png" alt="PigeonPost screenshot"/> -->
+            <div class="shot-placeholder">
+                <div style="font-size:28px">🕊️</div>
+                <div>Screenshot coming soon</div>
+            </div>
+        </div>
+    </section>
+
+    <section class="section" id="features">
+        <h2>What it does</h2>
+        <p class="lead">The Thunderbird workflows that carry daily use, without the clutter.</p>
+        <div class="grid">
+            <div class="card">
+                <div class="ico">📥</div>
+                <h3>IMAP and POP3</h3>
+                <p>Connect standard mailboxes with a guided or manual setup. Multiple accounts, unified inbox.</p>
+            </div>
+            <div class="card">
+                <div class="ico">🗂️</div>
+                <h3>Familiar three-pane</h3>
+                <p>Folders, message list and reader. Copy, move or drag mail between mailboxes.</p>
+            </div>
+            <div class="card">
+                <div class="ico">🏷️</div>
+                <h3>Coloured tags and flags</h3>
+                <p>Mark read or unread, star what matters and label messages with colour.</p>
+            </div>
+            <div class="card">
+                <div class="ico">📅</div>
+                <h3>Calendar with ICS</h3>
+                <p>Month, week and day views. Import and export .ics files to and from Outlook or Thunderbird.</p>
+            </div>
+            <div class="card">
+                <div class="ico">👥</div>
+                <h3>Address book</h3>
+                <p>Contacts and groups with vCard import and export for easy migration.</p>
+            </div>
+            <div class="card">
+                <div class="ico">🔒</div>
+                <h3>Local-first and private</h3>
+                <p>Mail is cached and searchable offline. Passwords stay in your OS keychain.</p>
+            </div>
+        </div>
+    </section>
+
+    <section class="section" id="stack">
+        <h2>Built with care</h2>
+        <p class="lead">A clean, testable core and a single small binary per platform.</p>
+        <div class="stack">
+            <span class="chip">Go core</span>
+            <span class="chip">React front end</span>
+            <span class="chip">Wails</span>
+            <span class="chip">SQLite, local-first</span>
+            <span class="chip">OS keychain</span>
+            <span class="chip">GPL-3.0</span>
+        </div>
+    </section>
+
+    <footer class="site">
+        <span>PigeonPost by Oliver Ernster. Released under GPL-3.0.</span>
+        <span>
+            <a href="https://github.com/oernster/pigeonpost">GitHub</a>
+            &nbsp;·&nbsp;
+            <a href="https://github.com/oernster/pigeonpost/releases">Releases</a>
+        </span>
+    </footer>
+</div>
+</body>
+</html>
