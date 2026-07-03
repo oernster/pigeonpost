@@ -120,3 +120,52 @@ func TestMessageBodySaveError(t *testing.T) {
 		t.Errorf("Body error = %v, want wrapped boom", err)
 	}
 }
+
+func TestMessageRawFetches(t *testing.T) {
+	svc, store, accounts, source := newBodyService()
+	seedMessageLocation(t, store, accounts)
+	source.raw = []byte("From: a@example.com\r\nSubject: Hi\r\n\r\nBody")
+
+	raw, err := svc.Raw(context.Background(), "m1")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if string(raw) != "From: a@example.com\r\nSubject: Hi\r\n\r\nBody" {
+		t.Errorf("raw = %q, want the fetched bytes", raw)
+	}
+}
+
+func TestMessageRawGetMessageError(t *testing.T) {
+	svc, store, _, _ := newBodyService()
+	store.getMessageErr = errBoom
+	if _, err := svc.Raw(context.Background(), "m1"); !errors.Is(err, errBoom) {
+		t.Errorf("Raw error = %v, want wrapped boom", err)
+	}
+}
+
+func TestMessageRawGetFolderError(t *testing.T) {
+	svc, store, accounts, _ := newBodyService()
+	seedMessageLocation(t, store, accounts)
+	store.getFolderErr = errBoom
+	if _, err := svc.Raw(context.Background(), "m1"); !errors.Is(err, errBoom) {
+		t.Errorf("Raw error = %v, want wrapped boom", err)
+	}
+}
+
+func TestMessageRawGetAccountError(t *testing.T) {
+	svc, store, accounts, _ := newBodyService()
+	seedMessageLocation(t, store, accounts)
+	accounts.getErr = errBoom
+	if _, err := svc.Raw(context.Background(), "m1"); !errors.Is(err, errBoom) {
+		t.Errorf("Raw error = %v, want wrapped boom", err)
+	}
+}
+
+func TestMessageRawFetchError(t *testing.T) {
+	svc, store, accounts, source := newBodyService()
+	seedMessageLocation(t, store, accounts)
+	source.fetchRawErr = errBoom
+	if _, err := svc.Raw(context.Background(), "m1"); !errors.Is(err, errBoom) {
+		t.Errorf("Raw error = %v, want wrapped boom", err)
+	}
+}

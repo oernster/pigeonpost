@@ -64,6 +64,9 @@ type MailSource interface {
 	FetchFolders(ctx context.Context, account domain.Account) ([]domain.Folder, error)
 	FetchMessages(ctx context.Context, account domain.Account, folder domain.Folder) ([]domain.MessageSummary, error)
 	FetchBody(ctx context.Context, account domain.Account, folder domain.Folder, uid uint32) (plain, html string, err error)
+	// FetchRaw returns the full raw RFC822 bytes of a message by UID, used for export (.eml) and for
+	// attaching an existing message to a new one.
+	FetchRaw(ctx context.Context, account domain.Account, folder domain.Folder, uid uint32) ([]byte, error)
 }
 
 // MailActions performs write operations against a remote mailbox, such as changing message flags. It

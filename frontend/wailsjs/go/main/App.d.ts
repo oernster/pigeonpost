@@ -58,6 +58,8 @@ export function ReplayOutbox():Promise<number>;
 
 export function SaveDraft(arg1:main.ComposeRequest):Promise<void>;
 
+export function SaveMessageAs(arg1:string,arg2:string):Promise<void>;
+
 export function SaveRule(arg1:main.RuleRequest):Promise<void>;
 
 export function SaveTag(arg1:main.TagRequest):Promise<void>;

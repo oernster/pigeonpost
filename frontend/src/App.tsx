@@ -28,6 +28,13 @@ function subjectWithPrefix(prefix: string, subject: string): string {
     return s.toLowerCase().startsWith(prefix.toLowerCase()) ? s : `${prefix} ${s}`
 }
 
+// emlFilename builds a safe .eml filename from a message subject, replacing characters a filesystem
+// rejects and falling back to a default when the subject is empty.
+function emlFilename(subject: string): string {
+    const cleaned = subject.replace(/[\\/:*?"<>|\x00-\x1f]/g, '-').trim()
+    return `${cleaned || 'message'}.eml`
+}
+
 // neighbourAfterRemoval returns the message that selection should land on once the message with
 // removedId is deleted from list: the following message, or the preceding one when it was last, or
 // null when it was the only message. This keeps keyboard triage moving without a manual re-select.
@@ -411,6 +418,15 @@ function App() {
             setError(String(e))
         }
     }, [selectedMessage])
+
+    // saveMessageAs exports the message as a .eml file via a native save dialog, named from its subject.
+    const saveMessageAs = useCallback(async (message: Message) => {
+        try {
+            await api.saveMessageAs(message.id, emlFilename(message.subject || ''))
+        } catch (e) {
+            setError(String(e))
+        }
+    }, [])
 
     const toggleFlag = useCallback(async (message: Message) => {
         const next = !message.flagged
@@ -803,6 +819,7 @@ function App() {
                     onMove={(m, dest) => void moveMessage(m, dest)}
                     onCopy={(m, dest) => void copyMessage(m, dest)}
                     onSetTag={(id, tagId, assigned) => void setMessageTagById(id, tagId, assigned)}
+                    onSaveAs={(m) => void saveMessageAs(m)}
                     onDelete={requestDelete}
                     onDeletePermanent={(m) => setMessageToPurge(m)}
                 />

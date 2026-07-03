@@ -114,6 +114,10 @@ export function SaveDraft(arg1) {
   return window['go']['main']['App']['SaveDraft'](arg1);
 }
 
+export function SaveMessageAs(arg1, arg2) {
+  return window['go']['main']['App']['SaveMessageAs'](arg1, arg2);
+}
+
 export function SaveRule(arg1) {
   return window['go']['main']['App']['SaveRule'](arg1);
 }

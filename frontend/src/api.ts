@@ -30,6 +30,7 @@ import {
     RemoveAccount,
     ReplayOutbox,
     SaveDraft,
+    SaveMessageAs,
     SaveTag,
     SearchMessages,
     SendMessage,
@@ -108,6 +109,8 @@ export const api = {
     markFlagged: (messageId: string, flagged: boolean): Promise<void> => MarkFlagged(messageId, flagged),
     deleteMessage: (messageId: string): Promise<void> => DeleteMessage(messageId),
     deleteMessagePermanent: (messageId: string): Promise<void> => DeleteMessagePermanent(messageId),
+    saveMessageAs: (messageId: string, suggestedName: string): Promise<void> =>
+        SaveMessageAs(messageId, suggestedName),
     moveMessage: (messageId: string, destFolderId: string): Promise<void> => MoveMessage(messageId, destFolderId),
     copyMessage: (messageId: string, destFolderId: string): Promise<void> => CopyMessage(messageId, destFolderId),
     createFolder: (accountId: string, name: string): Promise<void> => CreateFolder(accountId, name),
