@@ -36,7 +36,8 @@ Shipped:
   next sync (attachments included). A title-bar pill shows what is waiting; click it to review the
   outbox and cancel any queued message.
 - **Organise** — mark read/unread (unread shows bold), star/flag, delete (to Trash) or delete
-  permanently, move and copy between folders, and colour-coded tags. Create, rename and delete folders
+  permanently, move and copy between folders (by menu or by dragging a message onto a folder) and
+  colour-coded tags. Create, rename and delete folders
   (rename is correct on non-`/` delimiter servers). Well-known folders sort to the top of a nested,
   collapsible tree. Filter rules mark-read or flag messages on arrival. Instant local full-text search.
 - **Read** — a right-click context menu on every message (open in new tab, reply, forward, save as
@@ -49,7 +50,7 @@ Shipped:
 
 Planned (see [DESIGN_PLAN.md](DESIGN_PLAN.md) for the full roadmap):
 
-- Drag-and-drop to move messages, tags round-tripped onto IMAP keywords, move/delete filter rules.
+- Tags round-tripped onto IMAP keywords, move/delete filter rules.
 - POP3, Microsoft OAuth, multiple accounts with a unified inbox.
 - Calendar with ICS import/export, address book with vCard.
 

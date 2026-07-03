@@ -30,9 +30,10 @@ enforced by a test in `tests/structural/boundary_test.go`, not by convention.
   not duplicated) and the OS keychain (`keychain`); later ICS, vCard and OAuth. Never imported by
   Domain or Application. The `installer` package holds the setup program's install logic and is
   consumed by the `installer/` Wails setup app.
-- **UI**: the React front end plus the thin Wails facade in package `main` (`app.go`, `about.go`,
-  `send.go`, `accountsetup.go`, `dto.go`). The facade is a client of the Application use cases only; it
-  maps domain results to DTOs and holds no business logic.
+- **UI**: the React front end plus the thin Wails facade in package `main` (`app.go` with its
+  per-feature binding files `about.go`, `accountsetup.go`, `send.go`, `export.go`, `outbox.go`,
+  `rulesapi.go` and `tagsapi.go`, the `dto.go` DTO mappers and the `clock.go` clock). The facade is a
+  client of the Application use cases only; it maps domain results to DTOs and holds no business logic.
 
 ## Composition root
 
