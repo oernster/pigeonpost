@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useState} from 'react'
+import {useCallback, useEffect, useRef, useState} from 'react'
 import './App.css'
 import brandIcon from './assets/pigeonpost.png'
 import {AboutInfo, Account, api, Folder, Message, MessageBody, Rule, Tag} from './api'
@@ -39,6 +39,12 @@ function emlFilename(subject: string): string {
 // printFrameId identifies the hidden iframe used for printing, so a previous one is removed before a
 // new print rather than accumulating frames.
 const printFrameId = 'pp-print-frame'
+
+// autoSyncDebounceMs delays the sync triggered by an action (move, copy, delete) so a run of actions
+// coalesces into a single refresh; autoSyncIntervalMs is the periodic background refresh.
+const autoSyncDebounceMs = 1500
+const millisPerMinute = 60 * 1000
+const autoSyncIntervalMs = 5 * millisPerMinute
 
 // printDocument renders a standalone HTML document for printing one message: a short header (subject,
 // sender, date) followed by the message body. The body HTML is already sanitised server-side, so it is
@@ -333,6 +339,32 @@ function App() {
         void refreshOutbox()
     }, [refreshOutbox])
 
+    // scheduleSync runs a background sync shortly after a message action (move, copy, delete), so the
+    // change is mirrored into every folder's cache (a moved message appears in its destination, a
+    // deleted one in Trash) without the user pressing Sync. Rapid actions coalesce into one sync.
+    const autoSyncTimer = useRef<number | null>(null)
+    const scheduleSync = useCallback(() => {
+        if (!selectedAccount) {
+            return
+        }
+        if (autoSyncTimer.current !== null) {
+            window.clearTimeout(autoSyncTimer.current)
+        }
+        autoSyncTimer.current = window.setTimeout(() => {
+            autoSyncTimer.current = null
+            void sync()
+        }, autoSyncDebounceMs)
+    }, [selectedAccount, sync])
+
+    // Periodic background sync keeps the mailbox fresh while the app is open.
+    useEffect(() => {
+        if (!selectedAccount) {
+            return
+        }
+        const interval = window.setInterval(() => void sync(), autoSyncIntervalMs)
+        return () => window.clearInterval(interval)
+    }, [selectedAccount, sync])
+
     const onAccountSaved = useCallback(async (email: string) => {
         setSettingUp(false)
         setAccountToEdit(null)
@@ -369,28 +401,9 @@ function App() {
             return
         }
         const id = messageToDelete.id
-        setDeletingMessage(true)
-        setError('')
-        try {
-            await api.deleteMessage(id)
-            setMessages((prev) => prev.filter((m) => m.id !== id))
-            setSearchResults((prev) => prev.filter((m) => m.id !== id))
-            setSelectedMessage((prev) => (prev?.id === id ? null : prev))
-            setMessageToDelete(null)
-        } catch (e) {
-            setError(String(e))
-        } finally {
-            setDeletingMessage(false)
-        }
-    }, [messageToDelete])
-
-    // trashMessage moves a message to Trash with no confirmation, used by the Delete key when the
-    // action is reversible. It advances the selection to the neighbouring message so repeated presses
-    // clear a run of mail without a re-select.
-    const trashMessage = useCallback(async (message: Message) => {
-        const id = message.id
         const list = searchActive ? searchResults : messages
         const next = neighbourAfterRemoval(list, id)
+        setDeletingMessage(true)
         setError('')
         try {
             await api.deleteMessage(id)
@@ -398,13 +411,17 @@ function App() {
             setSearchResults((prev) => prev.filter((m) => m.id !== id))
             setTabs((prev) => prev.filter((m) => m.id !== id))
             setSelectedMessage((prev) => (prev?.id === id ? next : prev))
+            setMessageToDelete(null)
+            scheduleSync()
         } catch (e) {
             setError(String(e))
+        } finally {
+            setDeletingMessage(false)
         }
-    }, [searchActive, searchResults, messages])
+    }, [messageToDelete, searchActive, searchResults, messages, scheduleSync])
 
     // deletePermanent is the confirmed, irreversible delete behind Shift+Delete: it removes the message
-    // from the server without moving it to Trash, then advances the selection like trashMessage.
+    // from the server without moving it to Trash, then advances the selection.
     const deletePermanent = useCallback(async () => {
         if (!messageToPurge) {
             return
@@ -421,26 +438,20 @@ function App() {
             setTabs((prev) => prev.filter((m) => m.id !== id))
             setSelectedMessage((prev) => (prev?.id === id ? next : prev))
             setMessageToPurge(null)
+            scheduleSync()
         } catch (e) {
             setError(String(e))
         } finally {
             setPurgingMessage(false)
         }
-    }, [messageToPurge, searchActive, searchResults, messages])
+    }, [messageToPurge, searchActive, searchResults, messages, scheduleSync])
 
-    // requestDelete routes a (reversible) Delete: it trashes the message silently when it can be moved
-    // to Trash, or opens the confirmation dialog when the delete would be permanent (already in Trash,
-    // no Trash folder, or an unresolvable folder). Shared by the Delete key and the context menu.
+    // requestDelete always asks for confirmation before deleting. The confirmed delete moves the
+    // message to Trash where the account has one, or removes it permanently otherwise (the dialog says
+    // which). Shared by the Delete key and the context menu.
     const requestDelete = useCallback((message: Message) => {
-        const hasTrash = folders.some((f) => f.kind === 'trash')
-        const folder = folders.find((f) => f.id === message.folderId)
-        const permanent = !folder || folder.kind === 'trash' || !hasTrash
-        if (permanent) {
-            setMessageToDelete(message)
-        } else {
-            void trashMessage(message)
-        }
-    }, [folders, trashMessage])
+        setMessageToDelete(message)
+    }, [])
 
     const closeContextMenu = useCallback(() => setContextMenu(null), [])
 
@@ -547,10 +558,11 @@ function App() {
             setSearchResults((prev) => prev.filter((m) => m.id !== messageId))
             setTabs((prev) => prev.filter((m) => m.id !== messageId))
             setSelectedMessage((prev) => (prev?.id === messageId ? null : prev))
+            scheduleSync()
         } catch (e) {
             setError(String(e))
         }
-    }, [])
+    }, [scheduleSync])
 
     const moveMessage = useCallback(
         (message: Message, destFolderId: string) => moveMessageById(message.id, destFolderId),
@@ -573,10 +585,11 @@ function App() {
         setError('')
         try {
             await api.copyMessage(message.id, destFolderId)
+            scheduleSync()
         } catch (e) {
             setError(String(e))
         }
-    }, [])
+    }, [scheduleSync])
 
     const refreshFolders = useCallback(async () => {
         if (selectedAccount) {
@@ -732,10 +745,10 @@ function App() {
         }
     }, [selectedFolder])
 
-    // Keyboard control for the message list: Arrow Up/Down move the selection, Delete moves the
-    // selected message to Trash (or asks for confirmation when the delete would be permanent), and
-    // Shift+Delete always asks before deleting permanently. Handling is suppressed while any dialog is
-    // open or while the user is typing in a field, so it never competes with text entry or a modal.
+    // Keyboard control for the message list: Arrow Up/Down move the selection, Delete asks to delete
+    // the selected message (to Trash where possible), and Shift+Delete asks to delete it permanently.
+    // Handling is suppressed while any dialog is open or while the user is typing in a field, so it
+    // never competes with text entry or a modal.
     useEffect(() => {
         const overlayOpen =
             splashVisible || composing || settingUp || Boolean(accountToEdit) || managingTags ||
