@@ -49,8 +49,33 @@ func makeMessageID(folderID string, uid uint32) string {
 	return fmt.Sprintf("%s%s%d", folderID, folderIDSeparator, uid)
 }
 
-// folderKindFor classifies a mailbox from its name and RFC 6154 special-use attributes.
-func folderKindFor(mailbox string, attrs []imap.MailboxAttr) domain.FolderKind {
+// folderKindByLeafName classifies well-known mailboxes by their leaf name, for servers that do not
+// advertise the RFC 6154 special-use attributes (so a delete still finds Trash, a sent copy Sent, and
+// so on). Keys are lowercased leaf names.
+var folderKindByLeafName = map[string]domain.FolderKind{
+	"sent":             domain.FolderSent,
+	"sent items":       domain.FolderSent,
+	"sent mail":        domain.FolderSent,
+	"sent messages":    domain.FolderSent,
+	"drafts":           domain.FolderDrafts,
+	"draft":            domain.FolderDrafts,
+	"trash":            domain.FolderTrash,
+	"deleted":          domain.FolderTrash,
+	"deleted items":    domain.FolderTrash,
+	"deleted messages": domain.FolderTrash,
+	"bin":              domain.FolderTrash,
+	"junk":             domain.FolderJunk,
+	"junk email":       domain.FolderJunk,
+	"junk e-mail":      domain.FolderJunk,
+	"spam":             domain.FolderJunk,
+	"archive":          domain.FolderArchive,
+	"archives":         domain.FolderArchive,
+}
+
+// folderKindFor classifies a mailbox from its name and RFC 6154 special-use attributes. Attributes win
+// when present; otherwise the leaf name is matched against the well-known names, so servers that omit
+// special-use still get a usable Trash/Sent/Drafts/Junk/Archive classification.
+func folderKindFor(mailbox, leaf string, attrs []imap.MailboxAttr) domain.FolderKind {
 	if strings.EqualFold(mailbox, "INBOX") {
 		return domain.FolderInbox
 	}
@@ -68,17 +93,26 @@ func folderKindFor(mailbox string, attrs []imap.MailboxAttr) domain.FolderKind {
 			return domain.FolderArchive
 		}
 	}
+	if kind, ok := folderKindByLeafName[strings.ToLower(strings.TrimSpace(leaf))]; ok {
+		return kind
+	}
 	return domain.FolderCustom
 }
 
 // buildFolder maps a LIST response into a domain folder. Counts are unknown from LIST alone and
 // default to zero until a later STATUS/SELECT sync fills them in.
 func buildFolder(accountID string, data *imap.ListData) (domain.Folder, error) {
-	kind := folderKindFor(data.Mailbox, data.Attrs)
 	separator := ""
 	if data.Delim != 0 {
 		separator = string(data.Delim)
 	}
+	leaf := data.Mailbox
+	if separator != "" {
+		if idx := strings.LastIndex(data.Mailbox, separator); idx >= 0 {
+			leaf = data.Mailbox[idx+len(separator):]
+		}
+	}
+	kind := folderKindFor(data.Mailbox, leaf, data.Attrs)
 	return domain.NewFolderWithSeparator(
 		makeFolderID(accountID, data.Mailbox), accountID, data.Mailbox, separator, kind, 0, 0)
 }

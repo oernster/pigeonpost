@@ -38,10 +38,14 @@ func TestFolderKindFor(t *testing.T) {
 		{"archive", "Archive", []imap.MailboxAttr{imap.MailboxAttrArchive}, domain.FolderArchive},
 		{"custom no attrs", "Work", nil, domain.FolderCustom},
 		{"custom other attr", "Work", []imap.MailboxAttr{imap.MailboxAttrHasChildren}, domain.FolderCustom},
+		{"trash by name", "Trash", nil, domain.FolderTrash},
+		{"deleted items by name", "Deleted Items", nil, domain.FolderTrash},
+		{"spam by name", "spam", nil, domain.FolderJunk},
+		{"sent by name", "Sent Items", nil, domain.FolderSent},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := folderKindFor(tc.mailbox, tc.attrs); got != tc.want {
+			if got := folderKindFor(tc.mailbox, tc.mailbox, tc.attrs); got != tc.want {
 				t.Errorf("kind = %v, want %v", got, tc.want)
 			}
 		})
