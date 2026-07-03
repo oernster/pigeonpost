@@ -149,20 +149,6 @@
 
         .shot-frame img { display: block; width: 100%; height: auto; }
 
-        /* Placeholder shown until a real screenshot is dropped in. Replace the .shot-placeholder
-           block with: <img src="screenshot.png" alt="PigeonPost screenshot"/> */
-        .shot-placeholder {
-            aspect-ratio: 16 / 10;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-            color: var(--text-dim);
-            background:
-                repeating-linear-gradient(45deg, #1b2028, #1b2028 12px, #1e232c 12px, #1e232c 24px);
-        }
-
         .section {
             padding: 40px 0;
             border-top: 1px solid var(--border);
@@ -273,11 +259,8 @@
 
     <section class="shot">
         <div class="shot-frame">
-            <!-- Replace this placeholder with: <img src="screenshot.png" alt="PigeonPost screenshot"/> -->
-            <div class="shot-placeholder">
-                <div style="font-size:28px">🕊️</div>
-                <div>Screenshot coming soon</div>
-            </div>
+            <img src="screenshots/screenshot1.png"
+                 alt="PigeonPost in dark mode showing the account setup screen: choose a provider (Outlook, iCloud, Yahoo, Fastmail or StartMail) or set the servers up manually."/>
         </div>
     </section>
 

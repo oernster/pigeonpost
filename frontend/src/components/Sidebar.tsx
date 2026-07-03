@@ -1,3 +1,4 @@
+import icon from '../assets/pigeonpost.png'
 import {Account, Folder} from '../api'
 
 interface SidebarProps {
@@ -22,23 +23,27 @@ const folderIcon: Record<string, string> = {
 }
 
 export function Sidebar(props: SidebarProps) {
-    const {accounts, selectedAccount, folders, selectedFolder} = props
-
-    if (accounts.length === 0) {
-        return (
-            <aside className="pane sidebar">
+    return (
+        <aside className="pane sidebar">
+            <img className="sidebar-brand" src={icon} alt="" aria-hidden="true"/>
+            {props.accounts.length === 0 ? (
                 <div className="empty-state">
                     <div className="empty-title">No accounts yet</div>
                     <p className="empty-body">
                         Use "Add account" to configure a mail account.
                     </p>
                 </div>
-            </aside>
-        )
-    }
+            ) : (
+                <SidebarContent {...props}/>
+            )}
+        </aside>
+    )
+}
 
+function SidebarContent(props: SidebarProps) {
+    const {accounts, selectedAccount, folders, selectedFolder} = props
     return (
-        <aside className="pane sidebar">
+        <>
             <div className="section-label">Accounts</div>
             <ul className="list">
                 {accounts.map((account) => (
@@ -103,6 +108,6 @@ export function Sidebar(props: SidebarProps) {
                     )}
                 </>
             )}
-        </aside>
+        </>
     )
 }

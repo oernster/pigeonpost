@@ -1,5 +1,6 @@
 import {useState} from 'react'
 import {Account, AccountSetupInput, api} from '../api'
+import {ModalClose} from './ModalClose'
 
 interface AccountSetupModalProps {
     account?: Account | null
@@ -170,6 +171,7 @@ export function AccountSetupModal({account, onClose, onSaved}: AccountSetupModal
         return (
             <div className="modal-backdrop" onClick={onClose}>
                 <div className="modal setup" role="dialog" aria-label="Add account" onClick={(e) => e.stopPropagation()}>
+                    <ModalClose onClose={onClose}/>
                     <h2 className="modal-title">Add account</h2>
                     <p className="setup-hint">Choose your email provider, or set the servers up yourself.</p>
                     <div className="provider-grid">
@@ -253,6 +255,7 @@ export function AccountSetupModal({account, onClose, onSaved}: AccountSetupModal
     return (
         <div className="modal-backdrop" onClick={onClose}>
             <div className="modal setup" role="dialog" aria-label={editing ? 'Edit account' : 'Add account'} onClick={(e) => e.stopPropagation()}>
+                <ModalClose onClose={onClose}/>
                 <h2 className="modal-title">
                     {editing ? 'Edit account' : provider ? `Add ${provider.name}` : 'Add account'}
                 </h2>

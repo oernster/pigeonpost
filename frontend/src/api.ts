@@ -34,7 +34,10 @@ import {main} from '../wailsjs/go/models'
 
 export type Account = main.AccountDTO
 export type Folder = main.FolderDTO
-export type Message = main.MessageDTO
+// Wails returns plain JSON at runtime (no class methods), and the UI spreads messages for optimistic
+// updates, so Message is the data-only shape. Omitting convertValues keeps this valid even after the
+// generated MessageDTO regains that helper method on a `wails generate`.
+export type Message = Omit<main.MessageDTO, 'convertValues'>
 export type AboutInfo = main.AboutDTO
 export type Tag = main.TagDTO
 export type MessageBody = main.MessageBodyDTO

@@ -1,6 +1,7 @@
 import {useState} from 'react'
 import {api, Tag} from '../api'
 import {ConfirmDialog} from './ConfirmDialog'
+import {ModalClose} from './ModalClose'
 
 interface TagManagerModalProps {
     tags: Tag[]
@@ -83,6 +84,7 @@ export function TagManagerModal({tags, onChanged, onClose}: TagManagerModalProps
     return (
         <div className="modal-backdrop" onClick={onClose}>
             <div className="modal tags" role="dialog" aria-label="Manage tags" onClick={(e) => e.stopPropagation()}>
+                <ModalClose onClose={onClose}/>
                 <h2 className="modal-title">Tags</h2>
                 {error && <div className="compose-error">{error}</div>}
 

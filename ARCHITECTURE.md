@@ -22,12 +22,14 @@ enforced by a test in `tests/structural/boundary_test.go`, not by convention.
   the injected `Clock`. This is where correctness lives and where the 100% coverage gate applies.
 - **Application** (`internal/application`): use cases plus the port interfaces they depend on
   (`AccountStore`, `CredentialStore`, `AccountVerifier`, `MailStore`, `MailSource`, `MailActions`,
-  `MailTransport`, `TagStore`, `Clock`). Depends on Domain and the standard library only. Never imports
-  Infrastructure or the Wails runtime.
+  `MailTransport`, `DraftSaver`, `OutboxStore`, `TagStore`, `Clock`). Depends on Domain and the
+  standard library only. Never imports Infrastructure or the Wails runtime.
 - **Infrastructure** (`internal/infrastructure`): concrete adapters implementing the Application
-  ports. Owns SQLite (`storage`), IMAP (`imap`), SMTP (`smtp`) and the OS keychain (`keychain`);
-  later ICS, vCard and OAuth. Never imported by Domain or Application. The `installer` package holds
-  the setup program's install logic and is consumed by the `installer/` Wails setup app.
+  ports. Owns SQLite (`storage`), IMAP (`imap`), SMTP (`smtp`), the shared RFC 5322 MIME builder
+  (`message`, used by both `smtp` for send and `imap` for draft append so the message-format logic is
+  not duplicated) and the OS keychain (`keychain`); later ICS, vCard and OAuth. Never imported by
+  Domain or Application. The `installer` package holds the setup program's install logic and is
+  consumed by the `installer/` Wails setup app.
 - **UI**: the React front end plus the thin Wails facade in package `main` (`app.go`, `about.go`,
   `send.go`, `accountsetup.go`, `dto.go`). The facade is a client of the Application use cases only; it
   maps domain results to DTOs and holds no business logic.
@@ -103,20 +105,39 @@ Read a message body:
    (schema v3 `message_body` table) and returns it. The message therefore reads offline after its
    first open. The IMAP adapter parses the MIME into plain-text and HTML parts; the HTML is sanitised
    there (bluemonday) so only safe markup ever enters the cache, and an HTML-only message also gets a
-   plain-text rendering derived from the HTML. The UI renders the sanitised HTML when present (links
-   open in the external browser via the facade, never the app's own webview) and falls back to the
-   plain text otherwise.
+   plain-text rendering derived from the HTML. Before sanitising, every remote `<img src>` is parked in
+   a `data-pp-src` attribute (and `srcset` dropped) so images do not auto-load, which would leak that
+   the reader opened the message; the UI shows a "Load images" action that restores the source on
+   request. The UI renders the sanitised HTML when present (links open in the external browser via the
+   facade, never the app's own webview) and falls back to the plain text otherwise.
 
-Send (also reply and forward, which just pre-fill the same compose window with the recipient, a
-`Re:`/`Fwd:` subject and the quoted original before the identical send path runs):
+Send (also reply, reply-all and forward, which just pre-fill the same compose window before the
+identical send path runs: reply pre-fills the sender; reply-all pre-fills the sender plus the original
+To and Cc with the reader's own address and duplicates removed; forward pre-fills the quoted original;
+all set a `Re:`/`Fwd:` subject). Reply-all is possible because the cached message summary now stores the
+original To and Cc (schema v6):
 
 1. The UI submits a compose request (recipients, subject, body) to the facade.
 2. The facade parses the addresses into domain value objects and calls the compose use case.
 3. The compose use case loads the account, builds a validated `OutgoingMessage` (sender taken from
    the account) and hands it to the SMTP transport, which authenticates using the keychain password
    and delivers it. The compose editor is TipTap rich text: the draft carries both a plain-text body
-   and an optional HTML body, and when HTML is present the MIME builder emits a
+   and an optional HTML body, and when HTML is present the shared `message` MIME builder emits a
    `multipart/alternative` message (plain text first, HTML second) so plain-text clients still render.
+
+Save draft: Compose > Save draft calls the compose use case, which resolves the account's Drafts
+mailbox from the cached folders and, through the `DraftSaver` port, renders the message with the shared
+`message` builder and appends it to that mailbox on the server (IMAP APPEND, flagged `\Draft \Seen`).
+Unlike a send, a draft may be incomplete (no recipients, empty body), so it is built with the lenient
+`NewDraftMessage`.
+
+Offline outbox: the SMTP and IMAP adapters wrap a failed dial with the `ErrOffline` sentinel. When the
+compose use case sees `ErrOffline` from a send or a draft append, instead of failing it queues the
+operation through the `OutboxStore` port (schema v5 `outbox` table) and returns success; the header
+shows how many operations are waiting. After the next successful sync the UI calls replay, which drains
+the queue oldest-first: each item is re-sent or re-appended, removed on success, left in place if still
+offline, and dropped (with its error reported) if it can never succeed. The queue covers outgoing mail
+only; message flag/delete/move actions remain online-only by design.
 
 Delete a message: after a confirmation modal, the UI calls the facade, routed through the
 `MessageActionService`. It resolves the message's folder and account, then via the `MailActions` port

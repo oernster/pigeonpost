@@ -3,6 +3,7 @@ import {EditorContent, useEditor} from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Link from '@tiptap/extension-link'
 import {api, ComposeInput} from '../api'
+import {ModalClose} from './ModalClose'
 
 // normaliseUrl gives a bare host a scheme so the link is absolute rather than treated as relative.
 function normaliseUrl(url: string): string {
@@ -123,6 +124,7 @@ export function ComposeModal({accountId, initial, onClose}: ComposeModalProps) {
     return (
         <div className="modal-backdrop" onClick={onClose}>
             <div className="modal compose" role="dialog" aria-label="New message" onClick={(e) => e.stopPropagation()}>
+                <ModalClose onClose={onClose}/>
                 <h2 className="modal-title">New message</h2>
                 {error && <div className="compose-error">{error}</div>}
                 <label className="field">

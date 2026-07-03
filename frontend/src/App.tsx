@@ -1,5 +1,6 @@
 import {useCallback, useEffect, useState} from 'react'
 import './App.css'
+import brandIcon from './assets/pigeonpost.png'
 import {AboutInfo, Account, api, Folder, Message, MessageBody, Tag} from './api'
 import {applyTheme, loadTheme, Theme} from './theme'
 import {Sidebar} from './components/Sidebar'
@@ -451,7 +452,8 @@ function App() {
             </header>
             {error && <div className="error-bar" role="alert">{error}</div>}
             {accounts.length === 0 && !splashVisible ? (
-                <div className="empty-state">
+                <div className="empty-state welcome">
+                    <img className="welcome-brand" src={brandIcon} alt="" aria-hidden="true"/>
                     <div className="empty-card">
                         <h2>Welcome to PigeonPost</h2>
                         <p>Add a mail account to start reading and sending messages.</p>

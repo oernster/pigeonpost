@@ -39,8 +39,9 @@ documented here.
 | `internal/domain` | pure unit | none |
 | `internal/application` | unit against hand-written fakes | none |
 | `internal/infrastructure/storage` | integration against a real SQLite file | temp dir |
-| `internal/infrastructure/smtp` | unit on the MIME builder | none |
-| `internal/infrastructure/imap` | unit on the wire-to-domain mapping | none |
+| `internal/infrastructure/message` | unit on the RFC 5322 MIME builder | none |
+| `internal/infrastructure/smtp` | none (live send only; MIME building lives in `message`) | n/a |
+| `internal/infrastructure/imap` | unit on the wire-to-domain mapping and HTML handling | none |
 | `internal/infrastructure/keychain` | unit via go-keyring's in-memory mock | none |
 | `internal/installer` | unit on payload extraction and paths | temp dir |
 | `tests/structural` | AST scan of the source tree | file reads |
@@ -51,19 +52,21 @@ documented here.
 |---|---|---|
 | internal/domain | 100% | gated |
 | internal/application | 100% | gated |
+| internal/infrastructure/message | 100% | the RFC 5322 MIME builder (pure) |
 | internal/infrastructure/keychain | 100% | go-keyring mock |
-| internal/infrastructure/storage | ~88% | logic and error paths covered; see exclusions |
-| internal/infrastructure/smtp | ~44% | `BuildMIME` is 100%; live `Send` excluded |
-| internal/infrastructure/imap | ~42% | mapping is 100%; live fetch excluded |
-| internal/installer | ~49% | extract and paths covered; Win32 side effects excluded |
+| internal/infrastructure/storage | ~80% | logic and error paths covered; see exclusions |
+| internal/infrastructure/imap | ~40% | mapping and HTML handling 100%; live fetch/append excluded |
+| internal/infrastructure/smtp | 0% | transport is live `Send` only; MIME building moved to `message` |
+| internal/installer | ~32% | extract and paths covered; Win32 side effects excluded |
 | main package, installer app, tools/genicons | 0% | composition root, GUI and tooling, excluded |
 
 ## Documented exclusions (and why)
 
-- **Live IMAP fetch** (`imap/source.go`) and **live SMTP send** (`smtp/transport.go`): these dial a
-  real server, authenticate and stream data. They cannot be unit-tested without a network, so they
-  sit behind skippable integration tests (below). Their pure mapping and message-building logic is
-  separated out and covered to 100%.
+- **Live IMAP fetch/append** (`imap/source.go`) and **live SMTP send** (`smtp/transport.go`): these
+  dial a real server, authenticate and stream data. They cannot be unit-tested without a network, so
+  they sit behind skippable integration tests (below). Their pure logic is separated out and covered to
+  100%: the wire-to-domain mapping and HTML sanitising/image-blocking in `imap/mapping.go`, and the RFC
+  5322 MIME builder in the shared `internal/infrastructure/message` package.
 - **Win32 side effects** (`installer/windows.go`): registry writes, shortcut creation and shell-folder
   resolution. These mutate the real machine and are verified by running the installer, not in unit
   tests.

@@ -176,6 +176,16 @@
     border-right: none;
 }
 
+.sidebar-brand {
+    display: block;
+    width: 80px;
+    height: 80px;
+    margin: 16px 0 6px 14px;
+    opacity: 0.92;
+    user-select: none;
+    -webkit-user-drag: none;
+}
+
 .section-label {
     padding: 12px 14px 4px;
     font-size: 11px;
@@ -572,6 +582,7 @@
 }
 
 .modal {
+    position: relative;
     background-color: var(--bg);
     border: 1px solid var(--border);
     border-radius: 12px;
@@ -580,6 +591,31 @@
     width: calc(100% - 40px);
     max-height: calc(100vh - 60px);
     overflow-y: auto;
+}
+
+.modal-close {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    background: transparent;
+    border: none;
+    border-radius: 6px;
+    color: var(--text-dim);
+    font-size: 22px;
+    line-height: 1;
+    cursor: pointer;
+    z-index: 1;
+}
+
+.modal-close:hover {
+    background-color: var(--danger);
+    color: #fff;
 }
 
 .about {
@@ -994,6 +1030,23 @@
     text-align: center;
     max-width: 360px;
     padding: 32px;
+}
+
+/* Welcome screen (no accounts yet): the card stays centred while a scaled-up brand icon sits in the
+   top-left of the primary background, just below the title bar. */
+.welcome {
+    position: relative;
+}
+
+.welcome-brand {
+    position: absolute;
+    top: 18px;
+    left: 18px;
+    width: 96px;
+    height: 96px;
+    opacity: 0.92;
+    user-select: none;
+    -webkit-user-drag: none;
 }
 
 .empty-card h2 {

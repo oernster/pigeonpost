@@ -70,20 +70,12 @@ export function OpenReleasesPage() {
   return window['go']['main']['App']['OpenReleasesPage']();
 }
 
-export function RemoveAccount(arg1) {
-  return window['go']['main']['App']['RemoveAccount'](arg1);
-}
-
-export function SaveTag(arg1) {
-  return window['go']['main']['App']['SaveTag'](arg1);
-}
-
-export function SearchMessages(arg1) {
-  return window['go']['main']['App']['SearchMessages'](arg1);
-}
-
 export function OutboxCount() {
   return window['go']['main']['App']['OutboxCount']();
+}
+
+export function RemoveAccount(arg1) {
+  return window['go']['main']['App']['RemoveAccount'](arg1);
 }
 
 export function ReplayOutbox() {
@@ -92,6 +84,14 @@ export function ReplayOutbox() {
 
 export function SaveDraft(arg1) {
   return window['go']['main']['App']['SaveDraft'](arg1);
+}
+
+export function SaveTag(arg1) {
+  return window['go']['main']['App']['SaveTag'](arg1);
+}
+
+export function SearchMessages(arg1) {
+  return window['go']['main']['App']['SearchMessages'](arg1);
 }
 
 export function SendMessage(arg1) {

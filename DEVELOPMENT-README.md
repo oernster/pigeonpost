@@ -48,9 +48,10 @@ main.go, app.go, about.go, send.go, dto.go, clock.go   composition root + Wails 
 internal/domain/            pure value objects, no IO (100% test gate)
 internal/application/        use cases + port interfaces (100% test gate)
 internal/infrastructure/
-    storage/                SQLite store (schema, migrations)
-    imap/                   emersion go-imap source adapter
-    smtp/                   emersion go-smtp transport + MIME builder
+    storage/                SQLite store (schema, migrations, outbox)
+    imap/                   emersion go-imap source adapter (sync, bodies, draft append)
+    smtp/                   emersion go-smtp transport
+    message/                shared RFC 5322 MIME builder (used by smtp and imap)
     keychain/               OS keychain vault
     installer/              install logic used by the setup program
 installer/                  bespoke per-user setup program (Wails app: install/repair/upgrade/uninstall)

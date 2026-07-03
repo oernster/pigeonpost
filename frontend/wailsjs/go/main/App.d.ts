@@ -36,9 +36,9 @@ export function OpenExternal(arg1:string):Promise<void>;
 
 export function OpenReleasesPage():Promise<void>;
 
-export function RemoveAccount(arg1:string):Promise<void>;
-
 export function OutboxCount():Promise<number>;
+
+export function RemoveAccount(arg1:string):Promise<void>;
 
 export function ReplayOutbox():Promise<number>;
 

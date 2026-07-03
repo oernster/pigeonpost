@@ -1,3 +1,5 @@
+import {ModalClose} from './ModalClose'
+
 interface LicenceModalProps {
     text: string | null
     onClose: () => void
@@ -10,6 +12,7 @@ export function LicenceModal({text, onClose}: LicenceModalProps) {
     return (
         <div className="modal-backdrop" onClick={onClose}>
             <div className="modal licence" role="dialog" aria-label="Licence" onClick={(e) => e.stopPropagation()}>
+                <ModalClose onClose={onClose}/>
                 <h2 className="modal-title">Licence</h2>
                 <pre className="licence-text">{text}</pre>
                 <div className="modal-actions">

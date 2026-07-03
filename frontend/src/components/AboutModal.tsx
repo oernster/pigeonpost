@@ -1,5 +1,6 @@
 import icon from '../assets/pigeonpost.png'
 import {AboutInfo} from '../api'
+import {ModalClose} from './ModalClose'
 
 interface AboutModalProps {
     about: AboutInfo | null
@@ -13,6 +14,7 @@ export function AboutModal({about, onClose}: AboutModalProps) {
     return (
         <div className="modal-backdrop" onClick={onClose}>
             <div className="modal about" role="dialog" aria-label="About PigeonPost" onClick={(e) => e.stopPropagation()}>
+                <ModalClose onClose={onClose}/>
                 <img className="about-icon" src={icon} alt="PigeonPost"/>
                 <h2 className="about-name">{about.name}</h2>
                 <p className="about-tagline">{about.tagline}</p>

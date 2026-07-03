@@ -20,20 +20,28 @@ local-first. Built as a calmer, more predictable alternative to Thunderbird.
 
 ## Capabilities
 
-Shipped so far (phase 1 and phase 2):
+Shipped:
 
-- IMAP account sync (folders and message summaries), read into a local cache.
-- Three-pane UI: folder tree, message list, message reader.
-- Compose and send over SMTP, with plain-text and address validation.
-- Mark messages read or unread (unread shows bold).
-- Dark theme by default with a light mode toggle.
-- Help menu: About (with credits), Licence, and Check for Updates.
-- Passwords held in the OS keychain, never in the database.
+- **Accounts** — add, edit and remove IMAP accounts from a two-step setup wizard (provider presets for
+  Outlook, iCloud, Yahoo, Fastmail and StartMail, plus manual host/port/security). Credentials are
+  verified against the server before anything is saved.
+- **Sync and read** — folders and message summaries pulled into a local SQLite cache and read offline;
+  full message bodies fetched on open and cached. HTML mail is sanitised, and remote images are blocked
+  by default with a per-message "Load images" toggle.
+- **Compose** — TipTap rich-text composer (bold, italic, lists, quote, links), sent as
+  `multipart/alternative`. Reply, reply-all and forward. Save a draft to the server's Drafts mailbox.
+- **Offline** — sends and drafts made while disconnected are queued and delivered automatically on the
+  next sync, with a header indicator for what is waiting.
+- **Organise** — mark read/unread (unread shows bold), star/flag, delete (to Trash), move between
+  folders, and colour-coded tags. Instant local full-text search.
+- **Trust** — dark theme by default with a light mode toggle; passwords held in the OS keychain, never
+  in the database; external links open in your browser, not the app's webview.
+- **Help menu** — About (with credits), Licence, and Check for Updates.
 
 Planned (see [DESIGN_PLAN.md](DESIGN_PLAN.md) for the full roadmap):
 
-- Account setup wizard, POP3, Microsoft OAuth.
-- Coloured tags, drag/move between folders, filters, search.
+- Folder create/rename/delete, drag to move, filters and rules.
+- POP3, Microsoft OAuth, multiple accounts with a unified inbox.
 - Calendar with ICS import/export, address book with vCard.
 
 ## Stack
