@@ -15,12 +15,20 @@ function normaliseUrl(url: string): string {
 }
 
 // ComposeInitial pre-fills the compose window, used by reply, reply-all and forward.
+// MessageAttachment is an existing email attached to a new message: its id (fetched and rendered as a
+// message/rfc822 part at send time) and a display name for its chip.
+export interface MessageAttachment {
+    id: string
+    name: string
+}
+
 export interface ComposeInitial {
     to?: string
     cc?: string
     bcc?: string
     subject?: string
     bodyHtml?: string
+    messageAttachments?: MessageAttachment[]
 }
 
 interface ComposeModalProps {
@@ -46,6 +54,7 @@ export function ComposeModal({accountId, initial, onClose}: ComposeModalProps) {
     const [bcc, setBcc] = useState(initial?.bcc ?? '')
     const [subject, setSubject] = useState(initial?.subject ?? '')
     const [attachments, setAttachments] = useState<string[]>([])
+    const [messageAttachments, setMessageAttachments] = useState<MessageAttachment[]>(initial?.messageAttachments ?? [])
     const [sending, setSending] = useState(false)
     const [savingDraft, setSavingDraft] = useState(false)
     const [error, setError] = useState('')
@@ -92,7 +101,12 @@ export function ComposeModal({accountId, initial, onClose}: ComposeModalProps) {
             // Only carry an HTML alternative when the body is non-empty, so an empty message stays plain.
             htmlBody: text.trim() === '' ? '' : html,
             attachmentPaths: attachments,
+            attachmentMessageIds: messageAttachments.map((m) => m.id),
         }
+    }
+
+    const removeMessageAttachment = (id: string) => {
+        setMessageAttachments((prev) => prev.filter((m) => m.id !== id))
     }
 
     // addAttachments opens the native file picker and appends the chosen files, skipping any already
@@ -210,7 +224,7 @@ export function ComposeModal({accountId, initial, onClose}: ComposeModalProps) {
                     <button type="button" className="btn" onClick={() => void addAttachments()}>
                         Attach files
                     </button>
-                    {attachments.length > 0 && (
+                    {(attachments.length > 0 || messageAttachments.length > 0) && (
                         <ul className="attachment-list">
                             {attachments.map((path) => (
                                 <li key={path} className="attachment-chip">
@@ -220,6 +234,20 @@ export function ComposeModal({accountId, initial, onClose}: ComposeModalProps) {
                                         className="attachment-remove"
                                         aria-label={`Remove ${basename(path)}`}
                                         onClick={() => removeAttachment(path)}
+                                    >
+                                        &times;
+                                    </button>
+                                </li>
+                            ))}
+                            {messageAttachments.map((m) => (
+                                <li key={m.id} className="attachment-chip">
+                                    <span className="attachment-icon" aria-hidden="true">{'✉'}</span>
+                                    <span className="attachment-name" title={m.name}>{m.name}</span>
+                                    <button
+                                        type="button"
+                                        className="attachment-remove"
+                                        aria-label={`Remove ${m.name}`}
+                                        onClick={() => removeMessageAttachment(m.id)}
                                     >
                                         &times;
                                     </button>

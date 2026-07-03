@@ -169,3 +169,33 @@ func TestMessageRawFetchError(t *testing.T) {
 		t.Errorf("Raw error = %v, want wrapped boom", err)
 	}
 }
+
+func TestMessageRawMessage(t *testing.T) {
+	svc, store, accounts, source := newBodyService()
+	accounts.accounts["a1"] = testAccount(t, "a1")
+	store.folders["a1"] = []domain.Folder{testFolder(t, "f1", "a1", "INBOX")}
+	withSubject, err := domain.NewMessageSummary(domain.MessageSummaryInput{
+		ID: "m1", FolderID: "f1", UID: 1, Size: 10, Flags: domain.NewFlags(0), Subject: "Report",
+	})
+	if err != nil {
+		t.Fatalf("build message: %v", err)
+	}
+	store.messages["f1"] = []domain.MessageSummary{withSubject}
+	source.raw = []byte("raw bytes")
+
+	got, err := svc.RawMessage(context.Background(), "m1")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if string(got.Raw) != "raw bytes" || got.Subject != "Report" {
+		t.Errorf("RawMessage = %+v, want raw bytes with subject Report", got)
+	}
+}
+
+func TestMessageRawMessageError(t *testing.T) {
+	svc, store, _, _ := newBodyService()
+	store.getMessageErr = errBoom
+	if _, err := svc.RawMessage(context.Background(), "m1"); !errors.Is(err, errBoom) {
+		t.Errorf("RawMessage error = %v, want wrapped boom", err)
+	}
+}

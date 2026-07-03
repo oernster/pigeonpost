@@ -633,6 +633,15 @@ function App() {
         setComposing(true)
     }
 
+    // attachToNewMessage opens a fresh composer with the chosen message attached as a .eml; the backend
+    // fetches its raw bytes and adds it as a message/rfc822 part on send.
+    const attachToNewMessage = (message: Message) => {
+        setComposeInitial({
+            messageAttachments: [{id: message.id, name: emlFilename(message.subject || '')}],
+        })
+        setComposing(true)
+    }
+
     const showAbout = useCallback(async () => {
         try {
             setAbout(await api.about())
@@ -877,6 +886,7 @@ function App() {
                     onSetTag={(id, tagId, assigned) => void setMessageTagById(id, tagId, assigned)}
                     onSaveAs={(m) => void saveMessageAs(m)}
                     onPrint={(m) => void printMessage(m)}
+                    onAttachToNew={attachToNewMessage}
                     onDelete={requestDelete}
                     onDeletePermanent={(m) => setMessageToPurge(m)}
                 />

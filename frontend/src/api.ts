@@ -76,6 +76,7 @@ export interface ComposeInput {
     body: string
     htmlBody: string
     attachmentPaths: string[]
+    attachmentMessageIds: string[]
 }
 
 export interface AccountSetupInput {

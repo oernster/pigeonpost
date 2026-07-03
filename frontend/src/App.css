@@ -1499,6 +1499,11 @@
     font-size: 13px;
 }
 
+.attachment-icon {
+    font-size: 12px;
+    flex-shrink: 0;
+}
+
 .attachment-name {
     overflow: hidden;
     text-overflow: ellipsis;

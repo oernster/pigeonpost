@@ -58,24 +58,47 @@ func (s *MessageBodyService) Body(ctx context.Context, messageID string) (domain
 	return body, nil
 }
 
+// RawMessage bundles a message's raw RFC822 bytes with its subject, so a caller can attach it to
+// another message under a sensible filename.
+type RawMessage struct {
+	Raw     []byte
+	Subject string
+}
+
 // Raw returns the full raw RFC822 bytes of a message, fetched from the server. Unlike Body it is not
 // cached: it serves one-off export (.eml) and attach-an-email, not repeated reads.
 func (s *MessageBodyService) Raw(ctx context.Context, messageID string) ([]byte, error) {
+	raw, err := s.rawMessage(ctx, messageID)
+	if err != nil {
+		return nil, err
+	}
+	return raw.Raw, nil
+}
+
+// RawMessage returns a message's raw bytes together with its subject, for attaching it to a new
+// message as a message/rfc822 part.
+func (s *MessageBodyService) RawMessage(ctx context.Context, messageID string) (RawMessage, error) {
+	return s.rawMessage(ctx, messageID)
+}
+
+// rawMessage locates a message, fetches its raw bytes and returns them with its subject. It is the
+// shared core of Raw and RawMessage.
+func (s *MessageBodyService) rawMessage(ctx context.Context, messageID string) (RawMessage, error) {
 	msg, err := s.messages.GetMessage(ctx, messageID)
 	if err != nil {
-		return nil, fmt.Errorf("locate message %q: %w", messageID, err)
+		return RawMessage{}, fmt.Errorf("locate message %q: %w", messageID, err)
 	}
 	folder, err := s.messages.GetFolder(ctx, msg.FolderID())
 	if err != nil {
-		return nil, fmt.Errorf("locate folder %q: %w", msg.FolderID(), err)
+		return RawMessage{}, fmt.Errorf("locate folder %q: %w", msg.FolderID(), err)
 	}
 	account, err := s.accounts.GetAccount(ctx, folder.AccountID())
 	if err != nil {
-		return nil, fmt.Errorf("locate account %q: %w", folder.AccountID(), err)
+		return RawMessage{}, fmt.Errorf("locate account %q: %w", folder.AccountID(), err)
 	}
 	raw, err := s.source.FetchRaw(ctx, account, folder, msg.UID())
 	if err != nil {
-		return nil, fmt.Errorf("fetch raw %q: %w", messageID, err)
+		return RawMessage{}, fmt.Errorf("fetch raw %q: %w", messageID, err)
 	}
-	return raw, nil
+	return RawMessage{Raw: raw, Subject: msg.Subject()}, nil
 }

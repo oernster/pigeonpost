@@ -14,15 +14,19 @@ import (
 // ComposeRequest is the front-end payload for sending a message. Recipients are comma-free single
 // addresses; the front end splits any user input into this list.
 type ComposeRequest struct {
-	AccountID       string   `json:"accountId"`
-	To              []string `json:"to"`
-	Cc              []string `json:"cc"`
-	Bcc             []string `json:"bcc"`
-	Subject         string   `json:"subject"`
-	Body            string   `json:"body"`
-	HTMLBody        string   `json:"htmlBody"`
-	AttachmentPaths []string `json:"attachmentPaths"`
+	AccountID            string   `json:"accountId"`
+	To                   []string `json:"to"`
+	Cc                   []string `json:"cc"`
+	Bcc                  []string `json:"bcc"`
+	Subject              string   `json:"subject"`
+	Body                 string   `json:"body"`
+	HTMLBody             string   `json:"htmlBody"`
+	AttachmentPaths      []string `json:"attachmentPaths"`
+	AttachmentMessageIDs []string `json:"attachmentMessageIds"`
 }
+
+// rfc822ContentType is the MIME type for a whole email attached to another email.
+const rfc822ContentType = "message/rfc822"
 
 // SendMessage parses the request's addresses and sends the message through the compose use case.
 func (a *App) SendMessage(req ComposeRequest) error {
@@ -38,7 +42,7 @@ func (a *App) SendMessage(req ComposeRequest) error {
 	if err != nil {
 		return err
 	}
-	attachments, err := readAttachments(req.AttachmentPaths)
+	attachments, err := a.composeAttachments(req)
 	if err != nil {
 		return err
 	}
@@ -68,7 +72,7 @@ func (a *App) SaveDraft(req ComposeRequest) error {
 	if err != nil {
 		return err
 	}
-	attachments, err := readAttachments(req.AttachmentPaths)
+	attachments, err := a.composeAttachments(req)
 	if err != nil {
 		return err
 	}
@@ -93,6 +97,58 @@ func (a *App) OutboxCount() (int, error) {
 // succeeded. It is called after a successful sync, when connectivity has returned.
 func (a *App) ReplayOutbox() (int, error) {
 	return a.compose.ReplayOutbox(a.ctx)
+}
+
+// composeAttachments gathers all attachments for an outgoing message: files chosen from disk plus any
+// existing emails referenced by id, kept in that order.
+func (a *App) composeAttachments(req ComposeRequest) ([]domain.Attachment, error) {
+	files, err := readAttachments(req.AttachmentPaths)
+	if err != nil {
+		return nil, err
+	}
+	messages, err := a.messageAttachments(req.AttachmentMessageIDs)
+	if err != nil {
+		return nil, err
+	}
+	return append(files, messages...), nil
+}
+
+// messageAttachments fetches each referenced message's raw bytes and wraps it as a message/rfc822
+// attachment named from its subject, for attaching an existing email to a new one.
+func (a *App) messageAttachments(ids []string) ([]domain.Attachment, error) {
+	out := make([]domain.Attachment, 0, len(ids))
+	for _, id := range ids {
+		raw, err := a.body.RawMessage(a.ctx, id)
+		if err != nil {
+			return nil, err
+		}
+		attachment, err := domain.NewAttachment(emlAttachmentName(raw.Subject), rfc822ContentType, raw.Raw)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, attachment)
+	}
+	return out, nil
+}
+
+// emlAttachmentName builds a safe .eml filename from a message subject, replacing characters a
+// filesystem rejects and falling back to a default when the subject is empty.
+func emlAttachmentName(subject string) string {
+	replace := func(r rune) rune {
+		switch r {
+		case '\\', '/', ':', '*', '?', '"', '<', '>', '|':
+			return '-'
+		}
+		if r < ' ' {
+			return '-'
+		}
+		return r
+	}
+	cleaned := strings.TrimSpace(strings.Map(replace, subject))
+	if cleaned == "" {
+		cleaned = "message"
+	}
+	return cleaned + ".eml"
 }
 
 // readAttachments loads each chosen file into a domain Attachment, taking the display name from the

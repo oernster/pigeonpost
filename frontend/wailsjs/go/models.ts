@@ -137,6 +137,7 @@ export namespace main {
 	    body: string;
 	    htmlBody: string;
 	    attachmentPaths: string[];
+	    attachmentMessageIds: string[];
 	
 	    static createFrom(source: any = {}) {
 	        return new ComposeRequest(source);
@@ -152,6 +153,7 @@ export namespace main {
 	        this.body = source["body"];
 	        this.htmlBody = source["htmlBody"];
 	        this.attachmentPaths = source["attachmentPaths"];
+	        this.attachmentMessageIds = source["attachmentMessageIds"];
 	    }
 	}
 	
