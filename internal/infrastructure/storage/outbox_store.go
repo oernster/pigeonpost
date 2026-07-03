@@ -15,6 +15,14 @@ type addrJSON struct {
 	Address string `json:"address"`
 }
 
+// attachmentJSON is the persisted form of one attachment on a queued outbox item. Content is a byte
+// slice, which encoding/json stores as base64, so the row is self-contained across a restart.
+type attachmentJSON struct {
+	Filename    string `json:"filename"`
+	ContentType string `json:"contentType"`
+	Content     []byte `json:"content"`
+}
+
 // EnqueueOutbox stores a queued outgoing operation. The message's recipient lists are serialised to
 // JSON so the row is self-contained and can be replayed after a restart.
 func (s *Store) EnqueueOutbox(ctx context.Context, item domain.OutboxItem) error {
@@ -32,12 +40,16 @@ func (s *Store) EnqueueOutbox(ctx context.Context, item domain.OutboxItem) error
 	if err != nil {
 		return fmt.Errorf("encode outbox bcc: %w", err)
 	}
+	attachmentsJSON, err := marshalAttachments(msg.Attachments())
+	if err != nil {
+		return fmt.Errorf("encode outbox attachments: %w", err)
+	}
 	if _, err := s.db.ExecContext(ctx,
 		`INSERT INTO outbox (id, account_id, kind, from_display, from_address, to_json, cc_json,
-		        bcc_json, subject, body, html_body, created_ms)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+		        bcc_json, subject, body, html_body, attachments_json, created_ms)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
 		item.ID(), item.AccountID(), int(item.Kind()), display, address, toJSON, ccJSON,
-		bccJSON, msg.Subject(), msg.Body(), msg.HTMLBody(), item.CreatedAt().UnixMilli()); err != nil {
+		bccJSON, msg.Subject(), msg.Body(), msg.HTMLBody(), attachmentsJSON, item.CreatedAt().UnixMilli()); err != nil {
 		return fmt.Errorf("insert outbox item %q: %w", item.ID(), err)
 	}
 	return nil
@@ -47,7 +59,7 @@ func (s *Store) EnqueueOutbox(ctx context.Context, item domain.OutboxItem) error
 func (s *Store) ListOutbox(ctx context.Context) ([]domain.OutboxItem, error) {
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT id, account_id, kind, from_display, from_address, to_json, cc_json,
-		        bcc_json, subject, body, html_body, created_ms
+		        bcc_json, subject, body, html_body, attachments_json, created_ms
 		 FROM outbox ORDER BY created_ms ASC, id ASC;`)
 	if err != nil {
 		return nil, fmt.Errorf("query outbox: %w", err)
@@ -83,10 +95,11 @@ func scanOutbox(row scanner) (domain.OutboxItem, error) {
 		fromDisplay, fromAddress string
 		toJSON, ccJSON, bccJSON  string
 		subject, body, htmlBody  string
+		attachmentsJSON          string
 		createdMS                int64
 	)
 	if err := row.Scan(&id, &accountID, &kind, &fromDisplay, &fromAddress, &toJSON, &ccJSON,
-		&bccJSON, &subject, &body, &htmlBody, &createdMS); err != nil {
+		&bccJSON, &subject, &body, &htmlBody, &attachmentsJSON, &createdMS); err != nil {
 		return domain.OutboxItem{}, fmt.Errorf("scan outbox item: %w", err)
 	}
 
@@ -110,9 +123,14 @@ func scanOutbox(row scanner) (domain.OutboxItem, error) {
 	if err != nil {
 		return domain.OutboxItem{}, fmt.Errorf("rebuild outbox bcc for %q: %w", id, err)
 	}
+	attachments, err := unmarshalAttachments(attachmentsJSON)
+	if err != nil {
+		return domain.OutboxItem{}, fmt.Errorf("rebuild outbox attachments for %q: %w", id, err)
+	}
 
 	in := domain.OutgoingMessageInput{
 		From: from, To: to, Cc: cc, Bcc: bcc, Subject: subject, Body: body, HTMLBody: htmlBody,
+		Attachments: attachments,
 	}
 	msg, err := buildOutboxMessage(domain.OutboxKind(kind), in)
 	if err != nil {
@@ -158,6 +176,34 @@ func unmarshalAddrs(raw string) ([]domain.EmailAddress, error) {
 			return nil, err
 		}
 		out = append(out, addr)
+	}
+	return out, nil
+}
+
+func marshalAttachments(attachments []domain.Attachment) (string, error) {
+	out := make([]attachmentJSON, 0, len(attachments))
+	for _, a := range attachments {
+		out = append(out, attachmentJSON{Filename: a.Filename(), ContentType: a.ContentType(), Content: a.Content()})
+	}
+	data, err := json.Marshal(out)
+	if err != nil {
+		return "", err
+	}
+	return string(data), nil
+}
+
+func unmarshalAttachments(raw string) ([]domain.Attachment, error) {
+	var stored []attachmentJSON
+	if err := json.Unmarshal([]byte(raw), &stored); err != nil {
+		return nil, err
+	}
+	out := make([]domain.Attachment, 0, len(stored))
+	for _, a := range stored {
+		attachment, err := domain.NewAttachment(a.Filename, a.ContentType, a.Content)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, attachment)
 	}
 	return out, nil
 }

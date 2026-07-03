@@ -11,12 +11,13 @@ import (
 // Draft is the user-supplied content of a message to send. The sender is taken from the account, so
 // it is not part of the draft.
 type Draft struct {
-	To       []domain.EmailAddress
-	Cc       []domain.EmailAddress
-	Bcc      []domain.EmailAddress
-	Subject  string
-	Body     string
-	HTMLBody string
+	To          []domain.EmailAddress
+	Cc          []domain.EmailAddress
+	Bcc         []domain.EmailAddress
+	Subject     string
+	Body        string
+	HTMLBody    string
+	Attachments []domain.Attachment
 }
 
 // IDGenerator produces a unique identifier for a queued outbox item.
@@ -65,13 +66,14 @@ func (s *ComposeService) Send(ctx context.Context, accountID string, draft Draft
 		return fmt.Errorf("compose: load account %q: %w", accountID, err)
 	}
 	msg, err := domain.NewOutgoingMessage(domain.OutgoingMessageInput{
-		From:     account.Address(),
-		To:       draft.To,
-		Cc:       draft.Cc,
-		Bcc:      draft.Bcc,
-		Subject:  draft.Subject,
-		Body:     draft.Body,
-		HTMLBody: draft.HTMLBody,
+		From:        account.Address(),
+		To:          draft.To,
+		Cc:          draft.Cc,
+		Bcc:         draft.Bcc,
+		Subject:     draft.Subject,
+		Body:        draft.Body,
+		HTMLBody:    draft.HTMLBody,
+		Attachments: draft.Attachments,
 	})
 	if err != nil {
 		return fmt.Errorf("compose: build message: %w", err)
@@ -99,13 +101,14 @@ func (s *ComposeService) SaveDraft(ctx context.Context, accountID string, draft 
 		return err
 	}
 	msg, err := domain.NewDraftMessage(domain.OutgoingMessageInput{
-		From:     account.Address(),
-		To:       draft.To,
-		Cc:       draft.Cc,
-		Bcc:      draft.Bcc,
-		Subject:  draft.Subject,
-		Body:     draft.Body,
-		HTMLBody: draft.HTMLBody,
+		From:        account.Address(),
+		To:          draft.To,
+		Cc:          draft.Cc,
+		Bcc:         draft.Bcc,
+		Subject:     draft.Subject,
+		Body:        draft.Body,
+		HTMLBody:    draft.HTMLBody,
+		Attachments: draft.Attachments,
 	})
 	if err != nil {
 		return fmt.Errorf("compose: build draft: %w", err)

@@ -38,3 +38,15 @@ func (a *App) SaveMessageAs(messageID, suggestedName string) error {
 	}
 	return nil
 }
+
+// PickAttachments opens a native dialog for choosing one or more files to attach to a message and
+// returns their paths. A cancelled dialog returns an empty list and no error.
+func (a *App) PickAttachments() ([]string, error) {
+	paths, err := runtime.OpenMultipleFilesDialog(a.ctx, runtime.OpenDialogOptions{
+		Title: "Attach files",
+	})
+	if err != nil {
+		return nil, fmt.Errorf("attach files dialog: %w", err)
+	}
+	return paths, nil
+}

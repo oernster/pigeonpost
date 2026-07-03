@@ -11,7 +11,7 @@ import (
 )
 
 // schemaVersion is the current on-disk schema version, tracked via SQLite's PRAGMA user_version.
-const schemaVersion = 8
+const schemaVersion = 9
 
 const driverName = "sqlite"
 
@@ -146,9 +146,16 @@ const schemaV8 = `
 ALTER TABLE outbox ADD COLUMN bcc_json TEXT NOT NULL DEFAULT '[]';
 `
 
+// schemaV9 adds the attachment list to queued outbox items (filename, content type and base64 bytes as
+// JSON), so a message sent while offline keeps its attachments when it is replayed. Existing rows
+// default to an empty list.
+const schemaV9 = `
+ALTER TABLE outbox ADD COLUMN attachments_json TEXT NOT NULL DEFAULT '[]';
+`
+
 // migrations is the ordered list of schema steps. Index i upgrades the database from version i to
 // version i+1, so a fresh database applies them all and an existing one applies only what it lacks.
-var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8}
+var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9}
 
 // Store is the SQLite-backed implementation of the application storage ports.
 type Store struct {

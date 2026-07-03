@@ -50,6 +50,8 @@ export function OpenReleasesPage():Promise<void>;
 
 export function OutboxCount():Promise<number>;
 
+export function PickAttachments():Promise<Array<string>>;
+
 export function RemoveAccount(arg1:string):Promise<void>;
 
 export function RenameFolder(arg1:string,arg2:string):Promise<void>;

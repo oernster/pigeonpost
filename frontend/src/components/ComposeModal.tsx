@@ -33,11 +33,19 @@ function splitAddresses(value: string): string[] {
     return value.split(',').map((part) => part.trim()).filter(Boolean)
 }
 
+// basename returns the final path segment of a file path, handling both Windows and POSIX separators,
+// so an attachment chip shows the filename rather than the full path.
+function basename(path: string): string {
+    const parts = path.split(/[\\/]/)
+    return parts[parts.length - 1] || path
+}
+
 export function ComposeModal({accountId, initial, onClose}: ComposeModalProps) {
     const [to, setTo] = useState(initial?.to ?? '')
     const [cc, setCc] = useState(initial?.cc ?? '')
     const [bcc, setBcc] = useState(initial?.bcc ?? '')
     const [subject, setSubject] = useState(initial?.subject ?? '')
+    const [attachments, setAttachments] = useState<string[]>([])
     const [sending, setSending] = useState(false)
     const [savingDraft, setSavingDraft] = useState(false)
     const [error, setError] = useState('')
@@ -83,7 +91,25 @@ export function ComposeModal({accountId, initial, onClose}: ComposeModalProps) {
             body: text,
             // Only carry an HTML alternative when the body is non-empty, so an empty message stays plain.
             htmlBody: text.trim() === '' ? '' : html,
+            attachmentPaths: attachments,
         }
+    }
+
+    // addAttachments opens the native file picker and appends the chosen files, skipping any already
+    // attached so the same file is not added twice.
+    const addAttachments = async () => {
+        try {
+            const picked = await api.pickAttachments()
+            if (picked.length > 0) {
+                setAttachments((prev) => [...prev, ...picked.filter((p) => !prev.includes(p))])
+            }
+        } catch (e) {
+            setError(String(e))
+        }
+    }
+
+    const removeAttachment = (path: string) => {
+        setAttachments((prev) => prev.filter((p) => p !== path))
     }
 
     const send = async () => {
@@ -179,6 +205,29 @@ export function ComposeModal({accountId, initial, onClose}: ComposeModalProps) {
                     </div>
                 )}
                 <EditorContent editor={editor} className="compose-editor"/>
+
+                <div className="compose-attachments">
+                    <button type="button" className="btn" onClick={() => void addAttachments()}>
+                        Attach files
+                    </button>
+                    {attachments.length > 0 && (
+                        <ul className="attachment-list">
+                            {attachments.map((path) => (
+                                <li key={path} className="attachment-chip">
+                                    <span className="attachment-name" title={path}>{basename(path)}</span>
+                                    <button
+                                        type="button"
+                                        className="attachment-remove"
+                                        aria-label={`Remove ${basename(path)}`}
+                                        onClick={() => removeAttachment(path)}
+                                    >
+                                        &times;
+                                    </button>
+                                </li>
+                            ))}
+                        </ul>
+                    )}
+                </div>
 
                 <div className="modal-actions spread">
                     <button className="btn" onClick={onClose} disabled={sending || savingDraft}>Cancel</button>

@@ -27,6 +27,7 @@ import {
     OpenExternal,
     OpenReleasesPage,
     OutboxCount,
+    PickAttachments,
     RemoveAccount,
     ReplayOutbox,
     SaveDraft,
@@ -74,6 +75,7 @@ export interface ComposeInput {
     subject: string
     body: string
     htmlBody: string
+    attachmentPaths: string[]
 }
 
 export interface AccountSetupInput {
@@ -127,5 +129,6 @@ export const api = {
     send: (req: ComposeInput): Promise<void> => SendMessage(main.ComposeRequest.createFrom(req)),
     saveDraft: (req: ComposeInput): Promise<void> => SaveDraft(main.ComposeRequest.createFrom(req)),
     outboxCount: (): Promise<number> => OutboxCount(),
+    pickAttachments: (): Promise<string[]> => PickAttachments(),
     replayOutbox: (): Promise<number> => ReplayOutbox(),
 }

@@ -98,6 +98,10 @@ export function OutboxCount() {
   return window['go']['main']['App']['OutboxCount']();
 }
 
+export function PickAttachments() {
+  return window['go']['main']['App']['PickAttachments']();
+}
+
 export function RemoveAccount(arg1) {
   return window['go']['main']['App']['RemoveAccount'](arg1);
 }

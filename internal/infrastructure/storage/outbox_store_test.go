@@ -26,10 +26,15 @@ func outboxTestItem(t *testing.T, id string, kind domain.OutboxKind) domain.Outb
 	if err != nil {
 		t.Fatalf("bcc: %v", err)
 	}
+	attachment, err := domain.NewAttachment("note.txt", "text/plain", []byte("queued bytes"))
+	if err != nil {
+		t.Fatalf("attachment: %v", err)
+	}
 	msg, err := domain.NewOutgoingMessage(domain.OutgoingMessageInput{
 		From: from, To: []domain.EmailAddress{to}, Cc: []domain.EmailAddress{cc},
-		Bcc:     []domain.EmailAddress{bcc},
-		Subject: "Queued", Body: "hi", HTMLBody: "<p>hi</p>",
+		Bcc:         []domain.EmailAddress{bcc},
+		Attachments: []domain.Attachment{attachment},
+		Subject:     "Queued", Body: "hi", HTMLBody: "<p>hi</p>",
 	})
 	if err != nil {
 		t.Fatalf("message: %v", err)
@@ -84,6 +89,9 @@ func TestOutboxRoundTrip(t *testing.T) {
 	}
 	if len(msg.Bcc()) != 1 || msg.Bcc()[0].Address() != "bcc@example.com" {
 		t.Errorf("bcc lost: %+v", msg.Bcc())
+	}
+	if a := msg.Attachments(); len(a) != 1 || a[0].Filename() != "note.txt" || string(a[0].Content()) != "queued bytes" {
+		t.Errorf("attachment lost: %+v", msg.Attachments())
 	}
 	if msg.Subject() != "Queued" || msg.HTMLBody() != "<p>hi</p>" {
 		t.Errorf("body lost: %q / %q", msg.Subject(), msg.HTMLBody())
