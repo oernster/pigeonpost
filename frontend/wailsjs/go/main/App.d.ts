@@ -16,6 +16,8 @@ export function DeleteFolder(arg1:string):Promise<void>;
 
 export function DeleteMessage(arg1:string):Promise<void>;
 
+export function DeleteMessagePermanent(arg1:string):Promise<void>;
+
 export function DeleteRule(arg1:string):Promise<void>;
 
 export function DeleteTag(arg1:string):Promise<void>;

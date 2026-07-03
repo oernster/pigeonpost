@@ -71,6 +71,19 @@ func (s *MessageActionService) MarkFlagged(ctx context.Context, messageID string
 // Trash folder when one exists; if the message already lives in Trash, or the account has no Trash
 // folder, it is deleted permanently.
 func (s *MessageActionService) Delete(ctx context.Context, messageID string) error {
+	return s.delete(ctx, messageID, false)
+}
+
+// DeletePermanent removes a message from the server and the local cache without moving it to Trash,
+// regardless of which folder it lives in. It is the irreversible counterpart to Delete.
+func (s *MessageActionService) DeletePermanent(ctx context.Context, messageID string) error {
+	return s.delete(ctx, messageID, true)
+}
+
+// delete is the shared core of Delete and DeletePermanent. When permanent is false the destination is
+// resolved from trashPath (move to Trash, or permanent when no Trash applies); when permanent is true
+// the trash path is always empty, forcing an immediate permanent deletion.
+func (s *MessageActionService) delete(ctx context.Context, messageID string, permanent bool) error {
 	msg, err := s.store.GetMessage(ctx, messageID)
 	if err != nil {
 		return fmt.Errorf("locate message %q: %w", messageID, err)
@@ -83,9 +96,12 @@ func (s *MessageActionService) Delete(ctx context.Context, messageID string) err
 	if err != nil {
 		return fmt.Errorf("locate account %q: %w", folder.AccountID(), err)
 	}
-	trashPath, err := s.trashPath(ctx, folder)
-	if err != nil {
-		return fmt.Errorf("resolve trash for %q: %w", messageID, err)
+	trashPath := ""
+	if !permanent {
+		trashPath, err = s.trashPath(ctx, folder)
+		if err != nil {
+			return fmt.Errorf("resolve trash for %q: %w", messageID, err)
+		}
 	}
 	if err := s.remote.Delete(ctx, account, folder, msg.UID(), trashPath); err != nil {
 		return fmt.Errorf("delete message %q on server: %w", messageID, err)

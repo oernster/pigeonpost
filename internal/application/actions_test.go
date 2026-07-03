@@ -191,6 +191,22 @@ func TestDeleteFromTrashIsPermanent(t *testing.T) {
 	}
 }
 
+func TestDeletePermanentSkipsTrash(t *testing.T) {
+	svc, store, accounts, remote := newActionService()
+	seedMessageLocation(t, store, accounts)
+	store.folders["a1"] = append(store.folders["a1"], trashFolder(t, "ft", "a1"))
+
+	if err := svc.DeletePermanent(context.Background(), "m1"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(remote.deleteTrashPaths) != 1 || remote.deleteTrashPaths[0] != "" {
+		t.Errorf("expected permanent delete (empty trash path) even with a Trash folder, got %v", remote.deleteTrashPaths)
+	}
+	if len(store.deletedMessages) != 1 || store.deletedMessages[0] != "m1" {
+		t.Errorf("expected local delete of m1, got %v", store.deletedMessages)
+	}
+}
+
 func TestDeleteGetMessageError(t *testing.T) {
 	svc, store, _, _ := newActionService()
 	store.getMessageErr = errBoom

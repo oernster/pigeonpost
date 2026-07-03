@@ -30,6 +30,10 @@ export function DeleteMessage(arg1) {
   return window['go']['main']['App']['DeleteMessage'](arg1);
 }
 
+export function DeleteMessagePermanent(arg1) {
+  return window['go']['main']['App']['DeleteMessagePermanent'](arg1);
+}
+
 export function DeleteRule(arg1) {
   return window['go']['main']['App']['DeleteRule'](arg1);
 }

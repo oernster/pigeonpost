@@ -135,6 +135,12 @@ func (a *App) DeleteMessage(messageID string) error {
 	return a.actions.Delete(a.ctx, messageID)
 }
 
+// DeleteMessagePermanent removes a message immediately and irreversibly, without moving it to Trash,
+// regardless of which folder it lives in. The local cache is updated to match.
+func (a *App) DeleteMessagePermanent(messageID string) error {
+	return a.actions.DeletePermanent(a.ctx, messageID)
+}
+
 // MoveMessage relocates a message to another folder in the same account.
 func (a *App) MoveMessage(messageID, destFolderID string) error {
 	return a.actions.Move(a.ctx, messageID, destFolderID)

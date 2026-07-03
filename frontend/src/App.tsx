@@ -27,6 +27,23 @@ function subjectWithPrefix(prefix: string, subject: string): string {
     return s.toLowerCase().startsWith(prefix.toLowerCase()) ? s : `${prefix} ${s}`
 }
 
+// neighbourAfterRemoval returns the message that selection should land on once the message with
+// removedId is deleted from list: the following message, or the preceding one when it was last, or
+// null when it was the only message. This keeps keyboard triage moving without a manual re-select.
+function neighbourAfterRemoval(list: Message[], removedId: string): Message | null {
+    const idx = list.findIndex((m) => m.id === removedId)
+    if (idx === -1) {
+        return null
+    }
+    if (idx + 1 < list.length) {
+        return list[idx + 1]
+    }
+    if (idx - 1 >= 0) {
+        return list[idx - 1]
+    }
+    return null
+}
+
 function App() {
     const [accounts, setAccounts] = useState<Account[]>([])
     const [selectedAccount, setSelectedAccount] = useState<string>('')
@@ -60,6 +77,8 @@ function App() {
     const [searchResults, setSearchResults] = useState<Message[]>([])
     const [messageToDelete, setMessageToDelete] = useState<Message | null>(null)
     const [deletingMessage, setDeletingMessage] = useState<boolean>(false)
+    const [messageToPurge, setMessageToPurge] = useState<Message | null>(null)
+    const [purgingMessage, setPurgingMessage] = useState<boolean>(false)
 
     const searchActive = searchQuery.trim() !== ''
     const [appVersion, setAppVersion] = useState<string>('')
@@ -313,6 +332,48 @@ function App() {
         }
     }, [messageToDelete])
 
+    // trashMessage moves a message to Trash with no confirmation, used by the Delete key when the
+    // action is reversible. It advances the selection to the neighbouring message so repeated presses
+    // clear a run of mail without a re-select.
+    const trashMessage = useCallback(async (message: Message) => {
+        const id = message.id
+        const list = searchActive ? searchResults : messages
+        const next = neighbourAfterRemoval(list, id)
+        setError('')
+        try {
+            await api.deleteMessage(id)
+            setMessages((prev) => prev.filter((m) => m.id !== id))
+            setSearchResults((prev) => prev.filter((m) => m.id !== id))
+            setSelectedMessage((prev) => (prev?.id === id ? next : prev))
+        } catch (e) {
+            setError(String(e))
+        }
+    }, [searchActive, searchResults, messages])
+
+    // deletePermanent is the confirmed, irreversible delete behind Shift+Delete: it removes the message
+    // from the server without moving it to Trash, then advances the selection like trashMessage.
+    const deletePermanent = useCallback(async () => {
+        if (!messageToPurge) {
+            return
+        }
+        const id = messageToPurge.id
+        const list = searchActive ? searchResults : messages
+        const next = neighbourAfterRemoval(list, id)
+        setPurgingMessage(true)
+        setError('')
+        try {
+            await api.deleteMessagePermanent(id)
+            setMessages((prev) => prev.filter((m) => m.id !== id))
+            setSearchResults((prev) => prev.filter((m) => m.id !== id))
+            setSelectedMessage((prev) => (prev?.id === id ? next : prev))
+            setMessageToPurge(null)
+        } catch (e) {
+            setError(String(e))
+        } finally {
+            setPurgingMessage(false)
+        }
+    }, [messageToPurge, searchActive, searchResults, messages])
+
     const toggleFlag = useCallback(async (message: Message) => {
         const next = !message.flagged
         setError('')
@@ -495,6 +556,69 @@ function App() {
         }
     }, [selectedFolder])
 
+    // Keyboard control for the message list: Arrow Up/Down move the selection, Delete moves the
+    // selected message to Trash (or asks for confirmation when the delete would be permanent), and
+    // Shift+Delete always asks before deleting permanently. Handling is suppressed while any dialog is
+    // open or while the user is typing in a field, so it never competes with text entry or a modal.
+    useEffect(() => {
+        const overlayOpen =
+            splashVisible || composing || settingUp || Boolean(accountToEdit) || managingTags ||
+            managingRules || Boolean(about) || Boolean(licence) || Boolean(folderPrompt) ||
+            Boolean(messageToDelete) || Boolean(accountToDelete) || Boolean(folderToDelete) ||
+            Boolean(messageToPurge)
+        const list = searchActive ? searchResults : messages
+        const hasTrash = folders.some((f) => f.kind === 'trash')
+        // A delete is permanent (so it must be confirmed) when the message already lives in Trash or
+        // the account has no Trash folder to move it to. If the folder cannot be resolved we treat it
+        // as permanent too, so an unknown context always confirms rather than silently deleting.
+        const wouldBePermanent = (m: Message): boolean => {
+            const folder = folders.find((f) => f.id === m.folderId)
+            if (!folder) {
+                return true
+            }
+            return folder.kind === 'trash' || !hasTrash
+        }
+        const onKeyDown = (e: KeyboardEvent) => {
+            if (overlayOpen) {
+                return
+            }
+            const target = e.target as HTMLElement | null
+            if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' ||
+                target.tagName === 'SELECT' || target.isContentEditable)) {
+                return
+            }
+            if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                if (list.length === 0) {
+                    return
+                }
+                e.preventDefault()
+                const idx = selectedMessage ? list.findIndex((m) => m.id === selectedMessage.id) : -1
+                if (e.key === 'ArrowDown') {
+                    setSelectedMessage(idx === -1 ? list[0] : list[Math.min(idx + 1, list.length - 1)])
+                } else {
+                    setSelectedMessage(idx === -1 ? list[list.length - 1] : list[Math.max(idx - 1, 0)])
+                }
+                return
+            }
+            if (e.key === 'Delete' && selectedMessage) {
+                e.preventDefault()
+                if (e.shiftKey) {
+                    setMessageToPurge(selectedMessage)
+                } else if (wouldBePermanent(selectedMessage)) {
+                    setMessageToDelete(selectedMessage)
+                } else {
+                    void trashMessage(selectedMessage)
+                }
+            }
+        }
+        window.addEventListener('keydown', onKeyDown)
+        return () => window.removeEventListener('keydown', onKeyDown)
+    }, [
+        searchActive, searchResults, messages, selectedMessage, folders, trashMessage,
+        splashVisible, composing, settingUp, accountToEdit, managingTags, managingRules, about,
+        licence, folderPrompt, messageToDelete, accountToDelete, folderToDelete, messageToPurge,
+    ])
+
     return (
         <div className="app">
             {splashVisible && <Splash version={appVersion} author={appAuthor} fading={splashFading}/>}
@@ -624,6 +748,16 @@ function App() {
                     busy={deletingMessage}
                     onConfirm={() => void deleteMessage()}
                     onCancel={() => setMessageToDelete(null)}
+                />
+            )}
+            {messageToPurge && (
+                <ConfirmDialog
+                    title="Delete permanently"
+                    message={`Permanently delete "${messageToPurge.subject || '(no subject)'}"? It is removed from the server and cannot be recovered.`}
+                    confirmLabel="Delete permanently"
+                    busy={purgingMessage}
+                    onConfirm={() => void deletePermanent()}
+                    onCancel={() => setMessageToPurge(null)}
                 />
             )}
             {accountToDelete && (
