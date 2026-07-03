@@ -11,7 +11,7 @@ import (
 )
 
 // schemaVersion is the current on-disk schema version, tracked via SQLite's PRAGMA user_version.
-const schemaVersion = 7
+const schemaVersion = 8
 
 const driverName = "sqlite"
 
@@ -140,9 +140,15 @@ CREATE TABLE IF NOT EXISTS rule (
 );
 `
 
+// schemaV8 adds the blind-carbon-copy recipient list to queued outbox items, so a message sent while
+// offline preserves its Bcc recipients when it is replayed. Existing rows default to an empty list.
+const schemaV8 = `
+ALTER TABLE outbox ADD COLUMN bcc_json TEXT NOT NULL DEFAULT '[]';
+`
+
 // migrations is the ordered list of schema steps. Index i upgrades the database from version i to
 // version i+1, so a fresh database applies them all and an existing one applies only what it lacks.
-var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7}
+var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8}
 
 // Store is the SQLite-backed implementation of the application storage ports.
 type Store struct {

@@ -132,6 +132,7 @@ export namespace main {
 	    accountId: string;
 	    to: string[];
 	    cc: string[];
+	    bcc: string[];
 	    subject: string;
 	    body: string;
 	    htmlBody: string;
@@ -145,6 +146,7 @@ export namespace main {
 	        this.accountId = source["accountId"];
 	        this.to = source["to"];
 	        this.cc = source["cc"];
+	        this.bcc = source["bcc"];
 	        this.subject = source["subject"];
 	        this.body = source["body"];
 	        this.htmlBody = source["htmlBody"];

@@ -69,6 +69,7 @@ export interface ComposeInput {
     accountId: string
     to: string[]
     cc: string[]
+    bcc: string[]
     subject: string
     body: string
     htmlBody: string

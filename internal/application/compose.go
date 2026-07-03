@@ -13,6 +13,7 @@ import (
 type Draft struct {
 	To       []domain.EmailAddress
 	Cc       []domain.EmailAddress
+	Bcc      []domain.EmailAddress
 	Subject  string
 	Body     string
 	HTMLBody string
@@ -67,6 +68,7 @@ func (s *ComposeService) Send(ctx context.Context, accountID string, draft Draft
 		From:     account.Address(),
 		To:       draft.To,
 		Cc:       draft.Cc,
+		Bcc:      draft.Bcc,
 		Subject:  draft.Subject,
 		Body:     draft.Body,
 		HTMLBody: draft.HTMLBody,
@@ -100,6 +102,7 @@ func (s *ComposeService) SaveDraft(ctx context.Context, accountID string, draft 
 		From:     account.Address(),
 		To:       draft.To,
 		Cc:       draft.Cc,
+		Bcc:      draft.Bcc,
 		Subject:  draft.Subject,
 		Body:     draft.Body,
 		HTMLBody: draft.HTMLBody,

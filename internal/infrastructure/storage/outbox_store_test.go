@@ -22,8 +22,13 @@ func outboxTestItem(t *testing.T, id string, kind domain.OutboxKind) domain.Outb
 	if err != nil {
 		t.Fatalf("cc: %v", err)
 	}
+	bcc, err := domain.NewEmailAddress("", "bcc@example.com")
+	if err != nil {
+		t.Fatalf("bcc: %v", err)
+	}
 	msg, err := domain.NewOutgoingMessage(domain.OutgoingMessageInput{
 		From: from, To: []domain.EmailAddress{to}, Cc: []domain.EmailAddress{cc},
+		Bcc:     []domain.EmailAddress{bcc},
 		Subject: "Queued", Body: "hi", HTMLBody: "<p>hi</p>",
 	})
 	if err != nil {
@@ -76,6 +81,9 @@ func TestOutboxRoundTrip(t *testing.T) {
 	}
 	if len(msg.Cc()) != 1 || msg.Cc()[0].Address() != "cc@example.com" {
 		t.Errorf("cc lost: %+v", msg.Cc())
+	}
+	if len(msg.Bcc()) != 1 || msg.Bcc()[0].Address() != "bcc@example.com" {
+		t.Errorf("bcc lost: %+v", msg.Bcc())
 	}
 	if msg.Subject() != "Queued" || msg.HTMLBody() != "<p>hi</p>" {
 		t.Errorf("body lost: %q / %q", msg.Subject(), msg.HTMLBody())

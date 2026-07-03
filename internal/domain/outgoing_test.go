@@ -19,6 +19,7 @@ func TestNewOutgoingMessage(t *testing.T) {
 		From:     mustAddr(t, "me@example.com"),
 		To:       []EmailAddress{mustAddr(t, "a@example.com"), mustAddr(t, "b@example.com")},
 		Cc:       []EmailAddress{mustAddr(t, "c@example.com")},
+		Bcc:      []EmailAddress{mustAddr(t, "d@example.com")},
 		Subject:  "  Hello  ",
 		Body:     "Body text",
 		HTMLBody: "<p>Body text</p>",
@@ -32,8 +33,8 @@ func TestNewOutgoingMessage(t *testing.T) {
 	if msg.HTMLBody() != "<p>Body text</p>" {
 		t.Errorf("HTMLBody = %q", msg.HTMLBody())
 	}
-	if len(msg.To()) != 2 || len(msg.Cc()) != 1 {
-		t.Errorf("recipients wrong: to=%d cc=%d", len(msg.To()), len(msg.Cc()))
+	if len(msg.To()) != 2 || len(msg.Cc()) != 1 || len(msg.Bcc()) != 1 {
+		t.Errorf("recipients wrong: to=%d cc=%d bcc=%d", len(msg.To()), len(msg.Cc()), len(msg.Bcc()))
 	}
 	if msg.Subject() != "Hello" {
 		t.Errorf("Subject = %q, want trimmed Hello", msg.Subject())
@@ -41,8 +42,8 @@ func TestNewOutgoingMessage(t *testing.T) {
 	if msg.Body() != "Body text" {
 		t.Errorf("Body = %q", msg.Body())
 	}
-	if len(msg.Recipients()) != 3 {
-		t.Errorf("Recipients = %d, want 3", len(msg.Recipients()))
+	if len(msg.Recipients()) != 4 {
+		t.Errorf("Recipients = %d, want 4", len(msg.Recipients()))
 	}
 }
 
@@ -76,6 +77,7 @@ func TestNewOutgoingMessageInvalid(t *testing.T) {
 		"no recipients": {OutgoingMessageInput{From: valid}, ErrNoRecipients},
 		"zero in to":    {OutgoingMessageInput{From: valid, To: []EmailAddress{{}}}, ErrNoRecipients},
 		"zero in cc":    {OutgoingMessageInput{From: valid, To: []EmailAddress{valid}, Cc: []EmailAddress{{}}}, ErrNoRecipients},
+		"zero in bcc":   {OutgoingMessageInput{From: valid, To: []EmailAddress{valid}, Bcc: []EmailAddress{{}}}, ErrNoRecipients},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -122,9 +124,10 @@ func TestNewDraftMessageInvalid(t *testing.T) {
 		in   OutgoingMessageInput
 		want error
 	}{
-		"no sender":  {OutgoingMessageInput{To: []EmailAddress{valid}}, ErrNoSender},
-		"zero in to": {OutgoingMessageInput{From: valid, To: []EmailAddress{{}}}, ErrNoRecipients},
-		"zero in cc": {OutgoingMessageInput{From: valid, Cc: []EmailAddress{{}}}, ErrNoRecipients},
+		"no sender":   {OutgoingMessageInput{To: []EmailAddress{valid}}, ErrNoSender},
+		"zero in to":  {OutgoingMessageInput{From: valid, To: []EmailAddress{{}}}, ErrNoRecipients},
+		"zero in cc":  {OutgoingMessageInput{From: valid, Cc: []EmailAddress{{}}}, ErrNoRecipients},
+		"zero in bcc": {OutgoingMessageInput{From: valid, Bcc: []EmailAddress{{}}}, ErrNoRecipients},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {

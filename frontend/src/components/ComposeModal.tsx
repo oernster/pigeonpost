@@ -18,6 +18,7 @@ function normaliseUrl(url: string): string {
 export interface ComposeInitial {
     to?: string
     cc?: string
+    bcc?: string
     subject?: string
     bodyHtml?: string
 }
@@ -35,6 +36,7 @@ function splitAddresses(value: string): string[] {
 export function ComposeModal({accountId, initial, onClose}: ComposeModalProps) {
     const [to, setTo] = useState(initial?.to ?? '')
     const [cc, setCc] = useState(initial?.cc ?? '')
+    const [bcc, setBcc] = useState(initial?.bcc ?? '')
     const [subject, setSubject] = useState(initial?.subject ?? '')
     const [sending, setSending] = useState(false)
     const [savingDraft, setSavingDraft] = useState(false)
@@ -76,6 +78,7 @@ export function ComposeModal({accountId, initial, onClose}: ComposeModalProps) {
             accountId,
             to: splitAddresses(to),
             cc: splitAddresses(cc),
+            bcc: splitAddresses(bcc),
             subject,
             body: text,
             // Only carry an HTML alternative when the body is non-empty, so an empty message stays plain.
@@ -134,6 +137,10 @@ export function ComposeModal({accountId, initial, onClose}: ComposeModalProps) {
                 <label className="field">
                     <span>Cc</span>
                     <input value={cc} onChange={(e) => setCc(e.target.value)}/>
+                </label>
+                <label className="field">
+                    <span>Bcc</span>
+                    <input value={bcc} onChange={(e) => setBcc(e.target.value)}/>
                 </label>
                 <label className="field">
                     <span>Subject</span>

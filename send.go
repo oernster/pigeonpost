@@ -14,6 +14,7 @@ type ComposeRequest struct {
 	AccountID string   `json:"accountId"`
 	To        []string `json:"to"`
 	Cc        []string `json:"cc"`
+	Bcc       []string `json:"bcc"`
 	Subject   string   `json:"subject"`
 	Body      string   `json:"body"`
 	HTMLBody  string   `json:"htmlBody"`
@@ -29,9 +30,14 @@ func (a *App) SendMessage(req ComposeRequest) error {
 	if err != nil {
 		return err
 	}
+	bcc, err := parseAddresses(req.Bcc)
+	if err != nil {
+		return err
+	}
 	return a.compose.Send(a.ctx, req.AccountID, application.Draft{
 		To:       to,
 		Cc:       cc,
+		Bcc:      bcc,
 		Subject:  req.Subject,
 		Body:     req.Body,
 		HTMLBody: req.HTMLBody,
@@ -49,9 +55,14 @@ func (a *App) SaveDraft(req ComposeRequest) error {
 	if err != nil {
 		return err
 	}
+	bcc, err := parseAddresses(req.Bcc)
+	if err != nil {
+		return err
+	}
 	return a.compose.SaveDraft(a.ctx, req.AccountID, application.Draft{
 		To:       to,
 		Cc:       cc,
+		Bcc:      bcc,
 		Subject:  req.Subject,
 		Body:     req.Body,
 		HTMLBody: req.HTMLBody,
