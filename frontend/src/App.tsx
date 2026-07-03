@@ -261,11 +261,20 @@ function App() {
 
     const selectAccount = useCallback(async (id: string) => {
         setSelectedAccount(id)
-        setSelectedFolder('')
-        setMessages([])
         setSelectedMessage(null)
         try {
-            setFolders(await api.listFolders(id))
+            const fetched = await api.listFolders(id)
+            setFolders(fetched)
+            // Open the account's Inbox straight away (falling back to its first folder) so its messages
+            // are visible without a manual click.
+            const inbox = fetched.find((f) => f.kind === 'inbox') ?? fetched[0]
+            if (inbox) {
+                setSelectedFolder(inbox.id)
+                setMessages(await api.listMessages(inbox.id))
+            } else {
+                setSelectedFolder('')
+                setMessages([])
+            }
         } catch (e) {
             setError(String(e))
         }
@@ -280,6 +289,14 @@ function App() {
             setError(String(e))
         }
     }, [])
+
+    // On first load (or after the account list changes) open the default account automatically, so the
+    // app lands on a populated inbox rather than an empty pane.
+    useEffect(() => {
+        if (!selectedAccount && accounts.length > 0) {
+            void selectAccount(accounts[0].id)
+        }
+    }, [accounts, selectedAccount, selectAccount])
 
     // refreshOutbox updates the count of outgoing operations waiting to be sent.
     const refreshOutbox = useCallback(async () => {
@@ -520,18 +537,35 @@ function App() {
         }
     }, [])
 
-    const moveMessage = useCallback(async (message: Message, destFolderId: string) => {
+    // moveMessageById moves a message to a folder by id, used by both the menu (via moveMessage) and
+    // drag-and-drop. A no-op when the message is dropped on the folder it already lives in.
+    const moveMessageById = useCallback(async (messageId: string, destFolderId: string) => {
         setError('')
         try {
-            await api.moveMessage(message.id, destFolderId)
-            setMessages((prev) => prev.filter((m) => m.id !== message.id))
-            setSearchResults((prev) => prev.filter((m) => m.id !== message.id))
-            setTabs((prev) => prev.filter((m) => m.id !== message.id))
-            setSelectedMessage((prev) => (prev?.id === message.id ? null : prev))
+            await api.moveMessage(messageId, destFolderId)
+            setMessages((prev) => prev.filter((m) => m.id !== messageId))
+            setSearchResults((prev) => prev.filter((m) => m.id !== messageId))
+            setTabs((prev) => prev.filter((m) => m.id !== messageId))
+            setSelectedMessage((prev) => (prev?.id === messageId ? null : prev))
         } catch (e) {
             setError(String(e))
         }
     }, [])
+
+    const moveMessage = useCallback(
+        (message: Message, destFolderId: string) => moveMessageById(message.id, destFolderId),
+        [moveMessageById],
+    )
+
+    // dropMessageOnFolder is the drag-and-drop target handler: it moves the dragged message into the
+    // folder it was dropped on, unless that is already its folder.
+    const dropMessageOnFolder = useCallback((messageId: string, folderId: string) => {
+        const source = messages.find((m) => m.id === messageId) ?? searchResults.find((m) => m.id === messageId)
+        if (source && source.folderId === folderId) {
+            return
+        }
+        void moveMessageById(messageId, folderId)
+    }, [messages, searchResults, moveMessageById])
 
     // Copy leaves the original in place; the duplicate appears in the destination folder on next sync,
     // so there is no local list change to make here.
@@ -773,15 +807,13 @@ function App() {
                     <button className="sync-btn" disabled={!selectedAccount || syncing} onClick={() => void sync()}>
                         {syncing ? 'Syncing...' : 'Sync'}
                     </button>
-                    {outboxCount > 0 && (
-                        <button
-                            className="outbox-pill"
-                            title="Messages queued while offline; click to review or cancel them"
-                            onClick={() => setViewingOutbox(true)}
-                        >
-                            {outboxCount} queued
-                        </button>
-                    )}
+                    <button
+                        className="sync-btn"
+                        title="Review or cancel messages queued while offline"
+                        onClick={() => setViewingOutbox(true)}
+                    >
+                        Outbox{outboxCount > 0 ? ` (${outboxCount})` : ''}
+                    </button>
                     <MenuBar
                         theme={theme}
                         onToggleTheme={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
@@ -815,6 +847,7 @@ function App() {
                     onNewFolder={() => setFolderPrompt({mode: 'create'})}
                     onRenameFolder={(folder) => setFolderPrompt({mode: 'rename', folder})}
                     onDeleteFolder={(folder) => setFolderToDelete(folder)}
+                    onDropMessage={dropMessageOnFolder}
                 />
                 <MessageList
                     messages={searchActive ? searchResults : messages}

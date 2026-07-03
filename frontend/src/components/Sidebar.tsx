@@ -1,6 +1,7 @@
 import {useEffect, useState} from 'react'
 import icon from '../assets/pigeonpost.png'
 import {Account, Folder} from '../api'
+import {messageDragType} from './MessageList'
 
 interface SidebarProps {
     accounts: Account[]
@@ -14,6 +15,7 @@ interface SidebarProps {
     onNewFolder: () => void
     onRenameFolder: (folder: Folder) => void
     onDeleteFolder: (folder: Folder) => void
+    onDropMessage: (messageId: string, folderId: string) => void
 }
 
 const folderIcon: Record<string, string> = {
@@ -121,6 +123,7 @@ function SidebarContent(props: SidebarProps) {
                             onSelectFolder={props.onSelectFolder}
                             onRenameFolder={props.onRenameFolder}
                             onDeleteFolder={props.onDeleteFolder}
+                            onDropMessage={props.onDropMessage}
                         />
                     )}
                 </>
@@ -136,6 +139,7 @@ interface FolderTreeProps {
     onSelectFolder: (id: string) => void
     onRenameFolder: (folder: Folder) => void
     onDeleteFolder: (folder: Folder) => void
+    onDropMessage: (messageId: string, folderId: string) => void
 }
 
 function collapseKey(accountId: string): string {
@@ -218,6 +222,7 @@ function orderFolders(folders: Folder[], sep: string): Folder[] {
 function FolderTree(props: FolderTreeProps) {
     const {folders, selectedFolder, selectedAccount} = props
     const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
+    const [dragOverId, setDragOverId] = useState<string>('')
 
     useEffect(() => {
         try {
@@ -262,9 +267,36 @@ function FolderTree(props: FolderTreeProps) {
                 return (
                     <li
                         key={folder.id}
-                        className={'list-item folder' + (folder.id === selectedFolder ? ' selected' : '')}
+                        className={
+                            'list-item folder' +
+                            (folder.id === selectedFolder ? ' selected' : '') +
+                            (folder.id === dragOverId ? ' drag-over' : '')
+                        }
                         style={{paddingLeft: 14 + depth * 14}}
+                        tabIndex={0}
                         onClick={() => props.onSelectFolder(folder.id)}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                                e.preventDefault()
+                                props.onSelectFolder(folder.id)
+                            }
+                        }}
+                        onDragOver={(e) => {
+                            if (e.dataTransfer.types.includes(messageDragType)) {
+                                e.preventDefault()
+                                e.dataTransfer.dropEffect = 'move'
+                                setDragOverId(folder.id)
+                            }
+                        }}
+                        onDragLeave={() => setDragOverId((id) => (id === folder.id ? '' : id))}
+                        onDrop={(e) => {
+                            e.preventDefault()
+                            setDragOverId('')
+                            const messageId = e.dataTransfer.getData(messageDragType)
+                            if (messageId) {
+                                props.onDropMessage(messageId, folder.id)
+                            }
+                        }}
                     >
                         <span className="folder-name">
                             {parent ? (

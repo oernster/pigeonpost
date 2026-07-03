@@ -11,6 +11,7 @@
     --accent: #7fb0ff;
     --accent-ink: #0b1220;
     --danger: #ff6b6b;
+    --ring: #fbbf24;
     --font: -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Helvetica Neue", sans-serif;
 }
 
@@ -25,6 +26,7 @@
     --accent: #2f6fed;
     --accent-ink: #ffffff;
     --danger: #d63a3a;
+    --ring: #b45309;
 }
 
 * {
@@ -46,4 +48,35 @@ body {
 
 button {
     font-family: inherit;
+}
+
+/* Amber ring on keyboard focus and mouse hover for every interactive element, so where you are is
+   always visible whether you tab or point. Outline is used (not box-shadow) so it never clashes with a
+   component's own shadow, and an inset offset keeps it from being clipped by a scrolling pane. */
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[tabindex]:focus-visible,
+.message-row:focus-visible,
+.list-item:focus-visible,
+.reader-tab:focus-visible,
+[role="menuitem"]:focus-visible,
+[role="menuitemcheckbox"]:focus-visible,
+[role="tab"]:focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: -2px;
+}
+
+button:hover,
+.message-row:hover,
+.list-item:hover,
+.reader-tab:hover,
+[role="menuitem"]:hover,
+[role="menuitemcheckbox"]:hover,
+[role="tab"]:hover,
+.list-item.folder.drag-over {
+    outline: 2px solid var(--ring);
+    outline-offset: -2px;
 }

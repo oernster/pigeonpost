@@ -1,5 +1,8 @@
 import {Message} from '../api'
 
+// messageDragType is the dataTransfer MIME type carrying a dragged message's id to a folder drop target.
+export const messageDragType = 'application/x-pigeonpost-message'
+
 interface MessageListProps {
     messages: Message[]
     selectedMessage: Message | null
@@ -49,8 +52,20 @@ export function MessageList(props: MessageListProps) {
                             (message.read ? '' : ' unread') +
                             (selectedMessage?.id === message.id ? ' selected' : '')
                         }
+                        tabIndex={selectedMessage?.id === message.id ? 0 : -1}
                         onClick={() => props.onSelectMessage(message)}
                         onDoubleClick={() => props.onOpenInNewTab(message)}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                                e.preventDefault()
+                                props.onOpenInNewTab(message)
+                            }
+                        }}
+                        draggable
+                        onDragStart={(e) => {
+                            e.dataTransfer.setData(messageDragType, message.id)
+                            e.dataTransfer.effectAllowed = 'move'
+                        }}
                         onContextMenu={(e) => {
                             e.preventDefault()
                             props.onContextMenu(message, e.clientX, e.clientY)

@@ -18,10 +18,17 @@ export function ReaderTabs({tabs, activeMessageId, onSelectTab, onCloseTab}: Rea
                     <div
                         key={tab.id}
                         role="tab"
+                        tabIndex={0}
                         aria-selected={tab.id === activeMessageId}
                         className={'reader-tab' + (tab.id === activeMessageId ? ' active' : '')}
                         title={label}
                         onClick={() => onSelectTab(tab)}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                                e.preventDefault()
+                                onSelectTab(tab)
+                            }
+                        }}
                     >
                         <span className="reader-tab-title">{label}</span>
                         <button
