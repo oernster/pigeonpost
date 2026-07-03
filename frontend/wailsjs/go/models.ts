@@ -157,26 +157,6 @@ export namespace main {
 	    }
 	}
 	
-	export class OutboxItemDTO {
-	    id: string;
-	    kind: string;
-	    subject: string;
-	    to: string[];
-	    createdMs: number;
-
-	    static createFrom(source: any = {}) {
-	        return new OutboxItemDTO(source);
-	    }
-
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.id = source["id"];
-	        this.kind = source["kind"];
-	        this.subject = source["subject"];
-	        this.to = source["to"];
-	        this.createdMs = source["createdMs"];
-	    }
-	}
 	export class FolderDTO {
 	    id: string;
 	    accountId: string;
@@ -268,6 +248,26 @@ export namespace main {
 		    }
 		    return a;
 		}
+	}
+	export class OutboxItemDTO {
+	    id: string;
+	    kind: string;
+	    subject: string;
+	    to: string[];
+	    createdMs: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new OutboxItemDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.kind = source["kind"];
+	        this.subject = source["subject"];
+	        this.to = source["to"];
+	        this.createdMs = source["createdMs"];
+	    }
 	}
 	export class RuleDTO {
 	    id: string;
