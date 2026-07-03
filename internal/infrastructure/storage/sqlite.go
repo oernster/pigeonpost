@@ -11,7 +11,7 @@ import (
 )
 
 // schemaVersion is the current on-disk schema version, tracked via SQLite's PRAGMA user_version.
-const schemaVersion = 6
+const schemaVersion = 7
 
 const driverName = "sqlite"
 
@@ -128,9 +128,21 @@ ALTER TABLE message ADD COLUMN to_json TEXT NOT NULL DEFAULT '[]';
 ALTER TABLE message ADD COLUMN cc_json TEXT NOT NULL DEFAULT '[]';
 `
 
+// schemaV7 adds the filter-rule table: user-defined rules that mark-read or flag arriving messages
+// whose sender or subject contains a given text.
+const schemaV7 = `
+CREATE TABLE IF NOT EXISTS rule (
+    id       TEXT PRIMARY KEY,
+    name     TEXT NOT NULL,
+    field    INTEGER NOT NULL,
+    contains TEXT NOT NULL,
+    action   INTEGER NOT NULL
+);
+`
+
 // migrations is the ordered list of schema steps. Index i upgrades the database from version i to
 // version i+1, so a fresh database applies them all and an existing one applies only what it lacks.
-var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6}
+var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7}
 
 // Store is the SQLite-backed implementation of the application storage ports.
 type Store struct {

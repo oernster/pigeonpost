@@ -102,6 +102,18 @@ export function SaveDraft(arg1) {
   return window['go']['main']['App']['SaveDraft'](arg1);
 }
 
+export function ListRules() {
+  return window['go']['main']['App']['ListRules']();
+}
+
+export function SaveRule(arg1) {
+  return window['go']['main']['App']['SaveRule'](arg1);
+}
+
+export function DeleteRule(arg1) {
+  return window['go']['main']['App']['DeleteRule'](arg1);
+}
+
 export function SaveTag(arg1) {
   return window['go']['main']['App']['SaveTag'](arg1);
 }

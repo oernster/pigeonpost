@@ -24,6 +24,11 @@ var (
 	ErrNoSender            = errors.New("message has no sender")
 	ErrEmptyOutboxID       = errors.New("outbox item id is empty")
 	ErrInvalidOutboxKind   = errors.New("outbox item kind is not valid")
+	ErrEmptyRuleID         = errors.New("rule id is empty")
+	ErrEmptyRuleName       = errors.New("rule name is empty")
+	ErrEmptyRuleMatch      = errors.New("rule match text is empty")
+	ErrInvalidRuleField    = errors.New("rule field is not valid")
+	ErrInvalidRuleAction   = errors.New("rule action is not valid")
 )
 
 // ErrOffline marks a failure caused by the mail server being unreachable (a connection could not be

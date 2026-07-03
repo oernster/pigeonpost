@@ -1,7 +1,7 @@
 import {useCallback, useEffect, useState} from 'react'
 import './App.css'
 import brandIcon from './assets/pigeonpost.png'
-import {AboutInfo, Account, api, Folder, Message, MessageBody, Tag} from './api'
+import {AboutInfo, Account, api, Folder, Message, MessageBody, Rule, Tag} from './api'
 import {applyTheme, loadTheme, Theme} from './theme'
 import {Sidebar} from './components/Sidebar'
 import {MessageList} from './components/MessageList'
@@ -14,6 +14,7 @@ import {AccountSetupModal} from './components/AccountSetupModal'
 import {ConfirmDialog} from './components/ConfirmDialog'
 import {PromptDialog} from './components/PromptDialog'
 import {TagManagerModal} from './components/TagManagerModal'
+import {RuleManagerModal} from './components/RuleManagerModal'
 import {Splash} from './components/Splash'
 
 function escapeHtml(s: string): string {
@@ -51,6 +52,8 @@ function App() {
     const [tags, setTags] = useState<Tag[]>([])
     const [messageTags, setMessageTags] = useState<Tag[]>([])
     const [managingTags, setManagingTags] = useState<boolean>(false)
+    const [rules, setRules] = useState<Rule[]>([])
+    const [managingRules, setManagingRules] = useState<boolean>(false)
     const [messageBody, setMessageBody] = useState<MessageBody | null>(null)
     const [bodyLoading, setBodyLoading] = useState<boolean>(false)
     const [searchQuery, setSearchQuery] = useState<string>('')
@@ -98,6 +101,18 @@ function App() {
             setError(String(e))
         }
     }, [])
+
+    const loadRules = useCallback(async () => {
+        try {
+            setRules(await api.listRules())
+        } catch (e) {
+            setError(String(e))
+        }
+    }, [])
+
+    useEffect(() => {
+        void loadRules()
+    }, [loadRules])
 
     useEffect(() => {
         void loadTags()
@@ -492,6 +507,9 @@ function App() {
                     <button className="sync-btn" onClick={() => setManagingTags(true)}>
                         Tags
                     </button>
+                    <button className="sync-btn" onClick={() => setManagingRules(true)}>
+                        Rules
+                    </button>
                     <button className="sync-btn" disabled={!selectedAccount} onClick={() => {
                         setComposeInitial(undefined)
                         setComposing(true)
@@ -594,6 +612,9 @@ function App() {
             )}
             {managingTags && (
                 <TagManagerModal tags={tags} onChanged={() => void onTagsChanged()} onClose={() => setManagingTags(false)}/>
+            )}
+            {managingRules && (
+                <RuleManagerModal rules={rules} onChanged={() => void loadRules()} onClose={() => setManagingRules(false)}/>
             )}
             {messageToDelete && (
                 <ConfirmDialog

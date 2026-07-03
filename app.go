@@ -20,6 +20,7 @@ type App struct {
 	body     *application.MessageBodyService
 	actions  *application.MessageActionService
 	folders  *application.FolderService
+	rules    *application.RuleService
 }
 
 // NewApp constructs the facade with its injected use-case services and a closer for shutdown.
@@ -34,6 +35,7 @@ func NewApp(
 	body *application.MessageBodyService,
 	actions *application.MessageActionService,
 	folders *application.FolderService,
+	rules *application.RuleService,
 ) *App {
 	return &App{
 		closer:   closer,
@@ -46,6 +48,7 @@ func NewApp(
 		body:     body,
 		actions:  actions,
 		folders:  folders,
+		rules:    rules,
 	}
 }
 

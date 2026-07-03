@@ -565,6 +565,40 @@ func (f *fakeOutboxStore) DeleteOutbox(_ context.Context, id string) error {
 	return nil
 }
 
+// fakeRuleStore is a hand-written in-memory RuleStore with error-injection fields.
+type fakeRuleStore struct {
+	rules     []domain.Rule
+	listErr   error
+	saveErr   error
+	deleteErr error
+	saved     []domain.Rule
+	deleted   []string
+}
+
+func (f *fakeRuleStore) ListRules(context.Context) ([]domain.Rule, error) {
+	if f.listErr != nil {
+		return nil, f.listErr
+	}
+	return f.rules, nil
+}
+
+func (f *fakeRuleStore) SaveRule(_ context.Context, rule domain.Rule) error {
+	if f.saveErr != nil {
+		return f.saveErr
+	}
+	f.saved = append(f.saved, rule)
+	f.rules = append(f.rules, rule)
+	return nil
+}
+
+func (f *fakeRuleStore) DeleteRule(_ context.Context, id string) error {
+	if f.deleteErr != nil {
+		return f.deleteErr
+	}
+	f.deleted = append(f.deleted, id)
+	return nil
+}
+
 // fakeClock is a hand-written domain.Clock returning a fixed instant.
 type fakeClock struct{ now time.Time }
 

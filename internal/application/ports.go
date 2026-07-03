@@ -107,3 +107,10 @@ type OutboxStore interface {
 	ListOutbox(ctx context.Context) ([]domain.OutboxItem, error)
 	DeleteOutbox(ctx context.Context, id string) error
 }
+
+// RuleStore persists user-defined filter rules, applied to messages as they are synced.
+type RuleStore interface {
+	ListRules(ctx context.Context) ([]domain.Rule, error)
+	SaveRule(ctx context.Context, rule domain.Rule) error
+	DeleteRule(ctx context.Context, id string) error
+}

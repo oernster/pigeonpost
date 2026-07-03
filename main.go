@@ -65,14 +65,15 @@ func run() error {
 	accountService := application.NewAccountService(store, vault, store)
 	setupService := application.NewAccountSetupService(store, vault, source)
 	mailboxService := application.NewMailboxService(store)
-	syncService := application.NewSyncService(store, store, source)
+	syncService := application.NewSyncService(store, store, source, store)
 	composeService := application.NewComposeService(store, store, transport, source, store, clock, newOutboxID)
 	tagService := application.NewTagService(store)
 	bodyService := application.NewMessageBodyService(store, store, source)
 	actionService := application.NewMessageActionService(store, store, source)
 	folderService := application.NewFolderService(store, store, source, source)
+	ruleService := application.NewRuleService(store, newRuleID)
 
-	app := NewApp(store.Close, accountService, setupService, mailboxService, syncService, composeService, tagService, bodyService, actionService, folderService)
+	app := NewApp(store.Close, accountService, setupService, mailboxService, syncService, composeService, tagService, bodyService, actionService, folderService, ruleService)
 
 	err = wails.Run(&options.App{
 		Title:            appName + " " + version(),

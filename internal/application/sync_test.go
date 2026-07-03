@@ -8,7 +8,7 @@ import (
 	"github.com/oernster/pigeonpost/internal/domain"
 )
 
-func newSyncFixture(t *testing.T) (*fakeAccountStore, *fakeMailStore, *fakeMailSource, *SyncService) {
+func newSyncFixture(t *testing.T) (*fakeAccountStore, *fakeMailStore, *fakeMailSource, *fakeRuleStore, *SyncService) {
 	t.Helper()
 	accounts := newFakeAccountStore()
 	accounts.accounts["a1"] = testAccount(t, "a1")
@@ -25,11 +25,12 @@ func newSyncFixture(t *testing.T) (*fakeAccountStore, *fakeMailStore, *fakeMailS
 			"f2": {testMessage(t, "m3", "f2")},
 		},
 	}
-	return accounts, mail, source, NewSyncService(accounts, mail, source)
+	rules := &fakeRuleStore{}
+	return accounts, mail, source, rules, NewSyncService(accounts, mail, source, rules)
 }
 
 func TestSyncAccountHappyPath(t *testing.T) {
-	_, mail, _, svc := newSyncFixture(t)
+	_, mail, _, _, svc := newSyncFixture(t)
 
 	if err := svc.SyncAccount(context.Background(), "a1"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -45,47 +46,87 @@ func TestSyncAccountHappyPath(t *testing.T) {
 	}
 }
 
+func TestSyncAppliesRules(t *testing.T) {
+	accounts, mail, source, rules, svc := newSyncFixture(t)
+
+	from, err := domain.NewEmailAddress("", "news@example.com")
+	if err != nil {
+		t.Fatalf("address: %v", err)
+	}
+	msg, err := domain.NewMessageSummary(domain.MessageSummaryInput{
+		ID: "m9", FolderID: "f1", UID: 5, From: from, Subject: "Weekly", Size: 1, Flags: domain.NewFlags(0),
+	})
+	if err != nil {
+		t.Fatalf("message: %v", err)
+	}
+	source.messagesByFolder = map[string][]domain.MessageSummary{"f1": {msg}}
+	source.folders = []domain.Folder{testFolder(t, "f1", "a1", "INBOX")}
+	rule, err := domain.NewRule("r1", "News", domain.RuleFieldFrom, "news@", domain.RuleMarkRead)
+	if err != nil {
+		t.Fatalf("rule: %v", err)
+	}
+	rules.rules = []domain.Rule{rule}
+	_ = accounts
+
+	if err := svc.SyncAccount(context.Background(), "a1"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	saved := mail.messages["f1"]
+	if len(saved) != 1 || !saved[0].IsRead() {
+		t.Errorf("expected the matching message to be marked read on arrival, got %+v", saved)
+	}
+}
+
 func TestSyncAccountErrors(t *testing.T) {
 	t.Run("load account", func(t *testing.T) {
-		accounts, mail, source, _ := newSyncFixture(t)
+		accounts, mail, source, rules, _ := newSyncFixture(t)
 		accounts.getErr = errBoom
-		svc := NewSyncService(accounts, mail, source)
+		svc := NewSyncService(accounts, mail, source, rules)
+		if err := svc.SyncAccount(context.Background(), "a1"); !errors.Is(err, errBoom) {
+			t.Errorf("error = %v, want wrapped boom", err)
+		}
+	})
+
+	t.Run("load rules", func(t *testing.T) {
+		accounts, mail, source, rules, _ := newSyncFixture(t)
+		rules.listErr = errBoom
+		svc := NewSyncService(accounts, mail, source, rules)
 		if err := svc.SyncAccount(context.Background(), "a1"); !errors.Is(err, errBoom) {
 			t.Errorf("error = %v, want wrapped boom", err)
 		}
 	})
 
 	t.Run("fetch folders", func(t *testing.T) {
-		accounts, mail, source, _ := newSyncFixture(t)
+		accounts, mail, source, rules, _ := newSyncFixture(t)
 		source.fetchFoldersErr = errBoom
-		svc := NewSyncService(accounts, mail, source)
+		svc := NewSyncService(accounts, mail, source, rules)
 		if err := svc.SyncAccount(context.Background(), "a1"); !errors.Is(err, errBoom) {
 			t.Errorf("error = %v, want wrapped boom", err)
 		}
 	})
 
 	t.Run("save folders", func(t *testing.T) {
-		accounts, mail, source, _ := newSyncFixture(t)
+		accounts, mail, source, rules, _ := newSyncFixture(t)
 		mail.saveFoldersErr = errBoom
-		svc := NewSyncService(accounts, mail, source)
+		svc := NewSyncService(accounts, mail, source, rules)
 		if err := svc.SyncAccount(context.Background(), "a1"); !errors.Is(err, errBoom) {
 			t.Errorf("error = %v, want wrapped boom", err)
 		}
 	})
 
 	t.Run("fetch messages", func(t *testing.T) {
-		accounts, mail, source, _ := newSyncFixture(t)
+		accounts, mail, source, rules, _ := newSyncFixture(t)
 		source.fetchMessagesErr = errBoom
-		svc := NewSyncService(accounts, mail, source)
+		svc := NewSyncService(accounts, mail, source, rules)
 		if err := svc.SyncAccount(context.Background(), "a1"); !errors.Is(err, errBoom) {
 			t.Errorf("error = %v, want wrapped boom", err)
 		}
 	})
 
 	t.Run("save messages", func(t *testing.T) {
-		accounts, mail, source, _ := newSyncFixture(t)
+		accounts, mail, source, rules, _ := newSyncFixture(t)
 		mail.saveMessagesErr = errBoom
-		svc := NewSyncService(accounts, mail, source)
+		svc := NewSyncService(accounts, mail, source, rules)
 		if err := svc.SyncAccount(context.Background(), "a1"); !errors.Is(err, errBoom) {
 			t.Errorf("error = %v, want wrapped boom", err)
 		}

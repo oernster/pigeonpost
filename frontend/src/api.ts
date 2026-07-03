@@ -18,8 +18,11 @@ import {
     CopyMessage,
     CreateFolder,
     DeleteFolder,
+    DeleteRule,
+    ListRules,
     MoveMessage,
     RenameFolder,
+    SaveRule,
     OpenExternal,
     OpenReleasesPage,
     OutboxCount,
@@ -44,7 +47,16 @@ export type Folder = main.FolderDTO
 export type Message = Omit<main.MessageDTO, 'convertValues'>
 export type AboutInfo = main.AboutDTO
 export type Tag = main.TagDTO
+export type Rule = main.RuleDTO
 export type MessageBody = main.MessageBodyDTO
+
+export interface RuleInput {
+    id: string
+    name: string
+    field: string
+    contains: string
+    action: string
+}
 
 export interface TagInput {
     id: string
@@ -98,6 +110,9 @@ export const api = {
     createFolder: (accountId: string, name: string): Promise<void> => CreateFolder(accountId, name),
     renameFolder: (folderId: string, newName: string): Promise<void> => RenameFolder(folderId, newName),
     deleteFolder: (folderId: string): Promise<void> => DeleteFolder(folderId),
+    listRules: (): Promise<Rule[]> => ListRules(),
+    saveRule: (req: RuleInput): Promise<void> => SaveRule(main.RuleRequest.createFrom(req)),
+    deleteRule: (ruleId: string): Promise<void> => DeleteRule(ruleId),
     about: (): Promise<AboutInfo> => About(),
     licence: (): Promise<string> => LicenceText(),
     version: (): Promise<string> => Version(),

@@ -21,3 +21,8 @@ func newMessageID() string {
 func newOutboxID() string {
 	return uuid.NewString()
 }
+
+// newRuleID produces a unique identifier for a filter rule.
+func newRuleID() string {
+	return uuid.NewString()
+}
