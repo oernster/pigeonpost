@@ -221,6 +221,27 @@ func (s *Source) Move(ctx context.Context, account domain.Account, folder domain
 	return nil
 }
 
+// Copy duplicates a message by UID into destPath on the server, leaving the original untouched. It
+// satisfies application.MailActions.
+func (s *Source) Copy(ctx context.Context, account domain.Account, folder domain.Folder, uid uint32, destPath string) error {
+	client, err := s.connect(ctx, account)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = client.Logout().Wait() }()
+
+	if _, err := client.Select(folder.Path(), nil).Wait(); err != nil {
+		return fmt.Errorf("imap: select %q: %w", folder.Path(), err)
+	}
+
+	uidSet := imap.UIDSet{}
+	uidSet.AddNum(imap.UID(uid))
+	if _, err := client.Copy(uidSet, destPath).Wait(); err != nil {
+		return fmt.Errorf("imap: copy uid %d to %q: %w", uid, destPath, err)
+	}
+	return nil
+}
+
 // SaveDraft appends a message to the account's Drafts mailbox, flagged \Draft and \Seen, so it is
 // available from any device. It satisfies application.DraftSaver. The message is rendered to RFC 5322
 // bytes with a generated Date and Message-ID so the draft is a well-formed message on the server.

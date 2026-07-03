@@ -133,3 +133,8 @@ func (a *App) DeleteMessage(messageID string) error {
 func (a *App) MoveMessage(messageID, destFolderID string) error {
 	return a.actions.Move(a.ctx, messageID, destFolderID)
 }
+
+// CopyMessage duplicates a message into another folder in the same account, leaving the original.
+func (a *App) CopyMessage(messageID, destFolderID string) error {
+	return a.actions.Copy(a.ctx, messageID, destFolderID)
+}

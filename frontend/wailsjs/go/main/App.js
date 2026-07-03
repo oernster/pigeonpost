@@ -58,6 +58,10 @@ export function MessageTags(arg1) {
   return window['go']['main']['App']['MessageTags'](arg1);
 }
 
+export function CopyMessage(arg1, arg2) {
+  return window['go']['main']['App']['CopyMessage'](arg1, arg2);
+}
+
 export function MoveMessage(arg1, arg2) {
   return window['go']['main']['App']['MoveMessage'](arg1, arg2);
 }

@@ -76,6 +76,8 @@ type MailActions interface {
 	Delete(ctx context.Context, account domain.Account, folder domain.Folder, uid uint32, trashPath string) error
 	// Move relocates a message by UID from its folder to the destination mailbox.
 	Move(ctx context.Context, account domain.Account, folder domain.Folder, uid uint32, destPath string) error
+	// Copy duplicates a message by UID into the destination mailbox, leaving the original in place.
+	Copy(ctx context.Context, account domain.Account, folder domain.Folder, uid uint32, destPath string) error
 }
 
 // MailTransport sends an outgoing message via an account's outgoing (SMTP) server.

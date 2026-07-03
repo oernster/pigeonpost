@@ -24,6 +24,7 @@ interface ReaderProps {
     onDelete: (message: Message) => void
     folders: Folder[]
     onMove: (message: Message, destFolderId: string) => void
+    onCopy: (message: Message, destFolderId: string) => void
     tags: Tag[]
     messageTags: Tag[]
     onToggleTag: (tagId: string, assigned: boolean) => void
@@ -31,7 +32,7 @@ interface ReaderProps {
     bodyLoading: boolean
 }
 
-export function Reader({message, onToggleRead, onReply, onReplyAll, onForward, onDelete, folders, onMove, tags, messageTags, onToggleTag, body, bodyLoading}: ReaderProps) {
+export function Reader({message, onToggleRead, onReply, onReplyAll, onForward, onDelete, folders, onMove, onCopy, tags, messageTags, onToggleTag, body, bodyLoading}: ReaderProps) {
     const [tagMenuOpen, setTagMenuOpen] = useState(false)
     const [imagesShown, setImagesShown] = useState(false)
     const menuRef = useRef<HTMLDivElement>(null)
@@ -89,21 +90,38 @@ export function Reader({message, onToggleRead, onReply, onReplyAll, onForward, o
                     </button>
                     <button className="btn danger-outline" onClick={() => onDelete(message)}>Delete</button>
                     {folders.filter((f) => f.id !== message.folderId).length > 0 && (
-                        <select
-                            className="move-select"
-                            value=""
-                            aria-label="Move to folder"
-                            onChange={(e) => {
-                                if (e.target.value) {
-                                    onMove(message, e.target.value)
-                                }
-                            }}
-                        >
-                            <option value="">Move to…</option>
-                            {folders.filter((f) => f.id !== message.folderId).map((f) => (
-                                <option key={f.id} value={f.id}>{f.name}</option>
-                            ))}
-                        </select>
+                        <>
+                            <select
+                                className="move-select"
+                                value=""
+                                aria-label="Move to folder"
+                                onChange={(e) => {
+                                    if (e.target.value) {
+                                        onMove(message, e.target.value)
+                                    }
+                                }}
+                            >
+                                <option value="">Move to…</option>
+                                {folders.filter((f) => f.id !== message.folderId).map((f) => (
+                                    <option key={f.id} value={f.id}>{f.name}</option>
+                                ))}
+                            </select>
+                            <select
+                                className="move-select"
+                                value=""
+                                aria-label="Copy to folder"
+                                onChange={(e) => {
+                                    if (e.target.value) {
+                                        onCopy(message, e.target.value)
+                                    }
+                                }}
+                            >
+                                <option value="">Copy to…</option>
+                                {folders.filter((f) => f.id !== message.folderId).map((f) => (
+                                    <option key={f.id} value={f.id}>{f.name}</option>
+                                ))}
+                            </select>
+                        </>
                     )}
                     <div className="tag-menu" ref={menuRef}>
                         <button className="btn" onClick={() => setTagMenuOpen((v) => !v)}>Tags &#9662;</button>

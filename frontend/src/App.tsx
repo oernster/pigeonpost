@@ -320,6 +320,17 @@ function App() {
         }
     }, [])
 
+    // Copy leaves the original in place; the duplicate appears in the destination folder on next sync,
+    // so there is no local list change to make here.
+    const copyMessage = useCallback(async (message: Message, destFolderId: string) => {
+        setError('')
+        try {
+            await api.copyMessage(message.id, destFolderId)
+        } catch (e) {
+            setError(String(e))
+        }
+    }, [])
+
     // quoteFor returns the quoted original for reply/forward: the fetched HTML body when available,
     // otherwise the plain text (or snippet) escaped into a paragraph.
     const quoteFor = (message: Message): string => {
@@ -491,6 +502,7 @@ function App() {
                     onDelete={(m) => setMessageToDelete(m)}
                     folders={folders}
                     onMove={(m, dest) => void moveMessage(m, dest)}
+                    onCopy={(m, dest) => void copyMessage(m, dest)}
                     tags={tags}
                     messageTags={messageTags}
                     onToggleTag={(tagId, assigned) => void toggleTag(tagId, assigned)}

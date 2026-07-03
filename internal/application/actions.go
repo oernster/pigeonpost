@@ -128,6 +128,35 @@ func (s *MessageActionService) Move(ctx context.Context, messageID, destFolderID
 	return nil
 }
 
+// Copy duplicates a message into another folder within the same account: it is copied on the server and
+// left in place locally (the destination folder lists the new copy, with its own server UID, on the
+// next sync). Unlike Move, the original message is untouched.
+func (s *MessageActionService) Copy(ctx context.Context, messageID, destFolderID string) error {
+	msg, err := s.store.GetMessage(ctx, messageID)
+	if err != nil {
+		return fmt.Errorf("locate message %q: %w", messageID, err)
+	}
+	source, err := s.store.GetFolder(ctx, msg.FolderID())
+	if err != nil {
+		return fmt.Errorf("locate source folder %q: %w", msg.FolderID(), err)
+	}
+	account, err := s.accounts.GetAccount(ctx, source.AccountID())
+	if err != nil {
+		return fmt.Errorf("locate account %q: %w", source.AccountID(), err)
+	}
+	dest, err := s.store.GetFolder(ctx, destFolderID)
+	if err != nil {
+		return fmt.Errorf("locate destination folder %q: %w", destFolderID, err)
+	}
+	if dest.AccountID() != account.ID() {
+		return fmt.Errorf("cannot copy message %q to a folder in another account", messageID)
+	}
+	if err := s.remote.Copy(ctx, account, source, msg.UID(), dest.Path()); err != nil {
+		return fmt.Errorf("copy message %q on server: %w", messageID, err)
+	}
+	return nil
+}
+
 // trashPath returns the destination mailbox for a delete: the account's Trash folder, or an empty
 // string (meaning permanent deletion) when the message is already in Trash or no Trash folder exists.
 func (s *MessageActionService) trashPath(ctx context.Context, current domain.Folder) (string, error) {

@@ -413,10 +413,12 @@ type fakeMailActions struct {
 	flaggedErr       error
 	deleteErr        error
 	moveErr          error
+	copyErr          error
 	seenCalls        []bool
 	flaggedCalls     []bool
 	deleteTrashPaths []string
 	moveDestPaths    []string
+	copyDestPaths    []string
 }
 
 func (f *fakeMailActions) SetSeen(_ context.Context, _ domain.Account, _ domain.Folder, _ uint32, seen bool) error {
@@ -448,6 +450,14 @@ func (f *fakeMailActions) Move(_ context.Context, _ domain.Account, _ domain.Fol
 		return f.moveErr
 	}
 	f.moveDestPaths = append(f.moveDestPaths, destPath)
+	return nil
+}
+
+func (f *fakeMailActions) Copy(_ context.Context, _ domain.Account, _ domain.Folder, _ uint32, destPath string) error {
+	if f.copyErr != nil {
+		return f.copyErr
+	}
+	f.copyDestPaths = append(f.copyDestPaths, destPath)
 	return nil
 }
 

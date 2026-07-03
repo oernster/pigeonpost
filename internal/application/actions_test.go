@@ -322,6 +322,79 @@ func TestMoveServerError(t *testing.T) {
 	}
 }
 
+func TestCopySuccess(t *testing.T) {
+	svc, store, accounts, remote := newActionService()
+	seedMessageLocation(t, store, accounts)
+	store.folders["a1"] = append(store.folders["a1"], testFolder(t, "f2", "a1", "Archive"))
+
+	if err := svc.Copy(context.Background(), "m1", "f2"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(remote.copyDestPaths) != 1 || remote.copyDestPaths[0] != "Archive" {
+		t.Errorf("expected copy to Archive, got %v", remote.copyDestPaths)
+	}
+	// Unlike Move, Copy must leave the original in the local cache.
+	if len(store.deletedMessages) != 0 {
+		t.Errorf("copy must not remove the original, deleted=%v", store.deletedMessages)
+	}
+}
+
+func TestCopyGetMessageError(t *testing.T) {
+	svc, store, _, _ := newActionService()
+	store.getMessageErr = errBoom
+	if err := svc.Copy(context.Background(), "m1", "f2"); !errors.Is(err, errBoom) {
+		t.Errorf("Copy error = %v, want wrapped boom", err)
+	}
+}
+
+func TestCopySourceFolderError(t *testing.T) {
+	svc, store, accounts, _ := newActionService()
+	seedMessageLocation(t, store, accounts)
+	store.getFolderErr = errBoom
+	if err := svc.Copy(context.Background(), "m1", "f2"); !errors.Is(err, errBoom) {
+		t.Errorf("Copy error = %v, want wrapped boom", err)
+	}
+}
+
+func TestCopyGetAccountError(t *testing.T) {
+	svc, store, accounts, _ := newActionService()
+	seedMessageLocation(t, store, accounts)
+	accounts.getErr = errBoom
+	if err := svc.Copy(context.Background(), "m1", "f2"); !errors.Is(err, errBoom) {
+		t.Errorf("Copy error = %v, want wrapped boom", err)
+	}
+}
+
+func TestCopyDestFolderError(t *testing.T) {
+	svc, store, accounts, _ := newActionService()
+	seedMessageLocation(t, store, accounts) // f2 does not exist
+	if err := svc.Copy(context.Background(), "m1", "f2"); err == nil {
+		t.Error("expected an error for a missing destination folder")
+	}
+}
+
+func TestCopyCrossAccountRejected(t *testing.T) {
+	svc, store, accounts, remote := newActionService()
+	seedMessageLocation(t, store, accounts)
+	store.folders["a2"] = []domain.Folder{testFolder(t, "f2", "a2", "Other")}
+	if err := svc.Copy(context.Background(), "m1", "f2"); err == nil {
+		t.Error("expected an error copying across accounts")
+	}
+	if len(remote.copyDestPaths) != 0 {
+		t.Error("cross-account copy must not touch the server")
+	}
+}
+
+func TestCopyServerError(t *testing.T) {
+	svc, store, accounts, remote := newActionService()
+	seedMessageLocation(t, store, accounts)
+	store.folders["a1"] = append(store.folders["a1"], testFolder(t, "f2", "a1", "Archive"))
+	remote.copyErr = errBoom
+	if err := svc.Copy(context.Background(), "m1", "f2"); !errors.Is(err, errBoom) {
+		t.Errorf("Copy error = %v, want wrapped boom", err)
+	}
+}
+
 func TestMoveCacheError(t *testing.T) {
 	svc, store, accounts, _ := newActionService()
 	seedMessageLocation(t, store, accounts)
