@@ -13,7 +13,7 @@ import (
 // ListFolders returns the cached folders for an account, ordered by path.
 func (s *Store) ListFolders(ctx context.Context, accountID string) ([]domain.Folder, error) {
 	rows, err := s.db.QueryContext(ctx,
-		"SELECT id, account_id, path, kind, unread, total FROM folder WHERE account_id = ? ORDER BY path;",
+		"SELECT id, account_id, path, separator, kind, unread, total FROM folder WHERE account_id = ? ORDER BY path;",
 		accountID)
 	if err != nil {
 		return nil, fmt.Errorf("query folders: %w", err)
@@ -23,13 +23,13 @@ func (s *Store) ListFolders(ctx context.Context, accountID string) ([]domain.Fol
 	var folders []domain.Folder
 	for rows.Next() {
 		var (
-			id, accID, path     string
-			kind, unread, total int
+			id, accID, path, sep string
+			kind, unread, total  int
 		)
-		if err := rows.Scan(&id, &accID, &path, &kind, &unread, &total); err != nil {
+		if err := rows.Scan(&id, &accID, &path, &sep, &kind, &unread, &total); err != nil {
 			return nil, fmt.Errorf("scan folder: %w", err)
 		}
-		folder, err := domain.NewFolder(id, accID, path, domain.FolderKind(kind), unread, total)
+		folder, err := domain.NewFolderWithSeparator(id, accID, path, sep, domain.FolderKind(kind), unread, total)
 		if err != nil {
 			return nil, fmt.Errorf("rebuild folder %q: %w", id, err)
 		}
@@ -49,9 +49,9 @@ func (s *Store) SaveFolders(ctx context.Context, accountID string, folders []dom
 		}
 		for _, f := range folders {
 			if _, err := tx.ExecContext(ctx,
-				`INSERT INTO folder (id, account_id, path, kind, unread, total)
-				 VALUES (?, ?, ?, ?, ?, ?);`,
-				f.ID(), f.AccountID(), f.Path(), int(f.Kind()), f.Unread(), f.Total()); err != nil {
+				`INSERT INTO folder (id, account_id, path, separator, kind, unread, total)
+				 VALUES (?, ?, ?, ?, ?, ?, ?);`,
+				f.ID(), f.AccountID(), f.Path(), f.Separator(), int(f.Kind()), f.Unread(), f.Total()); err != nil {
 				return fmt.Errorf("insert folder %q: %w", f.ID(), err)
 			}
 		}
@@ -118,16 +118,16 @@ func (s *Store) GetMessage(ctx context.Context, messageID string) (domain.Messag
 // GetFolder returns a single cached folder by its local id.
 func (s *Store) GetFolder(ctx context.Context, folderID string) (domain.Folder, error) {
 	var (
-		id, accountID, path string
-		kind, unread, total int
+		id, accountID, path, sep string
+		kind, unread, total      int
 	)
 	err := s.db.QueryRowContext(ctx,
-		"SELECT id, account_id, path, kind, unread, total FROM folder WHERE id = ?;", folderID).
-		Scan(&id, &accountID, &path, &kind, &unread, &total)
+		"SELECT id, account_id, path, separator, kind, unread, total FROM folder WHERE id = ?;", folderID).
+		Scan(&id, &accountID, &path, &sep, &kind, &unread, &total)
 	if err != nil {
 		return domain.Folder{}, fmt.Errorf("get folder %q: %w", folderID, err)
 	}
-	folder, err := domain.NewFolder(id, accountID, path, domain.FolderKind(kind), unread, total)
+	folder, err := domain.NewFolderWithSeparator(id, accountID, path, sep, domain.FolderKind(kind), unread, total)
 	if err != nil {
 		return domain.Folder{}, fmt.Errorf("rebuild folder %q: %w", folderID, err)
 	}

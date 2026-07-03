@@ -72,7 +72,12 @@ func folderKindFor(mailbox string, attrs []imap.MailboxAttr) domain.FolderKind {
 // default to zero until a later STATUS/SELECT sync fills them in.
 func buildFolder(accountID string, data *imap.ListData) (domain.Folder, error) {
 	kind := folderKindFor(data.Mailbox, data.Attrs)
-	return domain.NewFolder(makeFolderID(accountID, data.Mailbox), accountID, data.Mailbox, kind, 0, 0)
+	separator := ""
+	if data.Delim != 0 {
+		separator = string(data.Delim)
+	}
+	return domain.NewFolderWithSeparator(
+		makeFolderID(accountID, data.Mailbox), accountID, data.Mailbox, separator, kind, 0, 0)
 }
 
 // mapFlags converts IMAP flags into the domain flag set, ignoring flags the domain does not model.

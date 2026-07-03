@@ -115,3 +115,34 @@ func TestFolderRenamedTo(t *testing.T) {
 		t.Errorf("top-level RenamedTo = %q, want New", got)
 	}
 }
+
+func TestFolderWithSeparator(t *testing.T) {
+	// A server using "." as its delimiter must yield the correct leaf name and rename path, not treat
+	// the whole dotted path as one name.
+	dotted, err := NewFolderWithSeparator("id", "a1", "Archived.Debt", ".", FolderCustom, 0, 0)
+	if err != nil {
+		t.Fatalf("build dotted folder: %v", err)
+	}
+	if dotted.Name() != "Debt" {
+		t.Errorf("Name = %q, want Debt", dotted.Name())
+	}
+	if dotted.Separator() != "." {
+		t.Errorf("Separator = %q, want .", dotted.Separator())
+	}
+	if got := dotted.RenamedTo("Loans"); got != "Archived.Loans" {
+		t.Errorf("dotted RenamedTo = %q, want Archived.Loans", got)
+	}
+}
+
+func TestFolderEmptySeparatorDefaults(t *testing.T) {
+	folder, err := NewFolderWithSeparator("id", "a1", "Parent/Child", "", FolderCustom, 0, 0)
+	if err != nil {
+		t.Fatalf("build folder: %v", err)
+	}
+	if folder.Separator() != "/" {
+		t.Errorf("Separator = %q, want the default /", folder.Separator())
+	}
+	if folder.Name() != "Child" {
+		t.Errorf("Name = %q, want Child", folder.Name())
+	}
+}
