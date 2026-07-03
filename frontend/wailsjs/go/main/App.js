@@ -82,6 +82,18 @@ export function SearchMessages(arg1) {
   return window['go']['main']['App']['SearchMessages'](arg1);
 }
 
+export function OutboxCount() {
+  return window['go']['main']['App']['OutboxCount']();
+}
+
+export function ReplayOutbox() {
+  return window['go']['main']['App']['ReplayOutbox']();
+}
+
+export function SaveDraft(arg1) {
+  return window['go']['main']['App']['SaveDraft'](arg1);
+}
+
 export function SendMessage(arg1) {
   return window['go']['main']['App']['SendMessage'](arg1);
 }

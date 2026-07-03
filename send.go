@@ -38,6 +38,38 @@ func (a *App) SendMessage(req ComposeRequest) error {
 	})
 }
 
+// SaveDraft stores an in-progress message in the account's Drafts mailbox. The message may be
+// incomplete: unlike SendMessage it does not require recipients.
+func (a *App) SaveDraft(req ComposeRequest) error {
+	to, err := parseAddresses(req.To)
+	if err != nil {
+		return err
+	}
+	cc, err := parseAddresses(req.Cc)
+	if err != nil {
+		return err
+	}
+	return a.compose.SaveDraft(a.ctx, req.AccountID, application.Draft{
+		To:       to,
+		Cc:       cc,
+		Subject:  req.Subject,
+		Body:     req.Body,
+		HTMLBody: req.HTMLBody,
+	})
+}
+
+// OutboxCount returns the number of outgoing operations queued while the server was offline, awaiting
+// replay. The front end shows this so the user knows mail is waiting to be sent.
+func (a *App) OutboxCount() (int, error) {
+	return a.compose.PendingOutbox(a.ctx)
+}
+
+// ReplayOutbox attempts to deliver every queued outgoing operation, oldest first, and returns how many
+// succeeded. It is called after a successful sync, when connectivity has returned.
+func (a *App) ReplayOutbox() (int, error) {
+	return a.compose.ReplayOutbox(a.ctx)
+}
+
 func parseAddresses(values []string) ([]domain.EmailAddress, error) {
 	out := make([]domain.EmailAddress, 0, len(values))
 	for _, value := range values {

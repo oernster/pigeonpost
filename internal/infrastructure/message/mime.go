@@ -1,9 +1,10 @@
-// Package smtp implements the application MailTransport interface using emersion/go-smtp. The RFC
-// 5322 message construction lives in this file so it can be unit-tested without a network.
-package smtp
+// Package message renders a domain OutgoingMessage into RFC 5322 wire bytes. It is shared by the SMTP
+// transport (which sends the bytes) and the IMAP source (which appends them to the Drafts mailbox), so
+// the message-format logic lives in one place rather than being duplicated across the two adapters.
+package message
 
 import (
-	"mime"
+	stdmime "mime"
 	"net/mail"
 	"strings"
 	"time"
@@ -22,7 +23,7 @@ func BuildMIME(msg domain.OutgoingMessage, date time.Time, messageID string) []b
 	if cc := msg.Cc(); len(cc) > 0 {
 		writeAddressHeader(&b, "Cc", cc)
 	}
-	b.WriteString("Subject: " + mime.QEncoding.Encode("utf-8", msg.Subject()) + "\r\n")
+	b.WriteString("Subject: " + stdmime.QEncoding.Encode("utf-8", msg.Subject()) + "\r\n")
 	b.WriteString("Date: " + date.Format(time.RFC1123Z) + "\r\n")
 	b.WriteString("Message-ID: <" + messageID + ">\r\n")
 	b.WriteString("MIME-Version: 1.0\r\n")

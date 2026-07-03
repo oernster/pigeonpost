@@ -19,6 +19,7 @@ interface ReaderProps {
     message: Message | null
     onToggleRead: (message: Message) => void
     onReply: (message: Message) => void
+    onReplyAll: (message: Message) => void
     onForward: (message: Message) => void
     onDelete: (message: Message) => void
     folders: Folder[]
@@ -30,8 +31,9 @@ interface ReaderProps {
     bodyLoading: boolean
 }
 
-export function Reader({message, onToggleRead, onReply, onForward, onDelete, folders, onMove, tags, messageTags, onToggleTag, body, bodyLoading}: ReaderProps) {
+export function Reader({message, onToggleRead, onReply, onReplyAll, onForward, onDelete, folders, onMove, tags, messageTags, onToggleTag, body, bodyLoading}: ReaderProps) {
     const [tagMenuOpen, setTagMenuOpen] = useState(false)
+    const [imagesShown, setImagesShown] = useState(false)
     const menuRef = useRef<HTMLDivElement>(null)
 
     useEffect(() => {
@@ -47,9 +49,10 @@ export function Reader({message, onToggleRead, onReply, onForward, onDelete, fol
         return () => document.removeEventListener('mousedown', onDocClick)
     }, [tagMenuOpen])
 
-    // Close the tag menu whenever the selected message changes.
+    // Close the tag menu and re-block images whenever the selected message changes.
     useEffect(() => {
         setTagMenuOpen(false)
+        setImagesShown(false)
     }, [message?.id])
 
     if (!message) {
@@ -66,11 +69,20 @@ export function Reader({message, onToggleRead, onReply, onForward, onDelete, fol
 
     const assigned = new Set(messageTags.map((t) => t.id))
 
+    // Remote images are parked in data-pp-src at fetch time so they do not load automatically. When the
+    // reader asks to load them, restore the src; the block resets when the message changes.
+    const rawHtml = body?.html ?? ''
+    const hasBlockedImages = rawHtml.includes('data-pp-src=')
+    const renderedHtml = imagesShown ? rawHtml.replace(/data-pp-src=/g, 'src=') : rawHtml
+
     return (
         <section className="pane reader">
             <div className="reader-header">
                 <div className="reader-toolbar">
                     <button className="btn" onClick={() => onReply(message)}>Reply</button>
+                    {((message.to?.length || 0) + (message.cc?.length || 0)) > 0 && (
+                        <button className="btn" onClick={() => onReplyAll(message)}>Reply all</button>
+                    )}
                     <button className="btn" onClick={() => onForward(message)}>Forward</button>
                     <button className="btn" onClick={() => onToggleRead(message)}>
                         {message.read ? 'Mark as unread' : 'Mark as read'}
@@ -154,11 +166,19 @@ export function Reader({message, onToggleRead, onReply, onForward, onDelete, fol
                 {bodyLoading ? (
                     <p className="empty-body">Loading message…</p>
                 ) : body && body.html.trim() !== '' ? (
-                    <div
-                        className="reader-html"
-                        onClick={handleBodyClick}
-                        dangerouslySetInnerHTML={{__html: body.html}}
-                    />
+                    <>
+                        {hasBlockedImages && !imagesShown && (
+                            <div className="images-blocked-bar">
+                                <span>Remote images were not loaded to protect your privacy.</span>
+                                <button className="btn" onClick={() => setImagesShown(true)}>Load images</button>
+                            </div>
+                        )}
+                        <div
+                            className="reader-html"
+                            onClick={handleBodyClick}
+                            dangerouslySetInnerHTML={{__html: renderedHtml}}
+                        />
+                    </>
                 ) : body && body.plain.trim() !== '' ? (
                     <pre className="reader-text">{body.plain}</pre>
                 ) : message.snippet ? (

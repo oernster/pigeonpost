@@ -76,6 +76,8 @@ type MessageSummary struct {
 	uid            uint32
 	messageID      string
 	from           EmailAddress
+	to             []EmailAddress
+	cc             []EmailAddress
 	subject        string
 	date           time.Time
 	size           int
@@ -92,6 +94,8 @@ type MessageSummaryInput struct {
 	UID            uint32
 	MessageID      string
 	From           EmailAddress
+	To             []EmailAddress
+	Cc             []EmailAddress
 	Subject        string
 	Date           time.Time
 	Size           int
@@ -122,6 +126,8 @@ func NewMessageSummary(in MessageSummaryInput) (MessageSummary, error) {
 		uid:            in.UID,
 		messageID:      strings.TrimSpace(in.MessageID),
 		from:           in.From,
+		to:             append([]EmailAddress(nil), in.To...),
+		cc:             append([]EmailAddress(nil), in.Cc...),
 		subject:        in.Subject,
 		date:           in.Date,
 		size:           in.Size,
@@ -145,6 +151,12 @@ func (m MessageSummary) MessageID() string { return m.messageID }
 
 // From returns the sender address.
 func (m MessageSummary) From() EmailAddress { return m.from }
+
+// To returns a copy of the primary recipients (the To header), used by reply-all.
+func (m MessageSummary) To() []EmailAddress { return append([]EmailAddress(nil), m.to...) }
+
+// Cc returns a copy of the carbon-copy recipients (the Cc header), used by reply-all.
+func (m MessageSummary) Cc() []EmailAddress { return append([]EmailAddress(nil), m.cc...) }
 
 // Subject returns the subject line.
 func (m MessageSummary) Subject() string { return m.subject }

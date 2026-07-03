@@ -58,14 +58,15 @@ func run() error {
 	}
 
 	vault := keychain.NewVault()
-	source := imap.NewSource(vault)
-	transport := smtp.NewTransport(vault, systemClock{}, newMessageID)
+	clock := systemClock{}
+	source := imap.NewSource(vault, clock, newMessageID)
+	transport := smtp.NewTransport(vault, clock, newMessageID)
 
 	accountService := application.NewAccountService(store, vault, store)
 	setupService := application.NewAccountSetupService(store, vault, source)
 	mailboxService := application.NewMailboxService(store)
 	syncService := application.NewSyncService(store, store, source)
-	composeService := application.NewComposeService(store, transport)
+	composeService := application.NewComposeService(store, store, transport, source, store, clock, newOutboxID)
 	tagService := application.NewTagService(store)
 	bodyService := application.NewMessageBodyService(store, store, source)
 	actionService := application.NewMessageActionService(store, store, source)

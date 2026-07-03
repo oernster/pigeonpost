@@ -5,6 +5,7 @@ import (
 	"os"
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/oernster/pigeonpost/internal/domain"
 )
@@ -15,6 +16,11 @@ type staticPassword struct{ secret string }
 func (s staticPassword) Password(context.Context, domain.Account) (string, error) {
 	return s.secret, nil
 }
+
+// fixedClock is a domain.Clock returning a constant time, used to construct the source in tests.
+type fixedClock struct{}
+
+func (fixedClock) Now() time.Time { return time.Unix(0, 0).UTC() }
 
 // TestSourceLive exercises the adapter against a real IMAP server. It is skipped unless the
 // connection environment variables are set, so the normal `go test ./...` run stays offline.
@@ -46,7 +52,7 @@ func TestSourceLive(t *testing.T) {
 		t.Fatalf("account: %v", err)
 	}
 
-	source := NewSource(staticPassword{secret: password})
+	source := NewSource(staticPassword{secret: password}, fixedClock{}, func() string { return "test@pigeonpost" })
 	if err := source.Verify(context.Background(), account, password); err != nil {
 		t.Fatalf("verify: %v", err)
 	}

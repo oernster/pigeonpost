@@ -11,7 +11,7 @@ import (
 )
 
 // schemaVersion is the current on-disk schema version, tracked via SQLite's PRAGMA user_version.
-const schemaVersion = 4
+const schemaVersion = 6
 
 const driverName = "sqlite"
 
@@ -101,9 +101,36 @@ INSERT INTO message_fts(message_id, subject, snippet, from_address)
     SELECT id, subject, snippet, from_address FROM message;
 `
 
+// schemaV5 adds the offline outbox: outgoing sends and drafts queued while the server was unreachable,
+// held until they can be replayed. Recipient lists are stored as JSON so the row is self-contained.
+const schemaV5 = `
+CREATE TABLE IF NOT EXISTS outbox (
+    id           TEXT PRIMARY KEY,
+    account_id   TEXT NOT NULL,
+    kind         INTEGER NOT NULL,
+    from_display TEXT NOT NULL,
+    from_address TEXT NOT NULL,
+    to_json      TEXT NOT NULL,
+    cc_json      TEXT NOT NULL,
+    subject      TEXT NOT NULL,
+    body         TEXT NOT NULL,
+    html_body    TEXT NOT NULL,
+    created_ms   INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_outbox_created ON outbox(created_ms);
+`
+
+// schemaV6 adds the To and Cc recipient lists to cached message summaries (stored as JSON arrays), so
+// reply-all can address the whole conversation from the local cache. Existing rows default to empty
+// lists until the next sync refills them.
+const schemaV6 = `
+ALTER TABLE message ADD COLUMN to_json TEXT NOT NULL DEFAULT '[]';
+ALTER TABLE message ADD COLUMN cc_json TEXT NOT NULL DEFAULT '[]';
+`
+
 // migrations is the ordered list of schema steps. Index i upgrades the database from version i to
 // version i+1, so a fresh database applies them all and an existing one applies only what it lacks.
-var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4}
+var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6}
 
 // Store is the SQLite-backed implementation of the application storage ports.
 type Store struct {

@@ -20,9 +20,19 @@ import (
 )
 
 // htmlSanitizer strips anything unsafe (scripts, event handlers, javascript: URLs, style/iframe/form
-// elements) from message HTML while keeping common formatting and links. It is built once and is
-// safe for concurrent use.
-var htmlSanitizer = bluemonday.UGCPolicy()
+// elements) from message HTML while keeping common formatting and links. It also allows the
+// data-pp-src attribute on images, which is where blockRemoteImages parks a remote image's original
+// source so it does not load until the reader asks for it. It is built once and safe for concurrent use.
+var htmlSanitizer = buildSanitizer()
+
+// blockedImageAttr holds a remote image's original src while it is prevented from loading.
+const blockedImageAttr = "data-pp-src"
+
+func buildSanitizer() *bluemonday.Policy {
+	policy := bluemonday.UGCPolicy()
+	policy.AllowAttrs(blockedImageAttr).OnElements("img")
+	return policy
+}
 
 // folderIDSeparator joins account, mailbox and uid into stable local identifiers. It is a control
 // character that does not appear in mailbox names or email addresses.
@@ -100,6 +110,20 @@ func firstAddress(addrs []imap.Address) domain.EmailAddress {
 	return email
 }
 
+// allAddresses maps every parseable envelope address into domain addresses, skipping any that do not
+// parse. Used for the To and Cc lists so reply-all can address the whole conversation.
+func allAddresses(addrs []imap.Address) []domain.EmailAddress {
+	out := make([]domain.EmailAddress, 0, len(addrs))
+	for _, a := range addrs {
+		email, err := domain.NewEmailAddress(a.Name, a.Mailbox+"@"+a.Host)
+		if err != nil {
+			continue
+		}
+		out = append(out, email)
+	}
+	return out
+}
+
 // buildMessage maps a FETCH buffer into a domain message summary.
 func buildMessage(folderID string, buf *imapclient.FetchMessageBuffer) (domain.MessageSummary, error) {
 	uid := uint32(buf.UID)
@@ -115,6 +139,8 @@ func buildMessage(folderID string, buf *imapclient.FetchMessageBuffer) (domain.M
 		in.Date = buf.Envelope.Date
 		in.MessageID = buf.Envelope.MessageID
 		in.From = firstAddress(buf.Envelope.From)
+		in.To = allAddresses(buf.Envelope.To)
+		in.Cc = allAddresses(buf.Envelope.Cc)
 	}
 	return domain.NewMessageSummary(in)
 }
@@ -156,12 +182,57 @@ func parseBody(raw []byte) (plain, htmlBody string, err error) {
 	plain = plainBuf.String()
 	htmlBody = htmlBuf.String()
 	if htmlBody != "" {
-		htmlBody = htmlSanitizer.Sanitize(htmlBody)
+		htmlBody = htmlSanitizer.Sanitize(blockRemoteImages(htmlBody))
 	}
 	if strings.TrimSpace(plain) == "" && htmlBody != "" {
 		plain = htmlToText(htmlBody)
 	}
 	return plain, htmlBody, nil
+}
+
+// blockRemoteImages rewrites every <img src> to a data attribute so remote images do not load
+// automatically. Auto-loading a remote image leaks that the reader opened the message (and their IP)
+// to the sender, so the source is parked until the reader explicitly asks to load images. srcset is
+// dropped for the same reason. On a parse or render failure the original HTML is returned unchanged;
+// the sanitizer still runs over it afterwards.
+func blockRemoteImages(source string) string {
+	doc, err := html.Parse(strings.NewReader(source))
+	if err != nil {
+		return source
+	}
+	var walk func(n *html.Node)
+	walk = func(n *html.Node) {
+		if n.Type == html.ElementNode && n.Data == "img" {
+			parkImageSource(n)
+		}
+		for c := n.FirstChild; c != nil; c = c.NextSibling {
+			walk(c)
+		}
+	}
+	walk(doc)
+	var b strings.Builder
+	if err := html.Render(&b, doc); err != nil {
+		return source
+	}
+	return b.String()
+}
+
+// parkImageSource renames an image's src attribute to the blocked-image data attribute and drops
+// srcset, so the browser has nothing to fetch until the source is restored.
+func parkImageSource(n *html.Node) {
+	kept := n.Attr[:0]
+	for _, attr := range n.Attr {
+		switch strings.ToLower(attr.Key) {
+		case "src":
+			attr.Key = blockedImageAttr
+			kept = append(kept, attr)
+		case "srcset":
+			// Dropped: srcset is another way to trigger a remote fetch.
+		default:
+			kept = append(kept, attr)
+		}
+	}
+	n.Attr = kept
 }
 
 // htmlToText renders HTML into readable plain text: it drops script/style, turns <br> and the close of

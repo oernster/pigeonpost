@@ -82,3 +82,18 @@ type MailActions interface {
 type MailTransport interface {
 	Send(ctx context.Context, account domain.Account, msg domain.OutgoingMessage) error
 }
+
+// DraftSaver appends a message to an account's Drafts mailbox on the server, flagged \Draft, so the
+// draft is available from any device. It is separate from MailTransport because saving a draft does
+// not send anything.
+type DraftSaver interface {
+	SaveDraft(ctx context.Context, account domain.Account, draftsPath string, msg domain.OutgoingMessage) error
+}
+
+// OutboxStore persists outgoing operations that could not reach the server because it was offline, so
+// they survive a restart and can be replayed on reconnect. Items are listed oldest first.
+type OutboxStore interface {
+	EnqueueOutbox(ctx context.Context, item domain.OutboxItem) error
+	ListOutbox(ctx context.Context) ([]domain.OutboxItem, error)
+	DeleteOutbox(ctx context.Context, id string) error
+}

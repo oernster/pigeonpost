@@ -22,4 +22,12 @@ var (
 	ErrEmptyTagName        = errors.New("tag name is empty")
 	ErrNoRecipients        = errors.New("message has no valid recipients")
 	ErrNoSender            = errors.New("message has no sender")
+	ErrEmptyOutboxID       = errors.New("outbox item id is empty")
+	ErrInvalidOutboxKind   = errors.New("outbox item kind is not valid")
 )
+
+// ErrOffline marks a failure caused by the mail server being unreachable (a connection could not be
+// established), as opposed to the server rejecting a well-formed request. Infrastructure adapters wrap
+// connection failures with it so the application layer can queue the operation for later rather than
+// surfacing it as a hard error. Callers match with errors.Is.
+var ErrOffline = errors.New("mail server is unreachable")

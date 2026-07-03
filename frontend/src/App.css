@@ -91,6 +91,17 @@
     cursor: default;
 }
 
+.outbox-pill {
+    align-self: center;
+    background-color: var(--accent);
+    color: var(--accent-ink, #0b1220);
+    border-radius: 999px;
+    padding: 3px 10px;
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
 .error-bar {
     background-color: rgba(255, 107, 107, 0.15);
     color: var(--danger);
@@ -361,6 +372,20 @@
     line-height: 1.55;
     color: var(--text);
     word-break: break-word;
+}
+
+.images-blocked-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 14px;
+    padding: 8px 12px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background-color: var(--bg-elev);
+    font-size: 13px;
+    color: var(--text-dim);
 }
 
 .reader-html a {
@@ -641,6 +666,11 @@
 
 .modal-actions.spread {
     justify-content: space-between;
+}
+
+.compose-send-group {
+    display: flex;
+    gap: 10px;
 }
 
 .modal.compose {

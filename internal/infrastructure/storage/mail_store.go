@@ -62,7 +62,7 @@ func (s *Store) SaveFolders(ctx context.Context, accountID string, folders []dom
 // ListMessages returns the cached message summaries for a folder, newest first.
 func (s *Store) ListMessages(ctx context.Context, folderID string) ([]domain.MessageSummary, error) {
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT id, folder_id, uid, message_id, from_display, from_address, subject,
+		`SELECT id, folder_id, uid, message_id, from_display, from_address, to_json, cc_json, subject,
 		        date_ms, size, flags, has_attachments, snippet
 		 FROM message WHERE folder_id = ? ORDER BY date_ms DESC;`, folderID)
 	if err != nil {
@@ -105,7 +105,7 @@ func (s *Store) DeleteMessage(ctx context.Context, messageID string) error {
 // GetMessage returns a single cached message summary by its local id.
 func (s *Store) GetMessage(ctx context.Context, messageID string) (domain.MessageSummary, error) {
 	row := s.db.QueryRowContext(ctx,
-		`SELECT id, folder_id, uid, message_id, from_display, from_address, subject,
+		`SELECT id, folder_id, uid, message_id, from_display, from_address, to_json, cc_json, subject,
 		        date_ms, size, flags, has_attachments, snippet
 		 FROM message WHERE id = ?;`, messageID)
 	msg, err := scanMessage(row)
@@ -149,12 +149,20 @@ func (s *Store) SaveMessages(ctx context.Context, folderID string, messages []do
 		}
 		for _, m := range messages {
 			display, address := senderColumns(m.From())
+			toJSON, err := marshalAddrs(m.To())
+			if err != nil {
+				return fmt.Errorf("encode recipients for %q: %w", m.ID(), err)
+			}
+			ccJSON, err := marshalAddrs(m.Cc())
+			if err != nil {
+				return fmt.Errorf("encode cc for %q: %w", m.ID(), err)
+			}
 			if _, err := tx.ExecContext(ctx,
 				`INSERT INTO message (id, folder_id, uid, message_id, from_display, from_address,
-				        subject, date_ms, size, flags, has_attachments, snippet)
-				 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+				        to_json, cc_json, subject, date_ms, size, flags, has_attachments, snippet)
+				 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
 				m.ID(), m.FolderID(), m.UID(), m.MessageID(), display, address,
-				m.Subject(), m.Date().UnixMilli(), m.Size(), int(m.Flags().Raw()),
+				toJSON, ccJSON, m.Subject(), m.Date().UnixMilli(), m.Size(), int(m.Flags().Raw()),
 				boolToInt(m.HasAttachments()), m.Snippet()); err != nil {
 				return fmt.Errorf("insert message %q: %w", m.ID(), err)
 			}
@@ -176,8 +184,8 @@ func (s *Store) SearchMessages(ctx context.Context, query string) ([]domain.Mess
 		return nil, nil
 	}
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT m.id, m.folder_id, m.uid, m.message_id, m.from_display, m.from_address, m.subject,
-		        m.date_ms, m.size, m.flags, m.has_attachments, m.snippet
+		`SELECT m.id, m.folder_id, m.uid, m.message_id, m.from_display, m.from_address, m.to_json,
+		        m.cc_json, m.subject, m.date_ms, m.size, m.flags, m.has_attachments, m.snippet
 		 FROM message m JOIN message_fts f ON f.message_id = m.id
 		 WHERE message_fts MATCH ? ORDER BY rank;`, ftsQuery)
 	if err != nil {
@@ -219,12 +227,13 @@ func scanMessage(row scanner) (domain.MessageSummary, error) {
 	var (
 		id, folderID, messageID       string
 		fromDisplay, fromAddress      string
+		toJSON, ccJSON                string
 		subject, snippet              string
 		uid                           uint32
 		dateMS                        int64
 		size, flags, hasAttachmentInt int
 	)
-	if err := row.Scan(&id, &folderID, &uid, &messageID, &fromDisplay, &fromAddress,
+	if err := row.Scan(&id, &folderID, &uid, &messageID, &fromDisplay, &fromAddress, &toJSON, &ccJSON,
 		&subject, &dateMS, &size, &flags, &hasAttachmentInt, &snippet); err != nil {
 		return domain.MessageSummary{}, fmt.Errorf("scan message: %w", err)
 	}
@@ -237,9 +246,17 @@ func scanMessage(row scanner) (domain.MessageSummary, error) {
 		}
 		from = parsed
 	}
+	to, err := unmarshalAddrs(toJSON)
+	if err != nil {
+		return domain.MessageSummary{}, fmt.Errorf("rebuild recipients for %q: %w", id, err)
+	}
+	cc, err := unmarshalAddrs(ccJSON)
+	if err != nil {
+		return domain.MessageSummary{}, fmt.Errorf("rebuild cc for %q: %w", id, err)
+	}
 
 	message, err := domain.NewMessageSummary(domain.MessageSummaryInput{
-		ID: id, FolderID: folderID, UID: uid, MessageID: messageID, From: from,
+		ID: id, FolderID: folderID, UID: uid, MessageID: messageID, From: from, To: to, Cc: cc,
 		Subject: subject, Date: time.UnixMilli(dateMS).UTC(), Size: size,
 		Flags: domain.NewFlags(domain.Flag(flags)), HasAttachments: hasAttachmentInt != 0,
 		Snippet: snippet,

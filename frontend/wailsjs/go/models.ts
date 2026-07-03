@@ -14,6 +14,20 @@ export namespace main {
 	        this.licence = source["licence"];
 	    }
 	}
+	export class AddressDTO {
+	    name: string;
+	    address: string;
+
+	    static createFrom(source: any = {}) {
+	        return new AddressDTO(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.address = source["address"];
+	    }
+	}
 	export class AboutDTO {
 	    name: string;
 	    tagline: string;
@@ -181,17 +195,19 @@ export namespace main {
 	    subject: string;
 	    fromName: string;
 	    fromAddress: string;
+	    to: AddressDTO[];
+	    cc: AddressDTO[];
 	    date: string;
 	    size: number;
 	    read: boolean;
 	    flagged: boolean;
 	    hasAttachments: boolean;
 	    snippet: string;
-	
+
 	    static createFrom(source: any = {}) {
 	        return new MessageDTO(source);
 	    }
-	
+
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
@@ -199,6 +215,8 @@ export namespace main {
 	        this.subject = source["subject"];
 	        this.fromName = source["fromName"];
 	        this.fromAddress = source["fromAddress"];
+	        this.to = source["to"];
+	        this.cc = source["cc"];
 	        this.date = source["date"];
 	        this.size = source["size"];
 	        this.read = source["read"];

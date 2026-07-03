@@ -33,6 +33,7 @@ function App() {
     const [selectedMessage, setSelectedMessage] = useState<Message | null>(null)
     const [error, setError] = useState<string>('')
     const [syncing, setSyncing] = useState<boolean>(false)
+    const [outboxCount, setOutboxCount] = useState<number>(0)
     const [theme, setTheme] = useState<Theme>(loadTheme())
     const [about, setAbout] = useState<AboutInfo | null>(null)
     const [licence, setLicence] = useState<string | null>(null)
@@ -206,6 +207,15 @@ function App() {
         }
     }, [])
 
+    // refreshOutbox updates the count of outgoing operations waiting to be sent.
+    const refreshOutbox = useCallback(async () => {
+        try {
+            setOutboxCount(await api.outboxCount())
+        } catch {
+            // A count read failing must not disrupt the UI; leave the last known value.
+        }
+    }, [])
+
     const sync = useCallback(async () => {
         if (!selectedAccount) {
             return
@@ -214,16 +224,23 @@ function App() {
         setError('')
         try {
             await api.syncAccount(selectedAccount)
+            // Connectivity is back: flush anything queued while offline, then refresh views.
+            await api.replayOutbox()
             setFolders(await api.listFolders(selectedAccount))
             if (selectedFolder) {
                 setMessages(await api.listMessages(selectedFolder))
             }
+            await refreshOutbox()
         } catch (e) {
             setError(String(e))
         } finally {
             setSyncing(false)
         }
-    }, [selectedAccount, selectedFolder])
+    }, [selectedAccount, selectedFolder, refreshOutbox])
+
+    useEffect(() => {
+        void refreshOutbox()
+    }, [refreshOutbox])
 
     const onAccountSaved = useCallback(async (email: string) => {
         setSettingUp(false)
@@ -323,6 +340,34 @@ function App() {
         setComposing(true)
     }
 
+    const openReplyAll = (message: Message) => {
+        const when = message.date ? new Date(message.date).toLocaleString() : ''
+        const who = message.fromName || message.fromAddress || 'the sender'
+        const header = when ? `On ${when}, ${who} wrote:` : `${who} wrote:`
+        // Address the sender plus everyone on the original To and Cc, dropping our own address and any
+        // duplicates so we never reply to ourselves or twice to the same person.
+        const seen = new Set<string>([selectedAccount.toLowerCase()])
+        const collect = (address: string, into: string[]) => {
+            const key = address.trim().toLowerCase()
+            if (key !== '' && !seen.has(key)) {
+                seen.add(key)
+                into.push(address.trim())
+            }
+        }
+        const toList: string[] = []
+        const ccList: string[] = []
+        collect(message.fromAddress, toList)
+        ;(message.to || []).forEach((a) => collect(a.address, toList))
+        ;(message.cc || []).forEach((a) => collect(a.address, ccList))
+        setComposeInitial({
+            to: toList.join(', '),
+            cc: ccList.join(', '),
+            subject: subjectWithPrefix('Re:', message.subject),
+            bodyHtml: `<p></p><p>${escapeHtml(header)}</p><blockquote>${quoteFor(message)}</blockquote>`,
+        })
+        setComposing(true)
+    }
+
     const openForward = (message: Message) => {
         const who = message.fromName || message.fromAddress || 'unknown sender'
         setComposeInitial({
@@ -390,6 +435,11 @@ function App() {
                     <button className="sync-btn" disabled={!selectedAccount || syncing} onClick={() => void sync()}>
                         {syncing ? 'Syncing...' : 'Sync'}
                     </button>
+                    {outboxCount > 0 && (
+                        <span className="outbox-pill" title="Messages queued while offline; they send on the next sync">
+                            {outboxCount} queued
+                        </span>
+                    )}
                     <MenuBar
                         theme={theme}
                         onToggleTheme={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
@@ -434,6 +484,7 @@ function App() {
                     message={selectedMessage}
                     onToggleRead={(m) => void toggleRead(m)}
                     onReply={openReply}
+                    onReplyAll={openReplyAll}
                     onForward={openForward}
                     onDelete={(m) => setMessageToDelete(m)}
                     folders={folders}
@@ -455,6 +506,8 @@ function App() {
                     onClose={() => {
                         setComposing(false)
                         setComposeInitial(undefined)
+                        // A message composed while offline is queued: reflect that in the count.
+                        void refreshOutbox()
                     }}
                 />
             )}

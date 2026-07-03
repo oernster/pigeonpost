@@ -32,19 +32,27 @@ type FolderDTO struct {
 	Total     int    `json:"total"`
 }
 
+// AddressDTO is the JSON-serialisable view of one email address with its optional display name.
+type AddressDTO struct {
+	Name    string `json:"name"`
+	Address string `json:"address"`
+}
+
 // MessageDTO is the JSON-serialisable view of a message summary.
 type MessageDTO struct {
-	ID             string `json:"id"`
-	FolderID       string `json:"folderId"`
-	Subject        string `json:"subject"`
-	FromName       string `json:"fromName"`
-	FromAddress    string `json:"fromAddress"`
-	Date           string `json:"date"`
-	Size           int    `json:"size"`
-	Read           bool   `json:"read"`
-	Flagged        bool   `json:"flagged"`
-	HasAttachments bool   `json:"hasAttachments"`
-	Snippet        string `json:"snippet"`
+	ID             string       `json:"id"`
+	FolderID       string       `json:"folderId"`
+	Subject        string       `json:"subject"`
+	FromName       string       `json:"fromName"`
+	FromAddress    string       `json:"fromAddress"`
+	To             []AddressDTO `json:"to"`
+	Cc             []AddressDTO `json:"cc"`
+	Date           string       `json:"date"`
+	Size           int          `json:"size"`
+	Read           bool         `json:"read"`
+	Flagged        bool         `json:"flagged"`
+	HasAttachments bool         `json:"hasAttachments"`
+	Snippet        string       `json:"snippet"`
 }
 
 // MessageBodyDTO is the JSON-serialisable full body of a message.
@@ -114,6 +122,8 @@ func toMessageDTO(m domain.MessageSummary) MessageDTO {
 		Subject:        m.Subject(),
 		FromName:       m.From().Display(),
 		FromAddress:    m.From().Address(),
+		To:             toAddressDTOs(m.To()),
+		Cc:             toAddressDTOs(m.Cc()),
 		Date:           date,
 		Size:           m.Size(),
 		Read:           m.IsRead(),
@@ -121,6 +131,14 @@ func toMessageDTO(m domain.MessageSummary) MessageDTO {
 		HasAttachments: m.HasAttachments(),
 		Snippet:        m.Snippet(),
 	}
+}
+
+func toAddressDTOs(addrs []domain.EmailAddress) []AddressDTO {
+	out := make([]AddressDTO, 0, len(addrs))
+	for _, a := range addrs {
+		out = append(out, AddressDTO{Name: a.Display(), Address: a.Address()})
+	}
+	return out
 }
 
 func toAccountDTOs(accounts []domain.Account) []AccountDTO {

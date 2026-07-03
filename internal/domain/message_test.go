@@ -67,12 +67,16 @@ func TestNewTagInvalid(t *testing.T) {
 
 func validMessageInput() MessageSummaryInput {
 	from, _ := NewEmailAddress("Sender", "sender@example.com")
+	to, _ := NewEmailAddress("", "me@example.com")
+	cc, _ := NewEmailAddress("", "team@example.com")
 	return MessageSummaryInput{
 		ID:             "m1",
 		FolderID:       "f1",
 		UID:            42,
 		MessageID:      "<abc@example.com>",
 		From:           from,
+		To:             []EmailAddress{to},
+		Cc:             []EmailAddress{cc},
 		Subject:        "Hello",
 		Date:           time.Date(2026, time.July, 3, 9, 0, 0, 0, time.UTC),
 		Size:           2048,
@@ -143,6 +147,30 @@ func TestNewMessageSummaryInvalid(t *testing.T) {
 				t.Errorf("error = %v, want %v", err, tc.want)
 			}
 		})
+	}
+}
+
+func TestMessageSummaryRecipients(t *testing.T) {
+	m, err := NewMessageSummary(validMessageInput())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(m.To()) != 1 || m.To()[0].Address() != "me@example.com" {
+		t.Errorf("To = %+v", m.To())
+	}
+	if len(m.Cc()) != 1 || m.Cc()[0].Address() != "team@example.com" {
+		t.Errorf("Cc = %+v", m.Cc())
+	}
+	// The getters must return copies, not the internal slices.
+	got := m.To()
+	got[0] = EmailAddress{}
+	if m.To()[0].IsZero() {
+		t.Error("To() must return a copy, not the internal slice")
+	}
+	cc := m.Cc()
+	cc[0] = EmailAddress{}
+	if m.Cc()[0].IsZero() {
+		t.Error("Cc() must return a copy, not the internal slice")
 	}
 }
 

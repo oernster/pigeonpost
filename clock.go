@@ -16,3 +16,8 @@ func (systemClock) Now() time.Time { return time.Now() }
 func newMessageID() string {
 	return uuid.NewString() + "@pigeonpost"
 }
+
+// newOutboxID produces a unique identifier for a queued outbox item.
+func newOutboxID() string {
+	return uuid.NewString()
+}

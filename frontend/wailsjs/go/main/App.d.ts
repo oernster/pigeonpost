@@ -38,6 +38,12 @@ export function OpenReleasesPage():Promise<void>;
 
 export function RemoveAccount(arg1:string):Promise<void>;
 
+export function OutboxCount():Promise<number>;
+
+export function ReplayOutbox():Promise<number>;
+
+export function SaveDraft(arg1:main.ComposeRequest):Promise<void>;
+
 export function SaveTag(arg1:main.TagRequest):Promise<void>;
 
 export function SearchMessages(arg1:string):Promise<Array<main.MessageDTO>>;

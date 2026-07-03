@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/oernster/pigeonpost/internal/domain"
 )
@@ -463,6 +464,67 @@ func (f *fakeMailTransport) Send(_ context.Context, _ domain.Account, msg domain
 	f.sent = append(f.sent, msg)
 	return nil
 }
+
+// fakeDraftSaver is a hand-written DraftSaver that records the drafts it was asked to append and the
+// mailbox path each was appended to.
+type fakeDraftSaver struct {
+	saveErr error
+	saved   []domain.OutgoingMessage
+	paths   []string
+}
+
+func (f *fakeDraftSaver) SaveDraft(_ context.Context, _ domain.Account, draftsPath string, msg domain.OutgoingMessage) error {
+	if f.saveErr != nil {
+		return f.saveErr
+	}
+	f.saved = append(f.saved, msg)
+	f.paths = append(f.paths, draftsPath)
+	return nil
+}
+
+// fakeOutboxStore is a hand-written in-memory OutboxStore with error-injection fields.
+type fakeOutboxStore struct {
+	items      []domain.OutboxItem
+	enqueueErr error
+	listErr    error
+	deleteErr  error
+	deleted    []string
+}
+
+func (f *fakeOutboxStore) EnqueueOutbox(_ context.Context, item domain.OutboxItem) error {
+	if f.enqueueErr != nil {
+		return f.enqueueErr
+	}
+	f.items = append(f.items, item)
+	return nil
+}
+
+func (f *fakeOutboxStore) ListOutbox(context.Context) ([]domain.OutboxItem, error) {
+	if f.listErr != nil {
+		return nil, f.listErr
+	}
+	return f.items, nil
+}
+
+func (f *fakeOutboxStore) DeleteOutbox(_ context.Context, id string) error {
+	if f.deleteErr != nil {
+		return f.deleteErr
+	}
+	f.deleted = append(f.deleted, id)
+	kept := f.items[:0]
+	for _, item := range f.items {
+		if item.ID() != id {
+			kept = append(kept, item)
+		}
+	}
+	f.items = kept
+	return nil
+}
+
+// fakeClock is a hand-written domain.Clock returning a fixed instant.
+type fakeClock struct{ now time.Time }
+
+func (f fakeClock) Now() time.Time { return f.now }
 
 // --- test builders ---
 

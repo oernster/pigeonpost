@@ -66,6 +66,55 @@ func TestNewOutgoingMessageInvalid(t *testing.T) {
 	}
 }
 
+func TestNewDraftMessage(t *testing.T) {
+	// A draft may have no recipients and an empty body: the user is still composing it.
+	msg, err := NewDraftMessage(OutgoingMessageInput{
+		From:    mustAddr(t, "me@example.com"),
+		Subject: "  Later  ",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(msg.To()) != 0 || len(msg.Cc()) != 0 {
+		t.Errorf("expected no recipients, got to=%d cc=%d", len(msg.To()), len(msg.Cc()))
+	}
+	if msg.Subject() != "Later" {
+		t.Errorf("Subject = %q, want trimmed Later", msg.Subject())
+	}
+
+	// Recipients that ARE present are carried through.
+	withTo, err := NewDraftMessage(OutgoingMessageInput{
+		From: mustAddr(t, "me@example.com"),
+		To:   []EmailAddress{mustAddr(t, "a@example.com")},
+		Cc:   []EmailAddress{mustAddr(t, "c@example.com")},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(withTo.To()) != 1 || len(withTo.Cc()) != 1 {
+		t.Errorf("recipients wrong: to=%d cc=%d", len(withTo.To()), len(withTo.Cc()))
+	}
+}
+
+func TestNewDraftMessageInvalid(t *testing.T) {
+	valid := mustAddr(t, "ok@example.com")
+	cases := map[string]struct {
+		in   OutgoingMessageInput
+		want error
+	}{
+		"no sender":  {OutgoingMessageInput{To: []EmailAddress{valid}}, ErrNoSender},
+		"zero in to": {OutgoingMessageInput{From: valid, To: []EmailAddress{{}}}, ErrNoRecipients},
+		"zero in cc": {OutgoingMessageInput{From: valid, Cc: []EmailAddress{{}}}, ErrNoRecipients},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			if _, err := NewDraftMessage(tc.in); !errors.Is(err, tc.want) {
+				t.Errorf("error = %v, want %v", err, tc.want)
+			}
+		})
+	}
+}
+
 func TestOutgoingMessageGettersCopy(t *testing.T) {
 	msg, err := NewOutgoingMessage(OutgoingMessageInput{
 		From: mustAddr(t, "me@example.com"),

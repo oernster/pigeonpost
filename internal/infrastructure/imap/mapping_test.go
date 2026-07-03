@@ -224,3 +224,30 @@ func TestParseBodySanitizesHTML(t *testing.T) {
 		t.Errorf("sanitiser removed safe formatting: %s", html)
 	}
 }
+
+func TestParseBodyBlocksRemoteImages(t *testing.T) {
+	raw := "MIME-Version: 1.0\r\n" +
+		"Content-Type: text/html; charset=utf-8\r\n" +
+		"\r\n" +
+		`<p>Hello</p><img src="http://tracker.example/pixel.gif" srcset="http://tracker.example/2x.gif 2x" alt="pic">` + "\r\n"
+
+	_, html, err := parseBody([]byte(raw))
+	if err != nil {
+		t.Fatalf("parseBody: %v", err)
+	}
+	// The original source is parked in the data attribute, not left where the browser would fetch it.
+	if !strings.Contains(html, `data-pp-src="http://tracker.example/pixel.gif"`) {
+		t.Errorf("expected image source parked in data-pp-src, got: %s", html)
+	}
+	// A genuine (space-delimited) src attribute must be gone; the data-pp-src attribute is expected.
+	if strings.Contains(html, ` src="http`) || strings.Contains(html, `<img src=`) {
+		t.Errorf("remote image src should not auto-load, got: %s", html)
+	}
+	if strings.Contains(strings.ToLower(html), "srcset") {
+		t.Errorf("srcset should be dropped, got: %s", html)
+	}
+	// The alt text and surrounding content survive.
+	if !strings.Contains(html, "Hello") || !strings.Contains(html, `alt="pic"`) {
+		t.Errorf("expected alt and content preserved, got: %s", html)
+	}
+}

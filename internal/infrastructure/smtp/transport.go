@@ -4,12 +4,14 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 
 	"github.com/emersion/go-sasl"
 	gosmtp "github.com/emersion/go-smtp"
 
 	"github.com/oernster/pigeonpost/internal/domain"
+	"github.com/oernster/pigeonpost/internal/infrastructure/message"
 )
 
 // PasswordProvider yields the secret used to authenticate an account, backed by the OS keychain.
@@ -53,7 +55,8 @@ func (t *Transport) Send(ctx context.Context, account domain.Account, msg domain
 		client, err = gosmtp.DialTLS(addr, tlsConfig)
 	}
 	if err != nil {
-		return fmt.Errorf("smtp: dial %s: %w", addr, err)
+		// A dial failure means the server is unreachable: mark it offline so the caller can queue.
+		return fmt.Errorf("smtp: dial %s: %w", addr, errors.Join(err, domain.ErrOffline))
 	}
 	defer client.Close()
 
@@ -62,7 +65,7 @@ func (t *Transport) Send(ctx context.Context, account domain.Account, msg domain
 		return fmt.Errorf("smtp: authenticate: %w", err)
 	}
 
-	body := BuildMIME(msg, t.clock.Now(), t.newID())
+	body := message.BuildMIME(msg, t.clock.Now(), t.newID())
 	recipients := addressStrings(msg.Recipients())
 	if err := client.SendMail(msg.From().Address(), recipients, bytes.NewReader(body)); err != nil {
 		return fmt.Errorf("smtp: send: %w", err)

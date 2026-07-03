@@ -13,9 +13,10 @@ function normaliseUrl(url: string): string {
     return `https://${trimmed}`
 }
 
-// ComposeInitial pre-fills the compose window, used by reply and forward.
+// ComposeInitial pre-fills the compose window, used by reply, reply-all and forward.
 export interface ComposeInitial {
     to?: string
+    cc?: string
     subject?: string
     bodyHtml?: string
 }
@@ -32,9 +33,10 @@ function splitAddresses(value: string): string[] {
 
 export function ComposeModal({accountId, initial, onClose}: ComposeModalProps) {
     const [to, setTo] = useState(initial?.to ?? '')
-    const [cc, setCc] = useState('')
+    const [cc, setCc] = useState(initial?.cc ?? '')
     const [subject, setSubject] = useState(initial?.subject ?? '')
     const [sending, setSending] = useState(false)
+    const [savingDraft, setSavingDraft] = useState(false)
     const [error, setError] = useState('')
     const [linkOpen, setLinkOpen] = useState(false)
     const [linkUrl, setLinkUrl] = useState('')
@@ -66,26 +68,41 @@ export function ComposeModal({accountId, initial, onClose}: ComposeModalProps) {
         setLinkUrl('')
     }
 
-    const send = async () => {
-        setSending(true)
-        setError('')
+    const buildRequest = (): ComposeInput => {
         const text = editor?.getText() ?? ''
         const html = editor?.getHTML() ?? ''
-        const req: ComposeInput = {
+        return {
             accountId,
             to: splitAddresses(to),
             cc: splitAddresses(cc),
             subject,
             body: text,
-            // Only send an HTML alternative when the body is non-empty, so an empty message stays plain.
+            // Only carry an HTML alternative when the body is non-empty, so an empty message stays plain.
             htmlBody: text.trim() === '' ? '' : html,
         }
+    }
+
+    const send = async () => {
+        setSending(true)
+        setError('')
         try {
-            await api.send(req)
+            await api.send(buildRequest())
             onClose()
         } catch (e) {
             setError(String(e))
             setSending(false)
+        }
+    }
+
+    const saveDraft = async () => {
+        setSavingDraft(true)
+        setError('')
+        try {
+            await api.saveDraft(buildRequest())
+            onClose()
+        } catch (e) {
+            setError(String(e))
+            setSavingDraft(false)
         }
     }
 
@@ -155,10 +172,15 @@ export function ComposeModal({accountId, initial, onClose}: ComposeModalProps) {
                 <EditorContent editor={editor} className="compose-editor"/>
 
                 <div className="modal-actions spread">
-                    <button className="btn" onClick={onClose} disabled={sending}>Cancel</button>
-                    <button className="btn primary" onClick={() => void send()} disabled={sending || to.trim() === ''}>
-                        {sending ? 'Sending...' : 'Send'}
-                    </button>
+                    <button className="btn" onClick={onClose} disabled={sending || savingDraft}>Cancel</button>
+                    <div className="compose-send-group">
+                        <button className="btn" onClick={() => void saveDraft()} disabled={sending || savingDraft}>
+                            {savingDraft ? 'Saving...' : 'Save draft'}
+                        </button>
+                        <button className="btn primary" onClick={() => void send()} disabled={sending || savingDraft || to.trim() === ''}>
+                            {sending ? 'Sending...' : 'Send'}
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>

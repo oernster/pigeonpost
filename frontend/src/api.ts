@@ -18,7 +18,10 @@ import {
     MoveMessage,
     OpenExternal,
     OpenReleasesPage,
+    OutboxCount,
     RemoveAccount,
+    ReplayOutbox,
+    SaveDraft,
     SaveTag,
     SearchMessages,
     SendMessage,
@@ -90,4 +93,7 @@ export const api = {
     author: (): Promise<string> => Author(),
     openReleases: (): Promise<void> => OpenReleasesPage(),
     send: (req: ComposeInput): Promise<void> => SendMessage(main.ComposeRequest.createFrom(req)),
+    saveDraft: (req: ComposeInput): Promise<void> => SaveDraft(main.ComposeRequest.createFrom(req)),
+    outboxCount: (): Promise<number> => OutboxCount(),
+    replayOutbox: (): Promise<number> => ReplayOutbox(),
 }

@@ -51,6 +51,32 @@ func NewOutgoingMessage(in OutgoingMessageInput) (OutgoingMessage, error) {
 	}, nil
 }
 
+// NewDraftMessage validates and constructs a message for saving as a draft. Unlike a message bound for
+// sending, a draft is allowed to be incomplete: it may have no recipients and an empty body, because
+// the user is still composing it. A sender is still required (it identifies the drafting account) and
+// any recipient that is present must be a valid, non-zero address.
+func NewDraftMessage(in OutgoingMessageInput) (OutgoingMessage, error) {
+	if in.From.IsZero() {
+		return OutgoingMessage{}, ErrNoSender
+	}
+	to, err := cleanRecipients(in.To)
+	if err != nil {
+		return OutgoingMessage{}, err
+	}
+	cc, err := cleanRecipients(in.Cc)
+	if err != nil {
+		return OutgoingMessage{}, err
+	}
+	return OutgoingMessage{
+		from:     in.From,
+		to:       to,
+		cc:       cc,
+		subject:  strings.TrimSpace(in.Subject),
+		body:     in.Body,
+		htmlBody: in.HTMLBody,
+	}, nil
+}
+
 func cleanRecipients(addrs []EmailAddress) ([]EmailAddress, error) {
 	out := make([]EmailAddress, 0, len(addrs))
 	for _, addr := range addrs {

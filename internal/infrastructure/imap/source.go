@@ -2,12 +2,14 @@ package imap
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/emersion/go-imap/v2"
 	"github.com/emersion/go-imap/v2/imapclient"
 
 	"github.com/oernster/pigeonpost/internal/domain"
+	"github.com/oernster/pigeonpost/internal/infrastructure/message"
 )
 
 // PasswordProvider yields the secret used to authenticate an account. It is backed by the OS
@@ -16,14 +18,21 @@ type PasswordProvider interface {
 	Password(ctx context.Context, account domain.Account) (string, error)
 }
 
+// IDGenerator produces the local part of a Message-ID for a drafted message.
+type IDGenerator func() string
+
 // Source is a MailSource backed by a live IMAP server.
 type Source struct {
 	passwords PasswordProvider
+	clock     domain.Clock
+	newID     IDGenerator
 }
 
-// NewSource constructs the source with its injected password provider.
-func NewSource(passwords PasswordProvider) *Source {
-	return &Source{passwords: passwords}
+// NewSource constructs the source with its injected password provider, clock and id generator. The
+// clock and id generator are used only when appending a draft, so its Date and Message-ID headers are
+// well-formed; the read paths do not use them.
+func NewSource(passwords PasswordProvider, clock domain.Clock, newID IDGenerator) *Source {
+	return &Source{passwords: passwords, clock: clock, newID: newID}
 }
 
 // connect dials and logs in using the account's stored keychain password. It is used by the fetch
@@ -54,7 +63,8 @@ func (s *Source) login(account domain.Account, password string) (*imapclient.Cli
 		client, err = imapclient.DialTLS(address, nil)
 	}
 	if err != nil {
-		return nil, fmt.Errorf("imap: dial %s: %w", address, err)
+		// A dial failure means the server is unreachable: mark it offline so the caller can queue.
+		return nil, fmt.Errorf("imap: dial %s: %w", address, errors.Join(err, domain.ErrOffline))
 	}
 
 	if err := client.Login(account.Address().Address(), password).Wait(); err != nil {
@@ -207,6 +217,33 @@ func (s *Source) Move(ctx context.Context, account domain.Account, folder domain
 	uidSet.AddNum(imap.UID(uid))
 	if _, err := client.Move(uidSet, destPath).Wait(); err != nil {
 		return fmt.Errorf("imap: move uid %d to %q: %w", uid, destPath, err)
+	}
+	return nil
+}
+
+// SaveDraft appends a message to the account's Drafts mailbox, flagged \Draft and \Seen, so it is
+// available from any device. It satisfies application.DraftSaver. The message is rendered to RFC 5322
+// bytes with a generated Date and Message-ID so the draft is a well-formed message on the server.
+func (s *Source) SaveDraft(ctx context.Context, account domain.Account, draftsPath string, msg domain.OutgoingMessage) error {
+	client, err := s.connect(ctx, account)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = client.Logout().Wait() }()
+
+	now := s.clock.Now()
+	raw := message.BuildMIME(msg, now, s.newID())
+	options := &imap.AppendOptions{Flags: []imap.Flag{imap.FlagDraft, imap.FlagSeen}, Time: now}
+	cmd := client.Append(draftsPath, int64(len(raw)), options)
+	if _, err := cmd.Write(raw); err != nil {
+		_ = cmd.Close()
+		return fmt.Errorf("imap: write draft to %q: %w", draftsPath, err)
+	}
+	if err := cmd.Close(); err != nil {
+		return fmt.Errorf("imap: close draft append to %q: %w", draftsPath, err)
+	}
+	if _, err := cmd.Wait(); err != nil {
+		return fmt.Errorf("imap: append draft to %q: %w", draftsPath, err)
 	}
 	return nil
 }
