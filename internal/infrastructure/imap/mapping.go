@@ -12,6 +12,9 @@ import (
 
 	"github.com/emersion/go-imap/v2"
 	"github.com/emersion/go-imap/v2/imapclient"
+	// Registers a CharsetReader on go-message so bodies in legacy charsets (iso-8859-1, windows-1252,
+	// and the rest) decode instead of failing with "unhandled charset".
+	_ "github.com/emersion/go-message/charset"
 	"github.com/emersion/go-message/mail"
 	"github.com/microcosm-cc/bluemonday"
 	"golang.org/x/net/html"
