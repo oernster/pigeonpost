@@ -29,18 +29,27 @@ Shipped:
   full message bodies fetched on open and cached. HTML mail is sanitised, and remote images are blocked
   by default with a per-message "Load images" toggle.
 - **Compose** — TipTap rich-text composer (bold, italic, lists, quote, links), sent as
-  `multipart/alternative`. Reply, reply-all and forward. Save a draft to the server's Drafts mailbox.
+  `multipart/alternative`. To, Cc and Bcc. Reply, reply-all and forward. Attach files from disk or an
+  existing email (as a `message/rfc822` part), up to a 25 MB total. Save a draft to the server's Drafts
+  mailbox.
 - **Offline** — sends and drafts made while disconnected are queued and delivered automatically on the
-  next sync, with a header indicator for what is waiting.
-- **Organise** — mark read/unread (unread shows bold), star/flag, delete (to Trash), move between
-  folders, and colour-coded tags. Instant local full-text search.
+  next sync (attachments included). A title-bar pill shows what is waiting; click it to review the
+  outbox and cancel any queued message.
+- **Organise** — mark read/unread (unread shows bold), star/flag, delete (to Trash) or delete
+  permanently, move and copy between folders, and colour-coded tags. Create, rename and delete folders
+  (rename is correct on non-`/` delimiter servers). Well-known folders sort to the top of a nested,
+  collapsible tree. Filter rules mark-read or flag messages on arrival. Instant local full-text search.
+- **Read** — a right-click context menu on every message (open in new tab, reply, forward, save as
+  `.eml`, print, attach to a new message, tag, move, copy, delete). Open messages in in-app reader
+  tabs. Full keyboard control of the message list (arrows to move, Delete to Trash, Shift+Delete to
+  purge).
 - **Trust** — dark theme by default with a light mode toggle; passwords held in the OS keychain, never
   in the database; external links open in your browser, not the app's webview.
 - **Help menu** — About (with credits), Licence, and Check for Updates.
 
 Planned (see [DESIGN_PLAN.md](DESIGN_PLAN.md) for the full roadmap):
 
-- Folder create/rename/delete, drag to move, filters and rules.
+- Drag-and-drop to move messages, tags round-tripped onto IMAP keywords, move/delete filter rules.
 - POP3, Microsoft OAuth, multiple accounts with a unified inbox.
 - Calendar with ICS import/export, address book with vCard.
 

@@ -44,7 +44,7 @@ Passwords are never stored there; they live in the OS keychain.
 ## Project layout
 
 ```
-main.go, app.go, about.go, send.go, dto.go, clock.go   composition root + Wails facade (package main)
+main.go, app.go, about.go, send.go, export.go, outbox.go, dto.go, clock.go   composition root + Wails facade (package main)
 internal/domain/            pure value objects, no IO (100% test gate)
 internal/application/        use cases + port interfaces (100% test gate)
 internal/infrastructure/

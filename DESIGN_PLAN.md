@@ -3,12 +3,13 @@
 Cross-platform desktop email, calendar and address book client. Go core, React front end,
 local-first. Delivered as a signed download at https://www.pigeonpost.ink.
 
-Status: design locked; implementation underway (0.4.0 being cut). The core is built, the account
-wizard, reading with sanitised HTML and remote-image blocking, rich-text compose with reply/reply-all/
-forward, save-draft, the offline outbox, coloured tags, server-synced actions and full-text search all
-ship in 0.4.0; POP3, OAuth, folder operations, calendar and contacts remain ahead. This document is the
-target design; the actual per-release delivery record lives in NOTES.md. Author: Oliver Ernster.
-Licence: GPL-3.0.
+Status: design locked; 0.5.0 being cut. The 0.4.0 core (account wizard, reading with sanitised HTML and
+remote-image blocking, rich-text compose with reply/reply-all/forward, save-draft, the offline outbox,
+coloured tags, server-synced actions and full-text search) is complete. 0.5.0 adds folder create/
+rename/delete, message move/copy, on-arrival mark/flag rules, a right-click context menu, in-app reader
+tabs, full keyboard navigation, Bcc, file and email attachments, save-as/print and an outbox view. POP3,
+OAuth, drag-and-drop, calendar and contacts remain ahead. This document is the target design; the actual
+per-release delivery record lives in NOTES.md. Author: Oliver Ernster. Licence: GPL-3.0.
 
 ---
 

@@ -124,6 +124,10 @@ original To and Cc (schema v6):
    and delivers it. The compose editor is TipTap rich text: the draft carries both a plain-text body
    and an optional HTML body, and when HTML is present the shared `message` MIME builder emits a
    `multipart/alternative` message (plain text first, HTML second) so plain-text clients still render.
+   Bcc recipients (schema v8) are added to the SMTP envelope (de-duplicated with To and Cc) but never
+   written to the headers. Attachments (schema v9) turn the body into `multipart/mixed`: files chosen
+   from disk plus, optionally, an existing message fetched as a `message/rfc822` part, bounded by a
+   total-size cap in the facade.
 
 Save draft: Compose > Save draft calls the compose use case, which resolves the account's Drafts
 mailbox from the cached folders and, through the `DraftSaver` port, renders the message with the shared
@@ -133,11 +137,13 @@ Unlike a send, a draft may be incomplete (no recipients, empty body), so it is b
 
 Offline outbox: the SMTP and IMAP adapters wrap a failed dial with the `ErrOffline` sentinel. When the
 compose use case sees `ErrOffline` from a send or a draft append, instead of failing it queues the
-operation through the `OutboxStore` port (schema v5 `outbox` table) and returns success; the header
-shows how many operations are waiting. After the next successful sync the UI calls replay, which drains
-the queue oldest-first: each item is re-sent or re-appended, removed on success, left in place if still
-offline, and dropped (with its error reported) if it can never succeed. The queue covers outgoing mail
-only; message flag/delete/move actions remain online-only by design.
+operation through the `OutboxStore` port (schema v5 `outbox` table, extended with Bcc in v8 and
+attachments in v9 so a queued message keeps them on replay) and returns success; the title bar shows
+how many operations are waiting and opens an outbox view for reviewing or cancelling them. After the
+next successful sync the UI calls replay, which drains the queue oldest-first: each item is re-sent or
+re-appended, removed on success, left in place if still offline, and dropped (with its error reported)
+if it can never succeed. The queue covers outgoing mail only; message flag/delete/move actions remain
+online-only by design.
 
 Delete a message: after a confirmation modal, the UI calls the facade, routed through the
 `MessageActionService`. It resolves the message's folder and account, then via the `MailActions` port
@@ -148,7 +154,13 @@ cached message and everything derived from it (body, tags, index row) are then r
 Move a message: the UI offers the account's other folders; choosing one routes through the
 `MessageActionService`, which checks the destination is in the same account, moves the message on the
 server via the `MailActions` port and removes the local copy (the destination folder re-lists it, with
-its new server UID, on the next sync).
+its new server UID, on the next sync). Copy is the same path without removing the original.
+
+Folder operations: the `FolderService` creates, renames and deletes mailboxes on the server through the
+`FolderActions` port. Each cached `Folder` records the server's mailbox hierarchy delimiter (schema
+v10), captured from the IMAP `LIST` response, so the leaf name and a rename's destination path are
+derived with the real separator ("." on StartMail, not the default "/"); a folder with an unknown
+delimiter falls back to "/".
 
 Mark read/unread and star/flag: the UI calls the facade, which routes through the
 `MessageActionService`. It writes the flag (`\Seen` or `\Flagged`) to the IMAP server first (via the

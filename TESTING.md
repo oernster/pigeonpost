@@ -72,8 +72,9 @@ documented here.
   tests.
 - **Installer GUI** (`installer/`, a Wails app) and its facade: driven by the WebView, verified by
   running the setup program, not by unit tests.
-- **Composition root and startup** (`main.go`, `app.go`, `send.go`, `clock.go`) and the **icon tool**
-  (`tools/genicons`): wiring and one-shot programs, verified by the app and the build succeeding.
+- **Composition root and startup** (`main.go`, `app.go`, `send.go`, `export.go`, `outbox.go`,
+  `clock.go`) and the **icon tool** (`tools/genicons`): wiring and one-shot programs, verified by the
+  app and the build succeeding.
 - **A few defensive branches in storage** (a commit failing after a successful transaction, a driver
   read error mid-iteration): not reachably triggerable with a real SQLite file.
 
