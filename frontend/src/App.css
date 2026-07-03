@@ -1418,3 +1418,26 @@
     border-radius: 6px;
     padding: 6px 8px;
 }
+
+.folder-toggle {
+    background: transparent;
+    border: none;
+    color: var(--text-dim);
+    font-size: 10px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0;
+    width: 14px;
+    text-align: center;
+    flex-shrink: 0;
+}
+
+.folder-toggle:hover {
+    color: var(--text);
+}
+
+.folder-toggle-spacer {
+    display: inline-block;
+    width: 14px;
+    flex-shrink: 0;
+}
