@@ -94,20 +94,23 @@ func TestParseBodyRemovesHiddenPreheader(t *testing.T) {
 		"\r\n" +
 		`<div style="display:none;font-size:0;max-height:0;">Hidden preheader duplicate</div>` +
 		`<span style="opacity:0 !important">Zero opacity teaser</span>` +
+		`<div style="height:0;overflow:hidden">Zero height preheader</div>` +
 		`<span hidden>Hidden attribute snippet</span>` +
 		`<h1 style="opacity:0.9">Visible headline</h1>` +
+		`<p style="line-height:0">Line height kept</p>` +
 		`<p style="font-size:0.9em">Visible body text</p>` + "\r\n"
 
 	_, html, err := ParseBody([]byte(raw))
 	if err != nil {
 		t.Fatalf("ParseBody: %v", err)
 	}
-	for _, gone := range []string{"Hidden preheader duplicate", "Zero opacity teaser", "Hidden attribute snippet"} {
+	for _, gone := range []string{"Hidden preheader duplicate", "Zero opacity teaser", "Zero height preheader", "Hidden attribute snippet"} {
 		if strings.Contains(html, gone) {
 			t.Errorf("sender-hidden node should be removed, still present %q: %s", gone, html)
 		}
 	}
-	for _, kept := range []string{"Visible headline", "Visible body text"} {
+	// line-height:0 does not hide content, so it must not be mistaken for a preheader marker.
+	for _, kept := range []string{"Visible headline", "Line height kept", "Visible body text"} {
 		if !strings.Contains(html, kept) {
 			t.Errorf("visible content should survive, missing %q: %s", kept, html)
 		}

@@ -11,7 +11,7 @@ import (
 )
 
 // schemaVersion is the current on-disk schema version, tracked via SQLite's PRAGMA user_version.
-const schemaVersion = 12
+const schemaVersion = 13
 
 const driverName = "sqlite"
 
@@ -196,9 +196,17 @@ const schemaV12 = `
 ALTER TABLE rule ADD COLUMN operator INTEGER NOT NULL DEFAULT 0;
 `
 
+// schemaV13 clears the cached message bodies so each is re-fetched and re-parsed once. Bodies cached
+// before the parser learned to drop sender-hidden preheader text still hold the old HTML, in which that
+// text duplicates the visible content once the sanitiser strips the style that hid it. A body is a
+// cache of server data, so dropping it loses nothing that cannot be fetched again.
+const schemaV13 = `
+DELETE FROM message_body;
+`
+
 // migrations is the ordered list of schema steps. Index i upgrades the database from version i to
 // version i+1, so a fresh database applies them all and an existing one applies only what it lacks.
-var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12}
+var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13}
 
 // Store is the SQLite-backed implementation of the application storage ports.
 type Store struct {

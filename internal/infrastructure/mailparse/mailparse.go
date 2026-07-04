@@ -121,7 +121,7 @@ func prepareHTML(source string) string {
 // invisible or zero-opacity box, a collapsed height, or a zero or 1px font. Numeric values are anchored
 // to a declaration terminator (optionally through !important) so a visible opacity:0.9 or
 // font-size:0.5em is not caught.
-var hiddenStyleRe = regexp.MustCompile(`(?i)(?:display\s*:\s*none|visibility\s*:\s*hidden|mso-hide\s*:\s*all|opacity\s*:\s*0(?:\.0+)?(?:\s*!important)?\s*(?:;|$)|max-height\s*:\s*0(?:px)?(?:\s*!important)?\s*(?:;|$)|font-size\s*:\s*(?:0(?:px|pt|em|rem)?|1px)(?:\s*!important)?\s*(?:;|$))`)
+var hiddenStyleRe = regexp.MustCompile(`(?i)(?:display\s*:\s*none|visibility\s*:\s*hidden|mso-hide\s*:\s*all|opacity\s*:\s*0(?:\.0+)?(?:\s*!important)?\s*(?:;|$)|(?:^|[;{\s])(?:max-)?height\s*:\s*0(?:px)?(?:\s*!important)?\s*(?:;|$)|font-size\s*:\s*(?:0(?:px|pt|em|rem)?|1px)(?:\s*!important)?\s*(?:;|$))`)
 
 // isHiddenBySender reports whether an element is one the sender hid from view, via the HTML hidden
 // attribute or an inline style that makes it invisible. Such elements are preheader / preview text that
