@@ -119,7 +119,9 @@ Read a message body:
    first open. The shared `mailparse` package (used by both the IMAP and POP3 read paths) parses the MIME
    into plain-text and HTML parts; the HTML is sanitised there (bluemonday) so only safe markup ever
    enters the cache, and an HTML-only message also gets a plain-text rendering derived from the HTML.
-   Before sanitising, every remote `<img src>` is parked in
+   The same pre-sanitise pass drops nodes the sender hid with inline CSS (a preheader / preview-text
+   block): the sanitiser strips the style that hid them, so left in place they would surface and
+   duplicate the visible content. Before sanitising, every remote `<img src>` is parked in
    a `data-pp-src` attribute (and `srcset` dropped) so images do not auto-load, which would leak that
    the reader opened the message; the UI shows a "Load images" action that restores the source on
    request. The UI renders the sanitised HTML when present (links open in the external browser via the

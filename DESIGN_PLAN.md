@@ -12,7 +12,8 @@ actions and full-text search) is complete. 0.6.0 adds POP3 receive (each account
 separate inbox) plus a UI, keyboard and rules pass: filter-rule match operators (contains, is,
 starts/ends with, does not contain) and To/Cc fields, a reading pane with mark-on-view, a Mark submenu,
 per-folder/account/total unread badges, an explicit keyboard focus ring, the outbox surfaced as a
-per-account folder, a red taskbar overlay badge and a regrouped title tray. Microsoft OAuth is deferred
+per-account folder, a red taskbar overlay badge, a regrouped title tray and a reader fix for HTML mail
+that showed its text duplicated and oversized. Microsoft OAuth is deferred
 (see section 7). Calendar and contacts remain ahead. This document is the target design; the actual
 per-release delivery record lives in NOTES.md. Author: Oliver Ernster. Licence: GPL-3.0.
 
