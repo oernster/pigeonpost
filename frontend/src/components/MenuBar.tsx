@@ -4,6 +4,8 @@ import {Theme} from '../theme'
 interface MenuBarProps {
     theme: Theme
     onToggleTheme: () => void
+    previewEnabled: boolean
+    onTogglePreview: () => void
     onShowAbout: () => void
     onShowLicence: () => void
     onCheckUpdates: () => void
@@ -34,6 +36,14 @@ export function MenuBar(props: MenuBarProps) {
 
     return (
         <div className="menubar">
+            <button
+                className="icon-btn"
+                title={props.previewEnabled ? 'Hide the reading pane' : 'Show the reading pane'}
+                aria-pressed={props.previewEnabled}
+                onClick={props.onTogglePreview}
+            >
+                {props.previewEnabled ? '◫' : '▯'}
+            </button>
             <button
                 className="icon-btn"
                 title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}

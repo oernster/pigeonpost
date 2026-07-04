@@ -165,6 +165,12 @@
     min-height: 0;
 }
 
+/* Reading pane off: the sidebar plus a single full-width pane (the message list, or the full-width
+   reader when a message is opened). */
+.panes.no-preview {
+    grid-template-columns: 260px 1fr;
+}
+
 .pane {
     overflow-y: auto;
     border-right: 1px solid var(--border);

@@ -36,9 +36,11 @@ interface ReaderProps {
     tabs: Message[]
     onSelectTab: (message: Message) => void
     onCloseTab: (id: string) => void
+    // onBack is set only when the reader is shown full-width (reading pane off); it returns to the list.
+    onBack?: () => void
 }
 
-export function Reader({message, onToggleRead, onReply, onReplyAll, onForward, onDelete, folders, onMove, onCopy, canMoveCopy, tags, messageTags, onToggleTag, body, bodyLoading, tabs, onSelectTab, onCloseTab}: ReaderProps) {
+export function Reader({message, onToggleRead, onReply, onReplyAll, onForward, onDelete, folders, onMove, onCopy, canMoveCopy, tags, messageTags, onToggleTag, body, bodyLoading, tabs, onSelectTab, onCloseTab, onBack}: ReaderProps) {
     const [tagMenuOpen, setTagMenuOpen] = useState(false)
     const [imagesShown, setImagesShown] = useState(false)
     const menuRef = useRef<HTMLDivElement>(null)
@@ -92,6 +94,7 @@ export function Reader({message, onToggleRead, onReply, onReplyAll, onForward, o
             {tabStrip}
             <div className="reader-header">
                 <div className="reader-toolbar">
+                    {onBack && <button className="btn" onClick={onBack}>&#8592; Back</button>}
                     <button className="btn" onClick={() => onReply(message)}>Reply</button>
                     {((message.to?.length || 0) + (message.cc?.length || 0)) > 0 && (
                         <button className="btn" onClick={() => onReplyAll(message)}>Reply all</button>

@@ -82,6 +82,7 @@ function neighbourAfterRemoval(list: Message[], removedId: string): Message | nu
 }
 
 function App() {
+    const READING_PANE_KEY = 'pigeonpost.readingPane'
     const [accounts, setAccounts] = useState<Account[]>([])
     const [selectedAccount, setSelectedAccount] = useState<string>('')
     const [folders, setFolders] = useState<Folder[]>([])
@@ -119,6 +120,16 @@ function App() {
     const [purgingMessage, setPurgingMessage] = useState<boolean>(false)
     const [contextMenu, setContextMenu] = useState<{message: Message; x: number; y: number} | null>(null)
     const [tabs, setTabs] = useState<Message[]>([])
+    // previewEnabled controls the right-hand reading pane. When off, the message list is full-width and
+    // a message is read by double-clicking it, which opens it full-width (readingFull) with a Back button.
+    const [previewEnabled, setPreviewEnabled] = useState<boolean>(() => {
+        try {
+            return localStorage.getItem(READING_PANE_KEY) !== 'off'
+        } catch {
+            return true
+        }
+    })
+    const [readingFull, setReadingFull] = useState<boolean>(false)
     // Tracks the folder currently on screen, so a background refresh only replaces the list when the
     // user has not navigated away since it started.
     const selectedFolderRef = useRef<string>('')
@@ -294,6 +305,7 @@ function App() {
     const selectAccount = useCallback(async (id: string) => {
         setSelectedAccount(id)
         setSelectedMessage(null)
+        setReadingFull(false)
         try {
             const fetched = await api.listFolders(id)
             setFolders(fetched)
@@ -318,6 +330,7 @@ function App() {
         selectedFolderRef.current = id
         setSelectedFolder(id)
         setSelectedMessage(null)
+        setReadingFull(false)
         try {
             await loadFolderMessages(id)
         } catch (e) {
@@ -478,10 +491,26 @@ function App() {
 
     const closeContextMenu = useCallback(() => setContextMenu(null), [])
 
-    // openInNewTab pins a message as a reader tab (if not already open) and shows it.
+    // selectMessage highlights a message. With the reading pane on it shows in the preview (and the view
+    // effect marks it read); with the pane off it only highlights the row and stays on the list.
+    const selectMessage = useCallback((message: Message) => {
+        setSelectedMessage(message)
+        setReadingFull(false)
+    }, [])
+
+    // openInNewTab pins a message as a reader tab (if not already open) and shows it. With the reading
+    // pane off this opens the message full-width (readingFull); with it on the tab appears in the pane.
     const openInNewTab = useCallback((message: Message) => {
         setTabs((prev) => (prev.some((t) => t.id === message.id) ? prev : [...prev, message]))
         setSelectedMessage(message)
+        setReadingFull(true)
+    }, [])
+
+    // togglePreview flips the reading pane and returns to the list, so toggling never strands the user in
+    // the full-width reader.
+    const togglePreview = useCallback(() => {
+        setPreviewEnabled((v) => !v)
+        setReadingFull(false)
     }, [])
 
     // closeTab removes a tab; if it was the message on screen, selection moves to the neighbouring tab
@@ -753,6 +782,41 @@ function App() {
         void api.openReleases()
     }, [])
 
+    // markReadOnView marks a message read when it is displayed, writing through to the cache and updating
+    // the on-screen lists optimistically so it un-bolds at once.
+    const markReadOnView = useCallback(async (message: Message) => {
+        if (message.read) {
+            return
+        }
+        const asRead = (m: Message): Message => (m.id === message.id ? {...m, read: true} : m)
+        setMessages((prev) => prev.map(asRead))
+        setSearchResults((prev) => prev.map(asRead))
+        setTabs((prev) => prev.map(asRead))
+        setSelectedMessage((prev) => (prev && prev.id === message.id ? {...prev, read: true} : prev))
+        try {
+            await api.markRead(message.id, true)
+        } catch (e) {
+            setError(String(e))
+        }
+    }, [])
+
+    // Persist the reading-pane preference so it survives a restart.
+    useEffect(() => {
+        try {
+            localStorage.setItem(READING_PANE_KEY, previewEnabled ? 'on' : 'off')
+        } catch {
+            // A storage failure just means the preference is not remembered; the UI still works.
+        }
+    }, [previewEnabled])
+
+    // A message shown in the reader (the preview pane, or the full-width reader when the pane is off)
+    // counts as read, so viewing or double-clicking a message un-bolds it.
+    useEffect(() => {
+        if ((previewEnabled || readingFull) && selectedMessage && !selectedMessage.read) {
+            void markReadOnView(selectedMessage)
+        }
+    }, [selectedMessage, previewEnabled, readingFull, markReadOnView])
+
     const toggleRead = useCallback(async (message: Message) => {
         try {
             await api.markRead(message.id, !message.read)
@@ -822,6 +886,46 @@ function App() {
     const activeAccount = accounts.find((a) => a.id === selectedAccount)
     const isPop3 = activeAccount?.protocol === 'pop3'
 
+    // The message list and reader are extracted so the reading-pane layout can place them side by side
+    // (pane on) or swap between them (pane off: list, or the full-width reader when a message is opened).
+    const messageListEl = (
+        <MessageList
+            messages={searchActive ? searchResults : messages}
+            selectedMessage={selectedMessage}
+            folderSelected={Boolean(selectedFolder)}
+            searchQuery={searchQuery}
+            searchActive={searchActive}
+            onSearchChange={setSearchQuery}
+            onSelectMessage={selectMessage}
+            onToggleFlag={(m) => void toggleFlag(m)}
+            onContextMenu={openContextMenu}
+            onOpenInNewTab={openInNewTab}
+        />
+    )
+    const readerEl = (
+        <Reader
+            message={selectedMessage}
+            onToggleRead={(m) => void toggleRead(m)}
+            onReply={openReply}
+            onReplyAll={openReplyAll}
+            onForward={openForward}
+            onDelete={(m) => setMessageToDelete(m)}
+            folders={folders}
+            onMove={(m, dest) => void moveMessage(m, dest)}
+            onCopy={(m, dest) => void copyMessage(m, dest)}
+            canMoveCopy={!isPop3}
+            tags={tags}
+            messageTags={messageTags}
+            onToggleTag={(tagId, assigned) => void toggleTag(tagId, assigned)}
+            body={messageBody}
+            bodyLoading={bodyLoading}
+            tabs={tabs}
+            onSelectTab={setSelectedMessage}
+            onCloseTab={closeTab}
+            onBack={previewEnabled ? undefined : () => setReadingFull(false)}
+        />
+    )
+
     return (
         <div className="app">
             {splashVisible && <Splash version={appVersion} author={appAuthor} fading={splashFading}/>}
@@ -856,6 +960,8 @@ function App() {
                     <MenuBar
                         theme={theme}
                         onToggleTheme={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
+                        previewEnabled={previewEnabled}
+                        onTogglePreview={togglePreview}
                         onShowAbout={() => void showAbout()}
                         onShowLicence={() => void showLicence()}
                         onCheckUpdates={checkUpdates}
@@ -873,7 +979,7 @@ function App() {
                     </div>
                 </div>
             ) : (
-            <div className="panes">
+            <div className={'panes' + (previewEnabled ? '' : ' no-preview')}>
                 <Sidebar
                     accounts={accounts}
                     selectedAccount={selectedAccount}
@@ -889,38 +995,16 @@ function App() {
                     onDropMessage={dropMessageOnFolder}
                     canManageFolders={!isPop3}
                 />
-                <MessageList
-                    messages={searchActive ? searchResults : messages}
-                    selectedMessage={selectedMessage}
-                    folderSelected={Boolean(selectedFolder)}
-                    searchQuery={searchQuery}
-                    searchActive={searchActive}
-                    onSearchChange={setSearchQuery}
-                    onSelectMessage={setSelectedMessage}
-                    onToggleFlag={(m) => void toggleFlag(m)}
-                    onContextMenu={openContextMenu}
-                    onOpenInNewTab={openInNewTab}
-                />
-                <Reader
-                    message={selectedMessage}
-                    onToggleRead={(m) => void toggleRead(m)}
-                    onReply={openReply}
-                    onReplyAll={openReplyAll}
-                    onForward={openForward}
-                    onDelete={(m) => setMessageToDelete(m)}
-                    folders={folders}
-                    onMove={(m, dest) => void moveMessage(m, dest)}
-                    onCopy={(m, dest) => void copyMessage(m, dest)}
-                    canMoveCopy={!isPop3}
-                    tags={tags}
-                    messageTags={messageTags}
-                    onToggleTag={(tagId, assigned) => void toggleTag(tagId, assigned)}
-                    body={messageBody}
-                    bodyLoading={bodyLoading}
-                    tabs={tabs}
-                    onSelectTab={setSelectedMessage}
-                    onCloseTab={closeTab}
-                />
+                {previewEnabled ? (
+                    <>
+                        {messageListEl}
+                        {readerEl}
+                    </>
+                ) : readingFull && selectedMessage ? (
+                    readerEl
+                ) : (
+                    messageListEl
+                )}
             </div>
             )}
             <AboutModal about={about} onClose={() => setAbout(null)}/>
