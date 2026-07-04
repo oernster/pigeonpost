@@ -1,6 +1,7 @@
 /* Dark is the default theme (applies with no data-theme attribute and with data-theme="dark"). */
 :root,
 :root[data-theme="dark"] {
+    color-scheme: dark;
     --bg: #16181d;
     --bg-elev: #1e222a;
     --bg-elev-2: #262b34;
@@ -20,6 +21,7 @@
 }
 
 :root[data-theme="light"] {
+    color-scheme: light;
     --bg: #f5f6f8;
     --bg-elev: #ffffff;
     --bg-elev-2: #eceef2;

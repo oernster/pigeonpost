@@ -1495,6 +1495,19 @@
     border-color: var(--accent);
 }
 
+/* The native calendar-picker icon on the date fields. color-scheme (set per theme) makes it render in
+   the theme colours so it is no longer a dark icon on a dark field; this gives it the same teal hover
+   highlight as the rest of the app, identically on every date field. */
+.tag-name-input::-webkit-calendar-picker-indicator {
+    cursor: pointer;
+    border-radius: 4px;
+    padding: 2px;
+}
+
+.tag-name-input::-webkit-calendar-picker-indicator:hover {
+    background-color: var(--ring);
+}
+
 .tag-palette {
     display: flex;
     flex-wrap: wrap;
