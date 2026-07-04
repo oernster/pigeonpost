@@ -118,3 +118,15 @@ type RuleStore interface {
 	SaveRule(ctx context.Context, rule domain.Rule) error
 	DeleteRule(ctx context.Context, id string) error
 }
+
+// ContactStore persists address-book contacts and groups (mailing lists). Groups reference contacts by
+// id; the store owns how that association is held.
+type ContactStore interface {
+	ListContacts(ctx context.Context) ([]domain.Contact, error)
+	GetContact(ctx context.Context, id string) (domain.Contact, error)
+	SaveContact(ctx context.Context, contact domain.Contact) error
+	DeleteContact(ctx context.Context, id string) error
+	ListContactGroups(ctx context.Context) ([]domain.ContactGroup, error)
+	SaveContactGroup(ctx context.Context, group domain.ContactGroup) error
+	DeleteContactGroup(ctx context.Context, id string) error
+}

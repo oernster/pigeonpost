@@ -1,0 +1,270 @@
+package application
+
+import (
+	"context"
+	"errors"
+	"testing"
+
+	"github.com/oernster/pigeonpost/internal/domain"
+)
+
+// fakeContactStore is a hand-written in-memory ContactStore with error-injection fields.
+type fakeContactStore struct {
+	contacts   []domain.Contact
+	groups     []domain.ContactGroup
+	got        domain.Contact
+	listErr    error
+	getErr     error
+	saveErr    error
+	deleteErr  error
+	listGrpErr error
+	saveGrpErr error
+	delGrpErr  error
+	savedC     []domain.Contact
+	deletedC   []string
+	savedG     []domain.ContactGroup
+	deletedG   []string
+}
+
+func (f *fakeContactStore) ListContacts(context.Context) ([]domain.Contact, error) {
+	if f.listErr != nil {
+		return nil, f.listErr
+	}
+	return f.contacts, nil
+}
+
+func (f *fakeContactStore) GetContact(context.Context, string) (domain.Contact, error) {
+	if f.getErr != nil {
+		return domain.Contact{}, f.getErr
+	}
+	return f.got, nil
+}
+
+func (f *fakeContactStore) SaveContact(_ context.Context, c domain.Contact) error {
+	if f.saveErr != nil {
+		return f.saveErr
+	}
+	f.savedC = append(f.savedC, c)
+	return nil
+}
+
+func (f *fakeContactStore) DeleteContact(_ context.Context, id string) error {
+	if f.deleteErr != nil {
+		return f.deleteErr
+	}
+	f.deletedC = append(f.deletedC, id)
+	return nil
+}
+
+func (f *fakeContactStore) ListContactGroups(context.Context) ([]domain.ContactGroup, error) {
+	if f.listGrpErr != nil {
+		return nil, f.listGrpErr
+	}
+	return f.groups, nil
+}
+
+func (f *fakeContactStore) SaveContactGroup(_ context.Context, g domain.ContactGroup) error {
+	if f.saveGrpErr != nil {
+		return f.saveGrpErr
+	}
+	f.savedG = append(f.savedG, g)
+	return nil
+}
+
+func (f *fakeContactStore) DeleteContactGroup(_ context.Context, id string) error {
+	if f.delGrpErr != nil {
+		return f.delGrpErr
+	}
+	f.deletedG = append(f.deletedG, id)
+	return nil
+}
+
+func fixedID(id string) IDGenerator { return func() string { return id } }
+
+func TestContactServiceListContacts(t *testing.T) {
+	jo, _ := domain.NewContact(domain.ContactInput{ID: "c1", FormattedName: "Jo"})
+	store := &fakeContactStore{contacts: []domain.Contact{jo}}
+	svc := NewContactService(store, fixedID("x"))
+
+	got, err := svc.ListContacts(context.Background())
+	if err != nil || len(got) != 1 || got[0].ID() != "c1" {
+		t.Fatalf("ListContacts = %v, %v", got, err)
+	}
+
+	store.listErr = errBoom
+	if _, err := svc.ListContacts(context.Background()); !errors.Is(err, errBoom) {
+		t.Errorf("list error = %v, want wrapped errBoom", err)
+	}
+}
+
+func TestContactServiceGetContact(t *testing.T) {
+	jo, _ := domain.NewContact(domain.ContactInput{ID: "c1", FormattedName: "Jo"})
+	store := &fakeContactStore{got: jo}
+	svc := NewContactService(store, fixedID("x"))
+
+	got, err := svc.GetContact(context.Background(), "c1")
+	if err != nil || got.ID() != "c1" {
+		t.Fatalf("GetContact = %v, %v", got, err)
+	}
+
+	store.getErr = errBoom
+	if _, err := svc.GetContact(context.Background(), "c1"); !errors.Is(err, errBoom) {
+		t.Errorf("get error = %v, want wrapped errBoom", err)
+	}
+}
+
+func TestContactServiceSaveContactNewGeneratesID(t *testing.T) {
+	store := &fakeContactStore{}
+	svc := NewContactService(store, fixedID("generated"))
+
+	err := svc.SaveContact(context.Background(), ContactInput{
+		FormattedName: "Jo Bloggs",
+		Emails:        []ContactEmailInput{{Label: "work", Address: "jo@example.com"}},
+		Phones:        []ContactPhoneInput{{Label: "mobile", Number: "12345"}},
+	})
+	if err != nil {
+		t.Fatalf("SaveContact: %v", err)
+	}
+	if len(store.savedC) != 1 || store.savedC[0].ID() != "generated" {
+		t.Fatalf("saved = %+v, want a contact with the generated id", store.savedC)
+	}
+	saved := store.savedC[0]
+	if len(saved.Emails()) != 1 || len(saved.Phones()) != 1 {
+		t.Errorf("emails/phones not persisted: %+v", saved)
+	}
+}
+
+func TestContactServiceSaveContactExistingIDNoEmails(t *testing.T) {
+	store := &fakeContactStore{}
+	svc := NewContactService(store, fixedID("unused"))
+
+	if err := svc.SaveContact(context.Background(), ContactInput{ID: "  c1  ", FormattedName: "Jo"}); err != nil {
+		t.Fatalf("SaveContact: %v", err)
+	}
+	if store.savedC[0].ID() != "c1" {
+		t.Errorf("id = %q, want the supplied c1 (trimmed), not generated", store.savedC[0].ID())
+	}
+	if store.savedC[0].Emails() != nil || store.savedC[0].Phones() != nil {
+		t.Errorf("expected no emails/phones")
+	}
+}
+
+func TestContactServiceSaveContactEmailError(t *testing.T) {
+	svc := NewContactService(&fakeContactStore{}, fixedID("x"))
+	err := svc.SaveContact(context.Background(), ContactInput{
+		FormattedName: "Jo",
+		Emails:        []ContactEmailInput{{Label: "home", Address: "not-an-email"}},
+	})
+	if !errors.Is(err, domain.ErrInvalidEmailAddress) {
+		t.Errorf("err = %v, want wrapped ErrInvalidEmailAddress", err)
+	}
+}
+
+func TestContactServiceSaveContactPhoneError(t *testing.T) {
+	svc := NewContactService(&fakeContactStore{}, fixedID("x"))
+	err := svc.SaveContact(context.Background(), ContactInput{
+		FormattedName: "Jo",
+		Emails:        []ContactEmailInput{{Address: "jo@example.com"}},
+		Phones:        []ContactPhoneInput{{Label: "home", Number: "  "}},
+	})
+	if !errors.Is(err, domain.ErrEmptyPhoneNumber) {
+		t.Errorf("err = %v, want wrapped ErrEmptyPhoneNumber", err)
+	}
+}
+
+func TestContactServiceSaveContactDomainError(t *testing.T) {
+	svc := NewContactService(&fakeContactStore{}, fixedID("x"))
+	if err := svc.SaveContact(context.Background(), ContactInput{FormattedName: "   "}); !errors.Is(err, domain.ErrEmptyContactName) {
+		t.Errorf("err = %v, want wrapped ErrEmptyContactName", err)
+	}
+}
+
+func TestContactServiceSaveContactStoreError(t *testing.T) {
+	store := &fakeContactStore{saveErr: errBoom}
+	svc := NewContactService(store, fixedID("x"))
+	if err := svc.SaveContact(context.Background(), ContactInput{FormattedName: "Jo"}); !errors.Is(err, errBoom) {
+		t.Errorf("err = %v, want wrapped errBoom", err)
+	}
+}
+
+func TestContactServiceDeleteContact(t *testing.T) {
+	store := &fakeContactStore{}
+	svc := NewContactService(store, fixedID("x"))
+
+	if err := svc.DeleteContact(context.Background(), "c1"); err != nil {
+		t.Fatalf("DeleteContact: %v", err)
+	}
+	if len(store.deletedC) != 1 || store.deletedC[0] != "c1" {
+		t.Errorf("deleted = %v", store.deletedC)
+	}
+
+	store.deleteErr = errBoom
+	if err := svc.DeleteContact(context.Background(), "c1"); !errors.Is(err, errBoom) {
+		t.Errorf("err = %v, want wrapped errBoom", err)
+	}
+}
+
+func TestContactServiceListGroups(t *testing.T) {
+	g, _ := domain.NewContactGroup("g1", "Friends", nil)
+	store := &fakeContactStore{groups: []domain.ContactGroup{g}}
+	svc := NewContactService(store, fixedID("x"))
+
+	got, err := svc.ListGroups(context.Background())
+	if err != nil || len(got) != 1 || got[0].ID() != "g1" {
+		t.Fatalf("ListGroups = %v, %v", got, err)
+	}
+
+	store.listGrpErr = errBoom
+	if _, err := svc.ListGroups(context.Background()); !errors.Is(err, errBoom) {
+		t.Errorf("err = %v, want wrapped errBoom", err)
+	}
+}
+
+func TestContactServiceSaveGroup(t *testing.T) {
+	store := &fakeContactStore{}
+	svc := NewContactService(store, fixedID("generated"))
+
+	// New group: id generated.
+	if err := svc.SaveGroup(context.Background(), ContactGroupInput{Name: "Friends", Members: []string{"c1"}}); err != nil {
+		t.Fatalf("SaveGroup: %v", err)
+	}
+	if store.savedG[0].ID() != "generated" {
+		t.Errorf("id = %q, want generated", store.savedG[0].ID())
+	}
+
+	// Existing id used as-is.
+	if err := svc.SaveGroup(context.Background(), ContactGroupInput{ID: " g2 ", Name: "Work"}); err != nil {
+		t.Fatalf("SaveGroup: %v", err)
+	}
+	if store.savedG[1].ID() != "g2" {
+		t.Errorf("id = %q, want the supplied g2", store.savedG[1].ID())
+	}
+
+	// Domain validation error (blank name).
+	if err := svc.SaveGroup(context.Background(), ContactGroupInput{Name: "  "}); !errors.Is(err, domain.ErrEmptyContactGroupName) {
+		t.Errorf("err = %v, want wrapped ErrEmptyContactGroupName", err)
+	}
+
+	// Store error.
+	store.saveGrpErr = errBoom
+	if err := svc.SaveGroup(context.Background(), ContactGroupInput{Name: "Friends"}); !errors.Is(err, errBoom) {
+		t.Errorf("err = %v, want wrapped errBoom", err)
+	}
+}
+
+func TestContactServiceDeleteGroup(t *testing.T) {
+	store := &fakeContactStore{}
+	svc := NewContactService(store, fixedID("x"))
+
+	if err := svc.DeleteGroup(context.Background(), "g1"); err != nil {
+		t.Fatalf("DeleteGroup: %v", err)
+	}
+	if len(store.deletedG) != 1 || store.deletedG[0] != "g1" {
+		t.Errorf("deleted = %v", store.deletedG)
+	}
+
+	store.delGrpErr = errBoom
+	if err := svc.DeleteGroup(context.Background(), "g1"); !errors.Is(err, errBoom) {
+		t.Errorf("err = %v, want wrapped errBoom", err)
+	}
+}
