@@ -48,11 +48,15 @@ main.go, app.go, about.go, accountsetup.go, send.go, export.go, outbox.go, rules
 internal/domain/            pure value objects, no IO (100% test gate)
 internal/application/        use cases + port interfaces (100% test gate)
 internal/infrastructure/
-    storage/                SQLite store (schema, migrations, outbox)
+    storage/                SQLite store (schema v12, migrations, outbox, rules)
     imap/                   emersion go-imap source adapter (sync, bodies, draft append)
+    pop3/                   hand-rolled POP3 client (download-to-inbox, local flags)
     smtp/                   emersion go-smtp transport
+    mailrouter/             dispatches reads, verification and actions by account protocol
+    mailparse/              shared message-body parsing (MIME to plain-text and HTML)
     message/                shared RFC 5322 MIME builder (used by smtp and imap)
     keychain/               OS keychain vault
+    taskbar/                Windows taskbar unread-overlay badge (no-op stub elsewhere)
     installer/              install logic used by the setup program
 installer/                  bespoke per-user setup program (Wails app: install/repair/upgrade/uninstall)
 tools/genicons/             icon generator (master PNG -> ico + png set)

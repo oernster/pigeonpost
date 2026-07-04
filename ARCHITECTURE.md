@@ -22,14 +22,20 @@ enforced by a test in `tests/structural/boundary_test.go`, not by convention.
   the injected `Clock`. This is where correctness lives and where the 100% coverage gate applies.
 - **Application** (`internal/application`): use cases plus the port interfaces they depend on
   (`AccountStore`, `CredentialStore`, `AccountVerifier`, `MailStore`, `MailSource`, `MailActions`,
-  `MailTransport`, `DraftSaver`, `OutboxStore`, `TagStore`, `Clock`). Depends on Domain and the
+  `MailTransport`, `FolderActions`, `DraftSaver`, `OutboxStore`, `TagStore`, `RuleStore`, `Clock`). The
+  `MailSource`, `MailActions` and `AccountVerifier` ports are satisfied by the `mailrouter` adapter,
+  which dispatches to the IMAP or POP3 implementation per account protocol. Depends on Domain and the
   standard library only. Never imports Infrastructure or the Wails runtime.
 - **Infrastructure** (`internal/infrastructure`): concrete adapters implementing the Application
-  ports. Owns SQLite (`storage`), IMAP (`imap`), SMTP (`smtp`), the shared RFC 5322 MIME builder
-  (`message`, used by both `smtp` for send and `imap` for draft append so the message-format logic is
-  not duplicated) and the OS keychain (`keychain`); later ICS, vCard and OAuth. Never imported by
-  Domain or Application. The `installer` package holds the setup program's install logic and is
-  consumed by the `installer/` Wails setup app.
+  ports. Owns SQLite (`storage`), IMAP (`imap`), POP3 (`pop3`, a hand-rolled client), SMTP (`smtp`), the
+  shared RFC 5322 MIME builder (`message`, used by both `smtp` for send and `imap` for draft append so
+  the message-format logic is not duplicated), the shared message-body parser with HTML sanitising and
+  image-blocking (`mailparse`, used by both the IMAP and POP3 read paths), the per-protocol dispatcher
+  (`mailrouter`, which routes reads, verification and actions to the IMAP or POP3 adapter by account
+  protocol), the Windows taskbar unread-overlay badge (`taskbar`, a build-tagged no-op elsewhere) and
+  the OS keychain (`keychain`); later ICS, vCard and OAuth. Never imported by Domain or Application. The
+  `installer` package holds the setup program's install logic and is consumed by the `installer/` Wails
+  setup app.
 - **UI**: the React front end plus the thin Wails facade in package `main` (`app.go` with its
   per-feature binding files `about.go`, `accountsetup.go`, `send.go`, `export.go`, `outbox.go`,
   `rulesapi.go` and `tagsapi.go`, the `dto.go` DTO mappers and the `clock.go` clock). The facade is a
@@ -68,8 +74,14 @@ Sync and read:
 1. `main.go` opens the SQLite store, builds the use cases (accounts, mailbox, sync, compose) and the
    Wails facade, injecting the concrete adapters.
 2. The React UI asks the facade for accounts, folders and message summaries.
-3. The sync use case pulls folders and message summaries from the IMAP source and persists them
-   through the store; the UI reads from the store so it works offline.
+3. The sync use case pulls folders and message summaries from the mail source and persists them
+   through the store; the UI reads from the store so it works offline. The `mailrouter` picks the
+   adapter by account protocol: an IMAP account lists its server folders, while a POP3 account
+   downloads into a single local inbox (POP3 has no server-side folders), deduped by its UIDL, with
+   read and star marks kept locally since POP3 carries no server flags. The message server handle is an
+   opaque string (schema v11) that holds an IMAP UID or a POP3 UIDL. Folder unread and total counts are
+   computed from the cached messages, so the per-folder, per-account and total badges are populated
+   without a separate server STATUS pass.
 
 Add account:
 
@@ -104,9 +116,10 @@ Read a message body:
 2. The `MessageBodyService` serves the cached body when present; on a miss it resolves the message,
    its folder and account through the stores, fetches the full body from the `MailSource`, caches it
    (schema v3 `message_body` table) and returns it. The message therefore reads offline after its
-   first open. The IMAP adapter parses the MIME into plain-text and HTML parts; the HTML is sanitised
-   there (bluemonday) so only safe markup ever enters the cache, and an HTML-only message also gets a
-   plain-text rendering derived from the HTML. Before sanitising, every remote `<img src>` is parked in
+   first open. The shared `mailparse` package (used by both the IMAP and POP3 read paths) parses the MIME
+   into plain-text and HTML parts; the HTML is sanitised there (bluemonday) so only safe markup ever
+   enters the cache, and an HTML-only message also gets a plain-text rendering derived from the HTML.
+   Before sanitising, every remote `<img src>` is parked in
    a `data-pp-src` attribute (and `srcset` dropped) so images do not auto-load, which would leak that
    the reader opened the message; the UI shows a "Load images" action that restores the source on
    request. The UI renders the sanitised HTML when present (links open in the external browser via the
@@ -139,8 +152,8 @@ Unlike a send, a draft may be incomplete (no recipients, empty body), so it is b
 Offline outbox: the SMTP and IMAP adapters wrap a failed dial with the `ErrOffline` sentinel. When the
 compose use case sees `ErrOffline` from a send or a draft append, instead of failing it queues the
 operation through the `OutboxStore` port (schema v5 `outbox` table, extended with Bcc in v8 and
-attachments in v9 so a queued message keeps them on replay) and returns success; the title bar shows
-how many operations are waiting and opens an outbox view for reviewing or cancelling them. After the
+attachments in v9 so a queued message keeps them on replay) and returns success; the UI surfaces the
+queue as a per-account outbox folder where the waiting messages can be reviewed or cancelled. After the
 next successful sync the UI calls replay, which drains the queue oldest-first: each item is re-sent or
 re-appended, removed on success, left in place if still offline, and dropped (with its error reported)
 if it can never succeed. The queue covers outgoing mail only; message flag/delete/move actions remain
@@ -180,6 +193,13 @@ Coloured tags: the `TagService` use case manages user-defined tags (a name plus 
 `message_tag` link table are added by schema v2; migrations apply incrementally from the recorded
 `user_version`. Tags are local to the cache for now; round-tripping them onto IMAP keywords is a
 later phase.
+
+Filter rules: the `RuleService` use case manages user-defined rules through the `RuleStore` port and
+applies them to arriving messages. A domain `Rule` matches one field (From, To, Cc or Subject) against a
+value with an operator (contains, is, starts with, ends with or does not contain) and carries an action
+(mark read or flag). The operator column is schema v12 (added by `ALTER TABLE` defaulting to contains,
+so pre-existing rules keep their behaviour). Matching and the action are pure domain logic; move and
+delete on arrival stay deferred because they need UID reconciliation to be safe.
 
 ## Errors
 

@@ -40,9 +40,13 @@ documented here.
 | `internal/application` | unit against hand-written fakes | none |
 | `internal/infrastructure/storage` | integration against a real SQLite file | temp dir |
 | `internal/infrastructure/message` | unit on the RFC 5322 MIME builder | none |
+| `internal/infrastructure/mailparse` | unit on the MIME body parsing, HTML sanitising and image blocking | none |
+| `internal/infrastructure/mailrouter` | unit on the per-protocol dispatch | none |
 | `internal/infrastructure/smtp` | none (live send only; MIME building lives in `message`) | n/a |
-| `internal/infrastructure/imap` | unit on the wire-to-domain mapping and HTML handling | none |
+| `internal/infrastructure/imap` | unit on the source adapter's pure helpers (parsing moved to `mailparse`) | none |
+| `internal/infrastructure/pop3` | unit on the response and UIDL parsing; live download excluded | none |
 | `internal/infrastructure/keychain` | unit via go-keyring's in-memory mock | none |
+| `internal/infrastructure/taskbar` | unit on the pure label formatting; Win32 overlay excluded | none |
 | `internal/installer` | unit on payload extraction and paths | temp dir |
 | `tests/structural` | AST scan of the source tree | file reads |
 
@@ -53,20 +57,28 @@ documented here.
 | internal/domain | 100% | gated |
 | internal/application | 100% | gated |
 | internal/infrastructure/message | 100% | the RFC 5322 MIME builder (pure) |
+| internal/infrastructure/mailrouter | 100% | per-protocol dispatch (pure) |
 | internal/infrastructure/keychain | 100% | go-keyring mock |
-| internal/infrastructure/storage | ~80% | logic and error paths covered; see exclusions |
-| internal/infrastructure/imap | ~40% | mapping and HTML handling 100%; live fetch/append excluded |
-| internal/infrastructure/smtp | 0% | transport is live `Send` only; MIME building moved to `message` |
-| internal/installer | ~32% | extract and paths covered; Win32 side effects excluded |
+| internal/infrastructure/mailparse | ~91% | MIME body parsing, HTML sanitising and image blocking (pure); a few defensive decode branches uncovered |
+| internal/infrastructure/storage | ~75% | logic and error paths covered; see exclusions |
+| internal/infrastructure/pop3 | ~44% | response and UIDL parsing covered; the live dial and download excluded |
+| internal/infrastructure/taskbar | ~22% | the pure label formatting and no-op stub covered; the Windows-only Win32 overlay excluded |
+| internal/infrastructure/imap | ~17% | the source adapter's pure helpers; the wire-to-domain and HTML logic now lives in `mailparse`, and live fetch/append is excluded |
+| internal/infrastructure/smtp | 0% | transport is live `Send` only; MIME building lives in `message` |
+| internal/installer | ~38% | extract and paths covered; Win32 side effects excluded |
 | main package, installer app, tools/genicons | 0% | composition root, GUI and tooling, excluded |
 
 ## Documented exclusions (and why)
 
-- **Live IMAP fetch/append** (`imap/source.go`) and **live SMTP send** (`smtp/transport.go`): these
-  dial a real server, authenticate and stream data. They cannot be unit-tested without a network, so
-  they sit behind skippable integration tests (below). Their pure logic is separated out and covered to
-  100%: the wire-to-domain mapping and HTML sanitising/image-blocking in `imap/mapping.go`, and the RFC
-  5322 MIME builder in the shared `internal/infrastructure/message` package.
+- **Live IMAP fetch/append** (`imap/source.go`), **live POP3 download** (`pop3/`) and **live SMTP send**
+  (`smtp/transport.go`): these dial a real server, authenticate and stream data. They cannot be
+  unit-tested without a network, so the IMAP path sits behind a skippable integration test (below). The
+  pure logic is separated out and covered independently: MIME body parsing plus HTML sanitising and
+  image-blocking in the shared `internal/infrastructure/mailparse` package, the RFC 5322 MIME builder in
+  `internal/infrastructure/message`, and the response and UIDL parsing in `pop3`.
+- **Windows taskbar overlay** (`taskbar/overlay_windows.go`): the Win32 `ITaskbarList3` calls that draw
+  the unread badge are Windows-only and build-tagged; the no-op stub and the pure label formatting are
+  covered.
 - **Win32 side effects** (`installer/windows.go`): registry writes, shortcut creation and shell-folder
   resolution. These mutate the real machine and are verified by running the installer, not in unit
   tests.
