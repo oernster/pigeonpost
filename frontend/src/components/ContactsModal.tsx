@@ -27,6 +27,17 @@ const emptyForm: ContactForm = {
     organization: '', title: '', note: '', emails: [], phones: [],
 }
 
+// displayNameOf derives the vCard formatted name (FN), which is required for export and used as the list
+// title, from the parts the user fills. There is no separate full-name field: given and family name make
+// it, falling back to the organization, then the first email address.
+function displayNameOf(f: ContactForm): string {
+    const person = [f.givenName, f.familyName].map((s) => s.trim()).filter(Boolean).join(' ')
+    if (person) return person
+    if (f.organization.trim() !== '') return f.organization.trim()
+    const firstEmail = f.emails.find((e) => e.address.trim() !== '')
+    return firstEmail ? firstEmail.address.trim() : ''
+}
+
 function formFor(c: Contact): ContactForm {
     return {
         id: c.id,
@@ -61,6 +72,7 @@ export function ContactsModal({contacts, onChanged, onClose}: ContactsModalProps
         try {
             const req: ContactInput = {
                 ...form,
+                formattedName: displayNameOf(form),
                 emails: form.emails.filter((e) => e.address.trim() !== ''),
                 phones: form.phones.filter((p) => p.number.trim() !== ''),
             }
@@ -164,10 +176,8 @@ export function ContactsModal({contacts, onChanged, onClose}: ContactsModalProps
 
                 {form && (
                     <div className="rule-form">
-                        <input className="tag-name-input" placeholder="Full name" value={form.formattedName} autoFocus
-                               onChange={(e) => set('formattedName', e.target.value)}/>
                         <div className="rule-form-row">
-                            <input className="tag-name-input" placeholder="First name" value={form.givenName}
+                            <input className="tag-name-input" placeholder="First name" value={form.givenName} autoFocus
                                    onChange={(e) => set('givenName', e.target.value)}/>
                             <input className="tag-name-input" placeholder="Last name" value={form.familyName}
                                    onChange={(e) => set('familyName', e.target.value)}/>
@@ -212,7 +222,7 @@ export function ContactsModal({contacts, onChanged, onClose}: ContactsModalProps
                         <div className="modal-actions spread">
                             <button className="btn" onClick={() => setForm(null)}>Cancel</button>
                             <button className="btn primary" onClick={() => void save()}
-                                    disabled={busy || form.formattedName.trim() === ''}>
+                                    disabled={busy || displayNameOf(form) === ''}>
                                 {busy ? 'Saving…' : (form.id ? 'Save changes' : 'Add contact')}
                             </button>
                         </div>
