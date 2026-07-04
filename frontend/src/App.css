@@ -93,8 +93,8 @@
 
 .outbox-pill {
     align-self: center;
-    background-color: var(--accent);
-    color: var(--accent-ink, #0b1220);
+    background-color: var(--primary);
+    color: var(--primary-ink);
     border: none;
     border-radius: 999px;
     padding: 3px 10px;
@@ -320,8 +320,8 @@
 }
 
 .badge {
-    background-color: var(--accent);
-    color: #0b1220;
+    background-color: var(--primary);
+    color: var(--primary-ink);
     border-radius: 10px;
     padding: 0 7px;
     font-size: 11px;
@@ -338,8 +338,8 @@
 .titlebar-unread {
     display: inline-block;
     margin-left: 8px;
-    background-color: var(--accent);
-    color: #0b1220;
+    background-color: var(--primary);
+    color: var(--primary-ink);
     border-radius: 10px;
     padding: 0 7px;
     font-size: 11px;
@@ -786,9 +786,15 @@
 }
 
 .btn.primary {
-    background-color: var(--accent);
-    color: var(--accent-ink);
-    border-color: var(--accent);
+    background-color: var(--primary);
+    color: var(--primary-ink);
+    border-color: var(--primary);
+}
+
+/* Keep the primary border matching its fill on hover so it does not flip to the accent; the visible
+   hover/focus cue is the teal --ring outline from the base button rule. */
+.btn.primary:enabled:hover {
+    border-color: var(--primary);
 }
 
 .modal-backdrop {
