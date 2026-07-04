@@ -76,7 +76,7 @@ func run() error {
 	composeService := application.NewComposeService(store, store, transport, imapSource, store, clock, newOutboxID)
 	tagService := application.NewTagService(store)
 	bodyService := application.NewMessageBodyService(store, store, mailSource)
-	actionService := application.NewMessageActionService(store, store, imapSource)
+	actionService := application.NewMessageActionService(store, store, mailSource)
 	folderService := application.NewFolderService(store, store, imapSource, imapSource)
 	ruleService := application.NewRuleService(store, newRuleID)
 

@@ -39,6 +39,31 @@ func (r *recorder) Verify(context.Context, domain.Account, string) error {
 	return nil
 }
 
+func (r *recorder) SetSeen(context.Context, domain.Account, domain.Folder, string, bool) error {
+	r.calls = append(r.calls, "seen")
+	return nil
+}
+
+func (r *recorder) SetFlagged(context.Context, domain.Account, domain.Folder, string, bool) error {
+	r.calls = append(r.calls, "flagged")
+	return nil
+}
+
+func (r *recorder) Delete(context.Context, domain.Account, domain.Folder, string, string) error {
+	r.calls = append(r.calls, "delete")
+	return nil
+}
+
+func (r *recorder) Move(context.Context, domain.Account, domain.Folder, string, string) error {
+	r.calls = append(r.calls, "move")
+	return nil
+}
+
+func (r *recorder) Copy(context.Context, domain.Account, domain.Folder, string, string) error {
+	r.calls = append(r.calls, "copy")
+	return nil
+}
+
 func testAccount(t *testing.T, protocol domain.Protocol) domain.Account {
 	t.Helper()
 	addr, err := domain.NewEmailAddress("", "user@example.com")
@@ -80,6 +105,21 @@ func exercise(t *testing.T, router *Router, account domain.Account) {
 	if err := router.Verify(ctx, account, "pw"); err != nil {
 		t.Fatalf("Verify: %v", err)
 	}
+	if err := router.SetSeen(ctx, account, folder, "1", true); err != nil {
+		t.Fatalf("SetSeen: %v", err)
+	}
+	if err := router.SetFlagged(ctx, account, folder, "1", true); err != nil {
+		t.Fatalf("SetFlagged: %v", err)
+	}
+	if err := router.Delete(ctx, account, folder, "1", ""); err != nil {
+		t.Fatalf("Delete: %v", err)
+	}
+	if err := router.Move(ctx, account, folder, "1", "dest"); err != nil {
+		t.Fatalf("Move: %v", err)
+	}
+	if err := router.Copy(ctx, account, folder, "1", "dest"); err != nil {
+		t.Fatalf("Copy: %v", err)
+	}
 }
 
 func TestRouterRoutesImapToImapAdapter(t *testing.T) {
@@ -88,7 +128,7 @@ func TestRouterRoutesImapToImapAdapter(t *testing.T) {
 
 	exercise(t, router, testAccount(t, domain.ProtocolIMAP))
 
-	want := []string{"folders", "messages", "body", "raw", "verify"}
+	want := []string{"folders", "messages", "body", "raw", "verify", "seen", "flagged", "delete", "move", "copy"}
 	if !reflect.DeepEqual(imapRec.calls, want) {
 		t.Errorf("imap adapter calls = %v, want %v", imapRec.calls, want)
 	}
@@ -103,7 +143,7 @@ func TestRouterRoutesPop3ToPop3Adapter(t *testing.T) {
 
 	exercise(t, router, testAccount(t, domain.ProtocolPOP3))
 
-	want := []string{"folders", "messages", "body", "raw", "verify"}
+	want := []string{"folders", "messages", "body", "raw", "verify", "seen", "flagged", "delete", "move", "copy"}
 	if !reflect.DeepEqual(pop3Rec.calls, want) {
 		t.Errorf("pop3 adapter calls = %v, want %v", pop3Rec.calls, want)
 	}

@@ -37,6 +37,8 @@ func fakeServer(conn net.Conn, greeting string) {
 		case strings.HasPrefix(line, "RETR"):
 			_ = tp.PrintfLine("+OK")
 			writeDot(tp, "Subject: Hi\r\n\r\nBody line\r\n")
+		case strings.HasPrefix(line, "DELE"):
+			_ = tp.PrintfLine("+OK marked for deletion")
 		case line == "QUIT":
 			_ = tp.PrintfLine("+OK bye")
 			return
@@ -122,6 +124,10 @@ func TestClientSession(t *testing.T) {
 	}
 	if !strings.Contains(string(raw), "Body line") {
 		t.Errorf("Retr body = %q", raw)
+	}
+
+	if err := client.Dele(1); err != nil {
+		t.Fatalf("Dele: %v", err)
 	}
 }
 

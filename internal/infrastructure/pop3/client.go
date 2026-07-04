@@ -229,6 +229,12 @@ func (c *Client) Retr(number int) ([]byte, error) {
 	return c.readBytes()
 }
 
+// Dele marks a message for deletion. POP3 commits the deletion when the session ends with QUIT, so the
+// caller must quit the same session for it to take effect.
+func (c *Client) Dele(number int) error {
+	return c.command("DELE %d", number)
+}
+
 // Quit sends QUIT and closes the connection. The QUIT error is ignored because the connection is being
 // torn down regardless.
 func (c *Client) Quit() error {

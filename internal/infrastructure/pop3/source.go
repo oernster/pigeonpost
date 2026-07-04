@@ -2,11 +2,17 @@ package pop3
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/oernster/pigeonpost/internal/domain"
 	"github.com/oernster/pigeonpost/internal/infrastructure/mailparse"
 )
+
+// ErrUnsupported is returned for mailbox operations POP3 has no equivalent of, such as moving or
+// copying a message between server folders. The UI hides these for POP3 accounts, so it is a guard
+// rather than a path a user reaches.
+var ErrUnsupported = errors.New("pop3: operation not supported")
 
 // PasswordProvider yields the secret used to authenticate an account. It is backed by the OS keychain
 // so passwords never touch the local database.
@@ -137,4 +143,46 @@ func (s *Source) fetchRaw(ctx context.Context, account domain.Account, uid strin
 		return nil, fmt.Errorf("pop3: message %q not found", uid)
 	}
 	return client.Retr(number)
+}
+
+// SetSeen is a no-op on the server: POP3 has no server-side flags, so a message's read state lives in
+// the local cache alone (and is preserved across syncs by the sync service).
+func (s *Source) SetSeen(context.Context, domain.Account, domain.Folder, string, bool) error {
+	return nil
+}
+
+// SetFlagged is a no-op on the server, for the same reason as SetSeen: POP3 has no server-side flags.
+func (s *Source) SetFlagged(context.Context, domain.Account, domain.Folder, string, bool) error {
+	return nil
+}
+
+// Delete permanently removes a message from the server with DELE, committed when the session quits.
+// POP3 has no Trash mailbox, so trashPath is ignored and every delete is permanent; leaving the
+// message on the server would only re-download it on the next sync.
+func (s *Source) Delete(ctx context.Context, account domain.Account, _ domain.Folder, uid string, _ string) error {
+	client, err := s.connect(ctx, account)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = client.Quit() }()
+
+	items, err := client.UIDL()
+	if err != nil {
+		return err
+	}
+	number, ok := numberForUID(items, uid)
+	if !ok {
+		return fmt.Errorf("pop3: message %q not found", uid)
+	}
+	return client.Dele(number)
+}
+
+// Move is unsupported: POP3 exposes a single mailbox, so there is nowhere to move a message to.
+func (s *Source) Move(context.Context, domain.Account, domain.Folder, string, string) error {
+	return fmt.Errorf("pop3: move message: %w", ErrUnsupported)
+}
+
+// Copy is unsupported, for the same reason as Move.
+func (s *Source) Copy(context.Context, domain.Account, domain.Folder, string, string) error {
+	return fmt.Errorf("pop3: copy message: %w", ErrUnsupported)
 }

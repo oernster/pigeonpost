@@ -10,18 +10,23 @@ import (
 	"github.com/oernster/pigeonpost/internal/domain"
 )
 
-// protocolSource is the read and verify surface each protocol adapter provides. Both imap.Source and
-// pop3.Source satisfy it structurally.
+// protocolSource is the read, write and verify surface each protocol adapter provides. Both imap.Source
+// and pop3.Source satisfy it structurally.
 type protocolSource interface {
 	FetchFolders(ctx context.Context, account domain.Account) ([]domain.Folder, error)
 	FetchMessages(ctx context.Context, account domain.Account, folder domain.Folder) ([]domain.MessageSummary, error)
 	FetchBody(ctx context.Context, account domain.Account, folder domain.Folder, uid string) (string, string, error)
 	FetchRaw(ctx context.Context, account domain.Account, folder domain.Folder, uid string) ([]byte, error)
 	Verify(ctx context.Context, account domain.Account, password string) error
+	SetSeen(ctx context.Context, account domain.Account, folder domain.Folder, uid string, seen bool) error
+	SetFlagged(ctx context.Context, account domain.Account, folder domain.Folder, uid string, flagged bool) error
+	Delete(ctx context.Context, account domain.Account, folder domain.Folder, uid string, trashPath string) error
+	Move(ctx context.Context, account domain.Account, folder domain.Folder, uid string, destPath string) error
+	Copy(ctx context.Context, account domain.Account, folder domain.Folder, uid string, destPath string) error
 }
 
-// Router selects the protocol adapter for each account and satisfies application.MailSource and
-// application.AccountVerifier by delegating to it.
+// Router selects the protocol adapter for each account and satisfies application.MailSource,
+// application.AccountVerifier and application.MailActions by delegating to it.
 type Router struct {
 	imap protocolSource
 	pop3 protocolSource
@@ -64,4 +69,29 @@ func (r *Router) FetchRaw(ctx context.Context, account domain.Account, folder do
 // Verify delegates to the account's protocol adapter.
 func (r *Router) Verify(ctx context.Context, account domain.Account, password string) error {
 	return r.sourceFor(account).Verify(ctx, account, password)
+}
+
+// SetSeen delegates to the account's protocol adapter.
+func (r *Router) SetSeen(ctx context.Context, account domain.Account, folder domain.Folder, uid string, seen bool) error {
+	return r.sourceFor(account).SetSeen(ctx, account, folder, uid, seen)
+}
+
+// SetFlagged delegates to the account's protocol adapter.
+func (r *Router) SetFlagged(ctx context.Context, account domain.Account, folder domain.Folder, uid string, flagged bool) error {
+	return r.sourceFor(account).SetFlagged(ctx, account, folder, uid, flagged)
+}
+
+// Delete delegates to the account's protocol adapter.
+func (r *Router) Delete(ctx context.Context, account domain.Account, folder domain.Folder, uid string, trashPath string) error {
+	return r.sourceFor(account).Delete(ctx, account, folder, uid, trashPath)
+}
+
+// Move delegates to the account's protocol adapter.
+func (r *Router) Move(ctx context.Context, account domain.Account, folder domain.Folder, uid string, destPath string) error {
+	return r.sourceFor(account).Move(ctx, account, folder, uid, destPath)
+}
+
+// Copy delegates to the account's protocol adapter.
+func (r *Router) Copy(ctx context.Context, account domain.Account, folder domain.Folder, uid string, destPath string) error {
+	return r.sourceFor(account).Copy(ctx, account, folder, uid, destPath)
 }

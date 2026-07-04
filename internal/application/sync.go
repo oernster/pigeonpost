@@ -51,6 +51,10 @@ func (s *SyncService) SyncAccount(ctx context.Context, accountID string) error {
 		// Filter rules mark-read or flag matching messages as they arrive. The actions only set
 		// flags, so re-applying on every sync is stable.
 		messages = domain.ApplyRules(messages, rules)
+		messages, err = s.preserveFlags(ctx, account, folder, messages)
+		if err != nil {
+			return fmt.Errorf("sync: preserve flags for %q: %w", folder.Path(), err)
+		}
 		if err := s.mail.SaveMessages(ctx, folder.ID(), messages); err != nil {
 			return fmt.Errorf("sync: save messages for %q: %w", folder.Path(), err)
 		}
@@ -79,8 +83,40 @@ func (s *SyncService) SyncFolder(ctx context.Context, folderID string) error {
 		return fmt.Errorf("sync: fetch messages for %q: %w", folder.Path(), err)
 	}
 	messages = domain.ApplyRules(messages, rules)
+	messages, err = s.preserveFlags(ctx, account, folder, messages)
+	if err != nil {
+		return fmt.Errorf("sync: preserve flags for %q: %w", folder.Path(), err)
+	}
 	if err := s.mail.SaveMessages(ctx, folder.ID(), messages); err != nil {
 		return fmt.Errorf("sync: save messages for %q: %w", folder.Path(), err)
 	}
 	return nil
+}
+
+// preserveFlags carries a POP3 message's local read and starred state across a sync. POP3 has no
+// server-side flags, so a fetch always reports every message as unread; without this, marking a message
+// read would be undone on the next sync. Flags are matched by the stable message id, so messages still
+// present keep their local flags while newly arrived messages keep the fetched state. IMAP mirrors its
+// flags from the server, so its messages are returned unchanged.
+func (s *SyncService) preserveFlags(ctx context.Context, account domain.Account, folder domain.Folder, incoming []domain.MessageSummary) ([]domain.MessageSummary, error) {
+	if account.Protocol() != domain.ProtocolPOP3 {
+		return incoming, nil
+	}
+	existing, err := s.mail.ListMessages(ctx, folder.ID())
+	if err != nil {
+		return nil, err
+	}
+	flagsByID := make(map[string]domain.Flags, len(existing))
+	for _, m := range existing {
+		flagsByID[m.ID()] = m.Flags()
+	}
+	preserved := make([]domain.MessageSummary, len(incoming))
+	for i, m := range incoming {
+		if flags, ok := flagsByID[m.ID()]; ok {
+			preserved[i] = m.WithFlags(flags)
+		} else {
+			preserved[i] = m
+		}
+	}
+	return preserved, nil
 }

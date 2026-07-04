@@ -225,3 +225,86 @@ func TestSyncFolderErrors(t *testing.T) {
 		}
 	})
 }
+
+// pop3Account builds a POP3 account so the flag-preservation path can be exercised.
+func pop3Account(t *testing.T, id string) domain.Account {
+	t.Helper()
+	addr, err := domain.NewEmailAddress("", "user@example.com")
+	if err != nil {
+		t.Fatalf("address: %v", err)
+	}
+	sc, err := domain.NewServerConfig("host.example.com", 995, domain.SecurityTLS)
+	if err != nil {
+		t.Fatalf("server: %v", err)
+	}
+	account, err := domain.NewAccount(id, "Test", addr, domain.ProtocolPOP3, sc, sc, domain.AuthPassword)
+	if err != nil {
+		t.Fatalf("account: %v", err)
+	}
+	return account
+}
+
+// pop3Summary builds a summary with the given id, uid and flags for the POP3 preservation tests.
+func pop3Summary(t *testing.T, id, uid string, flags domain.Flags) domain.MessageSummary {
+	t.Helper()
+	msg, err := domain.NewMessageSummary(domain.MessageSummaryInput{
+		ID: id, FolderID: "f1", UID: uid, Size: 1, Flags: flags,
+	})
+	if err != nil {
+		t.Fatalf("summary: %v", err)
+	}
+	return msg
+}
+
+func TestSyncFolderPreservesPop3ReadState(t *testing.T) {
+	accounts, mail, source, _, svc := newSyncFixture(t)
+	accounts.accounts["a1"] = pop3Account(t, "a1")
+	seedFolderForSync(t, mail)
+
+	// An existing cached message that the user has read.
+	mail.messages["f1"] = []domain.MessageSummary{
+		pop3Summary(t, "f1\x1fu1", "u1", domain.NewFlags(domain.FlagSeen)),
+	}
+	// The POP3 fetch reports every message as unread, since POP3 carries no server flags. u1 is the
+	// already-read message; u2 is genuinely new.
+	source.messagesByFolder = map[string][]domain.MessageSummary{
+		"f1": {
+			pop3Summary(t, "f1\x1fu1", "u1", domain.NewFlags(0)),
+			pop3Summary(t, "f1\x1fu2", "u2", domain.NewFlags(0)),
+		},
+	}
+
+	if err := svc.SyncFolder(context.Background(), "f1"); err != nil {
+		t.Fatalf("sync: %v", err)
+	}
+
+	byID := make(map[string]domain.MessageSummary)
+	for _, m := range mail.messages["f1"] {
+		byID[m.ID()] = m
+	}
+	if !byID["f1\x1fu1"].IsRead() {
+		t.Error("an existing POP3 message should keep its local read state across a sync")
+	}
+	if byID["f1\x1fu2"].IsRead() {
+		t.Error("a newly fetched POP3 message should remain unread")
+	}
+}
+
+func TestSyncFolderPop3PreserveFlagsError(t *testing.T) {
+	accounts, mail, _, _, svc := newSyncFixture(t)
+	accounts.accounts["a1"] = pop3Account(t, "a1")
+	seedFolderForSync(t, mail)
+	mail.listMessagesErr = errBoom
+	if err := svc.SyncFolder(context.Background(), "f1"); !errors.Is(err, errBoom) {
+		t.Errorf("error = %v, want wrapped boom", err)
+	}
+}
+
+func TestSyncAccountPop3PreserveFlagsError(t *testing.T) {
+	accounts, mail, _, _, svc := newSyncFixture(t)
+	accounts.accounts["a1"] = pop3Account(t, "a1")
+	mail.listMessagesErr = errBoom
+	if err := svc.SyncAccount(context.Background(), "a1"); !errors.Is(err, errBoom) {
+		t.Errorf("error = %v, want wrapped boom", err)
+	}
+}
