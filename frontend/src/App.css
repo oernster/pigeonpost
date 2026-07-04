@@ -1839,6 +1839,12 @@
     flex-direction: column;
 }
 
+/* The event editor is its own dialog stacked on the calendar, wide enough for the two date fields. */
+.modal.event-form {
+    max-width: 520px;
+    text-align: left;
+}
+
 .cal-toolbar {
     align-items: center;
     gap: 8px;

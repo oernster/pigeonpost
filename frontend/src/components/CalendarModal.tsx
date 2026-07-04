@@ -288,49 +288,56 @@ export function CalendarModal({events, onChanged, onClose}: CalendarModalProps) 
                     />
                 )}
 
-                {form && (
-                    <div className="rule-form">
-                        <input className="tag-name-input" placeholder="Event title" value={form.summary} autoFocus
-                               onChange={(e) => set('summary', e.target.value)}/>
-                        <label className="cal-allday">
-                            <input type="checkbox" checked={form.allDay}
-                                   onChange={(e) => set('allDay', e.target.checked)}/> All day
-                        </label>
-                        <div className="rule-form-row">
-                            <input className="tag-name-input" type={form.allDay ? 'date' : 'datetime-local'}
-                                   value={form.start} onChange={(e) => set('start', e.target.value)}/>
-                            <input className="tag-name-input" type={form.allDay ? 'date' : 'datetime-local'}
-                                   value={form.end} onChange={(e) => set('end', e.target.value)}/>
-                        </div>
-                        <input className="tag-name-input" placeholder="Location" value={form.location}
-                               onChange={(e) => set('location', e.target.value)}/>
-                        <textarea className="tag-name-input" placeholder="Description" rows={2} value={form.description}
-                                  onChange={(e) => set('description', e.target.value)}/>
-                        <div className="modal-actions spread">
-                            <span>
-                                {form.id && (
-                                    <button className="btn danger" onClick={() => {
-                                        const ev = events.find((x) => x.id === form.id)
-                                        if (ev) setPendingDelete(ev)
-                                    }}>Delete</button>
-                                )}
-                            </span>
-                            <span className="cal-form-actions">
-                                <button className="btn" onClick={() => setForm(null)}>Cancel</button>
-                                <button className="btn primary" onClick={() => void save()}
-                                        disabled={busy || form.summary.trim() === '' || form.start === ''}>
-                                    {busy ? 'Saving…' : (form.id ? 'Save changes' : 'Add event')}
-                                </button>
-                            </span>
-                        </div>
-                    </div>
-                )}
-
                 <div className="modal-actions spread">
                     <button className="btn" onClick={onClose}>Close</button>
                     <button className="btn primary" onClick={() => openNew(new Date())}>New event</button>
                 </div>
             </div>
+
+            {form && (
+                <div className="modal-backdrop">
+                    <div className="modal event-form" role="dialog"
+                         aria-label={form.id ? 'Edit event' : 'New event'} onClick={(e) => e.stopPropagation()}>
+                        <ModalClose onClose={() => setForm(null)}/>
+                        <h2 className="modal-title">{form.id ? 'Edit event' : 'New event'}</h2>
+                        <div className="rule-form">
+                            <input className="tag-name-input" placeholder="Event title" value={form.summary} autoFocus
+                                   onChange={(e) => set('summary', e.target.value)}/>
+                            <label className="cal-allday">
+                                <input type="checkbox" checked={form.allDay}
+                                       onChange={(e) => set('allDay', e.target.checked)}/> All day
+                            </label>
+                            <div className="rule-form-row">
+                                <input className="tag-name-input" type={form.allDay ? 'date' : 'datetime-local'}
+                                       value={form.start} onChange={(e) => set('start', e.target.value)}/>
+                                <input className="tag-name-input" type={form.allDay ? 'date' : 'datetime-local'}
+                                       value={form.end} onChange={(e) => set('end', e.target.value)}/>
+                            </div>
+                            <input className="tag-name-input" placeholder="Location" value={form.location}
+                                   onChange={(e) => set('location', e.target.value)}/>
+                            <textarea className="tag-name-input" placeholder="Description" rows={2} value={form.description}
+                                      onChange={(e) => set('description', e.target.value)}/>
+                            <div className="modal-actions spread">
+                                <span>
+                                    {form.id && (
+                                        <button className="btn danger" onClick={() => {
+                                            const ev = events.find((x) => x.id === form.id)
+                                            if (ev) setPendingDelete(ev)
+                                        }}>Delete</button>
+                                    )}
+                                </span>
+                                <span className="cal-form-actions">
+                                    <button className="btn" onClick={() => setForm(null)}>Cancel</button>
+                                    <button className="btn primary" onClick={() => void save()}
+                                            disabled={busy || form.summary.trim() === '' || form.start === ''}>
+                                        {busy ? 'Saving…' : (form.id ? 'Save changes' : 'Add event')}
+                                    </button>
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {pendingDelete && (
                 <ConfirmDialog
