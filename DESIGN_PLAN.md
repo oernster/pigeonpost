@@ -3,7 +3,7 @@
 Cross-platform desktop email, calendar and address book client. Go core, React front end,
 local-first. Delivered as a signed download at https://www.pigeonpost.ink.
 
-Status: design locked; 0.6.0 feature-complete on main (schema v12), not yet tagged. The 0.5.0 release
+Status: design locked; 0.6.0 feature-complete on main (schema v13), not yet tagged. The 0.5.0 release
 (folder create/rename/delete, message move/copy, on-arrival mark/flag rules, a right-click context
 menu, in-app reader tabs, full keyboard navigation, Bcc, file and email attachments, save-as/print,
 drag-to-move and an outbox view, on top of the 0.4.0 core of account wizard, sanitised-HTML reading with
