@@ -81,6 +81,7 @@ func run() error {
 	folderService := application.NewFolderService(store, store, imapSource, imapSource)
 	ruleService := application.NewRuleService(store, newRuleID)
 	contactService := application.NewContactService(store, newContactID)
+	calendarService := application.NewCalendarService(store, newCalendarID)
 
 	// The taskbar overlay badge reflects the total unread count. It finds the main window by its title,
 	// so it is given the same title the Wails window uses below.
@@ -88,7 +89,7 @@ func run() error {
 	overlay := taskbar.NewOverlay(windowTitle)
 	overlay.Start()
 
-	app := NewApp(store.Close, overlay, accountService, setupService, mailboxService, syncService, composeService, tagService, bodyService, actionService, folderService, ruleService, contactService)
+	app := NewApp(store.Close, overlay, accountService, setupService, mailboxService, syncService, composeService, tagService, bodyService, actionService, folderService, ruleService, contactService, calendarService)
 
 	err = wails.Run(&options.App{
 		Title:            windowTitle,

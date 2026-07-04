@@ -130,6 +130,38 @@ export namespace main {
 	        this.address = source["address"];
 	    }
 	}
+	export class CalendarDTO {
+	    id: string;
+	    name: string;
+	    colour: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new CalendarDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.colour = source["colour"];
+	    }
+	}
+	export class CalendarRequest {
+	    id: string;
+	    name: string;
+	    colour: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new CalendarRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.colour = source["colour"];
+	    }
+	}
 	export class ComposeRequest {
 	    accountId: string;
 	    to: string[];
@@ -317,6 +349,66 @@ export namespace main {
 		}
 	}
 	
+	export class EventDTO {
+	    id: string;
+	    uid: string;
+	    calendarId: string;
+	    summary: string;
+	    description: string;
+	    location: string;
+	    start: string;
+	    end: string;
+	    allDay: boolean;
+	    recurrence: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new EventDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.uid = source["uid"];
+	        this.calendarId = source["calendarId"];
+	        this.summary = source["summary"];
+	        this.description = source["description"];
+	        this.location = source["location"];
+	        this.start = source["start"];
+	        this.end = source["end"];
+	        this.allDay = source["allDay"];
+	        this.recurrence = source["recurrence"];
+	    }
+	}
+	export class EventRequest {
+	    id: string;
+	    uid: string;
+	    calendarId: string;
+	    summary: string;
+	    description: string;
+	    location: string;
+	    start: string;
+	    end: string;
+	    allDay: boolean;
+	    recurrence: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new EventRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.uid = source["uid"];
+	        this.calendarId = source["calendarId"];
+	        this.summary = source["summary"];
+	        this.description = source["description"];
+	        this.location = source["location"];
+	        this.start = source["start"];
+	        this.end = source["end"];
+	        this.allDay = source["allDay"];
+	        this.recurrence = source["recurrence"];
+	    }
+	}
 	export class FolderDTO {
 	    id: string;
 	    accountId: string;

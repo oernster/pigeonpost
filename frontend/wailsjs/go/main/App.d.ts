@@ -14,9 +14,13 @@ export function CopyMessage(arg1:string,arg2:string):Promise<void>;
 
 export function CreateFolder(arg1:string,arg2:string):Promise<void>;
 
+export function DeleteCalendar(arg1:string):Promise<void>;
+
 export function DeleteContact(arg1:string):Promise<void>;
 
 export function DeleteContactGroup(arg1:string):Promise<void>;
+
+export function DeleteEvent(arg1:string):Promise<void>;
 
 export function DeleteFolder(arg1:string):Promise<void>;
 
@@ -30,19 +34,29 @@ export function DeleteTag(arg1:string):Promise<void>;
 
 export function ExportContactsToFile(arg1:string):Promise<boolean>;
 
+export function ExportEventsToFile():Promise<boolean>;
+
 export function GetContact(arg1:string):Promise<main.ContactDTO>;
+
+export function GetEvent(arg1:string):Promise<main.EventDTO>;
 
 export function GetMessageBody(arg1:string):Promise<main.MessageBodyDTO>;
 
 export function ImportContactsFromFile():Promise<number>;
 
+export function ImportEventsFromFile():Promise<number>;
+
 export function LicenceText():Promise<string>;
 
 export function ListAccounts():Promise<Array<main.AccountDTO>>;
 
+export function ListCalendars():Promise<Array<main.CalendarDTO>>;
+
 export function ListContactGroups():Promise<Array<main.ContactGroupDTO>>;
 
 export function ListContacts():Promise<Array<main.ContactDTO>>;
+
+export function ListEvents():Promise<Array<main.EventDTO>>;
 
 export function ListFolders(arg1:string):Promise<Array<main.FolderDTO>>;
 
@@ -76,11 +90,15 @@ export function RenameFolder(arg1:string,arg2:string):Promise<void>;
 
 export function ReplayOutbox():Promise<number>;
 
+export function SaveCalendar(arg1:main.CalendarRequest):Promise<void>;
+
 export function SaveContact(arg1:main.ContactRequest):Promise<void>;
 
 export function SaveContactGroup(arg1:main.ContactGroupRequest):Promise<void>;
 
 export function SaveDraft(arg1:main.ComposeRequest):Promise<void>;
+
+export function SaveEvent(arg1:main.EventRequest):Promise<void>;
 
 export function SaveMessageAs(arg1:string,arg2:string):Promise<void>;
 

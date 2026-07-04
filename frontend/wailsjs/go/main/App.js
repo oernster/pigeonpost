@@ -26,12 +26,20 @@ export function CreateFolder(arg1, arg2) {
   return window['go']['main']['App']['CreateFolder'](arg1, arg2);
 }
 
+export function DeleteCalendar(arg1) {
+  return window['go']['main']['App']['DeleteCalendar'](arg1);
+}
+
 export function DeleteContact(arg1) {
   return window['go']['main']['App']['DeleteContact'](arg1);
 }
 
 export function DeleteContactGroup(arg1) {
   return window['go']['main']['App']['DeleteContactGroup'](arg1);
+}
+
+export function DeleteEvent(arg1) {
+  return window['go']['main']['App']['DeleteEvent'](arg1);
 }
 
 export function DeleteFolder(arg1) {
@@ -58,8 +66,16 @@ export function ExportContactsToFile(arg1) {
   return window['go']['main']['App']['ExportContactsToFile'](arg1);
 }
 
+export function ExportEventsToFile() {
+  return window['go']['main']['App']['ExportEventsToFile']();
+}
+
 export function GetContact(arg1) {
   return window['go']['main']['App']['GetContact'](arg1);
+}
+
+export function GetEvent(arg1) {
+  return window['go']['main']['App']['GetEvent'](arg1);
 }
 
 export function GetMessageBody(arg1) {
@@ -70,6 +86,10 @@ export function ImportContactsFromFile() {
   return window['go']['main']['App']['ImportContactsFromFile']();
 }
 
+export function ImportEventsFromFile() {
+  return window['go']['main']['App']['ImportEventsFromFile']();
+}
+
 export function LicenceText() {
   return window['go']['main']['App']['LicenceText']();
 }
@@ -78,12 +98,20 @@ export function ListAccounts() {
   return window['go']['main']['App']['ListAccounts']();
 }
 
+export function ListCalendars() {
+  return window['go']['main']['App']['ListCalendars']();
+}
+
 export function ListContactGroups() {
   return window['go']['main']['App']['ListContactGroups']();
 }
 
 export function ListContacts() {
   return window['go']['main']['App']['ListContacts']();
+}
+
+export function ListEvents() {
+  return window['go']['main']['App']['ListEvents']();
 }
 
 export function ListFolders(arg1) {
@@ -150,6 +178,10 @@ export function ReplayOutbox() {
   return window['go']['main']['App']['ReplayOutbox']();
 }
 
+export function SaveCalendar(arg1) {
+  return window['go']['main']['App']['SaveCalendar'](arg1);
+}
+
 export function SaveContact(arg1) {
   return window['go']['main']['App']['SaveContact'](arg1);
 }
@@ -160,6 +192,10 @@ export function SaveContactGroup(arg1) {
 
 export function SaveDraft(arg1) {
   return window['go']['main']['App']['SaveDraft'](arg1);
+}
+
+export function SaveEvent(arg1) {
+  return window['go']['main']['App']['SaveEvent'](arg1);
 }
 
 export function SaveMessageAs(arg1, arg2) {

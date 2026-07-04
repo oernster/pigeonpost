@@ -31,3 +31,8 @@ func newRuleID() string {
 func newContactID() string {
 	return uuid.NewString()
 }
+
+// newCalendarID produces a unique identifier for a calendar or event created in the app.
+func newCalendarID() string {
+	return uuid.NewString()
+}
