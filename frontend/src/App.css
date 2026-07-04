@@ -1960,6 +1960,15 @@
     display: grid;
 }
 
+/* The header row and all-day strip live inside the scrolling body as a pinned block, so they share the
+   grid's exact width (minus the scrollbar) and their column lines stay aligned with the hour grid. */
+.tg-sticky-top {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: var(--bg);
+}
+
 .tg-header {
     border-bottom: 1px solid var(--border);
 }

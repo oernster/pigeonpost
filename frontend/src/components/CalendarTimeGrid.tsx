@@ -118,27 +118,29 @@ export function CalendarTimeGrid({days, events, onNewAt, onEdit}: CalendarTimeGr
 
     return (
         <div className="tg">
-            <div className="tg-header" style={{gridTemplateColumns: cols}}>
-                <div className="tg-corner"/>
-                {days.map((d, i) => (
-                    <div key={i} className={'tg-dayhead' + (sameDay(d, today) ? ' tg-today' : '')}>
-                        <div>{WEEKDAYS_SHORT[d.getDay()]}</div>
-                        <div className="tg-dnum">{d.getDate()}</div>
-                    </div>
-                ))}
-            </div>
-            <div className="tg-allday" style={{gridTemplateColumns: cols}}>
-                <div className="tg-allday-label">all-day</div>
-                {days.map((d, i) => (
-                    <div key={i} className="tg-allday-col">
-                        {allDayFor(d, events).map((e) => (
-                            <button key={e.id} className="tg-allday-ev" title={e.summary}
-                                    onClick={() => onEdit(e)}>{e.summary}</button>
+            <div className="tg-body" ref={bodyRef}>
+                <div className="tg-sticky-top">
+                    <div className="tg-header" style={{gridTemplateColumns: cols}}>
+                        <div className="tg-corner"/>
+                        {days.map((d, i) => (
+                            <div key={i} className={'tg-dayhead' + (sameDay(d, today) ? ' tg-today' : '')}>
+                                <div>{WEEKDAYS_SHORT[d.getDay()]}</div>
+                                <div className="tg-dnum">{d.getDate()}</div>
+                            </div>
                         ))}
                     </div>
-                ))}
-            </div>
-            <div className="tg-body" ref={bodyRef}>
+                    <div className="tg-allday" style={{gridTemplateColumns: cols}}>
+                        <div className="tg-allday-label">all-day</div>
+                        {days.map((d, i) => (
+                            <div key={i} className="tg-allday-col">
+                                {allDayFor(d, events).map((e) => (
+                                    <button key={e.id} className="tg-allday-ev" title={e.summary}
+                                            onClick={() => onEdit(e)}>{e.summary}</button>
+                                ))}
+                            </div>
+                        ))}
+                    </div>
+                </div>
                 <div className="tg-grid" style={{gridTemplateColumns: cols}}>
                     <div className="tg-gutter">
                         {hours.map((h) => (
