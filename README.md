@@ -61,7 +61,8 @@ Planned (see [DESIGN_PLAN.md](DESIGN_PLAN.md) for the full roadmap):
 - Tags round-tripped onto IMAP keywords, move/delete filter rules.
 - Microsoft one-click sign-in (deferred: it needs an Azure/Entra tenant). Multiple accounts already
   work, each with its own inbox.
-- Calendar with ICS import/export, address book with vCard.
+- Calendar (ICS) and address book (vCard, plus CSV), with import/export that round-trips with Outlook
+  and Thunderbird.
 
 ## Stack
 

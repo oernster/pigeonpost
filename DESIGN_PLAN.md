@@ -40,7 +40,9 @@ it stops scope re-litigation mid-build.
   per-account signatures.
 - Search: fast local full-text search (SQLite FTS5) plus server-side IMAP SEARCH where available.
 - Message filters/rules: on-arrival actions (move, tag, mark, delete).
-- Address book: contacts with groups, vCard (.vcf) import/export.
+- Address book: contacts with groups, vCard (.vcf) import/export, plus CSV import/export for Outlook
+  (whose bulk contact export is CSV, not vCard). Import/export must round-trip with Outlook and
+  Thunderbird.
 - Calendar: month/week/day views, events with reminders, ICS (.ics) import/export, read-only remote
   ICS subscription.
 - Offline: cached mail readable offline; actions queued and replayed on reconnect.
@@ -70,8 +72,9 @@ learning async Rust under load on a protocol-heavy app. All chosen dependencies 
 | SMTP send | emersion/go-smtp | Pairs with the suite. |
 | MIME parse/build | emersion/go-message | Production-tested in real clients. |
 | SASL / XOAUTH2 | emersion/go-sasl | OAuth auth mechanism. |
-| Calendar ICS | emersion/go-ical | RFC 5545 round-trip. |
+| Calendar ICS | emersion/go-ical | RFC 5545 round-trip (Thunderbird and Outlook). |
 | Contacts vCard | emersion/go-vcard | vCard 3/4 round-trip. |
+| Contacts CSV | stdlib encoding/csv | Outlook bulk contact import/export (Outlook exports CSV, not vCard). |
 | CalDAV / CardDAV (v2) | emersion/go-webdav | Two-way sync affordable in Go. |
 | Storage | modernc.org/sqlite (pure Go, no CGO) + FTS5 | Local-first, single-writer/multi-reader. |
 | Credentials | zalando/go-keyring | OS keychain; never in the DB. |
@@ -194,9 +197,17 @@ so they round-trip with the server. Bold-unread is a pure UI concern driven by i
 
 ### Calendar and address book
 
-go-ical for ICS import/export (Thunderbird/Outlook interop) and go-vcard for contacts. v1 supports
-file import/export plus read-only remote ICS subscription. Events carry their original ICS UID so
-export round-trips cleanly. Two-way CalDAV/CardDAV (go-webdav) is v2.
+go-ical for ICS import/export and go-vcard for contacts. v1 supports file import/export plus read-only
+remote ICS subscription. Events carry their original ICS UID so export round-trips cleanly. Two-way
+CalDAV/CardDAV (go-webdav) is v2.
+
+Outlook and Thunderbird interop is an explicit v1 requirement, not just a by-product of using standard
+formats. Calendar uses ICS (RFC 5545), which both apps read and write. Contacts need two formats: vCard
+(.vcf) for Thunderbird and single-contact Outlook, and CSV for Outlook's bulk contact export/import
+(Outlook exports the address book as CSV, not vCard; Thunderbird reads CSV too), so a CSV mapper sits
+alongside the vCard one behind the same import/export port. The acceptance test is a real export from
+each app importing cleanly into PigeonPost, and a PigeonPost export importing back into both without
+loss.
 
 ### Search
 
