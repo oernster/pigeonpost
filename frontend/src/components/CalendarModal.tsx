@@ -288,7 +288,7 @@ export function CalendarModal({events, onChanged, onClose}: CalendarModalProps) 
 
                 {form && (
                     <div className="rule-form">
-                        <input className="tag-name-input" placeholder="Event title" value={form.summary}
+                        <input className="tag-name-input" placeholder="Event title" value={form.summary} autoFocus
                                onChange={(e) => set('summary', e.target.value)}/>
                         <label className="cal-allday">
                             <input type="checkbox" checked={form.allDay}

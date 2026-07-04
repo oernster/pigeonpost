@@ -164,7 +164,7 @@ export function ContactsModal({contacts, onChanged, onClose}: ContactsModalProps
 
                 {form && (
                     <div className="rule-form">
-                        <input className="tag-name-input" placeholder="Full name" value={form.formattedName}
+                        <input className="tag-name-input" placeholder="Full name" value={form.formattedName} autoFocus
                                onChange={(e) => set('formattedName', e.target.value)}/>
                         <div className="rule-form-row">
                             <input className="tag-name-input" placeholder="First name" value={form.givenName}

@@ -306,7 +306,7 @@ export function AccountSetupModal({account, onClose, onSaved}: AccountSetupModal
 
                 <label className="field">
                     <span>Your name</span>
-                    <input value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder="Jane Doe"/>
+                    <input value={displayName} onChange={(e) => setDisplayName(e.target.value)} autoFocus placeholder="Jane Doe"/>
                 </label>
                 <label className="field">
                     <span>Email</span>

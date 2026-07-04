@@ -174,7 +174,8 @@ export function ComposeModal({accountId, initial, canSaveDraft, onClose}: Compos
                 {error && <div className="compose-error">{error}</div>}
                 <label className="field">
                     <span>To</span>
-                    <input value={to} onChange={(e) => setTo(e.target.value)} placeholder="name@example.com, other@example.com"/>
+                    <input value={to} onChange={(e) => setTo(e.target.value)} autoFocus
+                           placeholder="name@example.com, other@example.com"/>
                 </label>
                 <label className="field">
                     <span>Cc</span>

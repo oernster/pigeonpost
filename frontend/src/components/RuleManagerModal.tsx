@@ -91,6 +91,7 @@ export function RuleManagerModal({rules, onChanged, onClose}: RuleManagerModalPr
                         className="tag-name-input"
                         placeholder="Rule name"
                         value={name}
+                        autoFocus
                         onChange={(e) => setName(e.target.value)}
                     />
                     <div className="rule-form-row">
