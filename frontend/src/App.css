@@ -552,15 +552,11 @@
     color: var(--text-dim);
 }
 
+/* Email layouts are built from nested tables, so imposing a border or padding on every cell paints
+   unwanted rectangles and distorts the layout. Leave email tables to render as the message intends; the
+   only guard kept is stopping a wide table from overflowing the reader. */
 .reader-html table {
-    border-collapse: collapse;
     max-width: 100%;
-}
-
-.reader-html td,
-.reader-html th {
-    border: 1px solid var(--border);
-    padding: 4px 8px;
 }
 
 .reader-html h1,
