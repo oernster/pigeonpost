@@ -772,10 +772,16 @@
 }
 
 /* A disabled button shows a red ring so its inactive state is unmistakable, and it is never a teal
-   hover/focus target. Native disabled buttons are already removed from the tab order. */
-.btn:disabled {
+   hover/focus target. The .btn.primary:disabled selector is needed because the .primary rule below has
+   equal specificity and later source order, so without it a disabled primary keeps the teal fill and
+   border; scoping to :disabled restores the neutral fill and the red ring. Native disabled buttons are
+   already removed from the tab order. */
+.btn:disabled,
+.btn.primary:disabled {
     opacity: 0.55;
     cursor: default;
+    background-color: var(--bg-elev-2);
+    color: var(--text);
     border-color: var(--danger);
 }
 
