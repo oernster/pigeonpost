@@ -15,6 +15,8 @@ import (
 	"github.com/oernster/pigeonpost/internal/application"
 	"github.com/oernster/pigeonpost/internal/infrastructure/imap"
 	"github.com/oernster/pigeonpost/internal/infrastructure/keychain"
+	"github.com/oernster/pigeonpost/internal/infrastructure/mailrouter"
+	"github.com/oernster/pigeonpost/internal/infrastructure/pop3"
 	"github.com/oernster/pigeonpost/internal/infrastructure/smtp"
 	"github.com/oernster/pigeonpost/internal/infrastructure/storage"
 )
@@ -59,18 +61,23 @@ func run() error {
 
 	vault := keychain.NewVault()
 	clock := systemClock{}
-	source := imap.NewSource(vault, clock, newMessageID)
+	// The read paths (sync, body) and account verification are routed by protocol; the write paths
+	// (draft append, message and folder actions) remain IMAP-specific, as POP3 has no server-side
+	// mailbox actions.
+	imapSource := imap.NewSource(vault, clock, newMessageID)
+	pop3Source := pop3.NewSource(vault)
+	mailSource := mailrouter.NewRouter(imapSource, pop3Source)
 	transport := smtp.NewTransport(vault, clock, newMessageID)
 
 	accountService := application.NewAccountService(store, vault, store)
-	setupService := application.NewAccountSetupService(store, vault, source)
+	setupService := application.NewAccountSetupService(store, vault, mailSource)
 	mailboxService := application.NewMailboxService(store)
-	syncService := application.NewSyncService(store, store, source, store)
-	composeService := application.NewComposeService(store, store, transport, source, store, clock, newOutboxID)
+	syncService := application.NewSyncService(store, store, mailSource, store)
+	composeService := application.NewComposeService(store, store, transport, imapSource, store, clock, newOutboxID)
 	tagService := application.NewTagService(store)
-	bodyService := application.NewMessageBodyService(store, store, source)
-	actionService := application.NewMessageActionService(store, store, source)
-	folderService := application.NewFolderService(store, store, source, source)
+	bodyService := application.NewMessageBodyService(store, store, mailSource)
+	actionService := application.NewMessageActionService(store, store, imapSource)
+	folderService := application.NewFolderService(store, store, imapSource, imapSource)
 	ruleService := application.NewRuleService(store, newRuleID)
 
 	app := NewApp(store.Close, accountService, setupService, mailboxService, syncService, composeService, tagService, bodyService, actionService, folderService, ruleService)
