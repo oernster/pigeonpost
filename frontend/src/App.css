@@ -771,6 +771,14 @@
     border-color: var(--accent);
 }
 
+/* A disabled button shows a red ring so its inactive state is unmistakable, and it is never a teal
+   hover/focus target. Native disabled buttons are already removed from the tab order. */
+.btn:disabled {
+    opacity: 0.55;
+    cursor: default;
+    border-color: var(--danger);
+}
+
 .btn.primary {
     background-color: var(--accent);
     color: var(--accent-ink);
@@ -1846,7 +1854,7 @@
 }
 
 .cal-cell {
-    min-height: 84px;
+    min-height: 60px;
     border: 1px solid var(--border);
     border-radius: 6px;
     padding: 3px;

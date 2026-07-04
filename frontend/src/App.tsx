@@ -1234,10 +1234,10 @@ function App() {
                         Rules
                     </button>
                     <button className="sync-btn" onClick={() => setManagingContacts(true)}>
-                        Contacts
+                        {'\u{1F465}'} Contacts
                     </button>
                     <button className="sync-btn" onClick={() => setManagingCalendar(true)}>
-                        Calendar
+                        {'\u{1F4C5}'} Calendar
                     </button>
                     <span className="titlebar-sep" aria-hidden="true"/>
                     <button
