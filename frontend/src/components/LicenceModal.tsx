@@ -1,4 +1,5 @@
 import {ModalClose} from './ModalClose'
+import {useBackdropDismiss} from './useBackdropDismiss'
 
 interface LicenceModalProps {
     text: string | null
@@ -6,11 +7,12 @@ interface LicenceModalProps {
 }
 
 export function LicenceModal({text, onClose}: LicenceModalProps) {
+    const dismiss = useBackdropDismiss(onClose)
     if (text === null) {
         return null
     }
     return (
-        <div className="modal-backdrop" onClick={onClose}>
+        <div className="modal-backdrop" {...dismiss}>
             <div className="modal licence" role="dialog" aria-label="Licence" onClick={(e) => e.stopPropagation()}>
                 <ModalClose onClose={onClose}/>
                 <h2 className="modal-title">Licence</h2>

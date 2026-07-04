@@ -3,6 +3,7 @@ import {api, CalendarEvent, CalendarEventInput} from '../api'
 import {ModalClose} from './ModalClose'
 import {ConfirmDialog} from './ConfirmDialog'
 import {CalendarTimeGrid} from './CalendarTimeGrid'
+import {useBackdropDismiss} from './useBackdropDismiss'
 
 const DAYS_IN_WEEK = 7
 const HOURS_PER_EVENT = 1
@@ -88,6 +89,7 @@ interface CalendarModalProps {
 // CalendarModal shows a month view of events and edits them. It imports and exports iCalendar (.ics) so
 // events round-trip with Outlook and Thunderbird. Deletion is always confirmed.
 export function CalendarModal({events, onChanged, onClose}: CalendarModalProps) {
+    const dismiss = useBackdropDismiss(onClose)
     const [viewDate, setViewDate] = useState(() => new Date())
     const [viewMode, setViewMode] = useState<ViewMode>('month')
     const [form, setForm] = useState<EventForm | null>(null)
@@ -226,7 +228,7 @@ export function CalendarModal({events, onChanged, onClose}: CalendarModalProps) 
     }
 
     return (
-        <div className="modal-backdrop" onClick={onClose}>
+        <div className="modal-backdrop" {...dismiss}>
             <div className="modal calendar-modal" role="dialog" aria-label="Calendar" onClick={(e) => e.stopPropagation()}>
                 <ModalClose onClose={onClose}/>
                 <h2 className="modal-title">Calendar</h2>

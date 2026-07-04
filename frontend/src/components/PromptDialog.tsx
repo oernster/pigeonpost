@@ -1,5 +1,6 @@
 import {useState} from 'react'
 import {ModalClose} from './ModalClose'
+import {useBackdropDismiss} from './useBackdropDismiss'
 
 interface PromptDialogProps {
     title: string
@@ -14,6 +15,7 @@ interface PromptDialogProps {
 // PromptDialog is the shared single-input modal used for folder create and rename. It submits the
 // trimmed value on Enter or the confirm button, and never submits an empty value.
 export function PromptDialog({title, label, initialValue, confirmLabel, onSubmit, onCancel, busy}: PromptDialogProps) {
+    const dismiss = useBackdropDismiss(onCancel)
     const [value, setValue] = useState(initialValue ?? '')
     const submit = () => {
         const trimmed = value.trim()
@@ -22,7 +24,7 @@ export function PromptDialog({title, label, initialValue, confirmLabel, onSubmit
         }
     }
     return (
-        <div className="modal-backdrop" onClick={onCancel}>
+        <div className="modal-backdrop" {...dismiss}>
             <div className="modal" role="dialog" aria-label={title} onClick={(e) => e.stopPropagation()}>
                 <ModalClose onClose={onCancel}/>
                 <h2 className="modal-title">{title}</h2>

@@ -1,4 +1,5 @@
 import {useState} from 'react'
+import {useBackdropDismiss} from './useBackdropDismiss'
 import {api, Rule, RuleInput} from '../api'
 import {ModalClose} from './ModalClose'
 
@@ -21,6 +22,7 @@ const ACTION_LABELS: Record<string, string> = {markRead: 'mark as read', flag: '
 // RuleManagerModal lists filter rules and adds new ones. Rules run on each sync; a matching message
 // (its chosen field compared with the operator against the text) has the chosen action applied.
 export function RuleManagerModal({rules, onChanged, onClose}: RuleManagerModalProps) {
+    const dismiss = useBackdropDismiss(onClose)
     const [name, setName] = useState('')
     const [field, setField] = useState('from')
     const [operator, setOperator] = useState('contains')
@@ -56,7 +58,7 @@ export function RuleManagerModal({rules, onChanged, onClose}: RuleManagerModalPr
     }
 
     return (
-        <div className="modal-backdrop" onClick={onClose}>
+        <div className="modal-backdrop" {...dismiss}>
             <div className="modal" role="dialog" aria-label="Filter rules" onClick={(e) => e.stopPropagation()}>
                 <ModalClose onClose={onClose}/>
                 <h2 className="modal-title">Filter rules</h2>

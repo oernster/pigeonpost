@@ -1,4 +1,5 @@
 import {ModalClose} from './ModalClose'
+import {useBackdropDismiss} from './useBackdropDismiss'
 
 interface ConfirmDialogProps {
     title: string
@@ -12,8 +13,9 @@ interface ConfirmDialogProps {
 // ConfirmDialog is the shared modal for confirming a destructive action. It names what happens and
 // defaults focus to Cancel; the confirm button carries the danger styling.
 export function ConfirmDialog({title, message, confirmLabel, onConfirm, onCancel, busy}: ConfirmDialogProps) {
+    const dismiss = useBackdropDismiss(onCancel)
     return (
-        <div className="modal-backdrop" onClick={onCancel}>
+        <div className="modal-backdrop" {...dismiss}>
             <div className="modal confirm" role="alertdialog" aria-label={title} onClick={(e) => e.stopPropagation()}>
                 <ModalClose onClose={onCancel}/>
                 <h2 className="modal-title">{title}</h2>

@@ -1,5 +1,6 @@
 import {useState} from 'react'
 import {Account, AccountSetupInput, api} from '../api'
+import {useBackdropDismiss} from './useBackdropDismiss'
 import {ModalClose} from './ModalClose'
 
 interface AccountSetupModalProps {
@@ -86,6 +87,7 @@ function domainOf(email: string): string {
 }
 
 export function AccountSetupModal({account, onClose, onSaved}: AccountSetupModalProps) {
+    const dismiss = useBackdropDismiss(onClose)
     const editing = Boolean(account)
     // Editing an existing account jumps straight to the details form; adding starts on the chooser.
     const [step, setStep] = useState<'provider' | 'details'>(editing ? 'details' : 'provider')
@@ -199,7 +201,7 @@ export function AccountSetupModal({account, onClose, onSaved}: AccountSetupModal
 
     if (step === 'provider') {
         return (
-            <div className="modal-backdrop" onClick={onClose}>
+            <div className="modal-backdrop" {...dismiss}>
                 <div className="modal setup" role="dialog" aria-label="Add account" onClick={(e) => e.stopPropagation()}>
                     <ModalClose onClose={onClose}/>
                     <h2 className="modal-title">Add account</h2>
@@ -291,7 +293,7 @@ export function AccountSetupModal({account, onClose, onSaved}: AccountSetupModal
     )
 
     return (
-        <div className="modal-backdrop" onClick={onClose}>
+        <div className="modal-backdrop" {...dismiss}>
             <div className="modal setup" role="dialog" aria-label={editing ? 'Edit account' : 'Add account'} onClick={(e) => e.stopPropagation()}>
                 <ModalClose onClose={onClose}/>
                 <h2 className="modal-title">

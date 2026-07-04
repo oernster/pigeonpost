@@ -1,5 +1,6 @@
 import {useState} from 'react'
 import {api, Contact, ContactInput, ContactEmailInput, ContactPhoneInput} from '../api'
+import {useBackdropDismiss} from './useBackdropDismiss'
 import {ModalClose} from './ModalClose'
 import {ConfirmDialog} from './ConfirmDialog'
 
@@ -56,6 +57,7 @@ function formFor(c: Contact): ContactForm {
 // ContactsModal lists the address book and edits contacts. It imports and exports vCard and CSV so
 // contacts round-trip with Outlook and Thunderbird. Deletion is always confirmed.
 export function ContactsModal({contacts, onChanged, onClose}: ContactsModalProps) {
+    const dismiss = useBackdropDismiss(onClose)
     const [form, setForm] = useState<ContactForm | null>(null)
     const [pendingDelete, setPendingDelete] = useState<Contact | null>(null)
     const [error, setError] = useState('')
@@ -129,7 +131,7 @@ export function ContactsModal({contacts, onChanged, onClose}: ContactsModalProps
     }
 
     return (
-        <div className="modal-backdrop" onClick={onClose}>
+        <div className="modal-backdrop" {...dismiss}>
             <div className="modal" role="dialog" aria-label="Contacts" onClick={(e) => e.stopPropagation()}>
                 <ModalClose onClose={onClose}/>
                 <h2 className="modal-title">Contacts</h2>
@@ -229,9 +231,11 @@ export function ContactsModal({contacts, onChanged, onClose}: ContactsModalProps
                     </div>
                 )}
 
-                <div className="modal-actions spread">
-                    <button className="btn" onClick={onClose}>Close</button>
-                </div>
+                {!form && (
+                    <div className="modal-actions spread">
+                        <button className="btn" onClick={onClose}>Close</button>
+                    </div>
+                )}
             </div>
 
             {pendingDelete && (

@@ -1,4 +1,5 @@
 import {useState} from 'react'
+import {useBackdropDismiss} from './useBackdropDismiss'
 import {EditorContent, useEditor} from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Link from '@tiptap/extension-link'
@@ -51,6 +52,7 @@ function basename(path: string): string {
 }
 
 export function ComposeModal({accountId, initial, canSaveDraft, onClose}: ComposeModalProps) {
+    const dismiss = useBackdropDismiss(onClose)
     const [to, setTo] = useState(initial?.to ?? '')
     const [cc, setCc] = useState(initial?.cc ?? '')
     const [bcc, setBcc] = useState(initial?.bcc ?? '')
@@ -167,7 +169,7 @@ export function ComposeModal({accountId, initial, canSaveDraft, onClose}: Compos
     )
 
     return (
-        <div className="modal-backdrop" onClick={onClose}>
+        <div className="modal-backdrop" {...dismiss}>
             <div className="modal compose" role="dialog" aria-label="New message" onClick={(e) => e.stopPropagation()}>
                 <ModalClose onClose={onClose}/>
                 <h2 className="modal-title">New message</h2>
