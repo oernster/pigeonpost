@@ -9,7 +9,9 @@ local-first. Built as a calmer, more predictable alternative to Thunderbird.
 
 - People who run standard IMAP/POP3 mailboxes (self-hosted, ISP, Fastmail, corporate) and want a
   fast, native, local-first desktop client.
-- Outlook365 / Outlook.com users (one-click OAuth planned).
+- Outlook.com / Hotmail users, through an app password over IMAP (the Outlook preset fills in the
+  servers). One-click Microsoft sign-in is deferred, and Office 365 work/school accounts are not yet
+  supported.
 
 ## Who it is not for
 
@@ -51,7 +53,8 @@ Shipped:
 Planned (see [DESIGN_PLAN.md](DESIGN_PLAN.md) for the full roadmap):
 
 - Tags round-tripped onto IMAP keywords, move/delete filter rules.
-- POP3 receive and Microsoft OAuth sign-in. (Multiple accounts already work, each with its own inbox.)
+- Microsoft one-click sign-in (deferred: it needs an Azure/Entra tenant). Multiple accounts already
+  work, each with its own inbox.
 - Calendar with ICS import/export, address book with vCard.
 
 ## Stack

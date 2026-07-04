@@ -220,8 +220,13 @@ per-sender allow. This is the single most important security decision and is in 
 Auth method is a strategy behind an Authenticator interface from day one (password and XOAUTH2 both
 implemented against it). v1 provider matrix:
 
-- Microsoft (Outlook365 / Outlook.com): first-class one-click OAuth via a single Azure app
-  registration (low friction, no annual fee, multi-tenant + consumer). Landed in phase 4.
+- Microsoft (Outlook365 / Outlook.com): one-click OAuth is DEFERRED. It requires a Microsoft Entra
+  directory, which now means a paid-tier-gated Azure sign-up (a card for identity verification, even
+  though app registration itself is free), and that friction is not worth taking on for v1, mirroring
+  the Gmail decision. Personal Outlook.com/Hotmail accounts connect through the generic IMAP path with
+  an app password (the Outlook provider preset covers the servers). Office 365 work/school accounts,
+  where Microsoft has disabled basic auth, are unsupported until OAuth ships. The Authenticator/XOAUTH2
+  seam stays in place so OAuth can be added later without restructuring.
 - Generic IMAP/POP3 + SMTP (Fastmail, self-hosted, ISP, corporate): password auth, the core path,
   from phase 1.
 - Gmail: OUT OF SCOPE for v1. Google's IMAP/SMTP scope is restricted, triggering app verification
@@ -232,7 +237,8 @@ implemented against it). v1 provider matrix:
   unsupported. Revisit embedded-credential Gmail OAuth (with CASA) only if the app reaches
   mainstream traction; bring-your-own client ID remains a possible future power-user option.
 
-Microsoft's Azure registration is the only external auth dependency and it does not gate phase 1.
+With Microsoft OAuth deferred, v1 has no external auth dependency at all: every supported account
+signs in with a password (or an app password) over the generic IMAP/POP3 + SMTP path.
 
 ---
 
@@ -276,8 +282,8 @@ hardest-to-reverse parts) first.
    tags, star/junk.
 3. Move/copy/drag + folders + offline outbox. Full folder ops, dnd-kit drag, outbox replay,
    filters/rules.
-4. Account wizard + POP3 + OAuth. Autoconfig wizard, POP3, Microsoft XOAUTH2 (Azure registration),
-   multiple accounts each with a separate inbox.
+4. Account wizard + POP3. Autoconfig wizard, POP3, multiple accounts each with a separate inbox.
+   (Microsoft XOAUTH2 deferred, see section 7.)
 5. Search + address book. FTS5 search, contacts, vCard import/export.
 6. Calendar. Month/week/day, events, reminders, ICS import/export, remote ICS subscription.
 7. Packaging + polish. Signed installers for all three platforms, keyboard navigation as an explicit
@@ -290,8 +296,10 @@ hardest-to-reverse parts) first.
 
 - Licence: GPL-3.0, whole app.
 - Stack: Go + Wails + React/TS, Emersion mail suite, pure-Go SQLite + FTS5, OS keychain.
-- Auth: password auth (generic IMAP/POP3) in v1; OAuth abstraction in place; Microsoft OAuth in
-  phase 4. Gmail out of scope for v1 (generic IMAP stays open but unsupported).
+- Auth: password auth (generic IMAP/POP3) in v1; OAuth abstraction in place but Microsoft OAuth is
+  deferred (it needs an Azure/Entra tenant). Personal Outlook.com connects via an app password; Office
+  365 work/school accounts are unsupported until OAuth ships. Gmail out of scope for v1 (generic IMAP
+  stays open but unsupported).
 - Calendar/contacts: file ICS/vCard import/export + read-only ICS subscription in v1; two-way
   CalDAV/CardDAV in v2.
 - Compose: light TipTap rich-text + plain-text toggle in v1; no full HTML-editor parity.
