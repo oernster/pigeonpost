@@ -215,3 +215,43 @@ custom error types beyond sentinels.
 - Infrastructure tested against a real SQLite database in a temp directory.
 - Structural AST tests enforce layering, domain purity, the module-size limit and the composition
   root whitelist.
+
+## Planned: calendar and contacts (0.7.0)
+
+This section is design ahead of implementation: it records the shape the 0.7.0 milestone will take
+before code lands, and each piece graduates into the body above (with its enforcing test) as it ships.
+The invariant is unchanged: `UI -> Application -> Domain <- Infrastructure`, same layer rules, same
+composition root, same 100% domain gate. The address book is built before the calendar because it is
+the simpler half (no recurrence, timezones or RRULE) and it exercises the shared import/export seam the
+calendar then reuses.
+
+**Domain.** New pure value objects, immutable and validated on construction like the mail entities.
+Address book first: `Contact` (id, vCard UID for lossless round-trip, formatted name, given/family
+name, organization, title, note, and slices of `ContactEmail` and `ContactPhone`, each a labelled
+value) and `ContactGroup` (id, name, member contact ids, with `With*` copy methods for membership).
+Calendar later: `Calendar` and `Event` (id, ICS UID, summary, start/end, all-day flag, location,
+description, and an optional recurrence rule), with time entering only as already-resolved values, the
+domain still reads no wall clock.
+
+**Application.** New ports mirroring the mail stores: `ContactStore` (list, get, save, delete contacts
+and groups) and later `CalendarStore` (calendars and events). Import and export sit behind a codec seam
+so the use case is format-agnostic: a `ContactCodec` interface with `Decode([]byte) ([]domain.Contact,
+error)` and `Encode([]domain.Contact) ([]byte, error)`, implemented once per format, and a
+`CalendarCodec` likewise. An `ImportContacts` / `ExportContacts` use case selects the codec by the
+chosen format and reconciles by UID so a re-import updates rather than duplicates.
+
+**Infrastructure.** New adapters implementing the ports: `storage` gains `contact`, `contact_email`,
+`contact_phone`, `contact_group` and `contact_group_member` tables (a schema bump beyond v13), plus
+`calendar` and `event` tables later. Codec adapters: `vcard` (emersion/go-vcard) and `csv`
+(stdlib `encoding/csv`) for contacts, and `ical` (emersion/go-ical) for calendar. Two contact codecs
+exist deliberately: vCard covers Thunderbird and single-contact Outlook, and CSV covers Outlook's bulk
+contact export/import (Outlook exports the address book as CSV, not vCard; Thunderbird reads CSV too).
+The pure decode/encode logic lives in these packages and is covered to 100%; only genuine file or OS
+edges are excluded.
+
+**UI.** A contacts pane (list plus an editor dialog, reusing the confirm-before-delete rule) and later
+calendar month/week/day views, both clients of the Application use cases only.
+
+**Interop acceptance test.** The milestone is not done until a real export from Outlook and from
+Thunderbird imports cleanly into PigeonPost, and a PigeonPost export imports back into both without
+loss, for calendar (ICS) and contacts (vCard and CSV).
