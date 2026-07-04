@@ -19,15 +19,22 @@ import {RuleManagerModal} from './components/RuleManagerModal'
 import {OutboxModal} from './components/OutboxModal'
 import {Splash} from './components/Splash'
 
-// focusRingElements returns the visible, tabbable elements in document order: the same set the browser
-// steps with Tab. Roving-tabindex lists (messages, folders) contribute a single stop each, because
-// their non-current items are tabindex -1, so stepping this ring jumps region to region.
-function focusRingElements(): HTMLElement[] {
+// focusRingRoot is the container the ring is scoped to: the topmost open modal when one is showing (so
+// Left/Right stay trapped within the dialog), otherwise the whole document.
+function focusRingRoot(): ParentNode {
+    const modals = document.querySelectorAll<HTMLElement>('.modal')
+    return modals.length > 0 ? modals[modals.length - 1] : document
+}
+
+// focusRingElements returns the visible, tabbable elements in document order within root: the same set
+// the browser steps with Tab. Roving-tabindex lists (messages, folders) contribute a single stop each,
+// because their non-current items are tabindex -1, so stepping this ring jumps region to region.
+function focusRingElements(root: ParentNode): HTMLElement[] {
     const selector = [
         'a[href]', 'button:not([disabled])', 'input:not([disabled])',
         'select:not([disabled])', 'textarea:not([disabled])', '[tabindex]:not([tabindex="-1"])',
     ].join(',')
-    return Array.from(document.querySelectorAll<HTMLElement>(selector)).filter((el) => {
+    return Array.from(root.querySelectorAll<HTMLElement>(selector)).filter((el) => {
         if (el.tabIndex < 0 || el.hasAttribute('disabled')) {
             return false
         }
@@ -45,7 +52,7 @@ function focusRingElements(): HTMLElement[] {
 // stepFocusRing moves focus forward (1) or back (-1) through the focus ring, wrapping at the ends, so
 // Right/Left mirror Tab/Shift+Tab.
 function stepFocusRing(direction: 1 | -1) {
-    const items = focusRingElements()
+    const items = focusRingElements(focusRingRoot())
     if (items.length === 0) {
         return
     }
@@ -902,18 +909,25 @@ function App() {
             Boolean(messageToPurge) || Boolean(contextMenu)
         const list = searchActive ? searchResults : messages
         const onKeyDown = (e: KeyboardEvent) => {
-            if (overlayOpen) {
-                return
-            }
             const target = e.target as HTMLElement | null
             if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' ||
                 target.tagName === 'SELECT' || target.isContentEditable)) {
                 return
             }
-            // Right/Left step the focus ring, mirroring Tab/Shift+Tab from anywhere in the main window.
+            // Right/Left step the focus ring, mirroring Tab/Shift+Tab. This works in the main window and,
+            // scoped to the dialog, inside an open modal (such as the delete confirmation), so the buttons
+            // there are reachable by cursor too. Other overlays (context menu, splash) have no dialog to
+            // navigate, so it stays disabled for them.
             if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+                const inModal = document.querySelector('.modal') !== null
+                if (overlayOpen && !inModal) {
+                    return
+                }
                 e.preventDefault()
                 stepFocusRing(e.key === 'ArrowRight' ? 1 : -1)
+                return
+            }
+            if (overlayOpen) {
                 return
             }
             if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
