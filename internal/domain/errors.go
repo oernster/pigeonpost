@@ -31,6 +31,12 @@ var (
 	ErrInvalidRuleOperator = errors.New("rule operator is not valid")
 	ErrInvalidRuleAction   = errors.New("rule action is not valid")
 	ErrEmptyAttachmentName = errors.New("attachment filename is empty")
+
+	ErrEmptyContactID        = errors.New("contact id is empty")
+	ErrEmptyContactName      = errors.New("contact formatted name is empty")
+	ErrEmptyPhoneNumber      = errors.New("contact phone number is empty")
+	ErrEmptyContactGroupID   = errors.New("contact group id is empty")
+	ErrEmptyContactGroupName = errors.New("contact group name is empty")
 )
 
 // ErrOffline marks a failure caused by the mail server being unreachable (a connection could not be
