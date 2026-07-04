@@ -37,6 +37,13 @@ var (
 	ErrEmptyPhoneNumber      = errors.New("contact phone number is empty")
 	ErrEmptyContactGroupID   = errors.New("contact group id is empty")
 	ErrEmptyContactGroupName = errors.New("contact group name is empty")
+
+	ErrEmptyCalendarID      = errors.New("calendar id is empty")
+	ErrEmptyCalendarName    = errors.New("calendar name is empty")
+	ErrEmptyEventID         = errors.New("event id is empty")
+	ErrEmptyEventSummary    = errors.New("event summary is empty")
+	ErrEmptyEventStart      = errors.New("event start time is not set")
+	ErrEventEndsBeforeStart = errors.New("event end is before its start")
 )
 
 // ErrOffline marks a failure caused by the mail server being unreachable (a connection could not be
