@@ -15,6 +15,8 @@ interface MessageContextMenuProps {
     onToggleFlag: (message: Message) => void
     onMove: (message: Message, destFolderId: string) => void
     onCopy: (message: Message, destFolderId: string) => void
+    // canMoveCopy is false for POP3 accounts, which have a single inbox and no server-side move/copy.
+    canMoveCopy: boolean
     onSetTag: (messageId: string, tagId: string, assigned: boolean) => void
     onOpenInNewTab: (message: Message) => void
     onSaveAs: (message: Message) => void
@@ -140,7 +142,7 @@ export function MessageContextMenu(props: MessageContextMenuProps) {
                 <span className="context-item-label">Mark with tag</span>
                 <span className="context-chevron">&#9656;</span>
             </button>
-            {movable.length > 0 && (
+            {props.canMoveCopy && movable.length > 0 && (
                 <>
                     <div className="context-sep"/>
                     <button className="context-item" role="menuitem" onClick={() => setView('move')}>

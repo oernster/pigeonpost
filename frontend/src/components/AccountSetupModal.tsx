@@ -14,6 +14,18 @@ const DEFAULT_IN_PORT = 993
 const DEFAULT_OUT_PORT = 587
 const DEFAULT_IN_SECURITY = 'tls'
 const DEFAULT_OUT_SECURITY = 'starttls'
+// POP3 retrieval uses implicit TLS on 995 rather than IMAP's 993.
+const DEFAULT_IN_PORT_POP3 = 995
+
+const PROTOCOL_OPTIONS: ReadonlyArray<{value: string; label: string}> = [
+    {value: 'imap', label: 'IMAP (keeps mail on the server)'},
+    {value: 'pop3', label: 'POP3 (downloads mail, single inbox)'},
+]
+
+// incomingHostPrefix is the conventional hostname prefix guessed for each retrieval protocol.
+function incomingHostPrefix(protocol: string): string {
+    return protocol === 'pop3' ? 'pop' : 'imap'
+}
 
 const SECURITY_OPTIONS: ReadonlyArray<{value: string; label: string}> = [
     {value: 'tls', label: 'TLS (implicit)'},
@@ -81,6 +93,7 @@ export function AccountSetupModal({account, onClose, onSaved}: AccountSetupModal
     const [displayName, setDisplayName] = useState(account?.displayName ?? '')
     const [email, setEmail] = useState(account?.email ?? '')
     const [password, setPassword] = useState('')
+    const [protocol, setProtocol] = useState(account?.protocol ?? 'imap')
     const [inHost, setInHost] = useState(account?.inHost ?? '')
     const [inPort, setInPort] = useState(account?.inPort ?? DEFAULT_IN_PORT)
     const [inSecurity, setInSecurity] = useState(account?.inSecurity ?? DEFAULT_IN_SECURITY)
@@ -119,17 +132,33 @@ export function AccountSetupModal({account, onClose, onSaved}: AccountSetupModal
         setStep('details')
     }
 
-    // Guess the server hosts from the email domain until the user edits them (manual mode only).
+    // Guess the server hosts from the email domain until the user edits them (manual mode only). The
+    // incoming prefix follows the retrieval protocol (imap. or pop.).
     const onEmailChange = (value: string) => {
         setEmail(value)
         const domain = domainOf(value)
         if (domain) {
             if (!inHostTouched) {
-                setInHost(`imap.${domain}`)
+                setInHost(`${incomingHostPrefix(protocol)}.${domain}`)
             }
             if (!outHostTouched) {
                 setOutHost(`smtp.${domain}`)
             }
+        }
+    }
+
+    // Changing the retrieval protocol tracks the default incoming port (993 for IMAP, 995 for POP3)
+    // unless the user set a custom one, and re-guesses the incoming host while it is still auto-managed.
+    const onProtocolChange = (value: string) => {
+        setProtocol(value)
+        if (value === 'pop3' && inPort === DEFAULT_IN_PORT) {
+            setInPort(DEFAULT_IN_PORT_POP3)
+        } else if (value === 'imap' && inPort === DEFAULT_IN_PORT_POP3) {
+            setInPort(DEFAULT_IN_PORT)
+        }
+        const domain = domainOf(email)
+        if (domain && !inHostTouched) {
+            setInHost(`${incomingHostPrefix(value)}.${domain}`)
         }
     }
 
@@ -147,6 +176,7 @@ export function AccountSetupModal({account, onClose, onSaved}: AccountSetupModal
             displayName: displayName.trim(),
             email: email.trim(),
             password,
+            protocol,
             inHost: inHost.trim(),
             inPort,
             inSecurity,
@@ -193,7 +223,15 @@ export function AccountSetupModal({account, onClose, onSaved}: AccountSetupModal
     const serverFields = (
         <>
             <fieldset className="setup-group">
-                <legend>Incoming (IMAP)</legend>
+                <legend>Incoming ({protocol.toUpperCase()})</legend>
+                <label className="field">
+                    <span>Protocol</span>
+                    <select value={protocol} onChange={(e) => onProtocolChange(e.target.value)}>
+                        {PROTOCOL_OPTIONS.map((o) => (
+                            <option key={o.value} value={o.value}>{o.label}</option>
+                        ))}
+                    </select>
+                </label>
                 <label className="field">
                     <span>Server</span>
                     <input

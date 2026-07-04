@@ -12,11 +12,12 @@ import (
 var errPasswordRequired = errors.New("password is required")
 
 // AccountSetupRequest is the front-end payload from the account-setup wizard. Server settings arrive
-// as wire strings that map onto the domain's security enum; the retrieval protocol is IMAP for v1.
+// as wire strings that map onto the domain's security and protocol enums.
 type AccountSetupRequest struct {
 	DisplayName string `json:"displayName"`
 	Email       string `json:"email"`
 	Password    string `json:"password"`
+	Protocol    string `json:"protocol"`
 	InHost      string `json:"inHost"`
 	InPort      int    `json:"inPort"`
 	InSecurity  string `json:"inSecurity"`
@@ -50,7 +51,16 @@ func (a *App) UpdateAccount(req AccountSetupRequest) error {
 	return a.setup.Update(a.ctx, account, strings.TrimSpace(req.Password))
 }
 
-// buildAccount maps a wizard payload to a validated domain account (IMAP, password auth for v1).
+// parseProtocol maps a wire protocol identifier to the domain Protocol, defaulting to IMAP when the
+// value is empty or unrecognised so a payload without the field still builds an IMAP account.
+func parseProtocol(value string) domain.Protocol {
+	if strings.EqualFold(strings.TrimSpace(value), domain.ProtocolPOP3.String()) {
+		return domain.ProtocolPOP3
+	}
+	return domain.ProtocolIMAP
+}
+
+// buildAccount maps a wizard payload to a validated domain account (IMAP or POP3, password auth for v1).
 func buildAccount(req AccountSetupRequest) (domain.Account, error) {
 	address, err := domain.NewEmailAddress("", strings.TrimSpace(req.Email))
 	if err != nil {
@@ -74,7 +84,7 @@ func buildAccount(req AccountSetupRequest) (domain.Account, error) {
 	}
 	account, err := domain.NewAccount(
 		address.Address(), req.DisplayName, address,
-		domain.ProtocolIMAP, incoming, outgoing, domain.AuthPassword,
+		parseProtocol(req.Protocol), incoming, outgoing, domain.AuthPassword,
 	)
 	if err != nil {
 		return domain.Account{}, fmt.Errorf("build account: %w", err)

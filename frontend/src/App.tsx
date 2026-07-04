@@ -817,6 +817,11 @@ function App() {
         contextMenu, viewingOutbox,
     ])
 
+    // A POP3 account has a single downloaded inbox with no server-side folders, message moves or draft
+    // mailbox, so those actions are hidden and a delete is permanent rather than a move to Trash.
+    const activeAccount = accounts.find((a) => a.id === selectedAccount)
+    const isPop3 = activeAccount?.protocol === 'pop3'
+
     return (
         <div className="app">
             {splashVisible && <Splash version={appVersion} author={appAuthor} fading={splashFading}/>}
@@ -882,6 +887,7 @@ function App() {
                     onRenameFolder={(folder) => setFolderPrompt({mode: 'rename', folder})}
                     onDeleteFolder={(folder) => setFolderToDelete(folder)}
                     onDropMessage={dropMessageOnFolder}
+                    canManageFolders={!isPop3}
                 />
                 <MessageList
                     messages={searchActive ? searchResults : messages}
@@ -905,6 +911,7 @@ function App() {
                     folders={folders}
                     onMove={(m, dest) => void moveMessage(m, dest)}
                     onCopy={(m, dest) => void copyMessage(m, dest)}
+                    canMoveCopy={!isPop3}
                     tags={tags}
                     messageTags={messageTags}
                     onToggleTag={(tagId, assigned) => void toggleTag(tagId, assigned)}
@@ -922,6 +929,7 @@ function App() {
                 <ComposeModal
                     accountId={selectedAccount}
                     initial={composeInitial}
+                    canSaveDraft={!isPop3}
                     onClose={() => {
                         setComposing(false)
                         setComposeInitial(undefined)
@@ -952,7 +960,9 @@ function App() {
             {messageToDelete && (
                 <ConfirmDialog
                     title="Delete message"
-                    message={`Delete "${messageToDelete.subject || '(no subject)'}"? It is moved to Trash, or deleted permanently if it is already in Trash or the account has no Trash folder.`}
+                    message={isPop3
+                        ? `Delete "${messageToDelete.subject || '(no subject)'}"? POP3 has no Trash, so it is permanently removed from the server and cannot be recovered.`
+                        : `Delete "${messageToDelete.subject || '(no subject)'}"? It is moved to Trash, or deleted permanently if it is already in Trash or the account has no Trash folder.`}
                     confirmLabel="Delete"
                     busy={deletingMessage}
                     onConfirm={() => void deleteMessage()}
@@ -984,6 +994,7 @@ function App() {
                     onToggleFlag={(m) => void toggleFlag(m)}
                     onMove={(m, dest) => void moveMessage(m, dest)}
                     onCopy={(m, dest) => void copyMessage(m, dest)}
+                    canMoveCopy={!isPop3}
                     onSetTag={(id, tagId, assigned) => void setMessageTagById(id, tagId, assigned)}
                     onOpenInNewTab={openInNewTab}
                     onSaveAs={(m) => void saveMessageAs(m)}

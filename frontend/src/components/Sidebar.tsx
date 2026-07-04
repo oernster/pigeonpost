@@ -16,6 +16,8 @@ interface SidebarProps {
     onRenameFolder: (folder: Folder) => void
     onDeleteFolder: (folder: Folder) => void
     onDropMessage: (messageId: string, folderId: string) => void
+    // canManageFolders is false for POP3 accounts, which have no server-side folders to create.
+    canManageFolders: boolean
 }
 
 const folderIcon: Record<string, string> = {
@@ -104,14 +106,16 @@ function SidebarContent(props: SidebarProps) {
                 <>
                     <div className="section-header">
                         <span className="section-label">Folders</span>
-                        <button
-                            className="section-action"
-                            title="New folder"
-                            aria-label="New folder"
-                            onClick={props.onNewFolder}
-                        >
-                            &#43;
-                        </button>
+                        {props.canManageFolders && (
+                            <button
+                                className="section-action"
+                                title="New folder"
+                                aria-label="New folder"
+                                onClick={props.onNewFolder}
+                            >
+                                &#43;
+                            </button>
+                        )}
                     </div>
                     {folders.length === 0 ? (
                         <p className="empty-body indented">No folders cached. Press Sync to fetch them.</p>

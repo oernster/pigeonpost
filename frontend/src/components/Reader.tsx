@@ -26,6 +26,8 @@ interface ReaderProps {
     folders: Folder[]
     onMove: (message: Message, destFolderId: string) => void
     onCopy: (message: Message, destFolderId: string) => void
+    // canMoveCopy is false for POP3 accounts, which have a single inbox and no server-side move/copy.
+    canMoveCopy: boolean
     tags: Tag[]
     messageTags: Tag[]
     onToggleTag: (tagId: string, assigned: boolean) => void
@@ -36,7 +38,7 @@ interface ReaderProps {
     onCloseTab: (id: string) => void
 }
 
-export function Reader({message, onToggleRead, onReply, onReplyAll, onForward, onDelete, folders, onMove, onCopy, tags, messageTags, onToggleTag, body, bodyLoading, tabs, onSelectTab, onCloseTab}: ReaderProps) {
+export function Reader({message, onToggleRead, onReply, onReplyAll, onForward, onDelete, folders, onMove, onCopy, canMoveCopy, tags, messageTags, onToggleTag, body, bodyLoading, tabs, onSelectTab, onCloseTab}: ReaderProps) {
     const [tagMenuOpen, setTagMenuOpen] = useState(false)
     const [imagesShown, setImagesShown] = useState(false)
     const menuRef = useRef<HTMLDivElement>(null)
@@ -99,7 +101,7 @@ export function Reader({message, onToggleRead, onReply, onReplyAll, onForward, o
                         {message.read ? 'Mark as unread' : 'Mark as read'}
                     </button>
                     <button className="btn danger-outline" onClick={() => onDelete(message)}>Delete</button>
-                    {folders.filter((f) => f.id !== message.folderId).length > 0 && (
+                    {canMoveCopy && folders.filter((f) => f.id !== message.folderId).length > 0 && (
                         <>
                             <select
                                 className="move-select"

@@ -34,6 +34,8 @@ export interface ComposeInitial {
 interface ComposeModalProps {
     accountId: string
     initial?: ComposeInitial
+    // canSaveDraft is false for POP3 accounts, which have no server-side Drafts mailbox to append to.
+    canSaveDraft: boolean
     onClose: () => void
 }
 
@@ -48,7 +50,7 @@ function basename(path: string): string {
     return parts[parts.length - 1] || path
 }
 
-export function ComposeModal({accountId, initial, onClose}: ComposeModalProps) {
+export function ComposeModal({accountId, initial, canSaveDraft, onClose}: ComposeModalProps) {
     const [to, setTo] = useState(initial?.to ?? '')
     const [cc, setCc] = useState(initial?.cc ?? '')
     const [bcc, setBcc] = useState(initial?.bcc ?? '')
@@ -260,9 +262,11 @@ export function ComposeModal({accountId, initial, onClose}: ComposeModalProps) {
                 <div className="modal-actions spread">
                     <button className="btn" onClick={onClose} disabled={sending || savingDraft}>Cancel</button>
                     <div className="compose-send-group">
-                        <button className="btn" onClick={() => void saveDraft()} disabled={sending || savingDraft}>
-                            {savingDraft ? 'Saving...' : 'Save draft'}
-                        </button>
+                        {canSaveDraft && (
+                            <button className="btn" onClick={() => void saveDraft()} disabled={sending || savingDraft}>
+                                {savingDraft ? 'Saving...' : 'Save draft'}
+                            </button>
+                        )}
                         <button className="btn primary" onClick={() => void send()} disabled={sending || savingDraft || to.trim() === ''}>
                             {sending ? 'Sending...' : 'Send'}
                         </button>

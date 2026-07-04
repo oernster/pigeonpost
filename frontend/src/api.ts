@@ -87,6 +87,7 @@ export interface AccountSetupInput {
     displayName: string
     email: string
     password: string
+    protocol: string
     inHost: string
     inPort: number
     inSecurity: string

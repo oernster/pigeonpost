@@ -90,6 +90,7 @@ export namespace main {
 	    displayName: string;
 	    email: string;
 	    password: string;
+	    protocol: string;
 	    inHost: string;
 	    inPort: number;
 	    inSecurity: string;
@@ -106,6 +107,7 @@ export namespace main {
 	        this.displayName = source["displayName"];
 	        this.email = source["email"];
 	        this.password = source["password"];
+	        this.protocol = source["protocol"];
 	        this.inHost = source["inHost"];
 	        this.inPort = source["inPort"];
 	        this.inSecurity = source["inSecurity"];
