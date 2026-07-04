@@ -20,8 +20,8 @@ import {OutboxModal} from './components/OutboxModal'
 import {Splash} from './components/Splash'
 
 // focusRingRoot is the container the ring is scoped to: the topmost open modal when one is showing (so
-// Left/Right stay trapped within the dialog), otherwise the whole document.
-function focusRingRoot(): ParentNode {
+// focus stays trapped within the dialog), otherwise the whole document.
+function focusRingRoot(): Document | HTMLElement {
     const modals = document.querySelectorAll<HTMLElement>('.modal')
     return modals.length > 0 ? modals[modals.length - 1] : document
 }
@@ -61,6 +61,30 @@ function stepFocusRing(direction: 1 | -1) {
         ? (direction === 1 ? 0 : items.length - 1)
         : (index + direction + items.length) % items.length
     items[next]?.focus()
+}
+
+// trapTab keeps Tab and Shift+Tab inside the open dialog: it wraps at the first and last elements and
+// pulls focus back in if it has somehow landed outside, while letting native Tab move between elements
+// in the middle (so a rich-text editor keeps its own Tab handling).
+function trapTab(e: KeyboardEvent) {
+    const root = focusRingRoot()
+    const items = focusRingElements(root)
+    if (items.length === 0) {
+        return
+    }
+    const first = items[0]
+    const last = items[items.length - 1]
+    const active = document.activeElement as HTMLElement | null
+    if (e.shiftKey && active === first) {
+        e.preventDefault()
+        last.focus()
+    } else if (!e.shiftKey && active === last) {
+        e.preventDefault()
+        first.focus()
+    } else if (!active || !root.contains(active)) {
+        e.preventDefault()
+        first.focus()
+    }
 }
 
 function escapeHtml(s: string): string {
@@ -910,17 +934,29 @@ function App() {
         const list = searchActive ? searchResults : messages
         const onKeyDown = (e: KeyboardEvent) => {
             const target = e.target as HTMLElement | null
-            if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' ||
-                target.tagName === 'SELECT' || target.isContentEditable)) {
+            const isText = Boolean(target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' ||
+                target.tagName === 'SELECT' || target.isContentEditable))
+
+            // A dialog traps focus: Tab/Shift+Tab and Left/Right cycle only within it, so focus can
+            // neither leave the dialog nor reach the window behind it. Left/Right in a text field still
+            // move the caret. Nothing else (list navigation, delete) acts while a dialog is open.
+            if (document.querySelector('.modal') !== null) {
+                if (e.key === 'Tab') {
+                    trapTab(e)
+                } else if ((e.key === 'ArrowRight' || e.key === 'ArrowLeft') && !isText) {
+                    e.preventDefault()
+                    stepFocusRing(e.key === 'ArrowRight' ? 1 : -1)
+                }
                 return
             }
-            // Right/Left step the focus ring, mirroring Tab/Shift+Tab. This works in the main window and,
-            // scoped to the dialog, inside an open modal (such as the delete confirmation), so the buttons
-            // there are reachable by cursor too. Other overlays (context menu, splash) have no dialog to
-            // navigate, so it stays disabled for them.
+
+            if (isText) {
+                return
+            }
+            // Right/Left step the focus ring, mirroring Tab/Shift+Tab across the main window. Non-dialog
+            // overlays (context menu, splash) have nothing to navigate, so it stays disabled for them.
             if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
-                const inModal = document.querySelector('.modal') !== null
-                if (overlayOpen && !inModal) {
+                if (overlayOpen) {
                     return
                 }
                 e.preventDefault()
