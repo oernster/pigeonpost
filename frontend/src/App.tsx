@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useMemo, useRef, useState} from 'react'
+import {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from 'react'
 import './App.css'
 import brandIcon from './assets/pigeonpost.png'
 import {AboutInfo, Account, api, Folder, Message, MessageBody, OutboxItem, Rule, Tag, UnreadCountsResult} from './api'
@@ -227,7 +227,9 @@ function App() {
         selectedFolderRef.current = selectedFolder
     }, [selectedFolder])
 
-    useEffect(() => {
+    // Apply the theme before the browser paints, so a toggle changes the emoji and the colours in the
+    // same frame rather than repainting twice (the flash).
+    useLayoutEffect(() => {
         applyTheme(theme)
     }, [theme])
 
