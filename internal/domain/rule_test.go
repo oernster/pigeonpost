@@ -12,7 +12,7 @@ func ruleMessage(t *testing.T, fromName, fromAddr, subject string) MessageSummar
 		t.Fatalf("address: %v", err)
 	}
 	m, err := NewMessageSummary(MessageSummaryInput{
-		ID: "m1", FolderID: "f1", UID: 1, From: from, Subject: subject, Size: 1, Flags: NewFlags(0),
+		ID: "m1", FolderID: "f1", UID: "1", From: from, Subject: subject, Size: 1, Flags: NewFlags(0),
 	})
 	if err != nil {
 		t.Fatalf("message: %v", err)

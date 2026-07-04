@@ -11,7 +11,7 @@ import (
 )
 
 // schemaVersion is the current on-disk schema version, tracked via SQLite's PRAGMA user_version.
-const schemaVersion = 10
+const schemaVersion = 11
 
 const driverName = "sqlite"
 
@@ -160,9 +160,39 @@ const schemaV10 = `
 ALTER TABLE folder ADD COLUMN separator TEXT NOT NULL DEFAULT '/';
 `
 
+// schemaV11 widens message.uid from INTEGER to TEXT so it can hold an opaque server handle: an IMAP
+// UID as a decimal string, or a POP3 UIDL. SQLite cannot change a column type in place, so the message
+// table is rebuilt and existing integer uids are cast to their text form. The body, tag and FTS tables
+// key on the string message id, not uid, so they are left untouched.
+const schemaV11 = `
+CREATE TABLE message_new (
+    id              TEXT PRIMARY KEY,
+    folder_id       TEXT NOT NULL,
+    uid             TEXT NOT NULL,
+    message_id      TEXT NOT NULL,
+    from_display    TEXT NOT NULL,
+    from_address    TEXT NOT NULL,
+    subject         TEXT NOT NULL,
+    date_ms         INTEGER NOT NULL,
+    size            INTEGER NOT NULL,
+    flags           INTEGER NOT NULL,
+    has_attachments INTEGER NOT NULL,
+    snippet         TEXT NOT NULL,
+    to_json         TEXT NOT NULL DEFAULT '[]',
+    cc_json         TEXT NOT NULL DEFAULT '[]'
+);
+INSERT INTO message_new (id, folder_id, uid, message_id, from_display, from_address, subject, date_ms,
+        size, flags, has_attachments, snippet, to_json, cc_json)
+    SELECT id, folder_id, CAST(uid AS TEXT), message_id, from_display, from_address, subject, date_ms,
+        size, flags, has_attachments, snippet, to_json, cc_json FROM message;
+DROP TABLE message;
+ALTER TABLE message_new RENAME TO message;
+CREATE INDEX IF NOT EXISTS idx_message_folder ON message(folder_id);
+`
+
 // migrations is the ordered list of schema steps. Index i upgrades the database from version i to
 // version i+1, so a fresh database applies them all and an existing one applies only what it lacks.
-var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10}
+var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11}
 
 // Store is the SQLite-backed implementation of the application storage ports.
 type Store struct {

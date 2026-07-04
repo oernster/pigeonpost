@@ -229,7 +229,7 @@ func scanMessage(row scanner) (domain.MessageSummary, error) {
 		fromDisplay, fromAddress      string
 		toJSON, ccJSON                string
 		subject, snippet              string
-		uid                           uint32
+		uid                           string
 		dateMS                        int64
 		size, flags, hasAttachmentInt int
 	)

@@ -73,7 +73,7 @@ func (t Tag) Colour() Colour { return t.colour }
 type MessageSummary struct {
 	id             string
 	folderID       string
-	uid            uint32
+	uid            string
 	messageID      string
 	from           EmailAddress
 	to             []EmailAddress
@@ -91,7 +91,7 @@ type MessageSummary struct {
 type MessageSummaryInput struct {
 	ID             string
 	FolderID       string
-	UID            uint32
+	UID            string
 	MessageID      string
 	From           EmailAddress
 	To             []EmailAddress
@@ -114,7 +114,8 @@ func NewMessageSummary(in MessageSummaryInput) (MessageSummary, error) {
 	if folderID == "" {
 		return MessageSummary{}, ErrEmptyFolderID
 	}
-	if in.UID == 0 {
+	uid := strings.TrimSpace(in.UID)
+	if uid == "" {
 		return MessageSummary{}, ErrInvalidUID
 	}
 	if in.Size < 0 {
@@ -123,7 +124,7 @@ func NewMessageSummary(in MessageSummaryInput) (MessageSummary, error) {
 	return MessageSummary{
 		id:             id,
 		folderID:       folderID,
-		uid:            in.UID,
+		uid:            uid,
 		messageID:      strings.TrimSpace(in.MessageID),
 		from:           in.From,
 		to:             append([]EmailAddress(nil), in.To...),
@@ -143,8 +144,9 @@ func (m MessageSummary) ID() string { return m.id }
 // FolderID returns the owning folder identifier.
 func (m MessageSummary) FolderID() string { return m.folderID }
 
-// UID returns the server-assigned IMAP UID.
-func (m MessageSummary) UID() uint32 { return m.uid }
+// UID returns the opaque server handle for the message: an IMAP UID held as a decimal string, or a
+// POP3 UIDL. It is used to fetch the body and to target server-side actions; the UI never sees it.
+func (m MessageSummary) UID() string { return m.uid }
 
 // MessageID returns the RFC Message-ID header value.
 func (m MessageSummary) MessageID() string { return m.messageID }

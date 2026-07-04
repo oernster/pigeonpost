@@ -388,14 +388,14 @@ type fakeMailSource struct {
 	raw              []byte
 }
 
-func (f *fakeMailSource) FetchBody(context.Context, domain.Account, domain.Folder, uint32) (string, string, error) {
+func (f *fakeMailSource) FetchBody(context.Context, domain.Account, domain.Folder, string) (string, string, error) {
 	if f.fetchBodyErr != nil {
 		return "", "", f.fetchBodyErr
 	}
 	return f.bodyPlain, f.bodyHTML, nil
 }
 
-func (f *fakeMailSource) FetchRaw(context.Context, domain.Account, domain.Folder, uint32) ([]byte, error) {
+func (f *fakeMailSource) FetchRaw(context.Context, domain.Account, domain.Folder, string) ([]byte, error) {
 	if f.fetchRawErr != nil {
 		return nil, f.fetchRawErr
 	}
@@ -430,7 +430,7 @@ type fakeMailActions struct {
 	copyDestPaths    []string
 }
 
-func (f *fakeMailActions) SetSeen(_ context.Context, _ domain.Account, _ domain.Folder, _ uint32, seen bool) error {
+func (f *fakeMailActions) SetSeen(_ context.Context, _ domain.Account, _ domain.Folder, _ string, seen bool) error {
 	if f.setSeenErr != nil {
 		return f.setSeenErr
 	}
@@ -438,7 +438,7 @@ func (f *fakeMailActions) SetSeen(_ context.Context, _ domain.Account, _ domain.
 	return nil
 }
 
-func (f *fakeMailActions) Delete(_ context.Context, _ domain.Account, _ domain.Folder, _ uint32, trashPath string) error {
+func (f *fakeMailActions) Delete(_ context.Context, _ domain.Account, _ domain.Folder, _ string, trashPath string) error {
 	if f.deleteErr != nil {
 		return f.deleteErr
 	}
@@ -446,7 +446,7 @@ func (f *fakeMailActions) Delete(_ context.Context, _ domain.Account, _ domain.F
 	return nil
 }
 
-func (f *fakeMailActions) SetFlagged(_ context.Context, _ domain.Account, _ domain.Folder, _ uint32, flagged bool) error {
+func (f *fakeMailActions) SetFlagged(_ context.Context, _ domain.Account, _ domain.Folder, _ string, flagged bool) error {
 	if f.flaggedErr != nil {
 		return f.flaggedErr
 	}
@@ -454,7 +454,7 @@ func (f *fakeMailActions) SetFlagged(_ context.Context, _ domain.Account, _ doma
 	return nil
 }
 
-func (f *fakeMailActions) Move(_ context.Context, _ domain.Account, _ domain.Folder, _ uint32, destPath string) error {
+func (f *fakeMailActions) Move(_ context.Context, _ domain.Account, _ domain.Folder, _ string, destPath string) error {
 	if f.moveErr != nil {
 		return f.moveErr
 	}
@@ -462,7 +462,7 @@ func (f *fakeMailActions) Move(_ context.Context, _ domain.Account, _ domain.Fol
 	return nil
 }
 
-func (f *fakeMailActions) Copy(_ context.Context, _ domain.Account, _ domain.Folder, _ uint32, destPath string) error {
+func (f *fakeMailActions) Copy(_ context.Context, _ domain.Account, _ domain.Folder, _ string, destPath string) error {
 	if f.copyErr != nil {
 		return f.copyErr
 	}
@@ -644,7 +644,7 @@ func testFolder(t *testing.T, id, accountID, path string) domain.Folder {
 func testMessage(t *testing.T, id, folderID string) domain.MessageSummary {
 	t.Helper()
 	msg, err := domain.NewMessageSummary(domain.MessageSummaryInput{
-		ID: id, FolderID: folderID, UID: 1, Size: 10, Flags: domain.NewFlags(0),
+		ID: id, FolderID: folderID, UID: "1", Size: 10, Flags: domain.NewFlags(0),
 	})
 	if err != nil {
 		t.Fatalf("build message: %v", err)

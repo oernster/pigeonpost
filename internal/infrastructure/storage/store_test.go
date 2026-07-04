@@ -180,7 +180,7 @@ func buildMessage(t *testing.T, id string, when time.Time, withSender bool) doma
 		}
 	}
 	msg, err := domain.NewMessageSummary(domain.MessageSummaryInput{
-		ID: id, FolderID: "f1", UID: 1, MessageID: "<" + id + "@x>", From: from,
+		ID: id, FolderID: "f1", UID: "1", MessageID: "<" + id + "@x>", From: from,
 		Subject: "Subject " + id, Date: when, Size: 1024, Flags: domain.NewFlags(domain.FlagSeen),
 		HasAttachments: withSender, Snippet: "snippet " + id,
 	})
@@ -365,7 +365,7 @@ func TestGetMessageAndFolder(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get message: %v", err)
 	}
-	if gotMsg.FolderID() != "f1" || gotMsg.UID() != 1 {
+	if gotMsg.FolderID() != "f1" || gotMsg.UID() != "1" {
 		t.Errorf("message wrong: %+v", gotMsg)
 	}
 	gotFolder, err := store.GetFolder(ctx, "f1")
@@ -386,11 +386,11 @@ func TestSearchMessages(t *testing.T) {
 	ctx := context.Background()
 
 	quarterly, _ := domain.NewMessageSummary(domain.MessageSummaryInput{
-		ID: "m1", FolderID: "f1", UID: 1, Size: 10, Flags: domain.NewFlags(0),
+		ID: "m1", FolderID: "f1", UID: "1", Size: 10, Flags: domain.NewFlags(0),
 		Subject: "Quarterly report", Snippet: "the numbers are in",
 	})
 	lunch, _ := domain.NewMessageSummary(domain.MessageSummaryInput{
-		ID: "m2", FolderID: "f1", UID: 2, Size: 10, Flags: domain.NewFlags(0),
+		ID: "m2", FolderID: "f1", UID: "2", Size: 10, Flags: domain.NewFlags(0),
 		Subject: "Lunch plans", Snippet: "pizza on friday",
 	})
 	if err := store.SaveMessages(ctx, "f1", []domain.MessageSummary{quarterly, lunch}); err != nil {

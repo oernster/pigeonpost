@@ -63,24 +63,24 @@ type TagStore interface {
 type MailSource interface {
 	FetchFolders(ctx context.Context, account domain.Account) ([]domain.Folder, error)
 	FetchMessages(ctx context.Context, account domain.Account, folder domain.Folder) ([]domain.MessageSummary, error)
-	FetchBody(ctx context.Context, account domain.Account, folder domain.Folder, uid uint32) (plain, html string, err error)
-	// FetchRaw returns the full raw RFC822 bytes of a message by UID, used for export (.eml) and for
-	// attaching an existing message to a new one.
-	FetchRaw(ctx context.Context, account domain.Account, folder domain.Folder, uid uint32) ([]byte, error)
+	FetchBody(ctx context.Context, account domain.Account, folder domain.Folder, uid string) (plain, html string, err error)
+	// FetchRaw returns the full raw RFC822 bytes of a message by its opaque handle, used for export
+	// (.eml) and for attaching an existing message to a new one.
+	FetchRaw(ctx context.Context, account domain.Account, folder domain.Folder, uid string) ([]byte, error)
 }
 
 // MailActions performs write operations against a remote mailbox, such as changing message flags. It
 // is separate from MailSource so read paths cannot accidentally mutate the server.
 type MailActions interface {
-	SetSeen(ctx context.Context, account domain.Account, folder domain.Folder, uid uint32, seen bool) error
-	SetFlagged(ctx context.Context, account domain.Account, folder domain.Folder, uid uint32, flagged bool) error
-	// Delete removes a message by UID. A non-empty trashPath moves it to that mailbox; an empty
-	// trashPath deletes it permanently (mark \Deleted and expunge).
-	Delete(ctx context.Context, account domain.Account, folder domain.Folder, uid uint32, trashPath string) error
-	// Move relocates a message by UID from its folder to the destination mailbox.
-	Move(ctx context.Context, account domain.Account, folder domain.Folder, uid uint32, destPath string) error
-	// Copy duplicates a message by UID into the destination mailbox, leaving the original in place.
-	Copy(ctx context.Context, account domain.Account, folder domain.Folder, uid uint32, destPath string) error
+	SetSeen(ctx context.Context, account domain.Account, folder domain.Folder, uid string, seen bool) error
+	SetFlagged(ctx context.Context, account domain.Account, folder domain.Folder, uid string, flagged bool) error
+	// Delete removes a message by its opaque handle. A non-empty trashPath moves it to that mailbox; an
+	// empty trashPath deletes it permanently (mark \Deleted and expunge).
+	Delete(ctx context.Context, account domain.Account, folder domain.Folder, uid string, trashPath string) error
+	// Move relocates a message by its opaque handle from its folder to the destination mailbox.
+	Move(ctx context.Context, account domain.Account, folder domain.Folder, uid string, destPath string) error
+	// Copy duplicates a message by its opaque handle into the destination mailbox, leaving the original in place.
+	Copy(ctx context.Context, account domain.Account, folder domain.Folder, uid string, destPath string) error
 }
 
 // MailTransport sends an outgoing message via an account's outgoing (SMTP) server.

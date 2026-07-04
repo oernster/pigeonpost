@@ -16,7 +16,7 @@ func TestMakeIdentifiers(t *testing.T) {
 	if !strings.HasPrefix(fid, "a1") || !strings.Contains(fid, "INBOX/Work") {
 		t.Errorf("folder id = %q", fid)
 	}
-	mid := makeMessageID(fid, 42)
+	mid := makeMessageID(fid, "42")
 	if !strings.HasPrefix(mid, fid) || !strings.HasSuffix(mid, "42") {
 		t.Errorf("message id = %q", mid)
 	}
@@ -114,7 +114,7 @@ func TestBuildMessageWithEnvelope(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if msg.UID() != 77 || msg.Subject() != "Weekly update" || msg.Size() != 4096 {
+	if msg.UID() != "77" || msg.Subject() != "Weekly update" || msg.Size() != 4096 {
 		t.Errorf("unexpected message: %+v", msg)
 	}
 	if msg.From().Address() != "bob@example.com" {

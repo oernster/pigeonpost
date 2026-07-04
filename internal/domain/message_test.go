@@ -72,7 +72,7 @@ func validMessageInput() MessageSummaryInput {
 	return MessageSummaryInput{
 		ID:             "m1",
 		FolderID:       "f1",
-		UID:            42,
+		UID:            "42",
 		MessageID:      "<abc@example.com>",
 		From:           from,
 		To:             []EmailAddress{to},
@@ -97,8 +97,8 @@ func TestNewMessageSummary(t *testing.T) {
 	if m.FolderID() != "f1" {
 		t.Errorf("FolderID = %q", m.FolderID())
 	}
-	if m.UID() != 42 {
-		t.Errorf("UID = %d", m.UID())
+	if m.UID() != "42" {
+		t.Errorf("UID = %q", m.UID())
 	}
 	if m.MessageID() != "<abc@example.com>" {
 		t.Errorf("MessageID = %q", m.MessageID())
@@ -136,7 +136,7 @@ func TestNewMessageSummaryInvalid(t *testing.T) {
 	}{
 		"empty id":      {func(in *MessageSummaryInput) { in.ID = "  " }, ErrEmptyMessageID},
 		"empty folder":  {func(in *MessageSummaryInput) { in.FolderID = "  " }, ErrEmptyFolderID},
-		"zero uid":      {func(in *MessageSummaryInput) { in.UID = 0 }, ErrInvalidUID},
+		"empty uid":     {func(in *MessageSummaryInput) { in.UID = "  " }, ErrInvalidUID},
 		"negative size": {func(in *MessageSummaryInput) { in.Size = -1 }, ErrNegativeSize},
 	}
 	for name, tc := range cases {

@@ -54,7 +54,7 @@ func TestSyncAppliesRules(t *testing.T) {
 		t.Fatalf("address: %v", err)
 	}
 	msg, err := domain.NewMessageSummary(domain.MessageSummaryInput{
-		ID: "m9", FolderID: "f1", UID: 5, From: from, Subject: "Weekly", Size: 1, Flags: domain.NewFlags(0),
+		ID: "m9", FolderID: "f1", UID: "5", From: from, Subject: "Weekly", Size: 1, Flags: domain.NewFlags(0),
 	})
 	if err != nil {
 		t.Fatalf("message: %v", err)
@@ -159,7 +159,7 @@ func TestSyncFolderAppliesRules(t *testing.T) {
 		t.Fatalf("address: %v", err)
 	}
 	msg, err := domain.NewMessageSummary(domain.MessageSummaryInput{
-		ID: "m9", FolderID: "f1", UID: 5, From: from, Subject: "Weekly", Size: 1, Flags: domain.NewFlags(0),
+		ID: "m9", FolderID: "f1", UID: "5", From: from, Subject: "Weekly", Size: 1, Flags: domain.NewFlags(0),
 	})
 	if err != nil {
 		t.Fatalf("message: %v", err)

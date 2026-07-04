@@ -68,9 +68,9 @@ const rawMessageInsert = `INSERT INTO message
 
 func TestListMessagesRebuildErrors(t *testing.T) {
 	ctx := context.Background()
-	t.Run("zero uid", func(t *testing.T) {
+	t.Run("empty uid", func(t *testing.T) {
 		store := openRawStore(t)
-		if _, err := store.db.ExecContext(ctx, rawMessageInsert, "m", "f", 0, "", "", "", "s", 0, 10, 0, 0, ""); err != nil {
+		if _, err := store.db.ExecContext(ctx, rawMessageInsert, "m", "f", "", "", "", "", "s", 0, 10, 0, 0, ""); err != nil {
 			t.Fatalf("insert: %v", err)
 		}
 		if _, err := store.ListMessages(ctx, "f"); err == nil {

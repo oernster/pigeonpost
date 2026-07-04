@@ -175,7 +175,7 @@ func TestMessageRawMessage(t *testing.T) {
 	accounts.accounts["a1"] = testAccount(t, "a1")
 	store.folders["a1"] = []domain.Folder{testFolder(t, "f1", "a1", "INBOX")}
 	withSubject, err := domain.NewMessageSummary(domain.MessageSummaryInput{
-		ID: "m1", FolderID: "f1", UID: 1, Size: 10, Flags: domain.NewFlags(0), Subject: "Report",
+		ID: "m1", FolderID: "f1", UID: "1", Size: 10, Flags: domain.NewFlags(0), Subject: "Report",
 	})
 	if err != nil {
 		t.Fatalf("build message: %v", err)

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/emersion/go-imap/v2"
@@ -45,8 +46,8 @@ func makeFolderID(accountID, mailbox string) string {
 	return accountID + folderIDSeparator + mailbox
 }
 
-func makeMessageID(folderID string, uid uint32) string {
-	return fmt.Sprintf("%s%s%d", folderID, folderIDSeparator, uid)
+func makeMessageID(folderID, uid string) string {
+	return fmt.Sprintf("%s%s%s", folderID, folderIDSeparator, uid)
 }
 
 // folderKindByLeafName classifies well-known mailboxes by their leaf name, for servers that do not
@@ -168,7 +169,7 @@ func allAddresses(addrs []imap.Address) []domain.EmailAddress {
 
 // buildMessage maps a FETCH buffer into a domain message summary.
 func buildMessage(folderID string, buf *imapclient.FetchMessageBuffer) (domain.MessageSummary, error) {
-	uid := uint32(buf.UID)
+	uid := strconv.FormatUint(uint64(buf.UID), 10)
 	in := domain.MessageSummaryInput{
 		ID:       makeMessageID(folderID, uid),
 		FolderID: folderID,

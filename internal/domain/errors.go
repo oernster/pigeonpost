@@ -16,7 +16,7 @@ var (
 	ErrNegativeCount       = errors.New("count cannot be negative")
 	ErrUnreadExceedsTotal  = errors.New("unread count cannot exceed total count")
 	ErrEmptyMessageID      = errors.New("message id is empty")
-	ErrInvalidUID          = errors.New("message uid must be positive")
+	ErrInvalidUID          = errors.New("message uid must not be empty")
 	ErrNegativeSize        = errors.New("message size cannot be negative")
 	ErrEmptyTagID          = errors.New("tag id is empty")
 	ErrEmptyTagName        = errors.New("tag name is empty")
