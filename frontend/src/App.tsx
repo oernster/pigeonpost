@@ -1082,6 +1082,21 @@ function App() {
             if (isText) {
                 return
             }
+            // On launch focus rests on the offscreen neutral anchor, which is outside the tab ring, so the
+            // browser has no in-ring starting point and native Tab stalls. When focus is outside the ring,
+            // route Tab into it so the first Tab reaches the first tray control (Shift+Tab the last). Once
+            // focus is on a real control, native Tab is left to move between elements as usual.
+            if (e.key === 'Tab') {
+                if (overlayOpen) {
+                    return
+                }
+                const ring = focusRingElements(focusRingRoot())
+                if (ring.length > 0 && ring.indexOf(document.activeElement as HTMLElement) === -1) {
+                    e.preventDefault()
+                    stepFocusRing(e.shiftKey ? -1 : 1)
+                }
+                return
+            }
             // Right/Left step the focus ring, mirroring Tab/Shift+Tab across the main window. Non-dialog
             // overlays (context menu, splash) have nothing to navigate, so it stays disabled for them.
             if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
