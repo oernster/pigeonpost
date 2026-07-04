@@ -209,6 +209,14 @@ function App() {
     // user has not navigated away since it started.
     const selectedFolderRef = useRef<string>('')
 
+    // A neutral, offscreen focus anchor. It takes focus once on launch so nothing is highlighted, yet
+    // the very first Tab has a starting point and moves to the first control in the title tray. Without
+    // it the WebView starts with focus on no element and the first Tab does nothing.
+    const neutralFocusRef = useRef<HTMLSpanElement>(null)
+    useEffect(() => {
+        neutralFocusRef.current?.focus()
+    }, [])
+
     const searchActive = searchQuery.trim() !== ''
     const [appVersion, setAppVersion] = useState<string>('')
     const [appAuthor, setAppAuthor] = useState<string>('')
@@ -1139,6 +1147,12 @@ function App() {
 
     return (
         <div className="app">
+            <span
+                ref={neutralFocusRef}
+                tabIndex={-1}
+                aria-hidden="true"
+                style={{position: 'absolute', width: 0, height: 0, overflow: 'hidden', outline: 'none'}}
+            />
             {splashVisible && <Splash version={appVersion} author={appAuthor} fading={splashFading}/>}
             <header className="titlebar">
                 <span className="brand">

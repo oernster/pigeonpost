@@ -631,19 +631,16 @@
     gap: 8px;
 }
 
+/* Icon buttons (reading-pane and theme toggles) share the same box as the text buttons beside them, so
+   they match in size and their glyph sits on an elevated background in the readable text colour. */
 .icon-btn {
-    background: transparent;
-    border: 1px solid transparent;
+    background-color: var(--bg-elev-2);
+    color: var(--text);
+    border: 1px solid var(--border);
     border-radius: 6px;
-    padding: 4px 8px;
-    font-size: 15px;
-    line-height: 1;
+    padding: 6px 12px;
+    font-size: 14px;
     cursor: pointer;
-}
-
-/* The theme (light/dark) toggle carries a visible border by default, so the emoji reads as a button. */
-.icon-btn.theme-toggle {
-    border-color: var(--border);
 }
 
 /* Immediate hover and focus tooltip for icon and emoji buttons, so their action is discoverable

@@ -43,7 +43,7 @@ export function MenuBar(props: MenuBarProps) {
                 aria-pressed={props.previewEnabled}
                 onClick={props.onTogglePreview}
             >
-                {props.previewEnabled ? '◫' : '▯'}
+                {props.previewEnabled ? '◫\u{FE0E}' : '▯\u{FE0E}'}
             </button>
             <button
                 className="icon-btn theme-toggle"
