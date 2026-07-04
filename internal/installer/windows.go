@@ -3,20 +3,60 @@
 package installer
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"syscall"
+	"unsafe"
 
 	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/registry"
 )
 
+// ErrAppRunning indicates PigeonPost is running, so an install or uninstall that would overwrite or
+// remove the running executable must not proceed until the user closes it.
+var ErrAppRunning = errors.New("PigeonPost is running. Please close it and try again.")
+
 // hiddenProcess hides the console window of a child process so that shelling out to PowerShell or
 // cmd during install and uninstall does not flash a terminal at the user.
 func hiddenProcess() *syscall.SysProcAttr {
 	return &syscall.SysProcAttr{HideWindow: true, CreationFlags: windows.CREATE_NO_WINDOW}
+}
+
+// IsAppRunning reports whether a PigeonPost.exe process is currently running, so an install or
+// uninstall can refuse to overwrite or remove the executable while it is in use rather than silently
+// corrupting a running instance.
+func IsAppRunning() bool {
+	return isProcessRunning(ExeName)
+}
+
+// isProcessRunning reports whether any running process has the given executable name, matched
+// case-insensitively. Any failure taking or walking the process snapshot is treated as "not running",
+// so a snapshot error never blocks a legitimate install or uninstall.
+func isProcessRunning(exeName string) bool {
+	snapshot, err := windows.CreateToolhelp32Snapshot(windows.TH32CS_SNAPPROCESS, 0)
+	if err != nil {
+		return false
+	}
+	defer windows.CloseHandle(snapshot)
+
+	var entry windows.ProcessEntry32
+	entry.Size = uint32(unsafe.Sizeof(entry))
+	if err := windows.Process32First(snapshot, &entry); err != nil {
+		return false
+	}
+	target := strings.ToLower(exeName)
+	for {
+		if strings.ToLower(windows.UTF16ToString(entry.ExeFile[:])) == target {
+			return true
+		}
+		if err := windows.Process32Next(snapshot, &entry); err != nil {
+			return false
+		}
+	}
 }
 
 const (

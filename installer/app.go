@@ -77,6 +77,11 @@ func (a *App) Repair() error {
 }
 
 func (a *App) installInto(launchOnBoot bool) error {
+	// Refuse to overwrite a running instance: extracting over a locked PigeonPost.exe would fail
+	// mid-way and leave a half-written install, so ask the user to close it first.
+	if installer.IsAppRunning() {
+		return installer.ErrAppRunning
+	}
 	dir, err := installer.InstallDir()
 	if err != nil {
 		return err
@@ -132,6 +137,11 @@ func (a *App) SetLaunchOnBoot(enabled bool) error {
 // Uninstall removes shortcuts, the login entry, the registry record and the installed files,
 // optionally deleting the user's mail data as well.
 func (a *App) Uninstall(removeData bool) error {
+	// Refuse to remove a running instance: the scheduled directory deletion cannot remove a locked
+	// PigeonPost.exe, so ask the user to close it first.
+	if installer.IsAppRunning() {
+		return installer.ErrAppRunning
+	}
 	dir, err := installer.InstallDir()
 	if err != nil {
 		return err
