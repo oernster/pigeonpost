@@ -1504,8 +1504,11 @@
     padding: 2px;
 }
 
-.tag-name-input::-webkit-calendar-picker-indicator:hover {
+.tag-name-input::-webkit-calendar-picker-indicator:hover,
+.tag-name-input::-webkit-calendar-picker-indicator:focus,
+.tag-name-input::-webkit-calendar-picker-indicator:focus-visible {
     background-color: var(--ring);
+    outline: none;
 }
 
 .tag-palette {
