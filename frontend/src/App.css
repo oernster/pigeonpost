@@ -584,10 +584,34 @@
     max-width: 100%;
 }
 
+/* Message HTML has its CSS stripped by the sanitiser, so headings would otherwise fall back to the
+   browser's default sizes and render huge. Cap them to the reader's own scale. */
 .reader-html h1,
 .reader-html h2,
-.reader-html h3 {
+.reader-html h3,
+.reader-html h4,
+.reader-html h5,
+.reader-html h6 {
     margin: 6px 0 10px;
+    line-height: 1.3;
+}
+
+.reader-html h1 {
+    font-size: 22px;
+}
+
+.reader-html h2 {
+    font-size: 19px;
+}
+
+.reader-html h3 {
+    font-size: 16px;
+}
+
+.reader-html h4,
+.reader-html h5,
+.reader-html h6 {
+    font-size: 14px;
 }
 
 .reader-html pre {

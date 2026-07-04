@@ -88,6 +88,32 @@ func TestParseBodySanitizesHTML(t *testing.T) {
 	}
 }
 
+func TestParseBodyRemovesHiddenPreheader(t *testing.T) {
+	raw := "MIME-Version: 1.0\r\n" +
+		"Content-Type: text/html; charset=utf-8\r\n" +
+		"\r\n" +
+		`<div style="display:none;font-size:0;max-height:0;">Hidden preheader duplicate</div>` +
+		`<span style="opacity:0 !important">Zero opacity teaser</span>` +
+		`<span hidden>Hidden attribute snippet</span>` +
+		`<h1 style="opacity:0.9">Visible headline</h1>` +
+		`<p style="font-size:0.9em">Visible body text</p>` + "\r\n"
+
+	_, html, err := ParseBody([]byte(raw))
+	if err != nil {
+		t.Fatalf("ParseBody: %v", err)
+	}
+	for _, gone := range []string{"Hidden preheader duplicate", "Zero opacity teaser", "Hidden attribute snippet"} {
+		if strings.Contains(html, gone) {
+			t.Errorf("sender-hidden node should be removed, still present %q: %s", gone, html)
+		}
+	}
+	for _, kept := range []string{"Visible headline", "Visible body text"} {
+		if !strings.Contains(html, kept) {
+			t.Errorf("visible content should survive, missing %q: %s", kept, html)
+		}
+	}
+}
+
 func TestParseBodyBlocksRemoteImages(t *testing.T) {
 	raw := "MIME-Version: 1.0\r\n" +
 		"Content-Type: text/html; charset=utf-8\r\n" +

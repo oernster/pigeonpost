@@ -71,7 +71,7 @@ func ParseBody(raw []byte) (plain, htmlBody string, err error) {
 	plain = plainBuf.String()
 	htmlBody = htmlBuf.String()
 	if htmlBody != "" {
-		htmlBody = htmlSanitizer.Sanitize(blockRemoteImages(htmlBody))
+		htmlBody = htmlSanitizer.Sanitize(prepareHTML(htmlBody))
 	}
 	if strings.TrimSpace(plain) == "" && htmlBody != "" {
 		plain = htmlToText(htmlBody)
@@ -79,12 +79,17 @@ func ParseBody(raw []byte) (plain, htmlBody string, err error) {
 	return plain, htmlBody, nil
 }
 
-// blockRemoteImages rewrites every <img src> to a data attribute so remote images do not load
-// automatically. Auto-loading a remote image leaks that the reader opened the message (and their IP)
-// to the sender, so the source is parked until the reader explicitly asks to load images. srcset is
-// dropped for the same reason. On a parse or render failure the original HTML is returned unchanged;
-// the sanitizer still runs over it afterwards.
-func blockRemoteImages(source string) string {
+// prepareHTML walks the parsed message HTML before sanitising to do two things the sanitiser cannot.
+// First it removes nodes the sender deliberately hid with inline CSS (a preheader / preview-text block,
+// the snippet a mail client shows in the message list). Those nodes are meant to stay invisible, but
+// the sanitiser strips the style attribute that hides them, so left in place they would surface and
+// duplicate the visible content; they are dropped here while their hiding style is still readable.
+// Second it rewrites every <img src> to a data attribute so remote images do not load automatically:
+// auto-loading a remote image leaks that the reader opened the message (and their IP) to the sender, so
+// the source is parked until the reader explicitly asks to load images, and srcset is dropped for the
+// same reason. On a parse or render failure the original HTML is returned unchanged; the sanitizer
+// still runs over it afterwards.
+func prepareHTML(source string) string {
 	doc, err := html.Parse(strings.NewReader(source))
 	if err != nil {
 		return source
@@ -94,7 +99,13 @@ func blockRemoteImages(source string) string {
 		if n.Type == html.ElementNode && n.Data == "img" {
 			parkImageSource(n)
 		}
-		for c := n.FirstChild; c != nil; c = c.NextSibling {
+		var next *html.Node
+		for c := n.FirstChild; c != nil; c = next {
+			next = c.NextSibling
+			if c.Type == html.ElementNode && isHiddenBySender(c) {
+				n.RemoveChild(c)
+				continue
+			}
 			walk(c)
 		}
 	}
@@ -104,6 +115,27 @@ func blockRemoteImages(source string) string {
 		return source
 	}
 	return b.String()
+}
+
+// hiddenStyleRe matches the inline CSS senders use to hide preheader / preview text: an off display, an
+// invisible or zero-opacity box, a collapsed height, or a zero or 1px font. Numeric values are anchored
+// to a declaration terminator (optionally through !important) so a visible opacity:0.9 or
+// font-size:0.5em is not caught.
+var hiddenStyleRe = regexp.MustCompile(`(?i)(?:display\s*:\s*none|visibility\s*:\s*hidden|mso-hide\s*:\s*all|opacity\s*:\s*0(?:\.0+)?(?:\s*!important)?\s*(?:;|$)|max-height\s*:\s*0(?:px)?(?:\s*!important)?\s*(?:;|$)|font-size\s*:\s*(?:0(?:px|pt|em|rem)?|1px)(?:\s*!important)?\s*(?:;|$))`)
+
+// isHiddenBySender reports whether an element is one the sender hid from view, via the HTML hidden
+// attribute or an inline style that makes it invisible. Such elements are preheader / preview text that
+// must not surface once the sanitiser removes the style that hides them.
+func isHiddenBySender(n *html.Node) bool {
+	for _, attr := range n.Attr {
+		switch {
+		case strings.EqualFold(attr.Key, "hidden"):
+			return true
+		case strings.EqualFold(attr.Key, "style") && hiddenStyleRe.MatchString(attr.Val):
+			return true
+		}
+	}
+	return false
 }
 
 // parkImageSource renames an image's src attribute to the blocked-image data attribute and drops
