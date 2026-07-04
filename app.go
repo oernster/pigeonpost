@@ -6,11 +6,19 @@ import (
 	"github.com/oernster/pigeonpost/internal/application"
 )
 
+// UnreadNotifier reflects the total unread count onto an out-of-window surface, namely the Windows
+// taskbar overlay badge. It is injected so the facade stays decoupled from the OS-specific
+// implementation; on platforms without a taskbar badge it is a no-op.
+type UnreadNotifier interface {
+	SetUnread(total int)
+}
+
 // App is the Wails facade: the single boundary the React front end talks to. It holds no business
 // logic, delegating every call to an application use case and mapping domain results to DTOs.
 type App struct {
 	ctx      context.Context
 	closer   func() error
+	notifier UnreadNotifier
 	accounts *application.AccountService
 	setup    *application.AccountSetupService
 	mailbox  *application.MailboxService
@@ -26,6 +34,7 @@ type App struct {
 // NewApp constructs the facade with its injected use-case services and a closer for shutdown.
 func NewApp(
 	closer func() error,
+	notifier UnreadNotifier,
 	accounts *application.AccountService,
 	setup *application.AccountSetupService,
 	mailbox *application.MailboxService,
@@ -39,6 +48,7 @@ func NewApp(
 ) *App {
 	return &App{
 		closer:   closer,
+		notifier: notifier,
 		accounts: accounts,
 		setup:    setup,
 		mailbox:  mailbox,
@@ -97,6 +107,12 @@ func (a *App) UnreadCounts() (UnreadCountsDTO, error) {
 	byAccount := totals.ByAccount
 	if byAccount == nil {
 		byAccount = map[string]int{}
+	}
+	// This is the single derived-total choke point the front end refreshes after every read-state
+	// change, so reflecting the total onto the taskbar badge here keeps the badge correct without a
+	// separate trigger at each call site.
+	if a.notifier != nil {
+		a.notifier.SetUnread(totals.Total)
 	}
 	return UnreadCountsDTO{Total: totals.Total, ByAccount: byAccount}, nil
 }

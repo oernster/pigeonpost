@@ -62,10 +62,6 @@ export function ListFolders(arg1) {
   return window['go']['main']['App']['ListFolders'](arg1);
 }
 
-export function UnreadCounts() {
-  return window['go']['main']['App']['UnreadCounts']();
-}
-
 export function ListMessages(arg1) {
   return window['go']['main']['App']['ListMessages'](arg1);
 }
@@ -160,6 +156,10 @@ export function SyncAccount(arg1) {
 
 export function SyncFolder(arg1) {
   return window['go']['main']['App']['SyncFolder'](arg1);
+}
+
+export function UnreadCounts() {
+  return window['go']['main']['App']['UnreadCounts']();
 }
 
 export function UpdateAccount(arg1) {

@@ -19,6 +19,7 @@ import (
 	"github.com/oernster/pigeonpost/internal/infrastructure/pop3"
 	"github.com/oernster/pigeonpost/internal/infrastructure/smtp"
 	"github.com/oernster/pigeonpost/internal/infrastructure/storage"
+	"github.com/oernster/pigeonpost/internal/infrastructure/taskbar"
 )
 
 //go:embed all:frontend/dist
@@ -80,10 +81,16 @@ func run() error {
 	folderService := application.NewFolderService(store, store, imapSource, imapSource)
 	ruleService := application.NewRuleService(store, newRuleID)
 
-	app := NewApp(store.Close, accountService, setupService, mailboxService, syncService, composeService, tagService, bodyService, actionService, folderService, ruleService)
+	// The taskbar overlay badge reflects the total unread count. It finds the main window by its title,
+	// so it is given the same title the Wails window uses below.
+	windowTitle := appName + " " + version()
+	overlay := taskbar.NewOverlay(windowTitle)
+	overlay.Start()
+
+	app := NewApp(store.Close, overlay, accountService, setupService, mailboxService, syncService, composeService, tagService, bodyService, actionService, folderService, ruleService)
 
 	err = wails.Run(&options.App{
-		Title:            appName + " " + version(),
+		Title:            windowTitle,
 		Width:            windowW,
 		Height:           windowH,
 		AssetServer:      &assetserver.Options{Assets: assets},
