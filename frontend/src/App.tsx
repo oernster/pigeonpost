@@ -1,7 +1,7 @@
 import {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from 'react'
 import './App.css'
 import brandIcon from './assets/pigeonpost.png'
-import {AboutInfo, Account, api, Folder, Message, MessageBody, OutboxItem, Rule, Tag, UnreadCountsResult} from './api'
+import {AboutInfo, Account, api, Contact, Folder, Message, MessageBody, OutboxItem, Rule, Tag, UnreadCountsResult} from './api'
 import {OUTBOX_FOLDER_ID, isOutboxMessage, outboxItemToMessage} from './outbox'
 import {applyTheme, loadTheme, Theme} from './theme'
 import {TAG_PALETTE, colourTagId} from './tagColours'
@@ -17,6 +17,7 @@ import {AccountSetupModal} from './components/AccountSetupModal'
 import {ConfirmDialog} from './components/ConfirmDialog'
 import {PromptDialog} from './components/PromptDialog'
 import {RuleManagerModal} from './components/RuleManagerModal'
+import {ContactsModal} from './components/ContactsModal'
 import {Splash} from './components/Splash'
 
 // focusRingRoot is the container the ring is scoped to: the topmost open modal when one is showing (so
@@ -185,6 +186,8 @@ function App() {
     const [messageTags, setMessageTags] = useState<Tag[]>([])
     const [rules, setRules] = useState<Rule[]>([])
     const [managingRules, setManagingRules] = useState<boolean>(false)
+    const [contacts, setContacts] = useState<Contact[]>([])
+    const [managingContacts, setManagingContacts] = useState<boolean>(false)
     const [messageBody, setMessageBody] = useState<MessageBody | null>(null)
     const [bodyLoading, setBodyLoading] = useState<boolean>(false)
     const [searchQuery, setSearchQuery] = useState<string>('')
@@ -267,6 +270,18 @@ function App() {
     useEffect(() => {
         void loadRules()
     }, [loadRules])
+
+    const loadContacts = useCallback(async () => {
+        try {
+            setContacts(await api.listContacts())
+        } catch (e) {
+            setError(String(e))
+        }
+    }, [])
+
+    useEffect(() => {
+        void loadContacts()
+    }, [loadContacts])
 
     // loadUnread refreshes the per-account and cross-account unread counts from the local cache. It is
     // called after anything that can change read state (sync, mark read/unread, delete, opening a
@@ -1026,7 +1041,7 @@ function App() {
     useEffect(() => {
         const overlayOpen =
             splashVisible || composing || settingUp || Boolean(accountToEdit) ||
-            managingRules || Boolean(about) || Boolean(licence) || Boolean(folderPrompt) ||
+            managingRules || managingContacts || Boolean(about) || Boolean(licence) || Boolean(folderPrompt) ||
             Boolean(messageToCancelSend) ||
             Boolean(messageToDelete) || Boolean(accountToDelete) || Boolean(folderToDelete) ||
             Boolean(messageToPurge) || Boolean(contextMenu)
@@ -1096,7 +1111,7 @@ function App() {
         return () => window.removeEventListener('keydown', onKeyDown)
     }, [
         searchActive, searchResults, messages, selectedMessage, requestDelete,
-        splashVisible, composing, settingUp, accountToEdit, managingRules, about,
+        splashVisible, composing, settingUp, accountToEdit, managingRules, managingContacts, about,
         licence, folderPrompt, messageToDelete, accountToDelete, folderToDelete, messageToPurge,
         contextMenu, messageToCancelSend,
     ])
@@ -1203,6 +1218,9 @@ function App() {
                     <button className="sync-btn" onClick={() => setManagingRules(true)}>
                         Rules
                     </button>
+                    <button className="sync-btn" onClick={() => setManagingContacts(true)}>
+                        Contacts
+                    </button>
                     <span className="titlebar-sep" aria-hidden="true"/>
                     <button
                         className="icon-btn theme-toggle"
@@ -1282,6 +1300,13 @@ function App() {
                     account={accountToEdit}
                     onClose={() => setAccountToEdit(null)}
                     onSaved={(email) => void onAccountSaved(email)}
+                />
+            )}
+            {managingContacts && (
+                <ContactsModal
+                    contacts={contacts}
+                    onChanged={() => void loadContacts()}
+                    onClose={() => setManagingContacts(false)}
                 />
             )}
             {managingRules && (

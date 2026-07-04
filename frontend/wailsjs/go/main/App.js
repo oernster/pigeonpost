@@ -26,6 +26,14 @@ export function CreateFolder(arg1, arg2) {
   return window['go']['main']['App']['CreateFolder'](arg1, arg2);
 }
 
+export function DeleteContact(arg1) {
+  return window['go']['main']['App']['DeleteContact'](arg1);
+}
+
+export function DeleteContactGroup(arg1) {
+  return window['go']['main']['App']['DeleteContactGroup'](arg1);
+}
+
 export function DeleteFolder(arg1) {
   return window['go']['main']['App']['DeleteFolder'](arg1);
 }
@@ -46,8 +54,20 @@ export function DeleteTag(arg1) {
   return window['go']['main']['App']['DeleteTag'](arg1);
 }
 
+export function ExportContactsToFile(arg1) {
+  return window['go']['main']['App']['ExportContactsToFile'](arg1);
+}
+
+export function GetContact(arg1) {
+  return window['go']['main']['App']['GetContact'](arg1);
+}
+
 export function GetMessageBody(arg1) {
   return window['go']['main']['App']['GetMessageBody'](arg1);
+}
+
+export function ImportContactsFromFile() {
+  return window['go']['main']['App']['ImportContactsFromFile']();
 }
 
 export function LicenceText() {
@@ -56,6 +76,14 @@ export function LicenceText() {
 
 export function ListAccounts() {
   return window['go']['main']['App']['ListAccounts']();
+}
+
+export function ListContactGroups() {
+  return window['go']['main']['App']['ListContactGroups']();
+}
+
+export function ListContacts() {
+  return window['go']['main']['App']['ListContacts']();
 }
 
 export function ListFolders(arg1) {
@@ -120,6 +148,14 @@ export function RenameFolder(arg1, arg2) {
 
 export function ReplayOutbox() {
   return window['go']['main']['App']['ReplayOutbox']();
+}
+
+export function SaveContact(arg1) {
+  return window['go']['main']['App']['SaveContact'](arg1);
+}
+
+export function SaveContactGroup(arg1) {
+  return window['go']['main']['App']['SaveContactGroup'](arg1);
 }
 
 export function SaveDraft(arg1) {

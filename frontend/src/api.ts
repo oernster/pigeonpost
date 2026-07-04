@@ -18,9 +18,18 @@ import {
     MessageTags,
     CopyMessage,
     CreateFolder,
+    DeleteContact,
+    DeleteContactGroup,
     DeleteFolder,
     DeleteRule,
+    ExportContactsToFile,
+    GetContact,
+    ImportContactsFromFile,
+    ListContactGroups,
+    ListContacts,
     ListRules,
+    SaveContact,
+    SaveContactGroup,
     MoveMessage,
     RenameFolder,
     SaveRule,
@@ -58,6 +67,37 @@ export type Rule = main.RuleDTO
 export type MessageBody = main.MessageBodyDTO
 export type OutboxItem = main.OutboxItemDTO
 export type UnreadCountsResult = main.UnreadCountsDTO
+export type Contact = main.ContactDTO
+export type ContactGroup = main.ContactGroupDTO
+
+export interface ContactEmailInput {
+    label: string
+    address: string
+}
+
+export interface ContactPhoneInput {
+    label: string
+    number: string
+}
+
+export interface ContactInput {
+    id: string
+    uid: string
+    formattedName: string
+    givenName: string
+    familyName: string
+    organization: string
+    title: string
+    note: string
+    emails: ContactEmailInput[]
+    phones: ContactPhoneInput[]
+}
+
+export interface ContactGroupInput {
+    id: string
+    name: string
+    members: string[]
+}
 
 export interface RuleInput {
     id: string
@@ -144,4 +184,14 @@ export const api = {
     cancelOutboxItem: (id: string): Promise<void> => CancelOutboxItem(id),
     pickAttachments: (): Promise<string[]> => PickAttachments(),
     replayOutbox: (): Promise<number> => ReplayOutbox(),
+    listContacts: (): Promise<Contact[]> => ListContacts(),
+    getContact: (id: string): Promise<Contact> => GetContact(id),
+    saveContact: (req: ContactInput): Promise<void> => SaveContact(main.ContactRequest.createFrom(req)),
+    deleteContact: (id: string): Promise<void> => DeleteContact(id),
+    listContactGroups: (): Promise<ContactGroup[]> => ListContactGroups(),
+    saveContactGroup: (req: ContactGroupInput): Promise<void> =>
+        SaveContactGroup(main.ContactGroupRequest.createFrom(req)),
+    deleteContactGroup: (id: string): Promise<void> => DeleteContactGroup(id),
+    importContactsFromFile: (): Promise<number> => ImportContactsFromFile(),
+    exportContactsToFile: (format: string): Promise<boolean> => ExportContactsToFile(format),
 }

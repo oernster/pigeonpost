@@ -14,6 +14,10 @@ export function CopyMessage(arg1:string,arg2:string):Promise<void>;
 
 export function CreateFolder(arg1:string,arg2:string):Promise<void>;
 
+export function DeleteContact(arg1:string):Promise<void>;
+
+export function DeleteContactGroup(arg1:string):Promise<void>;
+
 export function DeleteFolder(arg1:string):Promise<void>;
 
 export function DeleteMessage(arg1:string):Promise<void>;
@@ -24,11 +28,21 @@ export function DeleteRule(arg1:string):Promise<void>;
 
 export function DeleteTag(arg1:string):Promise<void>;
 
+export function ExportContactsToFile(arg1:string):Promise<boolean>;
+
+export function GetContact(arg1:string):Promise<main.ContactDTO>;
+
 export function GetMessageBody(arg1:string):Promise<main.MessageBodyDTO>;
+
+export function ImportContactsFromFile():Promise<number>;
 
 export function LicenceText():Promise<string>;
 
 export function ListAccounts():Promise<Array<main.AccountDTO>>;
+
+export function ListContactGroups():Promise<Array<main.ContactGroupDTO>>;
+
+export function ListContacts():Promise<Array<main.ContactDTO>>;
 
 export function ListFolders(arg1:string):Promise<Array<main.FolderDTO>>;
 
@@ -61,6 +75,10 @@ export function RemoveAccount(arg1:string):Promise<void>;
 export function RenameFolder(arg1:string,arg2:string):Promise<void>;
 
 export function ReplayOutbox():Promise<number>;
+
+export function SaveContact(arg1:main.ContactRequest):Promise<void>;
+
+export function SaveContactGroup(arg1:main.ContactGroupRequest):Promise<void>;
 
 export function SaveDraft(arg1:main.ComposeRequest):Promise<void>;
 

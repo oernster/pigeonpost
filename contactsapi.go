@@ -2,6 +2,11 @@ package main
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+
+	"github.com/wailsapp/wails/v2/pkg/runtime"
 
 	"github.com/oernster/pigeonpost/internal/application"
 	"github.com/oernster/pigeonpost/internal/domain"
@@ -133,28 +138,79 @@ func (a *App) DeleteContactGroup(id string) error {
 	return a.contacts.DeleteGroup(a.ctx, id)
 }
 
-// ImportContacts decodes the given file content in the named format ("vcard" or "csv") and saves the
-// contacts, returning the number imported.
-func (a *App) ImportContacts(format, content string) (int, error) {
-	codec, err := contactCodec(format)
+// ImportContactsFromFile opens a native file dialog, reads the chosen vCard or CSV file (the format is
+// taken from its extension) and imports the contacts, returning the number imported. A cancelled dialog
+// is a no-op returning zero.
+func (a *App) ImportContactsFromFile() (int, error) {
+	path, err := runtime.OpenFileDialog(a.ctx, runtime.OpenDialogOptions{
+		Title: "Import contacts",
+		Filters: []runtime.FileFilter{
+			{DisplayName: "Contacts (*.vcf;*.csv)", Pattern: "*.vcf;*.csv"},
+			{DisplayName: "vCard (*.vcf)", Pattern: "*.vcf"},
+			{DisplayName: "CSV (*.csv)", Pattern: "*.csv"},
+		},
+	})
+	if err != nil {
+		return 0, fmt.Errorf("import contacts dialog: %w", err)
+	}
+	if path == "" {
+		return 0, nil
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return 0, fmt.Errorf("read contacts file %q: %w", path, err)
+	}
+	codec, err := contactCodec(formatFromPath(path))
 	if err != nil {
 		return 0, err
 	}
-	return a.contacts.ImportContacts(a.ctx, codec, []byte(content))
+	return a.contacts.ImportContacts(a.ctx, codec, data)
 }
 
-// ExportContacts encodes every contact in the named format ("vcard" or "csv") and returns the file
-// content.
-func (a *App) ExportContacts(format string) (string, error) {
+// ExportContactsToFile encodes every contact in the named format ("vcard" or "csv") and writes it to a
+// file the user chooses through a native save dialog. It returns true when a file was written and false
+// when the dialog was cancelled.
+func (a *App) ExportContactsToFile(format string) (bool, error) {
 	codec, err := contactCodec(format)
 	if err != nil {
-		return "", err
+		return false, err
 	}
 	data, err := a.contacts.ExportContacts(a.ctx, codec)
 	if err != nil {
-		return "", err
+		return false, err
 	}
-	return string(data), nil
+	ext := extForFormat(format)
+	path, err := runtime.SaveFileDialog(a.ctx, runtime.SaveDialogOptions{
+		DefaultFilename: "contacts." + ext,
+		Title:           "Export contacts",
+		Filters:         []runtime.FileFilter{{DisplayName: strings.ToUpper(format) + " (*." + ext + ")", Pattern: "*." + ext}},
+	})
+	if err != nil {
+		return false, fmt.Errorf("export contacts dialog: %w", err)
+	}
+	if path == "" {
+		return false, nil
+	}
+	if err := os.WriteFile(path, data, messageFileMode); err != nil {
+		return false, fmt.Errorf("write contacts file %q: %w", path, err)
+	}
+	return true, nil
+}
+
+// formatFromPath picks the codec format from a file extension, defaulting to vCard.
+func formatFromPath(path string) string {
+	if strings.EqualFold(filepath.Ext(path), ".csv") {
+		return "csv"
+	}
+	return "vcard"
+}
+
+// extForFormat returns the file extension for a codec format.
+func extForFormat(format string) string {
+	if format == "csv" {
+		return "csv"
+	}
+	return "vcf"
 }
 
 // contactCodec selects the import/export codec for a format token.
