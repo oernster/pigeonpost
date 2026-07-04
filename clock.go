@@ -26,3 +26,8 @@ func newOutboxID() string {
 func newRuleID() string {
 	return uuid.NewString()
 }
+
+// newContactID produces a unique identifier for a contact or group created in the app.
+func newContactID() string {
+	return uuid.NewString()
+}
