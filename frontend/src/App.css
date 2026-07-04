@@ -1830,12 +1830,18 @@
 .calendar-modal {
     max-width: 780px;
     width: 92vw;
+    display: flex;
+    flex-direction: column;
 }
 
-/* Week and day views use the seven-column hour grid, so they need more width than the month grid. */
+/* Week and day views use the seven-column hour grid, so they need more width than the month grid. The
+   explicit height (bounded by the viewport) gives the time-grid a definite box to fill, so its own body
+   is the single scroll region and the modal itself does not add an outer scrollbar except on a very short
+   viewport. */
 .calendar-modal-wide {
     max-width: 1000px;
     width: 96vw;
+    height: min(calc(100vh - 60px), 900px);
 }
 
 .cal-toolbar {
@@ -1940,6 +1946,8 @@
 .tg {
     display: flex;
     flex-direction: column;
+    flex: 1;
+    min-height: 0;
     margin: 12px 0;
     border: 1px solid var(--border);
     border-radius: 6px;
@@ -2012,7 +2020,8 @@
 }
 
 .tg-body {
-    max-height: 60vh;
+    flex: 1;
+    min-height: 200px;
     overflow-y: auto;
 }
 
