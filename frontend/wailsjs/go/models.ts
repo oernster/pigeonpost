@@ -253,9 +253,11 @@ export namespace main {
 	}
 	export class OutboxItemDTO {
 	    id: string;
+	    accountId: string;
 	    kind: string;
 	    subject: string;
 	    to: string[];
+	    body: string;
 	    createdMs: number;
 	
 	    static createFrom(source: any = {}) {
@@ -265,9 +267,11 @@ export namespace main {
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
+	        this.accountId = source["accountId"];
 	        this.kind = source["kind"];
 	        this.subject = source["subject"];
 	        this.to = source["to"];
+	        this.body = source["body"];
 	        this.createdMs = source["createdMs"];
 	    }
 	}

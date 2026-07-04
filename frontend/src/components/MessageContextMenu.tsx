@@ -1,6 +1,7 @@
 import {useEffect, useLayoutEffect, useRef, useState} from 'react'
 import {api, Folder, Message, Tag} from '../api'
 import {TAG_PALETTE, colourTagId} from '../tagColours'
+import {isOutboxMessage} from '../outbox'
 
 interface MessageContextMenuProps {
     message: Message
@@ -25,6 +26,8 @@ interface MessageContextMenuProps {
     onAttachToNew: (message: Message) => void
     onDelete: (message: Message) => void
     onDeletePermanent: (message: Message) => void
+    // onCancelSend discards a queued outbox item; the menu offers only this for an outbox row.
+    onCancelSend: (message: Message) => void
 }
 
 type View = 'root' | 'mark' | 'move' | 'copy' | 'tags'
@@ -257,11 +260,23 @@ export function MessageContextMenu(props: MessageContextMenuProps) {
             style={{left: pos.x, top: pos.y}}
             onClick={(e) => e.stopPropagation()}
         >
-            {view === 'root' && root}
-            {view === 'mark' && markMenu}
-            {view === 'move' && folderList((dest) => props.onMove(message, dest))}
-            {view === 'copy' && folderList((dest) => props.onCopy(message, dest))}
-            {view === 'tags' && tagList}
+            {isOutboxMessage(message) ? (
+                <button
+                    className="context-item danger"
+                    role="menuitem"
+                    onClick={act(() => props.onCancelSend(message))}
+                >
+                    Cancel send
+                </button>
+            ) : (
+                <>
+                    {view === 'root' && root}
+                    {view === 'mark' && markMenu}
+                    {view === 'move' && folderList((dest) => props.onMove(message, dest))}
+                    {view === 'copy' && folderList((dest) => props.onCopy(message, dest))}
+                    {view === 'tags' && tagList}
+                </>
+            )}
         </div>
     )
 }

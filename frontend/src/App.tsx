@@ -1,7 +1,8 @@
-import {useCallback, useEffect, useRef, useState} from 'react'
+import {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import './App.css'
 import brandIcon from './assets/pigeonpost.png'
-import {AboutInfo, Account, api, Folder, Message, MessageBody, Rule, Tag, UnreadCountsResult} from './api'
+import {AboutInfo, Account, api, Folder, Message, MessageBody, OutboxItem, Rule, Tag, UnreadCountsResult} from './api'
+import {OUTBOX_FOLDER_ID, isOutboxMessage, outboxItemToMessage} from './outbox'
 import {applyTheme, loadTheme, Theme} from './theme'
 import {TAG_PALETTE, colourTagId} from './tagColours'
 import {Sidebar} from './components/Sidebar'
@@ -16,7 +17,6 @@ import {AccountSetupModal} from './components/AccountSetupModal'
 import {ConfirmDialog} from './components/ConfirmDialog'
 import {PromptDialog} from './components/PromptDialog'
 import {RuleManagerModal} from './components/RuleManagerModal'
-import {OutboxModal} from './components/OutboxModal'
 import {Splash} from './components/Splash'
 
 // focusRingRoot is the container the ring is scoped to: the topmost open modal when one is showing (so
@@ -160,7 +160,15 @@ function App() {
     const [selectedMessage, setSelectedMessage] = useState<Message | null>(null)
     const [error, setError] = useState<string>('')
     const [syncing, setSyncing] = useState<boolean>(false)
-    const [outboxCount, setOutboxCount] = useState<number>(0)
+    const [outbox, setOutbox] = useState<OutboxItem[]>([])
+    const [messageToCancelSend, setMessageToCancelSend] = useState<Message | null>(null)
+    const [cancellingSend, setCancellingSend] = useState<boolean>(false)
+    // outboxForAccount is the queued items belonging to the selected account, shown under its Outbox
+    // folder. Memoised so the derived message rows and the folder's presence are stable per render.
+    const outboxForAccount = useMemo(
+        () => outbox.filter((item) => item.accountId === selectedAccount),
+        [outbox, selectedAccount],
+    )
     const [theme, setTheme] = useState<Theme>(loadTheme())
     const [about, setAbout] = useState<AboutInfo | null>(null)
     const [licence, setLicence] = useState<string | null>(null)
@@ -177,7 +185,6 @@ function App() {
     const [messageTags, setMessageTags] = useState<Tag[]>([])
     const [rules, setRules] = useState<Rule[]>([])
     const [managingRules, setManagingRules] = useState<boolean>(false)
-    const [viewingOutbox, setViewingOutbox] = useState<boolean>(false)
     const [messageBody, setMessageBody] = useState<MessageBody | null>(null)
     const [bodyLoading, setBodyLoading] = useState<boolean>(false)
     const [searchQuery, setSearchQuery] = useState<string>('')
@@ -312,6 +319,13 @@ function App() {
             setMessageBody(null)
             return
         }
+        // An outbox message is not in the store; show the queued body directly (no fetch).
+        if (isOutboxMessage(selectedMessage)) {
+            const item = outbox.find((o) => o.id === selectedMessage.id)
+            setMessageBody({plain: item?.body ?? '', html: ''})
+            setBodyLoading(false)
+            return
+        }
         const messageId = selectedMessage.id
         let active = true
         setMessageBody(null)
@@ -413,12 +427,18 @@ function App() {
         setSelectedFolder(id)
         setSelectedMessage(null)
         setReadingFull(false)
+        // The Outbox is a synthetic folder: it lists the account's queued items from local state rather
+        // than syncing a server mailbox.
+        if (id === OUTBOX_FOLDER_ID) {
+            setMessages(outboxForAccount.map(outboxItemToMessage))
+            return
+        }
         try {
             await loadFolderMessages(id)
         } catch (e) {
             setError(String(e))
         }
-    }, [loadFolderMessages])
+    }, [loadFolderMessages, outboxForAccount])
 
     // On first load (or after the account list changes) open the default account automatically, so the
     // app lands on a populated inbox rather than an empty pane.
@@ -428,14 +448,77 @@ function App() {
         }
     }, [accounts, selectedAccount, selectAccount])
 
-    // refreshOutbox updates the count of outgoing operations waiting to be sent.
+    // refreshOutbox reloads the queue of outgoing operations waiting to be sent. The queue is surfaced
+    // as a per-account Outbox folder, so the full item list is kept, not just a count.
     const refreshOutbox = useCallback(async () => {
         try {
-            setOutboxCount(await api.outboxCount())
+            setOutbox(await api.listOutbox())
         } catch {
-            // A count read failing must not disrupt the UI; leave the last known value.
+            // A queue read failing must not disrupt the UI; leave the last known value.
         }
     }, [])
+
+    // Keep the Outbox view live while it is open: re-map the rows when the queue changes, drop a
+    // selection whose item was cancelled or sent, and fall back to the inbox once the queue is empty
+    // (the synthetic folder then disappears from the sidebar).
+    useEffect(() => {
+        if (selectedFolder !== OUTBOX_FOLDER_ID) {
+            return
+        }
+        if (outboxForAccount.length === 0) {
+            const fallback = folders.find((f) => f.kind === 'inbox') ?? folders[0]
+            if (fallback) {
+                selectedFolderRef.current = fallback.id
+                setSelectedFolder(fallback.id)
+                setSelectedMessage(null)
+                void loadFolderMessages(fallback.id)
+            } else {
+                selectedFolderRef.current = ''
+                setSelectedFolder('')
+                setMessages([])
+            }
+            return
+        }
+        setMessages(outboxForAccount.map(outboxItemToMessage))
+        setSelectedMessage((prev) =>
+            prev && isOutboxMessage(prev) && !outboxForAccount.some((o) => o.id === prev.id) ? null : prev)
+    }, [outboxForAccount, selectedFolder, folders, loadFolderMessages])
+
+    // sidebarFolders is the account's real folders plus a synthetic Outbox folder, shown only while the
+    // account has queued mail. The count rides on the unread field so it appears as the folder's badge.
+    const sidebarFolders = useMemo<Folder[]>(() => {
+        if (outboxForAccount.length === 0) {
+            return folders
+        }
+        const outboxFolder: Folder = {
+            id: OUTBOX_FOLDER_ID,
+            accountId: selectedAccount,
+            path: 'Outbox',
+            name: 'Outbox',
+            kind: 'outbox',
+            unread: outboxForAccount.length,
+            total: outboxForAccount.length,
+        }
+        return [...folders, outboxFolder]
+    }, [folders, outboxForAccount, selectedAccount])
+
+    // cancelSend discards the queued outbox item behind the confirmation dialog.
+    const cancelSend = useCallback(async () => {
+        if (!messageToCancelSend) {
+            return
+        }
+        setCancellingSend(true)
+        setError('')
+        try {
+            await api.cancelOutboxItem(messageToCancelSend.id)
+            setMessageToCancelSend(null)
+            await refreshOutbox()
+        } catch (e) {
+            setError(String(e))
+        } finally {
+            setCancellingSend(false)
+        }
+    }, [messageToCancelSend, refreshOutbox])
 
     const sync = useCallback(async () => {
         if (!selectedAccount) {
@@ -467,7 +550,8 @@ function App() {
     // Periodic light refresh of the folder on screen: syncs only that folder (not the whole account)
     // and reloads it, so new mail in the open folder appears without a manual sync.
     useEffect(() => {
-        if (!selectedFolder) {
+        // The Outbox is synthetic, so there is no server folder to poll.
+        if (!selectedFolder || selectedFolder === OUTBOX_FOLDER_ID) {
             return
         }
         const interval = window.setInterval(() => {
@@ -713,6 +797,10 @@ function App() {
         if (source && source.folderId === folderId) {
             return
         }
+        // The Outbox is synthetic: nothing can be moved into it, and a queued item cannot be moved out.
+        if (folderId === OUTBOX_FOLDER_ID || (source && isOutboxMessage(source))) {
+            return
+        }
         void moveMessageById(messageId, folderId)
     }, [messages, searchResults, moveMessageById])
 
@@ -928,7 +1016,8 @@ function App() {
     useEffect(() => {
         const overlayOpen =
             splashVisible || composing || settingUp || Boolean(accountToEdit) ||
-            managingRules || viewingOutbox || Boolean(about) || Boolean(licence) || Boolean(folderPrompt) ||
+            managingRules || Boolean(about) || Boolean(licence) || Boolean(folderPrompt) ||
+            Boolean(messageToCancelSend) ||
             Boolean(messageToDelete) || Boolean(accountToDelete) || Boolean(folderToDelete) ||
             Boolean(messageToPurge) || Boolean(contextMenu)
         const list = searchActive ? searchResults : messages
@@ -999,7 +1088,7 @@ function App() {
         searchActive, searchResults, messages, selectedMessage, requestDelete,
         splashVisible, composing, settingUp, accountToEdit, managingRules, about,
         licence, folderPrompt, messageToDelete, accountToDelete, folderToDelete, messageToPurge,
-        contextMenu, viewingOutbox,
+        contextMenu, messageToCancelSend,
     ])
 
     // A POP3 account has a single downloaded inbox with no server-side folders, message moves or draft
@@ -1031,6 +1120,7 @@ function App() {
             onReplyAll={openReplyAll}
             onForward={openForward}
             onDelete={(m) => setMessageToDelete(m)}
+            onCancelSend={(m) => setMessageToCancelSend(m)}
             folders={folders}
             onMove={(m, dest) => void moveMessage(m, dest)}
             onCopy={(m, dest) => void copyMessage(m, dest)}
@@ -1066,21 +1156,26 @@ function App() {
                     <button className="sync-btn" onClick={() => setManagingRules(true)}>
                         Rules
                     </button>
-                    <button className="sync-btn" disabled={!selectedAccount} onClick={() => {
-                        setComposeInitial(undefined)
-                        setComposing(true)
-                    }}>
-                        Compose
-                    </button>
-                    <button className="sync-btn" disabled={!selectedAccount || syncing} onClick={() => void sync()}>
-                        {syncing ? 'Syncing...' : 'Sync'}
+                    <button
+                        className="sync-btn"
+                        data-tip="Compose"
+                        aria-label="Compose"
+                        disabled={!selectedAccount}
+                        onClick={() => {
+                            setComposeInitial(undefined)
+                            setComposing(true)
+                        }}
+                    >
+                        {'\u{1F58A}\u{FE0F}'}
                     </button>
                     <button
                         className="sync-btn"
-                        title="Review or cancel messages queued while offline"
-                        onClick={() => setViewingOutbox(true)}
+                        data-tip={syncing ? 'Syncing…' : 'Sync'}
+                        aria-label="Sync"
+                        disabled={!selectedAccount || syncing}
+                        onClick={() => void sync()}
                     >
-                        Outbox{outboxCount > 0 ? ` (${outboxCount})` : ''}
+                        {'\u{267B}\u{FE0F}'}
                     </button>
                     <MenuBar
                         theme={theme}
@@ -1109,7 +1204,7 @@ function App() {
                     accounts={accounts}
                     selectedAccount={selectedAccount}
                     unreadByAccount={unreadCounts.byAccount}
-                    folders={folders}
+                    folders={sidebarFolders}
                     selectedFolder={selectedFolder}
                     onSelectAccount={(id) => void selectAccount(id)}
                     onSelectFolder={(id) => void selectFolder(id)}
@@ -1161,8 +1256,15 @@ function App() {
             {managingRules && (
                 <RuleManagerModal rules={rules} onChanged={() => void loadRules()} onClose={() => setManagingRules(false)}/>
             )}
-            {viewingOutbox && (
-                <OutboxModal onClose={() => setViewingOutbox(false)} onChanged={() => void refreshOutbox()}/>
+            {messageToCancelSend && (
+                <ConfirmDialog
+                    title="Cancel send"
+                    message={`Cancel sending "${messageToCancelSend.subject || '(no subject)'}"? The queued email is discarded and will not be sent.`}
+                    confirmLabel="Cancel send"
+                    busy={cancellingSend}
+                    onConfirm={() => void cancelSend()}
+                    onCancel={() => setMessageToCancelSend(null)}
+                />
             )}
             {messageToDelete && (
                 <ConfirmDialog
@@ -1209,6 +1311,7 @@ function App() {
                     onAttachToNew={attachToNewMessage}
                     onDelete={requestDelete}
                     onDeletePermanent={(m) => setMessageToPurge(m)}
+                    onCancelSend={(m) => setMessageToCancelSend(m)}
                 />
             )}
             {accountToDelete && (

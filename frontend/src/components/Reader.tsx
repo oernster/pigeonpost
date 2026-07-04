@@ -2,6 +2,7 @@ import {useEffect, useRef, useState} from 'react'
 import type {MouseEvent as ReactMouseEvent} from 'react'
 import {api, Folder, Message, MessageBody, Tag} from '../api'
 import {TAG_PALETTE, colourTagId} from '../tagColours'
+import {isOutboxMessage} from '../outbox'
 import {ReaderTabs} from './ReaderTabs'
 
 // handleBodyClick opens links from rendered message HTML in the external browser rather than letting
@@ -24,6 +25,8 @@ interface ReaderProps {
     onReplyAll: (message: Message) => void
     onForward: (message: Message) => void
     onDelete: (message: Message) => void
+    // onCancelSend discards a queued outbox item; an outbox message shows only this action.
+    onCancelSend: (message: Message) => void
     folders: Folder[]
     onMove: (message: Message, destFolderId: string) => void
     onCopy: (message: Message, destFolderId: string) => void
@@ -41,7 +44,7 @@ interface ReaderProps {
     onBack?: () => void
 }
 
-export function Reader({message, onToggleRead, onReply, onReplyAll, onForward, onDelete, folders, onMove, onCopy, canMoveCopy, messageTags, onToggleTag, body, bodyLoading, tabs, onSelectTab, onCloseTab, onBack}: ReaderProps) {
+export function Reader({message, onToggleRead, onReply, onReplyAll, onForward, onDelete, onCancelSend, folders, onMove, onCopy, canMoveCopy, messageTags, onToggleTag, body, bodyLoading, tabs, onSelectTab, onCloseTab, onBack}: ReaderProps) {
     const [tagMenuOpen, setTagMenuOpen] = useState(false)
     const [imagesShown, setImagesShown] = useState(false)
     const menuRef = useRef<HTMLDivElement>(null)
@@ -78,9 +81,11 @@ export function Reader({message, onToggleRead, onReply, onReplyAll, onForward, o
         )
     }
 
+    const outbox = isOutboxMessage(message)
     const sender = message.fromName
         ? `${message.fromName} <${message.fromAddress}>`
         : message.fromAddress || '(unknown sender)'
+    const recipients = message.to.map((a) => a.address).filter(Boolean).join(', ')
 
     const assigned = new Set(messageTags.map((t) => t.id))
 
@@ -96,6 +101,12 @@ export function Reader({message, onToggleRead, onReply, onReplyAll, onForward, o
             <div className="reader-header">
                 <div className="reader-toolbar">
                     {onBack && <button className="btn" onClick={onBack}>&#8592; Back</button>}
+                    {outbox ? (
+                        <button className="btn danger-outline" onClick={() => onCancelSend(message)}>
+                            Cancel send
+                        </button>
+                    ) : (
+                    <>
                     <button className="btn" onClick={() => onReply(message)}>Reply</button>
                     {((message.to?.length || 0) + (message.cc?.length || 0)) > 0 && (
                         <button className="btn" onClick={() => onReplyAll(message)}>Reply all</button>
@@ -165,6 +176,8 @@ export function Reader({message, onToggleRead, onReply, onReplyAll, onForward, o
                             </div>
                         )}
                     </div>
+                    </>
+                    )}
                 </div>
                 <h2 className="reader-subject">{message.subject || '(no subject)'}</h2>
                 {messageTags.length > 0 && (
@@ -184,8 +197,8 @@ export function Reader({message, onToggleRead, onReply, onReplyAll, onForward, o
                     </div>
                 )}
                 <div className="reader-meta">
-                    <span className="reader-label">From</span>
-                    <span>{sender}</span>
+                    <span className="reader-label">{outbox ? 'To' : 'From'}</span>
+                    <span>{outbox ? (recipients || '(no recipient)') : sender}</span>
                 </div>
                 {message.date && (
                     <div className="reader-meta">

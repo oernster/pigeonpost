@@ -38,22 +38,29 @@ export function MenuBar(props: MenuBarProps) {
         <div className="menubar">
             <button
                 className="icon-btn"
-                title={props.previewEnabled ? 'Hide the reading pane' : 'Show the reading pane'}
+                data-tip={props.previewEnabled ? 'Hide the reading pane' : 'Show the reading pane'}
+                aria-label={props.previewEnabled ? 'Hide the reading pane' : 'Show the reading pane'}
                 aria-pressed={props.previewEnabled}
                 onClick={props.onTogglePreview}
             >
                 {props.previewEnabled ? '◫' : '▯'}
             </button>
             <button
-                className="icon-btn"
-                title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+                className="icon-btn theme-toggle"
+                data-tip={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+                aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
                 onClick={props.onToggleTheme}
             >
                 {theme === 'dark' ? '☀️' : '\u{1F319}'}
             </button>
             <div className="menu" ref={menuRef}>
-                <button className={'menu-title' + (open ? ' active' : '')} onClick={() => setOpen((v) => !v)}>
-                    Help
+                <button
+                    className={'menu-title' + (open ? ' active' : '')}
+                    data-tip="Help"
+                    aria-label="Help"
+                    onClick={() => setOpen((v) => !v)}
+                >
+                    {'\u{2139}\u{FE0F}'}
                 </button>
                 {open && (
                     <div className="menu-dropdown" role="menu">

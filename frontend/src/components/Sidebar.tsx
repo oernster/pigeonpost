@@ -30,6 +30,7 @@ const folderIcon: Record<string, string> = {
     trash: '\u{1F5D1}\u{FE0F}',
     junk: '\u{1F6AB}',
     archive: '\u{1F5C3}\u{FE0F}',
+    outbox: '\u{1F4EE}',
     custom: '\u{1F4C1}',
 }
 

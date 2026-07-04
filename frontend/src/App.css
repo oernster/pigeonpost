@@ -234,7 +234,7 @@
     display: block;
     width: 80px;
     height: 80px;
-    margin: 16px 0 6px 14px;
+    margin: 16px auto 6px;
     opacity: 0.92;
     user-select: none;
     -webkit-user-drag: none;
@@ -641,6 +641,36 @@
     cursor: pointer;
 }
 
+/* The theme (light/dark) toggle carries a visible border by default, so the emoji reads as a button. */
+.icon-btn.theme-toggle {
+    border-color: var(--border);
+}
+
+/* Immediate hover and focus tooltip for icon and emoji buttons, so their action is discoverable
+   without the slow native title. Set the label with a data-tip attribute. */
+[data-tip] {
+    position: relative;
+}
+[data-tip]:hover::after,
+[data-tip]:focus-visible::after {
+    content: attr(data-tip);
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 50%;
+    transform: translateX(-50%);
+    white-space: nowrap;
+    background-color: var(--bg-elev-2);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 3px 8px;
+    font-size: 12px;
+    line-height: 1.4;
+    z-index: 50;
+    pointer-events: none;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
 .icon-btn:hover {
     border-color: var(--border);
 }
@@ -656,11 +686,11 @@
 }
 
 .menu-title {
-    background: transparent;
+    background-color: var(--bg-elev-2);
     color: var(--text);
-    border: 1px solid transparent;
+    border: 1px solid var(--border);
     border-radius: 6px;
-    padding: 6px 12px;
+    padding: 6px 16px;
     cursor: pointer;
 }
 
@@ -1521,6 +1551,9 @@
 
 .tag-menu {
     position: relative;
+    /* Flex so the Colour button stretches to the toolbar height like its siblings; the dropdown is
+       absolutely positioned so it stays out of this flow. */
+    display: flex;
 }
 
 .tag-menu-dropdown {

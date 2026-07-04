@@ -1,11 +1,15 @@
 package main
 
-// OutboxItemDTO is the front-end view of one queued outgoing operation waiting to be sent.
+// OutboxItemDTO is the front-end view of one queued outgoing operation waiting to be sent. The account
+// id lets the front end show the queue as a per-account Outbox folder; the body lets it preview the
+// queued message without a separate fetch.
 type OutboxItemDTO struct {
 	ID        string   `json:"id"`
+	AccountID string   `json:"accountId"`
 	Kind      string   `json:"kind"`
 	Subject   string   `json:"subject"`
 	To        []string `json:"to"`
+	Body      string   `json:"body"`
 	CreatedMs int64    `json:"createdMs"`
 }
 
@@ -24,9 +28,11 @@ func (a *App) ListOutbox() ([]OutboxItemDTO, error) {
 		}
 		out = append(out, OutboxItemDTO{
 			ID:        item.ID(),
+			AccountID: item.AccountID(),
 			Kind:      item.Kind().String(),
 			Subject:   msg.Subject(),
 			To:        to,
+			Body:      msg.Body(),
 			CreatedMs: item.CreatedAt().UnixMilli(),
 		})
 	}
