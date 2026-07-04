@@ -7,6 +7,7 @@ import (
 	"github.com/emersion/go-imap/v2"
 
 	"github.com/oernster/pigeonpost/internal/domain"
+	"github.com/oernster/pigeonpost/internal/infrastructure/mailparse"
 )
 
 // FetchBody fetches and parses the full body of one message by UID, returning its plain-text and HTML
@@ -42,7 +43,7 @@ func (s *Source) FetchBody(ctx context.Context, account domain.Account, folder d
 	if raw == nil {
 		return "", "", nil
 	}
-	return parseBody(raw)
+	return mailparse.ParseBody(raw)
 }
 
 // FetchRaw returns the full raw RFC822 bytes of a message by UID, for export (.eml) and for attaching
