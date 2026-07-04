@@ -21,7 +21,8 @@ it stops scope re-litigation mid-build.
 
 ### In scope (parity targets)
 
-- Accounts: IMAP and POP3 receive, SMTP send, multiple accounts, per-account or unified inbox.
+- Accounts: IMAP and POP3 receive, SMTP send, multiple accounts, each with its own separate inbox
+  (no unified inbox).
 - Account setup: autoconfig wizard (Mozilla ISPDB-style autodiscovery from the email domain,
   RFC 6186 SRV records, provider well-known endpoints) with a manual host/port/security/auth fallback.
 - Three-pane UI: folder tree, message list, message reader, plus a compose window.
@@ -276,7 +277,7 @@ hardest-to-reverse parts) first.
 3. Move/copy/drag + folders + offline outbox. Full folder ops, dnd-kit drag, outbox replay,
    filters/rules.
 4. Account wizard + POP3 + OAuth. Autoconfig wizard, POP3, Microsoft XOAUTH2 (Azure registration),
-   multiple accounts, unified inbox.
+   multiple accounts each with a separate inbox.
 5. Search + address book. FTS5 search, contacts, vCard import/export.
 6. Calendar. Month/week/day, events, reminders, ICS import/export, remote ICS subscription.
 7. Packaging + polish. Signed installers for all three platforms, keyboard navigation as an explicit
@@ -294,3 +295,4 @@ hardest-to-reverse parts) first.
 - Calendar/contacts: file ICS/vCard import/export + read-only ICS subscription in v1; two-way
   CalDAV/CardDAV in v2.
 - Compose: light TipTap rich-text + plain-text toggle in v1; no full HTML-editor parity.
+- Inboxes: each account keeps its own separate inbox; there is no unified/combined inbox.

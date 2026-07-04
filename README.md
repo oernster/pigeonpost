@@ -51,7 +51,7 @@ Shipped:
 Planned (see [DESIGN_PLAN.md](DESIGN_PLAN.md) for the full roadmap):
 
 - Tags round-tripped onto IMAP keywords, move/delete filter rules.
-- POP3, Microsoft OAuth, multiple accounts with a unified inbox.
+- POP3 receive and Microsoft OAuth sign-in. (Multiple accounts already work, each with its own inbox.)
 - Calendar with ICS import/export, address book with vCard.
 
 ## Stack
