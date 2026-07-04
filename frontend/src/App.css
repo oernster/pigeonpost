@@ -1495,31 +1495,48 @@
     border-color: var(--accent);
 }
 
-/* The date-picker icon is a white calendar glyph on the field (a dark glyph in the light theme, for
-   contrast on the pale field). On hover, or when the field is focused, it gains a teal square behind it
-   with a white glyph, so it is obvious which control has focus. The glyph is an SVG background-image
-   (fill none) so the teal background shows around its strokes; a plain background-color did not work
-   because the browser's own icon is drawn opaque in front of it. */
+/* The browser's native date-picker icon cannot show a reliable focus state, so it is hidden and replaced
+   by a real button (.date-picker-btn) inside .date-field. The button is a normal focusable control, so
+   its resting and focused states are unmistakably different: a white glyph at rest (a dark glyph in the
+   light theme, for the pale field), and a teal square with a white glyph on hover or keyboard focus. */
 .tag-name-input::-webkit-calendar-picker-indicator {
-    cursor: pointer;
+    display: none;
+}
+
+.date-field {
+    position: relative;
+    display: flex;
+    flex: 1;
+}
+
+.date-field .tag-name-input {
+    flex: 1;
+    width: 100%;
+    padding-right: 34px;
+}
+
+.date-picker-btn {
+    position: absolute;
+    right: 5px;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border: none;
     border-radius: 4px;
-    padding: 3px;
-    opacity: 1;
     background-color: transparent;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='4' width='18' height='18' rx='2'/%3E%3Cline x1='16' y1='2' x2='16' y2='6'/%3E%3Cline x1='8' y1='2' x2='8' y2='6'/%3E%3Cline x1='3' y1='10' x2='21' y2='10'/%3E%3C/svg%3E");
-    background-repeat: no-repeat;
-    background-position: center;
-    background-size: 16px;
+    color: var(--text);
+    cursor: pointer;
 }
 
-:root[data-theme="light"] .tag-name-input::-webkit-calendar-picker-indicator {
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%231c2028' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='4' width='18' height='18' rx='2'/%3E%3Cline x1='16' y1='2' x2='16' y2='6'/%3E%3Cline x1='8' y1='2' x2='8' y2='6'/%3E%3Cline x1='3' y1='10' x2='21' y2='10'/%3E%3C/svg%3E");
-}
-
-.tag-name-input::-webkit-calendar-picker-indicator:hover,
-.tag-name-input:focus-within::-webkit-calendar-picker-indicator {
+.date-picker-btn:enabled:hover,
+.date-picker-btn:enabled:focus-visible {
     background-color: var(--ring);
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='4' width='18' height='18' rx='2'/%3E%3Cline x1='16' y1='2' x2='16' y2='6'/%3E%3Cline x1='8' y1='2' x2='8' y2='6'/%3E%3Cline x1='3' y1='10' x2='21' y2='10'/%3E%3C/svg%3E");
+    color: #ffffff;
     outline: none;
 }
 

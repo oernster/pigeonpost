@@ -1,4 +1,4 @@
-import {useState} from 'react'
+import {type RefObject, useRef, useState} from 'react'
 import {api, CalendarEvent, CalendarEventInput} from '../api'
 import {ModalClose} from './ModalClose'
 import {ConfirmDialog} from './ConfirmDialog'
@@ -80,6 +80,28 @@ function weekDays(viewDate: Date): Date[] {
     return days
 }
 
+// PickerButton opens a date field's native calendar. The browser's own picker icon is hidden because its
+// focus state cannot be styled reliably, so this is a normal focusable button instead: a white glyph at
+// rest, and a teal square when hovered or focused, so it is obvious when it holds keyboard focus.
+function PickerButton({target}: {target: RefObject<HTMLInputElement>}) {
+    return (
+        <button
+            type="button"
+            className="date-picker-btn"
+            aria-label="Open the date picker"
+            onClick={() => target.current?.showPicker()}
+        >
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor"
+                 strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <rect x="3" y="4" width="18" height="18" rx="2"/>
+                <line x1="16" y1="2" x2="16" y2="6"/>
+                <line x1="8" y1="2" x2="8" y2="6"/>
+                <line x1="3" y1="10" x2="21" y2="10"/>
+            </svg>
+        </button>
+    )
+}
+
 interface CalendarModalProps {
     events: CalendarEvent[]
     onChanged: () => void
@@ -90,6 +112,8 @@ interface CalendarModalProps {
 // events round-trip with Outlook and Thunderbird. Deletion is always confirmed.
 export function CalendarModal({events, onChanged, onClose}: CalendarModalProps) {
     const dismiss = useBackdropDismiss(onClose)
+    const startRef = useRef<HTMLInputElement>(null)
+    const endRef = useRef<HTMLInputElement>(null)
     const [viewDate, setViewDate] = useState(() => new Date())
     const [viewMode, setViewMode] = useState<ViewMode>('month')
     const [form, setForm] = useState<EventForm | null>(null)
@@ -308,10 +332,18 @@ export function CalendarModal({events, onChanged, onClose}: CalendarModalProps) 
                                        onChange={(e) => set('allDay', e.target.checked)}/> All day
                             </label>
                             <div className="rule-form-row">
-                                <input className="tag-name-input" type={form.allDay ? 'date' : 'datetime-local'}
-                                       value={form.start} onChange={(e) => set('start', e.target.value)}/>
-                                <input className="tag-name-input" type={form.allDay ? 'date' : 'datetime-local'}
-                                       value={form.end} onChange={(e) => set('end', e.target.value)}/>
+                                <div className="date-field">
+                                    <input ref={startRef} className="tag-name-input"
+                                           type={form.allDay ? 'date' : 'datetime-local'}
+                                           value={form.start} onChange={(e) => set('start', e.target.value)}/>
+                                    <PickerButton target={startRef}/>
+                                </div>
+                                <div className="date-field">
+                                    <input ref={endRef} className="tag-name-input"
+                                           type={form.allDay ? 'date' : 'datetime-local'}
+                                           value={form.end} onChange={(e) => set('end', e.target.value)}/>
+                                    <PickerButton target={endRef}/>
+                                </div>
                             </div>
                             <input className="tag-name-input" placeholder="Location" value={form.location}
                                    onChange={(e) => set('location', e.target.value)}/>
