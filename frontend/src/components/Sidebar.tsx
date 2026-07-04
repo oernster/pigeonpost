@@ -271,9 +271,12 @@ function FolderTree(props: FolderTreeProps) {
     const ordered = orderFolders(folders, sep)
     // A folder is visible only when none of its ancestors are collapsed.
     const visible = ordered.filter((f) => ancestorPaths(f.path, sep).every((a) => !collapsed.has(a)))
+    // The folder list is a single focus-ring stop: only one folder is tabbable (the selected one, or the
+    // first when none is selected), and Up/Down move between folders from there.
+    const tabStopId = selectedFolder || (visible.length > 0 ? visible[0].id : '')
 
     return (
-        <ul className="list">
+        <ul className="list" data-folder-list="">
             {visible.map((folder) => {
                 const leaf = leafName(folder.path, sep)
                 const depth = ancestorPaths(folder.path, sep).length
@@ -282,18 +285,36 @@ function FolderTree(props: FolderTreeProps) {
                 return (
                     <li
                         key={folder.id}
+                        data-folder-id={folder.id}
                         className={
                             'list-item folder' +
                             (folder.id === selectedFolder ? ' selected' : '') +
                             (folder.id === dragOverId ? ' drag-over' : '')
                         }
                         style={{paddingLeft: 14 + depth * 14}}
-                        tabIndex={0}
+                        tabIndex={folder.id === tabStopId ? 0 : -1}
                         onClick={() => props.onSelectFolder(folder.id)}
                         onKeyDown={(e) => {
                             if (e.key === 'Enter') {
                                 e.preventDefault()
                                 props.onSelectFolder(folder.id)
+                                return
+                            }
+                            // Up/Down move between folders within this one focus-ring stop. Left/Right are
+                            // left to bubble up to the window handler, which steps the focus ring.
+                            if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                                e.preventDefault()
+                                e.stopPropagation()
+                                const sibling = e.key === 'ArrowDown'
+                                    ? e.currentTarget.nextElementSibling
+                                    : e.currentTarget.previousElementSibling
+                                if (sibling instanceof HTMLElement) {
+                                    sibling.focus()
+                                    const id = sibling.getAttribute('data-folder-id')
+                                    if (id) {
+                                        props.onSelectFolder(id)
+                                    }
+                                }
                             }
                         }}
                         onDragOver={(e) => {

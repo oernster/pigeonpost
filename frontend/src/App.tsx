@@ -19,6 +19,43 @@ import {RuleManagerModal} from './components/RuleManagerModal'
 import {OutboxModal} from './components/OutboxModal'
 import {Splash} from './components/Splash'
 
+// focusRingElements returns the visible, tabbable elements in document order: the same set the browser
+// steps with Tab. Roving-tabindex lists (messages, folders) contribute a single stop each, because
+// their non-current items are tabindex -1, so stepping this ring jumps region to region.
+function focusRingElements(): HTMLElement[] {
+    const selector = [
+        'a[href]', 'button:not([disabled])', 'input:not([disabled])',
+        'select:not([disabled])', 'textarea:not([disabled])', '[tabindex]:not([tabindex="-1"])',
+    ].join(',')
+    return Array.from(document.querySelectorAll<HTMLElement>(selector)).filter((el) => {
+        if (el.tabIndex < 0 || el.hasAttribute('disabled')) {
+            return false
+        }
+        // Match the browser's own tabbability: skip hidden and unlaid-out elements.
+        if (el.getClientRects().length === 0 || getComputedStyle(el).visibility === 'hidden') {
+            return false
+        }
+        // Collapse the roving lists (messages, folders) to a single stop each: the row itself is the
+        // stop, so skip the action buttons nested inside a row (Up/Down move within the list instead).
+        const row = el.closest('.message-row, .list-item.folder')
+        return !row || row === el
+    })
+}
+
+// stepFocusRing moves focus forward (1) or back (-1) through the focus ring, wrapping at the ends, so
+// Right/Left mirror Tab/Shift+Tab.
+function stepFocusRing(direction: 1 | -1) {
+    const items = focusRingElements()
+    if (items.length === 0) {
+        return
+    }
+    const index = items.indexOf(document.activeElement as HTMLElement)
+    const next = index === -1
+        ? (direction === 1 ? 0 : items.length - 1)
+        : (index + direction + items.length) % items.length
+    items[next]?.focus()
+}
+
 function escapeHtml(s: string): string {
     return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 }
@@ -873,7 +910,18 @@ function App() {
                 target.tagName === 'SELECT' || target.isContentEditable)) {
                 return
             }
+            // Right/Left step the focus ring, mirroring Tab/Shift+Tab from anywhere in the main window.
+            if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+                e.preventDefault()
+                stepFocusRing(e.key === 'ArrowRight' ? 1 : -1)
+                return
+            }
             if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                // The folder list owns its own Up/Down (it navigates folders); do not also move the
+                // message selection when focus is within it.
+                if (target && target.closest('[data-folder-list]')) {
+                    return
+                }
                 if (list.length === 0) {
                     return
                 }
