@@ -53,11 +53,13 @@ button {
 /* Light-teal ring on keyboard focus and mouse hover for every interactive element, so where you are is
    always visible whether you tab or point. Outline is used (not box-shadow) so it never clashes with a
    component's own shadow, and an inset offset keeps it from being clipped by a scrolling pane. */
-button:focus-visible,
+/* Disabled controls are excluded from both the hover and focus rings (:enabled), so a disabled button
+   keeps its red disabled ring and never flips to teal on hover, anywhere in the app including dialogs. */
+button:enabled:focus-visible,
 a:focus-visible,
-input:focus-visible,
-select:focus-visible,
-textarea:focus-visible,
+input:enabled:focus-visible,
+select:enabled:focus-visible,
+textarea:enabled:focus-visible,
 [tabindex]:focus-visible,
 .message-row:focus-visible,
 .list-item:focus-visible,
@@ -69,7 +71,10 @@ textarea:focus-visible,
     outline-offset: -2px;
 }
 
-button:hover,
+button:enabled:hover,
+input:enabled:hover,
+select:enabled:hover,
+textarea:enabled:hover,
 .message-row:hover,
 .list-item:hover,
 .reader-tab:hover,
