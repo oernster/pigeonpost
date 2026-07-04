@@ -40,6 +40,7 @@ import {
     SetMessageTag,
     SyncAccount,
     SyncFolder,
+    UnreadCounts,
     UpdateAccount,
     Version,
 } from '../wailsjs/go/main/App'
@@ -56,6 +57,7 @@ export type Tag = main.TagDTO
 export type Rule = main.RuleDTO
 export type MessageBody = main.MessageBodyDTO
 export type OutboxItem = main.OutboxItemDTO
+export type UnreadCountsResult = main.UnreadCountsDTO
 
 export interface RuleInput {
     id: string
@@ -108,6 +110,7 @@ export const api = {
     setMessageTag: (messageId: string, tagId: string, assigned: boolean): Promise<void> =>
         SetMessageTag(messageId, tagId, assigned),
     listFolders: (accountId: string): Promise<Folder[]> => ListFolders(accountId),
+    unreadCounts: (): Promise<UnreadCountsResult> => UnreadCounts(),
     listMessages: (folderId: string): Promise<Message[]> => ListMessages(folderId),
     searchMessages: (query: string): Promise<Message[]> => SearchMessages(query),
     messageBody: (messageId: string): Promise<MessageBody> => GetMessageBody(messageId),

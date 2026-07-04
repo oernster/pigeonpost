@@ -87,6 +87,20 @@ func (a *App) ListFolders(accountID string) ([]FolderDTO, error) {
 	return toFolderDTOs(folders), nil
 }
 
+// UnreadCounts returns the unread message count per account and the total across all accounts, for the
+// sidebar per-account badges and the cross-account total badge in the titlebar.
+func (a *App) UnreadCounts() (UnreadCountsDTO, error) {
+	totals, err := a.mailbox.UnreadCounts(a.ctx)
+	if err != nil {
+		return UnreadCountsDTO{}, err
+	}
+	byAccount := totals.ByAccount
+	if byAccount == nil {
+		byAccount = map[string]int{}
+	}
+	return UnreadCountsDTO{Total: totals.Total, ByAccount: byAccount}, nil
+}
+
 // ListMessages returns the cached message summaries for a folder.
 func (a *App) ListMessages(folderID string) ([]MessageDTO, error) {
 	messages, err := a.mailbox.Messages(a.ctx, folderID)

@@ -32,6 +32,8 @@ export function ListAccounts():Promise<Array<main.AccountDTO>>;
 
 export function ListFolders(arg1:string):Promise<Array<main.FolderDTO>>;
 
+export function UnreadCounts():Promise<main.UnreadCountsDTO>;
+
 export function ListMessages(arg1:string):Promise<Array<main.MessageDTO>>;
 
 export function ListOutbox():Promise<Array<main.OutboxItemDTO>>;

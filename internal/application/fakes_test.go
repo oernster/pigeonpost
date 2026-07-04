@@ -132,6 +132,8 @@ type fakeMailStore struct {
 	saveBodyErr      error
 	searchErr        error
 	deleteMessageErr error
+	unreadByAccount  map[string]int
+	unreadErr        error
 	bodies           map[string]domain.MessageBody
 	searchResults    []domain.MessageSummary
 	deletedMessages  []string
@@ -170,6 +172,13 @@ func (f *fakeMailStore) ListMessages(_ context.Context, folderID string) ([]doma
 		return nil, f.listMessagesErr
 	}
 	return f.messages[folderID], nil
+}
+
+func (f *fakeMailStore) UnreadByAccount(_ context.Context) (map[string]int, error) {
+	if f.unreadErr != nil {
+		return nil, f.unreadErr
+	}
+	return f.unreadByAccount, nil
 }
 
 func (f *fakeMailStore) SaveMessages(_ context.Context, folderID string, messages []domain.MessageSummary) error {

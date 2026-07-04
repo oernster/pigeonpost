@@ -62,6 +62,10 @@ export function ListFolders(arg1) {
   return window['go']['main']['App']['ListFolders'](arg1);
 }
 
+export function UnreadCounts() {
+  return window['go']['main']['App']['UnreadCounts']();
+}
+
 export function ListMessages(arg1) {
   return window['go']['main']['App']['ListMessages'](arg1);
 }

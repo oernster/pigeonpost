@@ -302,3 +302,25 @@ func TestMailboxServiceSearch(t *testing.T) {
 		t.Errorf("Search error = %v, want wrapped boom", err)
 	}
 }
+
+func TestMailboxServiceUnreadCounts(t *testing.T) {
+	store := newFakeMailStore()
+	store.unreadByAccount = map[string]int{"a1": 2, "a2": 1}
+	svc := NewMailboxService(store)
+
+	totals, err := svc.UnreadCounts(context.Background())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if totals.Total != 3 {
+		t.Errorf("Total = %d, want 3", totals.Total)
+	}
+	if totals.ByAccount["a1"] != 2 || totals.ByAccount["a2"] != 1 {
+		t.Errorf("ByAccount = %+v, want a1:2 a2:1", totals.ByAccount)
+	}
+
+	store.unreadErr = errBoom
+	if _, err := svc.UnreadCounts(context.Background()); !errors.Is(err, errBoom) {
+		t.Errorf("UnreadCounts error = %v, want wrapped boom", err)
+	}
+}

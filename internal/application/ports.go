@@ -43,6 +43,7 @@ type MailStore interface {
 	DeleteAccountData(ctx context.Context, accountID string) error
 	GetMessage(ctx context.Context, messageID string) (domain.MessageSummary, error)
 	GetFolder(ctx context.Context, folderID string) (domain.Folder, error)
+	UnreadByAccount(ctx context.Context) (map[string]int, error)
 	GetMessageBody(ctx context.Context, messageID string) (domain.MessageBody, error)
 	SaveMessageBody(ctx context.Context, body domain.MessageBody) error
 	SearchMessages(ctx context.Context, query string) ([]domain.MessageSummary, error)

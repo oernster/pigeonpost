@@ -183,6 +183,20 @@ export namespace main {
 	        this.total = source["total"];
 	    }
 	}
+	export class UnreadCountsDTO {
+	    total: number;
+	    byAccount: {[key: string]: number};
+
+	    static createFrom(source: any = {}) {
+	        return new UnreadCountsDTO(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.total = source["total"];
+	        this.byAccount = source["byAccount"];
+	    }
+	}
 	export class MessageBodyDTO {
 	    plain: string;
 	    html: string;

@@ -1,7 +1,7 @@
 import {useCallback, useEffect, useRef, useState} from 'react'
 import './App.css'
 import brandIcon from './assets/pigeonpost.png'
-import {AboutInfo, Account, api, Folder, Message, MessageBody, Rule, Tag} from './api'
+import {AboutInfo, Account, api, Folder, Message, MessageBody, Rule, Tag, UnreadCountsResult} from './api'
 import {applyTheme, loadTheme, Theme} from './theme'
 import {TAG_PALETTE, colourTagId} from './tagColours'
 import {Sidebar} from './components/Sidebar'
@@ -15,7 +15,6 @@ import {ComposeInitial, ComposeModal} from './components/ComposeModal'
 import {AccountSetupModal} from './components/AccountSetupModal'
 import {ConfirmDialog} from './components/ConfirmDialog'
 import {PromptDialog} from './components/PromptDialog'
-import {TagManagerModal} from './components/TagManagerModal'
 import {RuleManagerModal} from './components/RuleManagerModal'
 import {OutboxModal} from './components/OutboxModal'
 import {Splash} from './components/Splash'
@@ -87,6 +86,7 @@ function App() {
     const [accounts, setAccounts] = useState<Account[]>([])
     const [selectedAccount, setSelectedAccount] = useState<string>('')
     const [folders, setFolders] = useState<Folder[]>([])
+    const [unreadCounts, setUnreadCounts] = useState<UnreadCountsResult>({total: 0, byAccount: {}})
     const [selectedFolder, setSelectedFolder] = useState<string>('')
     const [messages, setMessages] = useState<Message[]>([])
     const [selectedMessage, setSelectedMessage] = useState<Message | null>(null)
@@ -107,7 +107,6 @@ function App() {
     const [deleting, setDeleting] = useState<boolean>(false)
     const [tags, setTags] = useState<Tag[]>([])
     const [messageTags, setMessageTags] = useState<Tag[]>([])
-    const [managingTags, setManagingTags] = useState<boolean>(false)
     const [rules, setRules] = useState<Rule[]>([])
     const [managingRules, setManagingRules] = useState<boolean>(false)
     const [viewingOutbox, setViewingOutbox] = useState<boolean>(false)
@@ -172,14 +171,6 @@ function App() {
         void loadAccounts()
     }, [loadAccounts])
 
-    const loadTags = useCallback(async () => {
-        try {
-            setTags(await api.listTags())
-        } catch (e) {
-            setError(String(e))
-        }
-    }, [])
-
     const loadRules = useCallback(async () => {
         try {
             setRules(await api.listRules())
@@ -192,15 +183,41 @@ function App() {
         void loadRules()
     }, [loadRules])
 
-    // Ensure the fixed colour palette exists as tags (idempotent), then load the tag list. A colour must
-    // exist as a tag row so it can be applied to a message and its swatch shown.
+    // loadUnread refreshes the per-account and cross-account unread counts from the local cache. It is
+    // called after anything that can change read state (sync, mark read/unread, delete, opening a
+    // folder) so the sidebar and titlebar badges stay correct.
+    const loadUnread = useCallback(async () => {
+        try {
+            setUnreadCounts(await api.unreadCounts())
+        } catch (e) {
+            setError(String(e))
+        }
+    }, [])
+
     useEffect(() => {
-        void Promise.all(
-            TAG_PALETTE.map((c) => api.saveTag({id: colourTagId(c.colour), name: c.name, colour: c.colour})),
-        )
-            .then(() => loadTags())
-            .catch((e) => setError(String(e)))
-    }, [loadTags])
+        void loadUnread()
+    }, [loadUnread])
+
+    // Ensure the fixed colour palette exists as tags, so a colour can be applied and its swatch shown. The
+    // writes are sequential and only fill in missing colours, because SQLite is single-writer and firing
+    // them at once trips "database is locked".
+    useEffect(() => {
+        void (async () => {
+            try {
+                const existing = await api.listTags()
+                const have = new Set(existing.map((t) => t.id))
+                for (const c of TAG_PALETTE) {
+                    const id = colourTagId(c.colour)
+                    if (!have.has(id)) {
+                        await api.saveTag({id, name: c.name, colour: c.colour})
+                    }
+                }
+                setTags(await api.listTags())
+            } catch (e) {
+                setError(String(e))
+            }
+        })()
+    }, [])
 
     // Load the tags attached to the selected message whenever the selection changes.
     useEffect(() => {
@@ -278,17 +295,6 @@ function App() {
         }
     }, [selectedMessage])
 
-    const onTagsChanged = useCallback(async () => {
-        await loadTags()
-        if (selectedMessage) {
-            try {
-                setMessageTags(await api.messageTags(selectedMessage.id))
-            } catch (e) {
-                setError(String(e))
-            }
-        }
-    }, [loadTags, selectedMessage])
-
     // loadFolderMessages shows a folder's cached messages immediately (so it opens instantly), then
     // refreshes it from the server and updates the list if the user is still on that folder. This is
     // what makes a message moved or deleted into a folder appear when the folder is opened. A sync
@@ -304,10 +310,11 @@ function App() {
             if (selectedFolderRef.current === id) {
                 setMessages(await api.listMessages(id))
             }
+            await loadUnread()
         } catch {
             // Offline or a transient failure: the cached view stands.
         }
-    }, [])
+    }, [loadUnread])
 
     const selectAccount = useCallback(async (id: string) => {
         setSelectedAccount(id)
@@ -377,12 +384,13 @@ function App() {
                 setMessages(await api.listMessages(selectedFolder))
             }
             await refreshOutbox()
+            await loadUnread()
         } catch (e) {
             setError(String(e))
         } finally {
             setSyncing(false)
         }
-    }, [selectedAccount, selectedFolder, refreshOutbox])
+    }, [selectedAccount, selectedFolder, refreshOutbox, loadUnread])
 
     useEffect(() => {
         void refreshOutbox()
@@ -402,13 +410,14 @@ function App() {
                     if (selectedFolderRef.current === selectedFolder) {
                         setMessages(await api.listMessages(selectedFolder))
                     }
+                    await loadUnread()
                 } catch {
                     // A background refresh failure (offline) must not disrupt the UI.
                 }
             })()
         }, autoSyncIntervalMs)
         return () => window.clearInterval(interval)
-    }, [selectedFolder])
+    }, [selectedFolder, loadUnread])
 
     const onAccountSaved = useCallback(async (email: string) => {
         setSettingUp(false)
@@ -457,12 +466,13 @@ function App() {
             setTabs((prev) => prev.filter((m) => m.id !== id))
             setSelectedMessage((prev) => (prev?.id === id ? next : prev))
             setMessageToDelete(null)
+            await loadUnread()
         } catch (e) {
             setError(String(e))
         } finally {
             setDeletingMessage(false)
         }
-    }, [messageToDelete, searchActive, searchResults, messages])
+    }, [messageToDelete, searchActive, searchResults, messages, loadUnread])
 
     // deletePermanent is the confirmed, irreversible delete behind Shift+Delete: it removes the message
     // from the server without moving it to Trash, then advances the selection.
@@ -482,12 +492,13 @@ function App() {
             setTabs((prev) => prev.filter((m) => m.id !== id))
             setSelectedMessage((prev) => (prev?.id === id ? next : prev))
             setMessageToPurge(null)
+            await loadUnread()
         } catch (e) {
             setError(String(e))
         } finally {
             setPurgingMessage(false)
         }
-    }, [messageToPurge, searchActive, searchResults, messages])
+    }, [messageToPurge, searchActive, searchResults, messages, loadUnread])
 
     // requestDelete always asks for confirmation before deleting. The confirmed delete moves the
     // message to Trash where the account has one, or removes it permanently otherwise (the dialog says
@@ -799,10 +810,11 @@ function App() {
         setSelectedMessage((prev) => (prev && prev.id === message.id ? {...prev, read} : prev))
         try {
             await api.markRead(message.id, read)
+            await loadUnread()
         } catch (e) {
             setError(String(e))
         }
-    }, [])
+    }, [loadUnread])
 
     // markReadOnView marks a message read when it is displayed, unless it already is.
     const markReadOnView = useCallback((message: Message) => {
@@ -847,7 +859,7 @@ function App() {
     // never competes with text entry or a modal.
     useEffect(() => {
         const overlayOpen =
-            splashVisible || composing || settingUp || Boolean(accountToEdit) || managingTags ||
+            splashVisible || composing || settingUp || Boolean(accountToEdit) ||
             managingRules || viewingOutbox || Boolean(about) || Boolean(licence) || Boolean(folderPrompt) ||
             Boolean(messageToDelete) || Boolean(accountToDelete) || Boolean(folderToDelete) ||
             Boolean(messageToPurge) || Boolean(contextMenu)
@@ -887,7 +899,7 @@ function App() {
         return () => window.removeEventListener('keydown', onKeyDown)
     }, [
         searchActive, searchResults, messages, selectedMessage, requestDelete,
-        splashVisible, composing, settingUp, accountToEdit, managingTags, managingRules, about,
+        splashVisible, composing, settingUp, accountToEdit, managingRules, about,
         licence, folderPrompt, messageToDelete, accountToDelete, folderToDelete, messageToPurge,
         contextMenu, viewingOutbox,
     ])
@@ -941,13 +953,17 @@ function App() {
         <div className="app">
             {splashVisible && <Splash version={appVersion} author={appAuthor} fading={splashFading}/>}
             <header className="titlebar">
-                <span className="brand">PigeonPost</span>
+                <span className="brand">
+                    PigeonPost
+                    {unreadCounts.total > 0 && (
+                        <span className="titlebar-unread" title={`${unreadCounts.total} unread across all accounts`}>
+                            {unreadCounts.total}
+                        </span>
+                    )}
+                </span>
                 <div className="titlebar-right">
                     <button className="sync-btn" onClick={() => setSettingUp(true)}>
                         Add account
-                    </button>
-                    <button className="sync-btn" onClick={() => setManagingTags(true)}>
-                        Tags
                     </button>
                     <button className="sync-btn" onClick={() => setManagingRules(true)}>
                         Rules
@@ -994,6 +1010,7 @@ function App() {
                 <Sidebar
                     accounts={accounts}
                     selectedAccount={selectedAccount}
+                    unreadByAccount={unreadCounts.byAccount}
                     folders={folders}
                     selectedFolder={selectedFolder}
                     onSelectAccount={(id) => void selectAccount(id)}
@@ -1042,9 +1059,6 @@ function App() {
                     onClose={() => setAccountToEdit(null)}
                     onSaved={(email) => void onAccountSaved(email)}
                 />
-            )}
-            {managingTags && (
-                <TagManagerModal tags={tags} onChanged={() => void onTagsChanged()} onClose={() => setManagingTags(false)}/>
             )}
             {managingRules && (
                 <RuleManagerModal rules={rules} onChanged={() => void loadRules()} onClose={() => setManagingRules(false)}/>

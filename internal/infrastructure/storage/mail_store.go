@@ -10,10 +10,27 @@ import (
 	"github.com/oernster/pigeonpost/internal/domain"
 )
 
-// ListFolders returns the cached folders for an account, ordered by path.
+// Folder unread and total counts are computed live from the cached messages rather than read from the
+// stored folder.unread / folder.total columns, because servers report those inconsistently (unread
+// arrives as 0 from a plain LIST); the local message cache is the reliable source. Both are counted
+// from the same table so total is always the superset of unread, satisfying the domain invariant that
+// unread never exceeds total. Each subquery refers to the folder as f in the surrounding query.
+var (
+	// unreadCountExpr counts a folder's unread messages: those whose Seen bit is clear. The bit value
+	// is taken from the domain flag so the query can never drift from the domain definition of "read".
+	unreadCountExpr = fmt.Sprintf(
+		"(SELECT COUNT(*) FROM message m WHERE m.folder_id = f.id AND (m.flags & %d) = 0)",
+		int(domain.FlagSeen))
+	// totalCountExpr counts all of a folder's cached messages.
+	totalCountExpr = "(SELECT COUNT(*) FROM message m WHERE m.folder_id = f.id)"
+)
+
+// ListFolders returns the cached folders for an account, ordered by path. Each folder's unread and
+// total counts are computed live from the cached messages rather than read from the stored columns.
 func (s *Store) ListFolders(ctx context.Context, accountID string) ([]domain.Folder, error) {
-	rows, err := s.db.QueryContext(ctx,
-		"SELECT id, account_id, path, separator, kind, unread, total FROM folder WHERE account_id = ? ORDER BY path;",
+	rows, err := s.db.QueryContext(ctx, fmt.Sprintf(
+		`SELECT f.id, f.account_id, f.path, f.separator, f.kind, %s AS unread, %s AS total
+		 FROM folder f WHERE f.account_id = ? ORDER BY f.path;`, unreadCountExpr, totalCountExpr),
 		accountID)
 	if err != nil {
 		return nil, fmt.Errorf("query folders: %w", err)
@@ -115,14 +132,16 @@ func (s *Store) GetMessage(ctx context.Context, messageID string) (domain.Messag
 	return msg, nil
 }
 
-// GetFolder returns a single cached folder by its local id.
+// GetFolder returns a single cached folder by its local id, with its unread and total counts computed
+// live from the cached messages rather than read from the stored columns.
 func (s *Store) GetFolder(ctx context.Context, folderID string) (domain.Folder, error) {
 	var (
 		id, accountID, path, sep string
 		kind, unread, total      int
 	)
-	err := s.db.QueryRowContext(ctx,
-		"SELECT id, account_id, path, separator, kind, unread, total FROM folder WHERE id = ?;", folderID).
+	err := s.db.QueryRowContext(ctx, fmt.Sprintf(
+		"SELECT f.id, f.account_id, f.path, f.separator, f.kind, %s AS unread, %s AS total FROM folder f WHERE f.id = ?;",
+		unreadCountExpr, totalCountExpr), folderID).
 		Scan(&id, &accountID, &path, &sep, &kind, &unread, &total)
 	if err != nil {
 		return domain.Folder{}, fmt.Errorf("get folder %q: %w", folderID, err)
@@ -132,6 +151,35 @@ func (s *Store) GetFolder(ctx context.Context, folderID string) (domain.Folder, 
 		return domain.Folder{}, fmt.Errorf("rebuild folder %q: %w", folderID, err)
 	}
 	return folder, nil
+}
+
+// UnreadByAccount returns each account's unread message count summed across all of its folders, keyed
+// by account id. An account with no unread messages is absent from the map. Unread means the Seen bit
+// is clear, matching the per-folder count.
+func (s *Store) UnreadByAccount(ctx context.Context) (map[string]int, error) {
+	rows, err := s.db.QueryContext(ctx, fmt.Sprintf(
+		`SELECT f.account_id, COUNT(*) FROM message m JOIN folder f ON f.id = m.folder_id
+		 WHERE (m.flags & %d) = 0 GROUP BY f.account_id;`, int(domain.FlagSeen)))
+	if err != nil {
+		return nil, fmt.Errorf("query unread by account: %w", err)
+	}
+	defer rows.Close()
+
+	counts := make(map[string]int)
+	for rows.Next() {
+		var (
+			accountID string
+			count     int
+		)
+		if err := rows.Scan(&accountID, &count); err != nil {
+			return nil, fmt.Errorf("scan unread count: %w", err)
+		}
+		counts[accountID] = count
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate unread counts: %w", err)
+	}
+	return counts, nil
 }
 
 // SaveMessages replaces the cached message set for a folder in a single transaction, keeping the

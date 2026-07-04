@@ -155,7 +155,10 @@ func TestFolderRoundTrip(t *testing.T) {
 	if len(folders) != 2 {
 		t.Fatalf("expected 2 folders, got %d", len(folders))
 	}
-	if folders[0].Path() != "INBOX" || folders[0].Unread() != 2 {
+	// Unread and total are computed from the cached messages, not the stored columns, so with no
+	// messages saved both are zero here regardless of the values passed to SaveFolders. The computed
+	// counts have their own test below.
+	if folders[0].Path() != "INBOX" || folders[0].Unread() != 0 || folders[0].Total() != 0 {
 		t.Errorf("unexpected first folder: %+v", folders[0])
 	}
 
@@ -166,6 +169,105 @@ func TestFolderRoundTrip(t *testing.T) {
 	folders, _ = store.ListFolders(ctx, "a1")
 	if len(folders) != 1 {
 		t.Errorf("expected replace to 1 folder, got %d", len(folders))
+	}
+}
+
+// buildMessageIn builds a minimal cached message in a chosen folder with a chosen read state, for the
+// count tests. An unread message has the Seen bit clear.
+func buildMessageIn(t *testing.T, id, folderID string, read bool) domain.MessageSummary {
+	t.Helper()
+	flags := domain.NewFlags(0)
+	if read {
+		flags = domain.NewFlags(domain.FlagSeen)
+	}
+	msg, err := domain.NewMessageSummary(domain.MessageSummaryInput{
+		ID: id, FolderID: folderID, UID: id, MessageID: "<" + id + "@x>",
+		Subject: "Subject " + id, Date: time.Date(2026, time.July, 1, 0, 0, 0, 0, time.UTC),
+		Size: 1024, Flags: flags, Snippet: "snippet " + id,
+	})
+	if err != nil {
+		t.Fatalf("message: %v", err)
+	}
+	return msg
+}
+
+func TestFolderCountsAreComputedFromMessages(t *testing.T) {
+	store := openTestStore(t)
+	ctx := context.Background()
+
+	// The stored counts are deliberately wrong (0/0); the computed counts must ignore them and reflect
+	// the cached messages: two unread of three total.
+	inbox, _ := domain.NewFolder("f1", "a1", "INBOX", domain.FolderInbox, 0, 0)
+	if err := store.SaveFolders(ctx, "a1", []domain.Folder{inbox}); err != nil {
+		t.Fatalf("save folders: %v", err)
+	}
+	if err := store.SaveMessages(ctx, "f1", []domain.MessageSummary{
+		buildMessageIn(t, "m1", "f1", false),
+		buildMessageIn(t, "m2", "f1", false),
+		buildMessageIn(t, "m3", "f1", true),
+	}); err != nil {
+		t.Fatalf("save messages: %v", err)
+	}
+
+	folders, err := store.ListFolders(ctx, "a1")
+	if err != nil {
+		t.Fatalf("list folders: %v", err)
+	}
+	if folders[0].Unread() != 2 || folders[0].Total() != 3 {
+		t.Errorf("ListFolders counts wrong: unread=%d total=%d, want 2/3",
+			folders[0].Unread(), folders[0].Total())
+	}
+
+	got, err := store.GetFolder(ctx, "f1")
+	if err != nil {
+		t.Fatalf("get folder: %v", err)
+	}
+	if got.Unread() != 2 || got.Total() != 3 {
+		t.Errorf("GetFolder counts wrong: unread=%d total=%d, want 2/3", got.Unread(), got.Total())
+	}
+}
+
+func TestUnreadByAccount(t *testing.T) {
+	store := openTestStore(t)
+	ctx := context.Background()
+
+	// Three accounts: a1 has 2 unread across two folders, a2 has 1, a3 has none (so it is absent from
+	// the returned map).
+	a1inbox, _ := domain.NewFolder("f1", "a1", "INBOX", domain.FolderInbox, 0, 0)
+	a1arch, _ := domain.NewFolder("f2", "a1", "Archive", domain.FolderArchive, 0, 0)
+	a2inbox, _ := domain.NewFolder("f3", "a2", "INBOX", domain.FolderInbox, 0, 0)
+	a3inbox, _ := domain.NewFolder("f4", "a3", "INBOX", domain.FolderInbox, 0, 0)
+	for accountID, folders := range map[string][]domain.Folder{
+		"a1": {a1inbox, a1arch},
+		"a2": {a2inbox},
+		"a3": {a3inbox},
+	} {
+		if err := store.SaveFolders(ctx, accountID, folders); err != nil {
+			t.Fatalf("save %s folders: %v", accountID, err)
+		}
+	}
+	mustSave := func(folderID string, msgs ...domain.MessageSummary) {
+		if err := store.SaveMessages(ctx, folderID, msgs); err != nil {
+			t.Fatalf("save messages in %q: %v", folderID, err)
+		}
+	}
+	mustSave("f1", buildMessageIn(t, "m1", "f1", false), buildMessageIn(t, "m2", "f1", true))
+	mustSave("f2", buildMessageIn(t, "m3", "f2", false))
+	mustSave("f3", buildMessageIn(t, "m4", "f3", false))
+	mustSave("f4", buildMessageIn(t, "m5", "f4", true))
+
+	counts, err := store.UnreadByAccount(ctx)
+	if err != nil {
+		t.Fatalf("unread by account: %v", err)
+	}
+	if counts["a1"] != 2 {
+		t.Errorf("a1 unread = %d, want 2", counts["a1"])
+	}
+	if counts["a2"] != 1 {
+		t.Errorf("a2 unread = %d, want 1", counts["a2"])
+	}
+	if _, ok := counts["a3"]; ok {
+		t.Errorf("a3 should be absent from the map, got %d", counts["a3"])
 	}
 }
 

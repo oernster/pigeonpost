@@ -36,6 +36,27 @@ func (s *MailboxService) Messages(ctx context.Context, folderID string) ([]domai
 	return messages, nil
 }
 
+// UnreadTotals carries the per-account unread message counts and their sum across all accounts.
+type UnreadTotals struct {
+	Total     int
+	ByAccount map[string]int
+}
+
+// UnreadCounts returns the unread message count for each account and the total across all accounts,
+// computed from the local cache. The per-account map never contains a nil value; an account with no
+// unread messages is simply absent.
+func (s *MailboxService) UnreadCounts(ctx context.Context) (UnreadTotals, error) {
+	byAccount, err := s.mail.UnreadByAccount(ctx)
+	if err != nil {
+		return UnreadTotals{}, fmt.Errorf("unread counts: %w", err)
+	}
+	total := 0
+	for _, n := range byAccount {
+		total += n
+	}
+	return UnreadTotals{Total: total, ByAccount: byAccount}, nil
+}
+
 // Search returns cached messages matching a free-text query, most relevant first.
 func (s *MailboxService) Search(ctx context.Context, query string) ([]domain.MessageSummary, error) {
 	messages, err := s.mail.SearchMessages(ctx, query)

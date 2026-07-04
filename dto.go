@@ -32,6 +32,13 @@ type FolderDTO struct {
 	Total     int    `json:"total"`
 }
 
+// UnreadCountsDTO is the JSON-serialisable view of unread message counts: the total across every
+// account and the per-account breakdown keyed by account id.
+type UnreadCountsDTO struct {
+	Total     int            `json:"total"`
+	ByAccount map[string]int `json:"byAccount"`
+}
+
 // AddressDTO is the JSON-serialisable view of one email address with its optional display name.
 type AddressDTO struct {
 	Name    string `json:"name"`

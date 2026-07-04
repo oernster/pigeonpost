@@ -52,9 +52,11 @@ func TestListAccountsRebuildErrors(t *testing.T) {
 func TestListFoldersRebuildError(t *testing.T) {
 	ctx := context.Background()
 	store := openRawStore(t)
-	// unread greater than total is invalid per the domain.
+	// A blank folder path is invalid per the domain, so rebuilding the row fails. The counts are no
+	// longer read from the row (they are computed from the messages), so an invalid path is what forces
+	// the rebuild-error branch now.
 	if _, err := store.db.ExecContext(ctx,
-		`INSERT INTO folder (id, account_id, path, kind, unread, total) VALUES ('f','a','INBOX',0,5,2);`); err != nil {
+		`INSERT INTO folder (id, account_id, path, kind, unread, total) VALUES ('f','a','',0,0,0);`); err != nil {
 		t.Fatalf("insert: %v", err)
 	}
 	if _, err := store.ListFolders(ctx, "a"); err == nil {

@@ -6,6 +6,9 @@ import {messageDragType} from './MessageList'
 interface SidebarProps {
     accounts: Account[]
     selectedAccount: string
+    // unreadByAccount maps an account id to its unread message count. An account with no unread mail is
+    // absent from the map.
+    unreadByAccount: {[accountId: string]: number}
     folders: Folder[]
     selectedFolder: string
     onSelectAccount: (id: string) => void
@@ -59,7 +62,7 @@ export function Sidebar(props: SidebarProps) {
 }
 
 function SidebarContent(props: SidebarProps) {
-    const {accounts, selectedAccount, folders, selectedFolder} = props
+    const {accounts, selectedAccount, unreadByAccount, folders, selectedFolder} = props
     return (
         <>
             <div className="section-label">Accounts</div>
@@ -74,6 +77,14 @@ function SidebarContent(props: SidebarProps) {
                             <span className="item-title">{account.displayName}</span>
                             <span className="item-sub">{account.email}</span>
                         </span>
+                        {(unreadByAccount[account.id] ?? 0) > 0 && (
+                            <span
+                                className="badge account-badge"
+                                title={`${unreadByAccount[account.id]} unread`}
+                            >
+                                {unreadByAccount[account.id]}
+                            </span>
+                        )}
                         <span className="account-actions">
                             <button
                                 className="account-action"
