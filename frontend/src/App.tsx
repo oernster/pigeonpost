@@ -1,7 +1,7 @@
 import {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from 'react'
 import './App.css'
 import brandIcon from './assets/pigeonpost.png'
-import {AboutInfo, Account, api, Contact, Folder, Message, MessageBody, OutboxItem, Rule, Tag, UnreadCountsResult} from './api'
+import {AboutInfo, Account, api, CalendarEvent, Contact, Folder, Message, MessageBody, OutboxItem, Rule, Tag, UnreadCountsResult} from './api'
 import {OUTBOX_FOLDER_ID, isOutboxMessage, outboxItemToMessage} from './outbox'
 import {applyTheme, loadTheme, Theme} from './theme'
 import {TAG_PALETTE, colourTagId} from './tagColours'
@@ -18,6 +18,7 @@ import {ConfirmDialog} from './components/ConfirmDialog'
 import {PromptDialog} from './components/PromptDialog'
 import {RuleManagerModal} from './components/RuleManagerModal'
 import {ContactsModal} from './components/ContactsModal'
+import {CalendarModal} from './components/CalendarModal'
 import {Splash} from './components/Splash'
 
 // focusRingRoot is the container the ring is scoped to: the topmost open modal when one is showing (so
@@ -188,6 +189,8 @@ function App() {
     const [managingRules, setManagingRules] = useState<boolean>(false)
     const [contacts, setContacts] = useState<Contact[]>([])
     const [managingContacts, setManagingContacts] = useState<boolean>(false)
+    const [events, setEvents] = useState<CalendarEvent[]>([])
+    const [managingCalendar, setManagingCalendar] = useState<boolean>(false)
     const [messageBody, setMessageBody] = useState<MessageBody | null>(null)
     const [bodyLoading, setBodyLoading] = useState<boolean>(false)
     const [searchQuery, setSearchQuery] = useState<string>('')
@@ -282,6 +285,18 @@ function App() {
     useEffect(() => {
         void loadContacts()
     }, [loadContacts])
+
+    const loadEvents = useCallback(async () => {
+        try {
+            setEvents(await api.listEvents())
+        } catch (e) {
+            setError(String(e))
+        }
+    }, [])
+
+    useEffect(() => {
+        void loadEvents()
+    }, [loadEvents])
 
     // loadUnread refreshes the per-account and cross-account unread counts from the local cache. It is
     // called after anything that can change read state (sync, mark read/unread, delete, opening a
@@ -1041,7 +1056,7 @@ function App() {
     useEffect(() => {
         const overlayOpen =
             splashVisible || composing || settingUp || Boolean(accountToEdit) ||
-            managingRules || managingContacts || Boolean(about) || Boolean(licence) || Boolean(folderPrompt) ||
+            managingRules || managingContacts || managingCalendar || Boolean(about) || Boolean(licence) || Boolean(folderPrompt) ||
             Boolean(messageToCancelSend) ||
             Boolean(messageToDelete) || Boolean(accountToDelete) || Boolean(folderToDelete) ||
             Boolean(messageToPurge) || Boolean(contextMenu)
@@ -1111,7 +1126,7 @@ function App() {
         return () => window.removeEventListener('keydown', onKeyDown)
     }, [
         searchActive, searchResults, messages, selectedMessage, requestDelete,
-        splashVisible, composing, settingUp, accountToEdit, managingRules, managingContacts, about,
+        splashVisible, composing, settingUp, accountToEdit, managingRules, managingContacts, managingCalendar, about,
         licence, folderPrompt, messageToDelete, accountToDelete, folderToDelete, messageToPurge,
         contextMenu, messageToCancelSend,
     ])
@@ -1221,6 +1236,9 @@ function App() {
                     <button className="sync-btn" onClick={() => setManagingContacts(true)}>
                         Contacts
                     </button>
+                    <button className="sync-btn" onClick={() => setManagingCalendar(true)}>
+                        Calendar
+                    </button>
                     <span className="titlebar-sep" aria-hidden="true"/>
                     <button
                         className="icon-btn theme-toggle"
@@ -1307,6 +1325,13 @@ function App() {
                     contacts={contacts}
                     onChanged={() => void loadContacts()}
                     onClose={() => setManagingContacts(false)}
+                />
+            )}
+            {managingCalendar && (
+                <CalendarModal
+                    events={events}
+                    onChanged={() => void loadEvents()}
+                    onClose={() => setManagingCalendar(false)}
                 />
             )}
             {managingRules && (

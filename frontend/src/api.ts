@@ -18,18 +18,27 @@ import {
     MessageTags,
     CopyMessage,
     CreateFolder,
+    DeleteCalendar,
     DeleteContact,
     DeleteContactGroup,
+    DeleteEvent,
     DeleteFolder,
     DeleteRule,
     ExportContactsToFile,
+    ExportEventsToFile,
     GetContact,
+    GetEvent,
     ImportContactsFromFile,
+    ImportEventsFromFile,
+    ListCalendars,
     ListContactGroups,
     ListContacts,
+    ListEvents,
     ListRules,
+    SaveCalendar,
     SaveContact,
     SaveContactGroup,
+    SaveEvent,
     MoveMessage,
     RenameFolder,
     SaveRule,
@@ -97,6 +106,28 @@ export interface ContactGroupInput {
     id: string
     name: string
     members: string[]
+}
+
+export type Calendar = main.CalendarDTO
+export type CalendarEvent = main.EventDTO
+
+export interface CalendarInput {
+    id: string
+    name: string
+    colour: string
+}
+
+export interface CalendarEventInput {
+    id: string
+    uid: string
+    calendarId: string
+    summary: string
+    description: string
+    location: string
+    start: string
+    end: string
+    allDay: boolean
+    recurrence: string
 }
 
 export interface RuleInput {
@@ -194,4 +225,13 @@ export const api = {
     deleteContactGroup: (id: string): Promise<void> => DeleteContactGroup(id),
     importContactsFromFile: (): Promise<number> => ImportContactsFromFile(),
     exportContactsToFile: (format: string): Promise<boolean> => ExportContactsToFile(format),
+    listCalendars: (): Promise<Calendar[]> => ListCalendars(),
+    saveCalendar: (req: CalendarInput): Promise<void> => SaveCalendar(main.CalendarRequest.createFrom(req)),
+    deleteCalendar: (id: string): Promise<void> => DeleteCalendar(id),
+    listEvents: (): Promise<CalendarEvent[]> => ListEvents(),
+    getEvent: (id: string): Promise<CalendarEvent> => GetEvent(id),
+    saveEvent: (req: CalendarEventInput): Promise<void> => SaveEvent(main.EventRequest.createFrom(req)),
+    deleteEvent: (id: string): Promise<void> => DeleteEvent(id),
+    importEventsFromFile: (): Promise<number> => ImportEventsFromFile(),
+    exportEventsToFile: (): Promise<boolean> => ExportEventsToFile(),
 }

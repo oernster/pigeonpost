@@ -1804,3 +1804,88 @@
     width: 14px;
     flex-shrink: 0;
 }
+
+/* Calendar month view */
+.calendar-modal {
+    max-width: 780px;
+    width: 92vw;
+}
+
+.cal-toolbar {
+    align-items: center;
+    gap: 8px;
+}
+
+.cal-month {
+    font-weight: 600;
+    min-width: 150px;
+    text-align: center;
+}
+
+.cal-spacer {
+    flex: 1;
+}
+
+.cal-form-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.cal-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 2px;
+    margin: 12px 0;
+}
+
+.cal-weekday {
+    text-align: center;
+    font-size: 12px;
+    color: var(--text-dim);
+    padding: 4px 0;
+}
+
+.cal-cell {
+    min-height: 84px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 3px;
+    background: var(--bg-elev);
+    cursor: pointer;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.cal-cell-dim {
+    opacity: 0.5;
+}
+
+.cal-daynum {
+    font-size: 12px;
+    color: var(--text-dim);
+}
+
+.cal-event {
+    text-align: left;
+    font-size: 11px;
+    background: var(--bg-elev-2);
+    color: var(--text);
+    border: none;
+    border-left: 3px solid var(--accent);
+    border-radius: 3px;
+    padding: 1px 4px;
+    cursor: pointer;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.cal-allday {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: var(--text-dim);
+}
