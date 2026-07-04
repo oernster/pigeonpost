@@ -148,6 +148,35 @@ func (s *ContactService) DeleteGroup(ctx context.Context, id string) error {
 	return nil
 }
 
+// ImportContacts decodes contacts from the given bytes with the codec and saves each. A decoded
+// contact keeps its own id (a vCard UID where present), so re-importing the same source updates the
+// matching records rather than duplicating them. It returns the number imported.
+func (s *ContactService) ImportContacts(ctx context.Context, codec ContactCodec, data []byte) (int, error) {
+	contacts, err := codec.Decode(data)
+	if err != nil {
+		return 0, fmt.Errorf("contacts: decode import: %w", err)
+	}
+	for i, c := range contacts {
+		if err := s.contacts.SaveContact(ctx, c); err != nil {
+			return i, fmt.Errorf("contacts: import save %q: %w", c.ID(), err)
+		}
+	}
+	return len(contacts), nil
+}
+
+// ExportContacts encodes every contact with the codec into its serialised form.
+func (s *ContactService) ExportContacts(ctx context.Context, codec ContactCodec) ([]byte, error) {
+	contacts, err := s.contacts.ListContacts(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("contacts: list for export: %w", err)
+	}
+	data, err := codec.Encode(contacts)
+	if err != nil {
+		return nil, fmt.Errorf("contacts: encode export: %w", err)
+	}
+	return data, nil
+}
+
 // buildContactEmails validates each raw email input into a domain value, or returns nil when there are
 // none.
 func buildContactEmails(in []ContactEmailInput) ([]domain.ContactEmail, error) {

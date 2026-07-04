@@ -130,3 +130,11 @@ type ContactStore interface {
 	SaveContactGroup(ctx context.Context, group domain.ContactGroup) error
 	DeleteContactGroup(ctx context.Context, id string) error
 }
+
+// ContactCodec converts contacts to and from a serialised address-book format (vCard, CSV). It is the
+// import/export seam: one implementation per format, selected by the caller. A decoded contact carries
+// its own id (a vCard UID where present) so an import can reconcile against existing records.
+type ContactCodec interface {
+	Decode(data []byte) ([]domain.Contact, error)
+	Encode(contacts []domain.Contact) ([]byte, error)
+}

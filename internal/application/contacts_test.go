@@ -81,6 +81,98 @@ func (f *fakeContactStore) DeleteContactGroup(_ context.Context, id string) erro
 
 func fixedID(id string) IDGenerator { return func() string { return id } }
 
+// fakeContactCodec is a hand-written ContactCodec with error-injection fields.
+type fakeContactCodec struct {
+	decoded   []domain.Contact
+	decodeErr error
+	encoded   []byte
+	encodeErr error
+	gotEncode []domain.Contact
+}
+
+func (f *fakeContactCodec) Decode([]byte) ([]domain.Contact, error) {
+	if f.decodeErr != nil {
+		return nil, f.decodeErr
+	}
+	return f.decoded, nil
+}
+
+func (f *fakeContactCodec) Encode(cs []domain.Contact) ([]byte, error) {
+	if f.encodeErr != nil {
+		return nil, f.encodeErr
+	}
+	f.gotEncode = cs
+	return f.encoded, nil
+}
+
+func mustContact(t *testing.T, id, name string) domain.Contact {
+	t.Helper()
+	c, err := domain.NewContact(domain.ContactInput{ID: id, UID: id, FormattedName: name})
+	if err != nil {
+		t.Fatalf("contact: %v", err)
+	}
+	return c
+}
+
+func TestImportContactsDecodeError(t *testing.T) {
+	svc := NewContactService(&fakeContactStore{}, fixedID("x"))
+	codec := &fakeContactCodec{decodeErr: errBoom}
+	if n, err := svc.ImportContacts(context.Background(), codec, nil); n != 0 || !errors.Is(err, errBoom) {
+		t.Errorf("import = %d, %v; want 0 and wrapped errBoom", n, err)
+	}
+}
+
+func TestImportContactsSaveError(t *testing.T) {
+	store := &fakeContactStore{saveErr: errBoom}
+	codec := &fakeContactCodec{decoded: []domain.Contact{mustContact(t, "c1", "Jo"), mustContact(t, "c2", "Amy")}}
+	svc := NewContactService(store, fixedID("x"))
+	if n, err := svc.ImportContacts(context.Background(), codec, nil); n != 0 || !errors.Is(err, errBoom) {
+		t.Errorf("import = %d, %v; want 0 and wrapped errBoom", n, err)
+	}
+}
+
+func TestImportContactsSuccess(t *testing.T) {
+	store := &fakeContactStore{}
+	codec := &fakeContactCodec{decoded: []domain.Contact{mustContact(t, "c1", "Jo"), mustContact(t, "c2", "Amy")}}
+	svc := NewContactService(store, fixedID("x"))
+	n, err := svc.ImportContacts(context.Background(), codec, []byte("data"))
+	if err != nil || n != 2 {
+		t.Fatalf("import = %d, %v; want 2 and no error", n, err)
+	}
+	if len(store.savedC) != 2 {
+		t.Errorf("saved %d contacts, want 2", len(store.savedC))
+	}
+}
+
+func TestExportContactsListError(t *testing.T) {
+	store := &fakeContactStore{listErr: errBoom}
+	svc := NewContactService(store, fixedID("x"))
+	if _, err := svc.ExportContacts(context.Background(), &fakeContactCodec{}); !errors.Is(err, errBoom) {
+		t.Errorf("err = %v, want wrapped errBoom", err)
+	}
+}
+
+func TestExportContactsEncodeError(t *testing.T) {
+	store := &fakeContactStore{contacts: []domain.Contact{mustContact(t, "c1", "Jo")}}
+	svc := NewContactService(store, fixedID("x"))
+	if _, err := svc.ExportContacts(context.Background(), &fakeContactCodec{encodeErr: errBoom}); !errors.Is(err, errBoom) {
+		t.Errorf("err = %v, want wrapped errBoom", err)
+	}
+}
+
+func TestExportContactsSuccess(t *testing.T) {
+	store := &fakeContactStore{contacts: []domain.Contact{mustContact(t, "c1", "Jo")}}
+	codec := &fakeContactCodec{encoded: []byte("BEGIN:VCARD")}
+	svc := NewContactService(store, fixedID("x"))
+	data, err := svc.ExportContacts(context.Background(), codec)
+	if err != nil || string(data) != "BEGIN:VCARD" {
+		t.Fatalf("export = %q, %v", data, err)
+	}
+	if len(codec.gotEncode) != 1 || codec.gotEncode[0].ID() != "c1" {
+		t.Errorf("codec received %+v", codec.gotEncode)
+	}
+}
+
 func TestContactServiceListContacts(t *testing.T) {
 	jo, _ := domain.NewContact(domain.ContactInput{ID: "c1", FormattedName: "Jo"})
 	store := &fakeContactStore{contacts: []domain.Contact{jo}}
