@@ -1,18 +1,13 @@
 import {useEffect, useRef, useState} from 'react'
-import {Theme} from '../theme'
 
 interface MenuBarProps {
-    theme: Theme
-    onToggleTheme: () => void
-    previewEnabled: boolean
-    onTogglePreview: () => void
     onShowAbout: () => void
     onShowLicence: () => void
     onCheckUpdates: () => void
 }
 
+// MenuBar is the Help menu at the end of the title tray: an info button that opens a small dropdown.
 export function MenuBar(props: MenuBarProps) {
-    const {theme} = props
     const [open, setOpen] = useState(false)
     const menuRef = useRef<HTMLDivElement>(null)
 
@@ -35,47 +30,28 @@ export function MenuBar(props: MenuBarProps) {
     }
 
     return (
-        <div className="menubar">
+        <div className="menu" ref={menuRef}>
             <button
-                className="icon-btn"
-                data-tip={props.previewEnabled ? 'Hide the reading pane' : 'Show the reading pane'}
-                aria-label={props.previewEnabled ? 'Hide the reading pane' : 'Show the reading pane'}
-                aria-pressed={props.previewEnabled}
-                onClick={props.onTogglePreview}
+                className={'menu-title' + (open ? ' active' : '')}
+                data-tip="Help"
+                aria-label="Help"
+                onClick={() => setOpen((v) => !v)}
             >
-                {props.previewEnabled ? '◫\u{FE0E}' : '▯\u{FE0E}'}
+                {'\u{2139}\u{FE0F}'}
             </button>
-            <button
-                className="icon-btn theme-toggle"
-                data-tip={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
-                aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
-                onClick={props.onToggleTheme}
-            >
-                {theme === 'dark' ? '☀️' : '\u{1F319}'}
-            </button>
-            <div className="menu" ref={menuRef}>
-                <button
-                    className={'menu-title' + (open ? ' active' : '')}
-                    data-tip="Help"
-                    aria-label="Help"
-                    onClick={() => setOpen((v) => !v)}
-                >
-                    {'\u{2139}\u{FE0F}'}
-                </button>
-                {open && (
-                    <div className="menu-dropdown" role="menu">
-                        <button className="menu-item" role="menuitem" onClick={() => choose(props.onShowAbout)}>
-                            About PigeonPost
-                        </button>
-                        <button className="menu-item" role="menuitem" onClick={() => choose(props.onShowLicence)}>
-                            Licence
-                        </button>
-                        <button className="menu-item" role="menuitem" onClick={() => choose(props.onCheckUpdates)}>
-                            Check for Updates
-                        </button>
-                    </div>
-                )}
-            </div>
+            {open && (
+                <div className="menu-dropdown" role="menu">
+                    <button className="menu-item" role="menuitem" onClick={() => choose(props.onShowAbout)}>
+                        About PigeonPost
+                    </button>
+                    <button className="menu-item" role="menuitem" onClick={() => choose(props.onShowLicence)}>
+                        Licence
+                    </button>
+                    <button className="menu-item" role="menuitem" onClick={() => choose(props.onCheckUpdates)}>
+                        Check for Updates
+                    </button>
+                </div>
+            )}
         </div>
     )
 }

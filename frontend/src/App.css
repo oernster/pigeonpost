@@ -631,6 +631,14 @@
     gap: 8px;
 }
 
+/* A thin vertical rule grouping the title-tray buttons. It stretches to the button height. */
+.titlebar-sep {
+    align-self: stretch;
+    width: 1px;
+    background-color: var(--border);
+    margin: 2px 2px;
+}
+
 /* Icon buttons (reading-pane and theme toggles) share the same box as the text buttons beside them, so
    they match in size and their glyph sits on an elevated background in the readable text colour. */
 .icon-btn {

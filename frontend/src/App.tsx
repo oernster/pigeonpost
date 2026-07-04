@@ -1166,12 +1166,6 @@ function App() {
                     )}
                 </span>
                 <div className="titlebar-right">
-                    <button className="sync-btn" onClick={() => setSettingUp(true)}>
-                        Add account
-                    </button>
-                    <button className="sync-btn" onClick={() => setManagingRules(true)}>
-                        Rules
-                    </button>
                     <button
                         className="sync-btn"
                         data-tip="Compose"
@@ -1193,11 +1187,32 @@ function App() {
                     >
                         {'\u{267B}\u{FE0F}'}
                     </button>
+                    <button
+                        className="icon-btn"
+                        data-tip={previewEnabled ? 'Hide the reading pane' : 'Show the reading pane'}
+                        aria-label={previewEnabled ? 'Hide the reading pane' : 'Show the reading pane'}
+                        aria-pressed={previewEnabled}
+                        onClick={togglePreview}
+                    >
+                        {previewEnabled ? '◫\u{FE0E}' : '▯\u{FE0E}'}
+                    </button>
+                    <span className="titlebar-sep" aria-hidden="true"/>
+                    <button className="sync-btn" onClick={() => setSettingUp(true)}>
+                        {'\u{2795}'} Add account
+                    </button>
+                    <button className="sync-btn" onClick={() => setManagingRules(true)}>
+                        Rules
+                    </button>
+                    <span className="titlebar-sep" aria-hidden="true"/>
+                    <button
+                        className="icon-btn theme-toggle"
+                        data-tip={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+                        aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+                        onClick={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
+                    >
+                        {theme === 'dark' ? '☀️' : '\u{1F319}'}
+                    </button>
                     <MenuBar
-                        theme={theme}
-                        onToggleTheme={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
-                        previewEnabled={previewEnabled}
-                        onTogglePreview={togglePreview}
                         onShowAbout={() => void showAbout()}
                         onShowLicence={() => void showLicence()}
                         onCheckUpdates={checkUpdates}
