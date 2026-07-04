@@ -48,7 +48,7 @@ main.go, app.go, about.go, accountsetup.go, send.go, export.go, outbox.go, rules
 internal/domain/            pure value objects, no IO (100% test gate)
 internal/application/        use cases + port interfaces (100% test gate)
 internal/infrastructure/
-    storage/                SQLite store (schema v13, migrations, outbox, rules)
+    storage/                SQLite store (schema v14, migrations, outbox, rules, contacts)
     imap/                   emersion go-imap source adapter (sync, bodies, draft append)
     pop3/                   hand-rolled POP3 client (download-to-inbox, local flags)
     smtp/                   emersion go-smtp transport

@@ -11,7 +11,7 @@ import (
 )
 
 // schemaVersion is the current on-disk schema version, tracked via SQLite's PRAGMA user_version.
-const schemaVersion = 13
+const schemaVersion = 14
 
 const driverName = "sqlite"
 
@@ -204,9 +204,52 @@ const schemaV13 = `
 DELETE FROM message_body;
 `
 
+// schemaV14 adds the address book: contacts with their labelled emails and phones, and groups (mailing
+// lists) linking to contacts by id. Emails, phones and members keep an explicit position so their order
+// is preserved on round-trip (the first email is the contact's primary).
+const schemaV14 = `
+CREATE TABLE IF NOT EXISTS contact (
+    id             TEXT PRIMARY KEY,
+    uid            TEXT NOT NULL,
+    formatted_name TEXT NOT NULL,
+    given_name     TEXT NOT NULL,
+    family_name    TEXT NOT NULL,
+    organization   TEXT NOT NULL,
+    title          TEXT NOT NULL,
+    note           TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS contact_email (
+    contact_id TEXT NOT NULL,
+    position   INTEGER NOT NULL,
+    label      TEXT NOT NULL,
+    address    TEXT NOT NULL,
+    PRIMARY KEY (contact_id, position)
+);
+CREATE TABLE IF NOT EXISTS contact_phone (
+    contact_id TEXT NOT NULL,
+    position   INTEGER NOT NULL,
+    label      TEXT NOT NULL,
+    number     TEXT NOT NULL,
+    PRIMARY KEY (contact_id, position)
+);
+CREATE TABLE IF NOT EXISTS contact_group (
+    id   TEXT PRIMARY KEY,
+    name TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS contact_group_member (
+    group_id   TEXT NOT NULL,
+    contact_id TEXT NOT NULL,
+    position   INTEGER NOT NULL,
+    PRIMARY KEY (group_id, contact_id)
+);
+CREATE INDEX IF NOT EXISTS idx_contact_email_contact ON contact_email(contact_id);
+CREATE INDEX IF NOT EXISTS idx_contact_phone_contact ON contact_phone(contact_id);
+CREATE INDEX IF NOT EXISTS idx_contact_group_member_group ON contact_group_member(group_id);
+`
+
 // migrations is the ordered list of schema steps. Index i upgrades the database from version i to
 // version i+1, so a fresh database applies them all and an existing one applies only what it lacks.
-var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13}
+var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14}
 
 // Store is the SQLite-backed implementation of the application storage ports.
 type Store struct {
