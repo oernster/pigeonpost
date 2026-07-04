@@ -229,7 +229,8 @@ export function CalendarModal({events, onChanged, onClose}: CalendarModalProps) 
 
     return (
         <div className="modal-backdrop" {...dismiss}>
-            <div className="modal calendar-modal" role="dialog" aria-label="Calendar" onClick={(e) => e.stopPropagation()}>
+            <div className={'modal calendar-modal' + (viewMode === 'month' ? '' : ' calendar-modal-wide')}
+                 role="dialog" aria-label="Calendar" onClick={(e) => e.stopPropagation()}>
                 <ModalClose onClose={onClose}/>
                 <h2 className="modal-title">Calendar</h2>
                 {error && <div className="compose-error">{error}</div>}

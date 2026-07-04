@@ -765,6 +765,7 @@
     border-radius: 6px;
     padding: 6px 16px;
     cursor: pointer;
+    white-space: nowrap;
 }
 
 .btn:enabled:hover {
@@ -1831,9 +1832,16 @@
     width: 92vw;
 }
 
+/* Week and day views use the seven-column hour grid, so they need more width than the month grid. */
+.calendar-modal-wide {
+    max-width: 1000px;
+    width: 96vw;
+}
+
 .cal-toolbar {
     align-items: center;
     gap: 8px;
+    flex-wrap: wrap;
 }
 
 .cal-month {
