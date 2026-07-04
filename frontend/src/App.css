@@ -1871,8 +1871,17 @@
 }
 
 .cal-daynum {
+    align-self: flex-start;
+    background: none;
+    border: none;
+    padding: 0;
     font-size: 12px;
     color: var(--text-dim);
+    cursor: pointer;
+}
+
+.cal-daynum:enabled:hover {
+    color: var(--accent);
 }
 
 .cal-event {
@@ -1896,4 +1905,130 @@
     gap: 6px;
     font-size: 13px;
     color: var(--text-dim);
+}
+
+.cal-viewswitch {
+    display: flex;
+    gap: 4px;
+}
+
+.cal-view-btn.active {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+.tg {
+    display: flex;
+    flex-direction: column;
+    margin: 12px 0;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.tg-header,
+.tg-allday,
+.tg-grid {
+    display: grid;
+}
+
+.tg-header {
+    border-bottom: 1px solid var(--border);
+}
+
+.tg-dayhead {
+    text-align: center;
+    padding: 4px 0;
+    font-size: 12px;
+    color: var(--text-dim);
+    border-left: 1px solid var(--border);
+}
+
+.tg-dnum {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text);
+}
+
+.tg-dayhead.tg-today .tg-dnum {
+    color: var(--accent);
+}
+
+.tg-corner,
+.tg-allday-label {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    color: var(--text-dim);
+}
+
+.tg-allday {
+    border-bottom: 1px solid var(--border);
+    min-height: 22px;
+}
+
+.tg-allday-col {
+    border-left: 1px solid var(--border);
+    padding: 2px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.tg-allday-ev {
+    text-align: left;
+    font-size: 11px;
+    background: var(--bg-elev-2);
+    color: var(--text);
+    border: none;
+    border-left: 3px solid var(--accent);
+    border-radius: 3px;
+    padding: 1px 4px;
+    cursor: pointer;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.tg-body {
+    max-height: 60vh;
+    overflow-y: auto;
+}
+
+.tg-hour {
+    font-size: 10px;
+    color: var(--text-dim);
+    text-align: right;
+    padding-right: 4px;
+    box-sizing: border-box;
+    border-top: 1px solid var(--border);
+}
+
+.tg-daycol {
+    position: relative;
+    border-left: 1px solid var(--border);
+    cursor: pointer;
+}
+
+.tg-hourline {
+    box-sizing: border-box;
+    border-top: 1px solid var(--border);
+    pointer-events: none;
+}
+
+.tg-event {
+    position: absolute;
+    overflow: hidden;
+    background: var(--bg-elev-2);
+    color: var(--text);
+    border: none;
+    border-left: 3px solid var(--accent);
+    border-radius: 3px;
+    font-size: 11px;
+    line-height: 1.2;
+    padding: 1px 4px;
+    box-sizing: border-box;
+    text-align: left;
+    cursor: pointer;
 }

@@ -2,12 +2,25 @@ import {useState} from 'react'
 import {api, CalendarEvent, CalendarEventInput} from '../api'
 import {ModalClose} from './ModalClose'
 import {ConfirmDialog} from './ConfirmDialog'
+import {CalendarTimeGrid} from './CalendarTimeGrid'
 
+const DAYS_IN_WEEK = 7
+const HOURS_PER_EVENT = 1
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+const WEEKDAYS_FULL = [
+    'Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday',
+]
 const MONTHS = [
     'January', 'February', 'March', 'April', 'May', 'June',
     'July', 'August', 'September', 'October', 'November', 'December',
 ]
+const MONTHS_SHORT = [
+    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+]
+
+type ViewMode = 'month' | 'week' | 'day'
+const VIEW_MODES: ViewMode[] = ['month', 'week', 'day']
 
 interface EventForm {
     id: string
@@ -53,6 +66,19 @@ function monthCells(viewDate: Date): Date[] {
     return cells
 }
 
+// weekDays returns the seven days of the week containing viewDate, starting on the Sunday on or before it.
+function weekDays(viewDate: Date): Date[] {
+    const start = new Date(viewDate)
+    start.setDate(viewDate.getDate() - viewDate.getDay())
+    const days: Date[] = []
+    for (let i = 0; i < DAYS_IN_WEEK; i++) {
+        const d = new Date(start)
+        d.setDate(start.getDate() + i)
+        days.push(d)
+    }
+    return days
+}
+
 interface CalendarModalProps {
     events: CalendarEvent[]
     onChanged: () => void
@@ -63,6 +89,7 @@ interface CalendarModalProps {
 // events round-trip with Outlook and Thunderbird. Deletion is always confirmed.
 export function CalendarModal({events, onChanged, onClose}: CalendarModalProps) {
     const [viewDate, setViewDate] = useState(() => new Date())
+    const [viewMode, setViewMode] = useState<ViewMode>('month')
     const [form, setForm] = useState<EventForm | null>(null)
     const [pendingDelete, setPendingDelete] = useState<CalendarEvent | null>(null)
     const [error, setError] = useState('')
@@ -80,6 +107,16 @@ export function CalendarModal({events, onChanged, onClose}: CalendarModalProps) 
         start.setHours(9, 0, 0, 0)
         const end = new Date(start)
         end.setHours(10, 0, 0, 0)
+        setForm({
+            id: '', uid: '', calendarId: '', summary: '', description: '', location: '',
+            allDay: false, start: dateTimeInput(start), end: dateTimeInput(end), recurrence: '',
+        })
+    }
+
+    // openAt starts a new one-hour event at the clicked time in the week or day time-grid.
+    const openAt = (start: Date) => {
+        const end = new Date(start)
+        end.setHours(start.getHours() + HOURS_PER_EVENT)
         setForm({
             id: '', uid: '', calendarId: '', summary: '', description: '', location: '',
             allDay: false, start: dateTimeInput(start), end: dateTimeInput(end), recurrence: '',
@@ -161,8 +198,32 @@ export function CalendarModal({events, onChanged, onClose}: CalendarModalProps) 
         }
     }
 
-    const shiftMonth = (delta: number) =>
-        setViewDate((d) => new Date(d.getFullYear(), d.getMonth() + delta, 1))
+    // shift moves the view by one unit of the active mode: a month, a week or a day.
+    const shift = (delta: number) =>
+        setViewDate((d) => {
+            if (viewMode === 'month') return new Date(d.getFullYear(), d.getMonth() + delta, 1)
+            const n = new Date(d)
+            n.setDate(d.getDate() + delta * (viewMode === 'week' ? DAYS_IN_WEEK : 1))
+            return n
+        })
+
+    const headerLabel = (): string => {
+        if (viewMode === 'month') return `${MONTHS[viewDate.getMonth()]} ${viewDate.getFullYear()}`
+        if (viewMode === 'day') {
+            return `${WEEKDAYS_FULL[viewDate.getDay()]}, ${viewDate.getDate()} ` +
+                `${MONTHS[viewDate.getMonth()]} ${viewDate.getFullYear()}`
+        }
+        const wd = weekDays(viewDate)
+        const a = wd[0]
+        const b = wd[DAYS_IN_WEEK - 1]
+        return `${a.getDate()} ${MONTHS_SHORT[a.getMonth()]} to ` +
+            `${b.getDate()} ${MONTHS_SHORT[b.getMonth()]} ${b.getFullYear()}`
+    }
+
+    const openDay = (day: Date) => {
+        setViewDate(day)
+        setViewMode('day')
+    }
 
     return (
         <div className="modal-backdrop" onClick={onClose}>
@@ -173,36 +234,57 @@ export function CalendarModal({events, onChanged, onClose}: CalendarModalProps) 
                 {status && <div className="setup-hint">{status}</div>}
 
                 <div className="modal-actions cal-toolbar">
-                    <button className="btn" aria-label="Previous month" onClick={() => shiftMonth(-1)}>‹</button>
-                    <span className="cal-month">{MONTHS[viewDate.getMonth()]} {viewDate.getFullYear()}</span>
-                    <button className="btn" aria-label="Next month" onClick={() => shiftMonth(1)}>›</button>
+                    <button className="btn" aria-label="Previous" onClick={() => shift(-1)}>‹</button>
+                    <span className="cal-month">{headerLabel()}</span>
+                    <button className="btn" aria-label="Next" onClick={() => shift(1)}>›</button>
                     <button className="btn" onClick={() => setViewDate(new Date())}>Today</button>
+                    <span className="cal-viewswitch">
+                        {VIEW_MODES.map((m) => (
+                            <button key={m} className={'btn cal-view-btn' + (viewMode === m ? ' active' : '')}
+                                    aria-pressed={viewMode === m} onClick={() => setViewMode(m)}>
+                                {m.charAt(0).toUpperCase() + m.slice(1)}
+                            </button>
+                        ))}
+                    </span>
                     <span className="cal-spacer"/>
                     <button className="btn" onClick={() => void doImport()}>Import…</button>
                     <button className="btn" onClick={() => void doExport()} disabled={events.length === 0}>Export ICS</button>
                 </div>
 
-                <div className="cal-grid">
-                    {WEEKDAYS.map((w) => (<div key={w} className="cal-weekday">{w}</div>))}
-                    {cells.map((day, i) => {
-                        const dayEvents = dated.filter((p) => sameDay(p.start, day))
-                        const inMonth = day.getMonth() === viewDate.getMonth()
-                        return (
-                            <div key={i} className={'cal-cell' + (inMonth ? '' : ' cal-cell-dim')} onClick={() => openNew(day)}>
-                                <div className="cal-daynum">{day.getDate()}</div>
-                                {dayEvents.map((p) => (
-                                    <button key={p.e.id} className="cal-event" title={p.e.summary}
+                {viewMode === 'month' ? (
+                    <div className="cal-grid">
+                        {WEEKDAYS.map((w) => (<div key={w} className="cal-weekday">{w}</div>))}
+                        {cells.map((day, i) => {
+                            const dayEvents = dated.filter((p) => sameDay(p.start, day))
+                            const inMonth = day.getMonth() === viewDate.getMonth()
+                            return (
+                                <div key={i} className={'cal-cell' + (inMonth ? '' : ' cal-cell-dim')} onClick={() => openNew(day)}>
+                                    <button className="cal-daynum" title="Open day view"
                                             onClick={(ev) => {
                                                 ev.stopPropagation()
-                                                openEdit(p.e)
-                                            }}>
-                                        {p.e.allDay ? '' : `${pad(p.start.getHours())}:${pad(p.start.getMinutes())} `}{p.e.summary}
-                                    </button>
-                                ))}
-                            </div>
-                        )
-                    })}
-                </div>
+                                                openDay(day)
+                                            }}>{day.getDate()}</button>
+                                    {dayEvents.map((p) => (
+                                        <button key={p.e.id} className="cal-event" title={p.e.summary}
+                                                onClick={(ev) => {
+                                                    ev.stopPropagation()
+                                                    openEdit(p.e)
+                                                }}>
+                                            {p.e.allDay ? '' : `${pad(p.start.getHours())}:${pad(p.start.getMinutes())} `}{p.e.summary}
+                                        </button>
+                                    ))}
+                                </div>
+                            )
+                        })}
+                    </div>
+                ) : (
+                    <CalendarTimeGrid
+                        days={viewMode === 'week' ? weekDays(viewDate) : [viewDate]}
+                        events={events}
+                        onNewAt={openAt}
+                        onEdit={openEdit}
+                    />
+                )}
 
                 {form && (
                     <div className="rule-form">
