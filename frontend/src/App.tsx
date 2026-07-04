@@ -1249,7 +1249,7 @@ function App() {
                         Rules
                     </button>
                     <button className="sync-btn" onClick={() => setManagingContacts(true)}>
-                        {'\u{1F465}'} Contacts
+                        {'\u{1F4C7}'} Contacts
                     </button>
                     <button className="sync-btn" onClick={() => setManagingCalendar(true)}>
                         {'\u{1F4C5}'} Calendar
