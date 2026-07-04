@@ -11,7 +11,7 @@ import (
 )
 
 // schemaVersion is the current on-disk schema version, tracked via SQLite's PRAGMA user_version.
-const schemaVersion = 14
+const schemaVersion = 15
 
 const driverName = "sqlite"
 
@@ -247,9 +247,33 @@ CREATE INDEX IF NOT EXISTS idx_contact_phone_contact ON contact_phone(contact_id
 CREATE INDEX IF NOT EXISTS idx_contact_group_member_group ON contact_group_member(group_id);
 `
 
+// schemaV15 adds the calendar: calendars and their events. Times are stored as Unix milliseconds;
+// end_ms is 0 when an event has no end, and all_day marks whole-day events.
+const schemaV15 = `
+CREATE TABLE IF NOT EXISTS calendar (
+    id     TEXT PRIMARY KEY,
+    name   TEXT NOT NULL,
+    colour TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS event (
+    id          TEXT PRIMARY KEY,
+    uid         TEXT NOT NULL,
+    calendar_id TEXT NOT NULL,
+    summary     TEXT NOT NULL,
+    description TEXT NOT NULL,
+    location    TEXT NOT NULL,
+    start_ms    INTEGER NOT NULL,
+    end_ms      INTEGER NOT NULL,
+    all_day     INTEGER NOT NULL,
+    recurrence  TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_event_calendar ON event(calendar_id);
+CREATE INDEX IF NOT EXISTS idx_event_start ON event(start_ms);
+`
+
 // migrations is the ordered list of schema steps. Index i upgrades the database from version i to
 // version i+1, so a fresh database applies them all and an existing one applies only what it lacks.
-var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14}
+var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15}
 
 // Store is the SQLite-backed implementation of the application storage ports.
 type Store struct {
