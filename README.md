@@ -1,4 +1,4 @@
-# PigeonPost
+# <img width="64" height="64" alt="pigeonpost" src="https://github.com/user-attachments/assets/fcc90cad-786e-4d04-a7a9-6f5d82be309d" /> PigeonPost
 
 A cross-platform desktop email, calendar and address book client. Go core, React front end,
 local-first. Built as a calmer, more predictable alternative to Thunderbird.
