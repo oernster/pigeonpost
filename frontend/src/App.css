@@ -1851,23 +1851,23 @@
 .folder-toggle {
     background: transparent;
     border: none;
-    color: var(--text-dim);
-    font-size: 10px;
+    color: var(--text);
+    font-size: 16px;
     line-height: 1;
     cursor: pointer;
     padding: 0;
-    width: 14px;
+    width: 20px;
     text-align: center;
     flex-shrink: 0;
 }
 
 .folder-toggle:hover {
-    color: var(--text);
+    color: var(--accent);
 }
 
 .folder-toggle-spacer {
     display: inline-block;
-    width: 14px;
+    width: 20px;
     flex-shrink: 0;
 }
 
