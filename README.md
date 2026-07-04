@@ -54,6 +54,11 @@ Shipped:
 - **Trust** — dark theme by default with a light mode toggle; passwords held in the OS keychain, never
   in the database; external links open in your browser, not the app's webview; the unread total shows
   as a taskbar overlay badge on Windows.
+- **Calendar**: month, week and day views. Week and day are an hour time-grid with an all-day strip;
+  clashing events sit in side-by-side lanes. ICS (.ics) import and export (RFC 5545) round-trips with
+  Outlook and Thunderbird; an event keeps its ICS UID so an export re-imports cleanly.
+- **Contacts**: an address book with a list and an editor. vCard (.vcf) and CSV import and export, so
+  contacts round-trip with Outlook (whose bulk export is CSV) and Thunderbird.
 - **Help menu** — About (with credits), Licence, and Check for Updates.
 
 Planned (see [DESIGN_PLAN.md](DESIGN_PLAN.md) for the full roadmap):
@@ -61,8 +66,8 @@ Planned (see [DESIGN_PLAN.md](DESIGN_PLAN.md) for the full roadmap):
 - Tags round-tripped onto IMAP keywords, move/delete filter rules.
 - Microsoft one-click sign-in (deferred: it needs an Azure/Entra tenant). Multiple accounts already
   work, each with its own inbox.
-- Calendar (ICS) and address book (vCard, plus CSV), with import/export that round-trips with Outlook
-  and Thunderbird.
+- Colour-per-calendar and contact-group management UIs; calendar recurrence-edit, invites and alarms.
+- Cross-platform delivery (macOS and Linux) and two-way CalDAV / CardDAV.
 
 ## Stack
 
