@@ -13,6 +13,7 @@ type RuleInput struct {
 	ID       string
 	Name     string
 	Field    domain.RuleField
+	Operator domain.RuleOperator
 	Contains string
 	Action   domain.RuleAction
 }
@@ -43,7 +44,7 @@ func (s *RuleService) Save(ctx context.Context, in RuleInput) error {
 	if id == "" {
 		id = s.newID()
 	}
-	rule, err := domain.NewRule(id, in.Name, in.Field, in.Contains, in.Action)
+	rule, err := domain.NewRule(id, in.Name, in.Field, in.Operator, in.Contains, in.Action)
 	if err != nil {
 		return fmt.Errorf("rules: build rule: %w", err)
 	}

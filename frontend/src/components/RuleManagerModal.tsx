@@ -8,14 +8,22 @@ interface RuleManagerModalProps {
     onClose: () => void
 }
 
-const FIELD_LABELS: Record<string, string> = {from: 'From', subject: 'Subject'}
+const FIELD_LABELS: Record<string, string> = {from: 'From', to: 'To', cc: 'Cc', subject: 'Subject'}
+const OPERATOR_LABELS: Record<string, string> = {
+    contains: 'contains',
+    notContains: "doesn't contain",
+    equals: 'is',
+    startsWith: 'starts with',
+    endsWith: 'ends with',
+}
 const ACTION_LABELS: Record<string, string> = {markRead: 'mark as read', flag: 'flag it'}
 
 // RuleManagerModal lists filter rules and adds new ones. Rules run on each sync; a matching message
-// (its From or Subject contains the text) has the chosen action applied.
+// (its chosen field compared with the operator against the text) has the chosen action applied.
 export function RuleManagerModal({rules, onChanged, onClose}: RuleManagerModalProps) {
     const [name, setName] = useState('')
     const [field, setField] = useState('from')
+    const [operator, setOperator] = useState('contains')
     const [contains, setContains] = useState('')
     const [action, setAction] = useState('markRead')
     const [error, setError] = useState('')
@@ -25,7 +33,7 @@ export function RuleManagerModal({rules, onChanged, onClose}: RuleManagerModalPr
         setBusy(true)
         setError('')
         try {
-            const req: RuleInput = {id: '', name, field, contains, action}
+            const req: RuleInput = {id: '', name, field, operator, contains, action}
             await api.saveRule(req)
             setName('')
             setContains('')
@@ -63,7 +71,7 @@ export function RuleManagerModal({rules, onChanged, onClose}: RuleManagerModalPr
                                 <span className="item-text">
                                     <span className="item-title">{r.name}</span>
                                     <span className="item-sub">
-                                        If {FIELD_LABELS[r.field] ?? r.field} contains "{r.contains}", {ACTION_LABELS[r.action] ?? r.action}
+                                        If {FIELD_LABELS[r.field] ?? r.field} {OPERATOR_LABELS[r.operator] ?? r.operator} "{r.contains}", {ACTION_LABELS[r.action] ?? r.action}
                                     </span>
                                 </span>
                                 <button
@@ -88,9 +96,17 @@ export function RuleManagerModal({rules, onChanged, onClose}: RuleManagerModalPr
                     <div className="rule-form-row">
                         <select value={field} onChange={(e) => setField(e.target.value)}>
                             <option value="from">From</option>
+                            <option value="to">To</option>
+                            <option value="cc">Cc</option>
                             <option value="subject">Subject</option>
                         </select>
-                        <span>contains</span>
+                        <select value={operator} onChange={(e) => setOperator(e.target.value)}>
+                            <option value="contains">contains</option>
+                            <option value="notContains">doesn't contain</option>
+                            <option value="equals">is</option>
+                            <option value="startsWith">starts with</option>
+                            <option value="endsWith">ends with</option>
+                        </select>
                         <input
                             className="tag-name-input"
                             placeholder="text to match"

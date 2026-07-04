@@ -28,6 +28,7 @@ var (
 	ErrEmptyRuleName       = errors.New("rule name is empty")
 	ErrEmptyRuleMatch      = errors.New("rule match text is empty")
 	ErrInvalidRuleField    = errors.New("rule field is not valid")
+	ErrInvalidRuleOperator = errors.New("rule operator is not valid")
 	ErrInvalidRuleAction   = errors.New("rule action is not valid")
 	ErrEmptyAttachmentName = errors.New("attachment filename is empty")
 )

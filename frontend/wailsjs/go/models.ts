@@ -279,6 +279,7 @@ export namespace main {
 	    id: string;
 	    name: string;
 	    field: string;
+	    operator: string;
 	    contains: string;
 	    action: string;
 	
@@ -291,6 +292,7 @@ export namespace main {
 	        this.id = source["id"];
 	        this.name = source["name"];
 	        this.field = source["field"];
+	        this.operator = source["operator"];
 	        this.contains = source["contains"];
 	        this.action = source["action"];
 	    }
@@ -299,6 +301,7 @@ export namespace main {
 	    id: string;
 	    name: string;
 	    field: string;
+	    operator: string;
 	    contains: string;
 	    action: string;
 	
@@ -311,6 +314,7 @@ export namespace main {
 	        this.id = source["id"];
 	        this.name = source["name"];
 	        this.field = source["field"];
+	        this.operator = source["operator"];
 	        this.contains = source["contains"];
 	        this.action = source["action"];
 	    }

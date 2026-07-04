@@ -7,12 +7,14 @@ import (
 	"github.com/oernster/pigeonpost/internal/domain"
 )
 
-// RuleDTO is the JSON-serialisable view of a filter rule. Field and action are stable string tokens
-// ("from"/"subject" and "markRead"/"flag") so the front end does not depend on the domain enum values.
+// RuleDTO is the JSON-serialisable view of a filter rule. Field, operator and action are stable string
+// tokens (e.g. "from"/"to", "contains"/"equals", "markRead"/"flag") so the front end does not depend on
+// the domain enum values.
 type RuleDTO struct {
 	ID       string `json:"id"`
 	Name     string `json:"name"`
 	Field    string `json:"field"`
+	Operator string `json:"operator"`
 	Contains string `json:"contains"`
 	Action   string `json:"action"`
 }
@@ -22,6 +24,7 @@ type RuleRequest struct {
 	ID       string `json:"id"`
 	Name     string `json:"name"`
 	Field    string `json:"field"`
+	Operator string `json:"operator"`
 	Contains string `json:"contains"`
 	Action   string `json:"action"`
 }
@@ -38,6 +41,7 @@ func (a *App) ListRules() ([]RuleDTO, error) {
 			ID:       r.ID(),
 			Name:     r.Name(),
 			Field:    r.Field().String(),
+			Operator: r.Operator().String(),
 			Contains: r.Contains(),
 			Action:   r.Action().String(),
 		})
@@ -51,6 +55,10 @@ func (a *App) SaveRule(req RuleRequest) error {
 	if err != nil {
 		return err
 	}
+	operator, err := parseRuleOperator(req.Operator)
+	if err != nil {
+		return err
+	}
 	action, err := parseRuleAction(req.Action)
 	if err != nil {
 		return err
@@ -59,6 +67,7 @@ func (a *App) SaveRule(req RuleRequest) error {
 		ID:       req.ID,
 		Name:     req.Name,
 		Field:    field,
+		Operator: operator,
 		Contains: req.Contains,
 		Action:   action,
 	})
@@ -75,8 +84,29 @@ func parseRuleField(s string) (domain.RuleField, error) {
 		return domain.RuleFieldFrom, nil
 	case "subject":
 		return domain.RuleFieldSubject, nil
+	case "to":
+		return domain.RuleFieldTo, nil
+	case "cc":
+		return domain.RuleFieldCc, nil
 	default:
 		return 0, fmt.Errorf("unknown rule field %q", s)
+	}
+}
+
+func parseRuleOperator(s string) (domain.RuleOperator, error) {
+	switch s {
+	case "contains":
+		return domain.RuleOpContains, nil
+	case "notContains":
+		return domain.RuleOpNotContains, nil
+	case "equals":
+		return domain.RuleOpEquals, nil
+	case "startsWith":
+		return domain.RuleOpStartsWith, nil
+	case "endsWith":
+		return domain.RuleOpEndsWith, nil
+	default:
+		return 0, fmt.Errorf("unknown rule operator %q", s)
 	}
 }
 

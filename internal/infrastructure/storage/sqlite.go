@@ -11,7 +11,7 @@ import (
 )
 
 // schemaVersion is the current on-disk schema version, tracked via SQLite's PRAGMA user_version.
-const schemaVersion = 11
+const schemaVersion = 12
 
 const driverName = "sqlite"
 
@@ -190,9 +190,15 @@ ALTER TABLE message_new RENAME TO message;
 CREATE INDEX IF NOT EXISTS idx_message_folder ON message(folder_id);
 `
 
+// schemaV12 adds the comparison operator to filter rules (contains, does-not-contain, equals,
+// starts-with, ends-with). Existing rows default to 0, which is "contains", preserving their meaning.
+const schemaV12 = `
+ALTER TABLE rule ADD COLUMN operator INTEGER NOT NULL DEFAULT 0;
+`
+
 // migrations is the ordered list of schema steps. Index i upgrades the database from version i to
 // version i+1, so a fresh database applies them all and an existing one applies only what it lacks.
-var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11}
+var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12}
 
 // Store is the SQLite-backed implementation of the application storage ports.
 type Store struct {

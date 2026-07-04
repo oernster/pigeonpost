@@ -14,12 +14,12 @@ func newRuleService() (*RuleService, *fakeRuleStore) {
 }
 
 func validRuleInput() RuleInput {
-	return RuleInput{Name: "News", Field: domain.RuleFieldFrom, Contains: "news@", Action: domain.RuleMarkRead}
+	return RuleInput{Name: "News", Field: domain.RuleFieldFrom, Operator: domain.RuleOpContains, Contains: "news@", Action: domain.RuleMarkRead}
 }
 
 func TestRuleList(t *testing.T) {
 	svc, store := newRuleService()
-	rule, _ := domain.NewRule("r1", "News", domain.RuleFieldFrom, "news@", domain.RuleMarkRead)
+	rule, _ := domain.NewRule("r1", "News", domain.RuleFieldFrom, domain.RuleOpContains, "news@", domain.RuleMarkRead)
 	store.rules = []domain.Rule{rule}
 
 	got, err := svc.List(context.Background())

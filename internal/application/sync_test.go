@@ -61,7 +61,7 @@ func TestSyncAppliesRules(t *testing.T) {
 	}
 	source.messagesByFolder = map[string][]domain.MessageSummary{"f1": {msg}}
 	source.folders = []domain.Folder{testFolder(t, "f1", "a1", "INBOX")}
-	rule, err := domain.NewRule("r1", "News", domain.RuleFieldFrom, "news@", domain.RuleMarkRead)
+	rule, err := domain.NewRule("r1", "News", domain.RuleFieldFrom, domain.RuleOpContains, "news@", domain.RuleMarkRead)
 	if err != nil {
 		t.Fatalf("rule: %v", err)
 	}
@@ -165,7 +165,7 @@ func TestSyncFolderAppliesRules(t *testing.T) {
 		t.Fatalf("message: %v", err)
 	}
 	source.messagesByFolder = map[string][]domain.MessageSummary{"f1": {msg}}
-	rule, err := domain.NewRule("r1", "News", domain.RuleFieldFrom, "news@", domain.RuleMarkRead)
+	rule, err := domain.NewRule("r1", "News", domain.RuleFieldFrom, domain.RuleOpContains, "news@", domain.RuleMarkRead)
 	if err != nil {
 		t.Fatalf("rule: %v", err)
 	}

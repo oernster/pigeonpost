@@ -63,6 +63,7 @@ export interface RuleInput {
     id: string
     name: string
     field: string
+    operator: string
     contains: string
     action: string
 }
