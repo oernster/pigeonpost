@@ -1,5 +1,6 @@
 import {useEffect, useLayoutEffect, useRef, useState} from 'react'
 import {api, Folder, Message, Tag} from '../api'
+import {TAG_PALETTE, colourTagId} from '../tagColours'
 
 interface MessageContextMenuProps {
     message: Message
@@ -11,7 +12,7 @@ interface MessageContextMenuProps {
     onReply: (message: Message) => void
     onReplyAll: (message: Message) => void
     onForward: (message: Message) => void
-    onToggleRead: (message: Message) => void
+    onSetRead: (message: Message, read: boolean) => void
     onToggleFlag: (message: Message) => void
     onMove: (message: Message, destFolderId: string) => void
     onCopy: (message: Message, destFolderId: string) => void
@@ -26,13 +27,13 @@ interface MessageContextMenuProps {
     onDeletePermanent: (message: Message) => void
 }
 
-type View = 'root' | 'move' | 'copy' | 'tags'
+type View = 'root' | 'mark' | 'move' | 'copy' | 'tags'
 
 // Keep the menu at least this far inside the viewport edges when clamping its position.
 const MENU_MARGIN = 8
 
 export function MessageContextMenu(props: MessageContextMenuProps) {
-    const {message, folders, tags, onClose} = props
+    const {message, folders, onClose} = props
     const ref = useRef<HTMLDivElement>(null)
     const [view, setView] = useState<View>('root')
     const [pos, setPos] = useState({x: props.x, y: props.y})
@@ -132,14 +133,8 @@ export function MessageContextMenu(props: MessageContextMenuProps) {
                 Print...
             </button>
             <div className="context-sep"/>
-            <button className="context-item" role="menuitem" onClick={act(() => props.onToggleRead(message))}>
-                {message.read ? 'Mark as unread' : 'Mark as read'}
-            </button>
-            <button className="context-item" role="menuitem" onClick={act(() => props.onToggleFlag(message))}>
-                {message.flagged ? 'Remove star' : 'Add star'}
-            </button>
-            <button className="context-item" role="menuitem" onClick={() => setView('tags')}>
-                <span className="context-item-label">Mark with tag</span>
+            <button className="context-item" role="menuitem" onClick={() => setView('mark')}>
+                <span className="context-item-label">Mark</span>
                 <span className="context-chevron">&#9656;</span>
             </button>
             {props.canMoveCopy && movable.length > 0 && (
@@ -179,43 +174,78 @@ export function MessageContextMenu(props: MessageContextMenuProps) {
         </>
     )
 
-    const tagList = (
+    const markMenu = (
         <>
             <button className="context-back" onClick={() => setView('root')}>
                 <span className="context-chevron back">&#9662;</span> Back
             </button>
             <div className="context-sep"/>
-            {tags.length === 0 ? (
-                <div className="context-empty">No tags defined yet.</div>
-            ) : (
-                tags.map((tag) => {
-                    const isOn = assigned.has(tag.id)
+            <button
+                className="context-item"
+                role="menuitemradio"
+                aria-checked={message.read}
+                onClick={act(() => props.onSetRead(message, true))}
+            >
+                <span className="tag-check">{message.read ? '✓' : ''}</span>
+                <span className="context-item-label">Mark as read</span>
+            </button>
+            <button
+                className="context-item"
+                role="menuitemradio"
+                aria-checked={!message.read}
+                onClick={act(() => props.onSetRead(message, false))}
+            >
+                <span className="tag-check">{!message.read ? '✓' : ''}</span>
+                <span className="context-item-label">Mark as unread</span>
+            </button>
+            <div className="context-sep"/>
+            <button className="context-item" role="menuitem" onClick={act(() => props.onToggleFlag(message))}>
+                {message.flagged ? 'Remove star' : 'Add star'}
+            </button>
+            <div className="context-sep"/>
+            <button className="context-item" role="menuitem" onClick={() => setView('tags')}>
+                <span className="context-item-label">Tag with colour</span>
+                <span className="context-chevron">&#9656;</span>
+            </button>
+        </>
+    )
+
+    const tagList = (
+        <>
+            <button className="context-back" onClick={() => setView('mark')}>
+                <span className="context-chevron back">&#9662;</span> Back
+            </button>
+            <div className="context-sep"/>
+            <div className="context-colour-row" role="group" aria-label="Tag colour">
+                {TAG_PALETTE.map((c) => {
+                    const id = colourTagId(c.colour)
+                    const isOn = assigned.has(id)
                     return (
                         <button
-                            key={tag.id}
-                            className="context-item"
+                            key={id}
+                            className={'context-colour' + (isOn ? ' selected' : '')}
                             role="menuitemcheckbox"
                             aria-checked={isOn}
+                            title={c.name}
+                            style={{backgroundColor: c.colour}}
                             onClick={() => {
-                                props.onSetTag(message.id, tag.id, !isOn)
+                                props.onSetTag(message.id, id, !isOn)
                                 setAssigned((prev) => {
                                     const next = new Set(prev)
                                     if (isOn) {
-                                        next.delete(tag.id)
+                                        next.delete(id)
                                     } else {
-                                        next.add(tag.id)
+                                        next.add(id)
                                     }
                                     return next
                                 })
                             }}
                         >
-                            <span className="tag-check">{isOn ? '✓' : ''}</span>
-                            <span className="tag-swatch" style={{backgroundColor: tag.colour}}/>
-                            <span className="context-item-label">{tag.name}</span>
+                            {isOn ? '✓' : ''}
                         </button>
                     )
-                })
-            )}
+                })}
+            </div>
         </>
     )
 
@@ -228,6 +258,7 @@ export function MessageContextMenu(props: MessageContextMenuProps) {
             onClick={(e) => e.stopPropagation()}
         >
             {view === 'root' && root}
+            {view === 'mark' && markMenu}
             {view === 'move' && folderList((dest) => props.onMove(message, dest))}
             {view === 'copy' && folderList((dest) => props.onCopy(message, dest))}
             {view === 'tags' && tagList}

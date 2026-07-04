@@ -1424,6 +1424,57 @@
     margin: 0 0 12px;
 }
 
+/* A colour tag on a message: a small coloured dot; the x removes it. */
+.tag-dot {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    font-size: 12px;
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0.85;
+}
+
+.tag-dot:hover {
+    opacity: 1;
+}
+
+/* Colour pickers (tags are colours): the context-menu Tag submenu and the reader Colour dropdown. */
+.tag-colour-row,
+.context-colour-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 8px 10px;
+    max-width: 210px;
+}
+
+.tag-colour,
+.context-colour {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    border: 2px solid transparent;
+    padding: 0;
+    cursor: pointer;
+    color: #fff;
+    font-size: 12px;
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.tag-colour.selected,
+.context-colour.selected {
+    border-color: var(--text);
+}
+
 .tag-chip {
     display: inline-flex;
     align-items: center;

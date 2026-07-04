@@ -3,6 +3,7 @@ import './App.css'
 import brandIcon from './assets/pigeonpost.png'
 import {AboutInfo, Account, api, Folder, Message, MessageBody, Rule, Tag} from './api'
 import {applyTheme, loadTheme, Theme} from './theme'
+import {TAG_PALETTE, colourTagId} from './tagColours'
 import {Sidebar} from './components/Sidebar'
 import {MessageList} from './components/MessageList'
 import {MessageContextMenu} from './components/MessageContextMenu'
@@ -191,8 +192,14 @@ function App() {
         void loadRules()
     }, [loadRules])
 
+    // Ensure the fixed colour palette exists as tags (idempotent), then load the tag list. A colour must
+    // exist as a tag row so it can be applied to a message and its swatch shown.
     useEffect(() => {
-        void loadTags()
+        void Promise.all(
+            TAG_PALETTE.map((c) => api.saveTag({id: colourTagId(c.colour), name: c.name, colour: c.colour})),
+        )
+            .then(() => loadTags())
+            .catch((e) => setError(String(e)))
     }, [loadTags])
 
     // Load the tags attached to the selected message whenever the selection changes.
@@ -782,23 +789,27 @@ function App() {
         void api.openReleases()
     }, [])
 
-    // markReadOnView marks a message read when it is displayed, writing through to the cache and updating
-    // the on-screen lists optimistically so it un-bolds at once.
-    const markReadOnView = useCallback(async (message: Message) => {
-        if (message.read) {
-            return
-        }
-        const asRead = (m: Message): Message => (m.id === message.id ? {...m, read: true} : m)
-        setMessages((prev) => prev.map(asRead))
-        setSearchResults((prev) => prev.map(asRead))
-        setTabs((prev) => prev.map(asRead))
-        setSelectedMessage((prev) => (prev && prev.id === message.id ? {...prev, read: true} : prev))
+    // setReadState sets a message's read flag on the server and optimistically in the on-screen lists,
+    // so it bolds or un-bolds at once. Used by the Mark submenu (explicit read/unread) and on view.
+    const setReadState = useCallback(async (message: Message, read: boolean) => {
+        const apply = (m: Message): Message => (m.id === message.id ? {...m, read} : m)
+        setMessages((prev) => prev.map(apply))
+        setSearchResults((prev) => prev.map(apply))
+        setTabs((prev) => prev.map(apply))
+        setSelectedMessage((prev) => (prev && prev.id === message.id ? {...prev, read} : prev))
         try {
-            await api.markRead(message.id, true)
+            await api.markRead(message.id, read)
         } catch (e) {
             setError(String(e))
         }
     }, [])
+
+    // markReadOnView marks a message read when it is displayed, unless it already is.
+    const markReadOnView = useCallback((message: Message) => {
+        if (!message.read) {
+            void setReadState(message, true)
+        }
+    }, [setReadState])
 
     // Persist the reading-pane preference so it survives a restart.
     useEffect(() => {
@@ -1074,7 +1085,7 @@ function App() {
                     onReply={openReply}
                     onReplyAll={openReplyAll}
                     onForward={openForward}
-                    onToggleRead={(m) => void toggleRead(m)}
+                    onSetRead={(m, read) => void setReadState(m, read)}
                     onToggleFlag={(m) => void toggleFlag(m)}
                     onMove={(m, dest) => void moveMessage(m, dest)}
                     onCopy={(m, dest) => void copyMessage(m, dest)}

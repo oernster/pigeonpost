@@ -1,6 +1,7 @@
 import {useEffect, useRef, useState} from 'react'
 import type {MouseEvent as ReactMouseEvent} from 'react'
 import {api, Folder, Message, MessageBody, Tag} from '../api'
+import {TAG_PALETTE, colourTagId} from '../tagColours'
 import {ReaderTabs} from './ReaderTabs'
 
 // handleBodyClick opens links from rendered message HTML in the external browser rather than letting
@@ -40,7 +41,7 @@ interface ReaderProps {
     onBack?: () => void
 }
 
-export function Reader({message, onToggleRead, onReply, onReplyAll, onForward, onDelete, folders, onMove, onCopy, canMoveCopy, tags, messageTags, onToggleTag, body, bodyLoading, tabs, onSelectTab, onCloseTab, onBack}: ReaderProps) {
+export function Reader({message, onToggleRead, onReply, onReplyAll, onForward, onDelete, folders, onMove, onCopy, canMoveCopy, messageTags, onToggleTag, body, bodyLoading, tabs, onSelectTab, onCloseTab, onBack}: ReaderProps) {
     const [tagMenuOpen, setTagMenuOpen] = useState(false)
     const [imagesShown, setImagesShown] = useState(false)
     const menuRef = useRef<HTMLDivElement>(null)
@@ -139,26 +140,28 @@ export function Reader({message, onToggleRead, onReply, onReplyAll, onForward, o
                         </>
                     )}
                     <div className="tag-menu" ref={menuRef}>
-                        <button className="btn" onClick={() => setTagMenuOpen((v) => !v)}>Tags &#9662;</button>
+                        <button className="btn" onClick={() => setTagMenuOpen((v) => !v)}>Colour &#9662;</button>
                         {tagMenuOpen && (
                             <div className="tag-menu-dropdown" role="menu">
-                                {tags.length === 0 ? (
-                                    <div className="tag-menu-empty">No tags defined yet.</div>
-                                ) : (
-                                    tags.map((tag) => (
-                                        <button
-                                            key={tag.id}
-                                            className="tag-menu-item"
-                                            role="menuitemcheckbox"
-                                            aria-checked={assigned.has(tag.id)}
-                                            onClick={() => onToggleTag(tag.id, !assigned.has(tag.id))}
-                                        >
-                                            <span className="tag-check">{assigned.has(tag.id) ? '✓' : ''}</span>
-                                            <span className="tag-swatch" style={{backgroundColor: tag.colour}}/>
-                                            <span className="tag-menu-name">{tag.name}</span>
-                                        </button>
-                                    ))
-                                )}
+                                <div className="tag-colour-row" role="group" aria-label="Tag colour">
+                                    {TAG_PALETTE.map((c) => {
+                                        const id = colourTagId(c.colour)
+                                        const isOn = assigned.has(id)
+                                        return (
+                                            <button
+                                                key={id}
+                                                className={'tag-colour' + (isOn ? ' selected' : '')}
+                                                role="menuitemcheckbox"
+                                                aria-checked={isOn}
+                                                title={c.name}
+                                                style={{backgroundColor: c.colour}}
+                                                onClick={() => onToggleTag(id, !isOn)}
+                                            >
+                                                {isOn ? '✓' : ''}
+                                            </button>
+                                        )
+                                    })}
+                                </div>
                             </div>
                         )}
                     </div>
@@ -167,20 +170,16 @@ export function Reader({message, onToggleRead, onReply, onReplyAll, onForward, o
                 {messageTags.length > 0 && (
                     <div className="reader-tags">
                         {messageTags.map((tag) => (
-                            <span
+                            <button
                                 key={tag.id}
-                                className="tag-chip"
+                                className="tag-dot"
+                                title={`Remove ${tag.name}`}
+                                aria-label={`Remove ${tag.name} colour`}
                                 style={{backgroundColor: tag.colour, color: readableInk(tag.colour)}}
+                                onClick={() => onToggleTag(tag.id, false)}
                             >
-                                {tag.name}
-                                <button
-                                    className="tag-chip-remove"
-                                    aria-label={`Remove tag ${tag.name}`}
-                                    onClick={() => onToggleTag(tag.id, false)}
-                                >
-                                    &times;
-                                </button>
-                            </span>
+                                &times;
+                            </button>
                         ))}
                     </div>
                 )}
