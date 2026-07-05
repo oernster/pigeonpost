@@ -117,6 +117,45 @@ func TestParseBodyRemovesHiddenPreheader(t *testing.T) {
 	}
 }
 
+func TestPrepareHTMLParksPictureSource(t *testing.T) {
+	out := prepareHTML(`<picture><source srcset="http://tracker.example/2x.webp">` +
+		`<img src="http://tracker.example/pixel.gif"></picture>`)
+	if strings.Contains(strings.ToLower(out), "srcset") {
+		t.Errorf("a <source> srcset should be dropped, got: %s", out)
+	}
+	if strings.Contains(out, ` src="http`) {
+		t.Errorf("no element should keep a live remote src, got: %s", out)
+	}
+	if !strings.Contains(out, `data-pp-src="http://tracker.example/pixel.gif"`) {
+		t.Errorf("the <img> source should be parked, got: %s", out)
+	}
+}
+
+func TestPrepareHTMLStripsRemoteCSSBackgroundInStyleAttr(t *testing.T) {
+	out := prepareHTML(`<div style="color:red;background:url('http://tracker.example/bg.png')">hi</div>`)
+	if strings.Contains(out, "tracker.example") {
+		t.Errorf("a remote CSS url should be stripped, got: %s", out)
+	}
+	if !strings.Contains(out, "color:red") {
+		t.Errorf("an unrelated style declaration should be preserved, got: %s", out)
+	}
+}
+
+func TestPrepareHTMLStripsRemoteURLInStyleElement(t *testing.T) {
+	out := prepareHTML(`<style>.hero{background:url(https://tracker.example/hero.jpg)}</style>`)
+	if strings.Contains(out, "tracker.example") {
+		t.Errorf("a remote url inside a <style> element should be stripped, got: %s", out)
+	}
+}
+
+func TestPrepareHTMLKeepsEmbeddedDataURI(t *testing.T) {
+	const dataURI = "data:image/png;base64,iVBORw0KGgo="
+	out := prepareHTML(`<div style="background:url(` + dataURI + `)">x</div>`)
+	if !strings.Contains(out, dataURI) {
+		t.Errorf("an embedded data URI should be kept, got: %s", out)
+	}
+}
+
 func TestParseBodyBlocksRemoteImages(t *testing.T) {
 	raw := "MIME-Version: 1.0\r\n" +
 		"Content-Type: text/html; charset=utf-8\r\n" +

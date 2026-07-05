@@ -21,7 +21,7 @@ import (
 
 // htmlSanitizer strips anything unsafe (scripts, event handlers, javascript: URLs, style/iframe/form
 // elements) from message HTML while keeping common formatting and links. It also allows the
-// data-pp-src attribute on images, which is where blockRemoteImages parks a remote image's original
+// data-pp-src attribute on images, which is where parkElementSource parks a remote image's original
 // source so it does not load until the reader asks for it. It is built once and safe for concurrent use.
 var htmlSanitizer = buildSanitizer()
 
@@ -84,11 +84,12 @@ func ParseBody(raw []byte) (plain, htmlBody string, err error) {
 // the snippet a mail client shows in the message list). Those nodes are meant to stay invisible, but
 // the sanitiser strips the style attribute that hides them, so left in place they would surface and
 // duplicate the visible content; they are dropped here while their hiding style is still readable.
-// Second it rewrites every <img src> to a data attribute so remote images do not load automatically:
-// auto-loading a remote image leaks that the reader opened the message (and their IP) to the sender, so
-// the source is parked until the reader explicitly asks to load images, and srcset is dropped for the
-// same reason. On a parse or render failure the original HTML is returned unchanged; the sanitizer
-// still runs over it afterwards.
+// Second it stops the message from auto-loading any remote resource, which would leak that the reader
+// opened it (and their IP) to the sender. It parks every <img> and <picture> <source> src into a data
+// attribute and drops srcset, and it neutralises remote url(...) references in inline style attributes
+// and <style> elements, so a CSS background cannot be used as a tracking pixel either. Embedded data:
+// and cid: references are left intact. On a parse or render failure the original HTML is returned
+// unchanged; the sanitizer still runs over it afterwards.
 func prepareHTML(source string) string {
 	doc, err := html.Parse(strings.NewReader(source))
 	if err != nil {
@@ -96,8 +97,14 @@ func prepareHTML(source string) string {
 	}
 	var walk func(n *html.Node)
 	walk = func(n *html.Node) {
-		if n.Type == html.ElementNode && n.Data == "img" {
-			parkImageSource(n)
+		if n.Type == html.ElementNode {
+			switch n.Data {
+			case "img", "source":
+				parkElementSource(n)
+			case "style":
+				stripStyleElementURLs(n)
+			}
+			stripStyleAttrURLs(n)
 		}
 		var next *html.Node
 		for c := n.FirstChild; c != nil; c = next {
@@ -138,9 +145,10 @@ func isHiddenBySender(n *html.Node) bool {
 	return false
 }
 
-// parkImageSource renames an image's src attribute to the blocked-image data attribute and drops
-// srcset, so the browser has nothing to fetch until the source is restored.
-func parkImageSource(n *html.Node) {
+// parkElementSource renames an element's src attribute to the blocked-image data attribute and drops
+// srcset, so the browser has nothing to fetch until the source is restored. It covers <img> and the
+// <source> children of a <picture>, both of which trigger a remote fetch through src or srcset.
+func parkElementSource(n *html.Node) {
 	kept := n.Attr[:0]
 	for _, attr := range n.Attr {
 		switch strings.ToLower(attr.Key) {
@@ -154,6 +162,41 @@ func parkImageSource(n *html.Node) {
 		}
 	}
 	n.Attr = kept
+}
+
+// remoteCSSURLRe matches a CSS url(...) reference and captures its target, so a remote target can be
+// told apart from an embedded one.
+var remoteCSSURLRe = regexp.MustCompile(`(?i)url\(\s*['"]?([^)'"]*)['"]?\s*\)`)
+
+// stripRemoteCSSURLs replaces every remote url(...) in a CSS fragment with an empty url(), leaving
+// embedded data: and cid: references intact. A tracker can pull a remote file through a CSS background
+// just as through an <img>, so this closes that vector in both inline styles and <style> elements.
+func stripRemoteCSSURLs(css string) string {
+	return remoteCSSURLRe.ReplaceAllStringFunc(css, func(match string) string {
+		target := strings.ToLower(strings.TrimSpace(remoteCSSURLRe.FindStringSubmatch(match)[1]))
+		if strings.HasPrefix(target, "data:") || strings.HasPrefix(target, "cid:") {
+			return match
+		}
+		return "url()"
+	})
+}
+
+// stripStyleAttrURLs neutralises remote url(...) references in an element's inline style attribute.
+func stripStyleAttrURLs(n *html.Node) {
+	for i, attr := range n.Attr {
+		if strings.EqualFold(attr.Key, "style") {
+			n.Attr[i].Val = stripRemoteCSSURLs(attr.Val)
+		}
+	}
+}
+
+// stripStyleElementURLs neutralises remote url(...) references inside a <style> element's CSS text.
+func stripStyleElementURLs(n *html.Node) {
+	for c := n.FirstChild; c != nil; c = c.NextSibling {
+		if c.Type == html.TextNode {
+			c.Data = stripRemoteCSSURLs(c.Data)
+		}
+	}
 }
 
 // htmlToText renders HTML into readable plain text: it drops script/style, turns <br> and the close of
