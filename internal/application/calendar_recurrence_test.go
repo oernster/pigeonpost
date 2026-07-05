@@ -379,18 +379,19 @@ func TestUpdateEventScopeFutureSplits(t *testing.T) {
 		gotEvent: master,
 		events:   []domain.Event{master, futureOverride, pastOverride},
 	}
-	rec := &fakeRecurrence{truncated: "FREQ=DAILY;UNTIL=20260606T085959Z"}
+	rec := &fakeRecurrence{truncated: "FREQ=DAILY;UNTIL=20260606T085959Z", splitForward: "FREQ=DAILY;COUNT=3"}
 	svc := NewCalendarService(store, fixedID("new"), rec)
 	if err := svc.UpdateEventScope(context.Background(), ScopeFuture, editInput("m1", "series-1"), day(6, 9)); err != nil {
 		t.Fatalf("UpdateEventScope: %v", err)
 	}
-	// Saved: truncated master, new series, and the migrated future override (past override untouched).
+	// Saved: truncated master, new series carrying the reduced forward count, and the migrated future
+	// override (past override untouched).
 	var truncatedMaster, newSeries, migrated bool
 	for _, e := range store.savedEvt {
 		switch {
 		case e.ID() == "m1" && e.Recurrence() == "FREQ=DAILY;UNTIL=20260606T085959Z":
 			truncatedMaster = true
-		case e.ID() == "new" && e.UID() == "new":
+		case e.ID() == "new" && e.UID() == "new" && e.Recurrence() == "FREQ=DAILY;COUNT=3":
 			newSeries = true
 		case e.ID() == "ov-future" && e.UID() == "new":
 			migrated = true
@@ -401,6 +402,19 @@ func TestUpdateEventScopeFutureSplits(t *testing.T) {
 	}
 	if rec.gotTruncate != "FREQ=DAILY;COUNT=5" {
 		t.Errorf("truncated the wrong rule: %q", rec.gotTruncate)
+	}
+	if !rec.gotSplitAt.Equal(day(6, 9)) {
+		t.Errorf("split-forward computed at %v, want the occurrence %v", rec.gotSplitAt, day(6, 9))
+	}
+}
+
+func TestUpdateEventScopeFutureSplitForwardError(t *testing.T) {
+	master := recurringMaster(t, "m1", "series-1")
+	store := &fakeCalendarStore{gotEvent: master, events: []domain.Event{master}}
+	rec := &fakeRecurrence{truncated: "FREQ=DAILY;UNTIL=20260606T085959Z", splitForwardErr: errBoom}
+	svc := NewCalendarService(store, fixedID("new"), rec)
+	if err := svc.UpdateEventScope(context.Background(), ScopeFuture, editInput("m1", "series-1"), day(6, 9)); !errors.Is(err, errBoom) {
+		t.Errorf("err = %v, want wrapped errBoom", err)
 	}
 }
 

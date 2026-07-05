@@ -188,6 +188,43 @@ func TestTruncateBeforeRejectsInvalidRule(t *testing.T) {
 	}
 }
 
+func TestSplitCountForwardReducesCount(t *testing.T) {
+	// A daily COUNT=5 series split at its third occurrence keeps 3 forward (5 minus the 2 before it), so
+	// the truncated half (2) plus the forward half (3) together equal the original 5.
+	master := mustEvent(t, domain.EventInput{
+		ID: "e1", Summary: "Standup", Start: at(4, 9), End: at(4, 10), Recurrence: "FREQ=DAILY;COUNT=5",
+	})
+	rule, err := New().SplitCountForward(master, at(6, 9))
+	if err != nil {
+		t.Fatalf("SplitCountForward: %v", err)
+	}
+	if !strings.Contains(rule, "COUNT=3") {
+		t.Errorf("forward rule = %q, want COUNT=3", rule)
+	}
+}
+
+func TestSplitCountForwardLeavesOpenEndedRuleUnchanged(t *testing.T) {
+	master := mustEvent(t, domain.EventInput{
+		ID: "e1", Summary: "Standup", Start: at(4, 9), End: at(4, 10), Recurrence: "FREQ=DAILY",
+	})
+	rule, err := New().SplitCountForward(master, at(6, 9))
+	if err != nil {
+		t.Fatalf("SplitCountForward: %v", err)
+	}
+	if rule != "FREQ=DAILY" {
+		t.Errorf("open-ended rule changed: %q", rule)
+	}
+}
+
+func TestSplitCountForwardRejectsInvalidRule(t *testing.T) {
+	master := mustEvent(t, domain.EventInput{
+		ID: "e1", Summary: "Standup", Start: at(4, 9), Recurrence: "FREQ=DAILY;INTERVAL=oops",
+	})
+	if _, err := New().SplitCountForward(master, at(6, 9)); err == nil {
+		t.Fatalf("expected an error for an invalid rule")
+	}
+}
+
 func TestExpandZonedKeepsWallClockAcrossDST(t *testing.T) {
 	// 09:00 Europe/London on 24 Oct 2026 is 08:00 UTC (BST). UK clocks go back on 25 Oct 2026, so from
 	// then 09:00 London is 09:00 UTC (GMT). A daily event must keep 09:00 local, shifting its UTC instant.

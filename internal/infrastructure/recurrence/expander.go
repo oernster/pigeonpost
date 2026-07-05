@@ -68,6 +68,37 @@ func (e *Expander) TruncateBefore(rule string, at time.Time) (string, error) {
 	return option.RRuleString(), nil
 }
 
+// SplitCountForward returns the master's rule for the forward half of a this-and-following split. A
+// COUNT-based rule has its COUNT reduced by the number of occurrences that fall before at, so the split
+// series carries the remaining count and the two halves together keep the original total. A rule with no
+// COUNT is returned unchanged (an UNTIL or open-ended series splits exactly on its own).
+func (e *Expander) SplitCountForward(master domain.Event, at time.Time) (string, error) {
+	rule := strings.TrimPrefix(strings.TrimSpace(master.Recurrence()), rrulePrefix)
+	parsed, err := rrule.StrToRRule(rule)
+	if err != nil {
+		return "", fmt.Errorf("recurrence: parse rule %q: %w", rule, err)
+	}
+	if parsed.OrigOptions.Count == 0 {
+		return master.Recurrence(), nil
+	}
+	before, err := e.Expand(master, master.Start(), at)
+	if err != nil {
+		return "", err
+	}
+	prior := 0
+	for _, inst := range before {
+		if inst.Start().Before(at) {
+			prior++
+		}
+	}
+	option := parsed.OrigOptions
+	option.Count = parsed.OrigOptions.Count - prior
+	if option.Count < 1 {
+		option.Count = 1
+	}
+	return option.RRuleString(), nil
+}
+
 // buildSet assembles an rrule.Set from the event's rule and recurrence dates, anchored to the event start
 // expressed in loc, so occurrences keep the same wall-clock time across daylight-saving changes. When the
 // event carries no rule the start is added as an RDATE so it remains an occurrence, per RFC 5545 where

@@ -109,11 +109,14 @@ func (f *fakeCalendarStore) ListPassthrough(context.Context) ([]domain.CalendarP
 
 // fakeRecurrence is a hand-written RecurrenceService with error-injection and a scripted expansion.
 type fakeRecurrence struct {
-	expandFunc  func(domain.Event, time.Time, time.Time) ([]domain.EventInstance, error)
-	expandErr   error
-	truncated   string
-	truncateErr error
-	gotTruncate string
+	expandFunc      func(domain.Event, time.Time, time.Time) ([]domain.EventInstance, error)
+	expandErr       error
+	truncated       string
+	truncateErr     error
+	gotTruncate     string
+	splitForward    string
+	splitForwardErr error
+	gotSplitAt      time.Time
 }
 
 func (f *fakeRecurrence) Expand(e domain.Event, from, to time.Time) ([]domain.EventInstance, error) {
@@ -135,6 +138,17 @@ func (f *fakeRecurrence) TruncateBefore(rule string, _ time.Time) (string, error
 		return f.truncated, nil
 	}
 	return rule, nil
+}
+
+func (f *fakeRecurrence) SplitCountForward(master domain.Event, at time.Time) (string, error) {
+	f.gotSplitAt = at
+	if f.splitForwardErr != nil {
+		return "", f.splitForwardErr
+	}
+	if f.splitForward != "" {
+		return f.splitForward, nil
+	}
+	return master.Recurrence(), nil
 }
 
 // fakeCalendarCodec is a hand-written CalendarCodec with error-injection fields.

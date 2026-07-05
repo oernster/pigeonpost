@@ -110,6 +110,16 @@ func (s *CalendarService) splitSeries(ctx context.Context, master domain.Event, 
 	if err := s.store.SaveEvent(ctx, master.WithRecurrence(truncatedRule)); err != nil {
 		return fmt.Errorf("calendar: save truncated series: %w", err)
 	}
+	// When the recurrence is unchanged, the forward series must carry the remaining count so a COUNT-based
+	// series keeps its total across the split; a changed rule is the user redefining it, so it is honoured
+	// as given.
+	forwardRule := in.Recurrence
+	if in.Recurrence == master.Recurrence() {
+		forwardRule, err = s.recurrence.SplitCountForward(master, occurrence)
+		if err != nil {
+			return fmt.Errorf("calendar: split forward count: %w", err)
+		}
+	}
 	newUID := s.newID()
 	newSeries, err := domain.NewEvent(domain.EventInput{
 		ID:          s.newID(),
@@ -121,7 +131,7 @@ func (s *CalendarService) splitSeries(ctx context.Context, master domain.Event, 
 		Start:       in.Start,
 		End:         in.End,
 		AllDay:      in.AllDay,
-		Recurrence:  in.Recurrence,
+		Recurrence:  forwardRule,
 		TimeZone:    in.TimeZone,
 		Alarms:      in.Alarms,
 	})

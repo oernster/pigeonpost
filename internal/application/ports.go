@@ -176,4 +176,9 @@ type RecurrenceService interface {
 	// this-and-future edit or delete splits or shortens a series. Any COUNT is dropped in favour of an
 	// UNTIL of one second before at, so the occurrence at at and all later ones are removed.
 	TruncateBefore(rule string, at time.Time) (string, error)
+	// SplitCountForward returns the master's RRULE for the forward half of a this-and-following split.
+	// A COUNT-based rule has its COUNT reduced by the number of occurrences that precede at, so the split
+	// keeps the series total instead of restarting the count; an open-ended or UNTIL-bounded rule is
+	// returned unchanged.
+	SplitCountForward(master domain.Event, at time.Time) (string, error)
 }

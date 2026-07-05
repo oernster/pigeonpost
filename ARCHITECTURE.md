@@ -274,7 +274,10 @@ rewrite a rule to end before a time), implemented in `infrastructure/recurrence`
 and merges one-off events, all sorted by start; a malformed rule degrades to a single instance rather
 than losing the event. Editing or deleting a recurring occurrence carries a scope (this, this-and-future,
 all): `this` writes a single-occurrence override, `future` truncates the master with UNTIL and starts a
-new series from the split (migrating later overrides), and `all` rewrites the master. The `ics` codec
+new series from the split (migrating later overrides), and `all` rewrites the master. When the split
+leaves the recurrence unchanged, `SplitCountForward` reduces a COUNT-based rule by the occurrences before
+the split so the forward series carries the remaining count and the two halves keep the original total
+(an open-ended or UNTIL rule needs no adjustment; a rule the user changed is honoured as given). The `ics` codec
 extracts and re-emits RDATE, EXDATE and RECURRENCE-ID alongside the existing opaque `Extra`
 pass-through, so the round-trip stays lossless.
 
