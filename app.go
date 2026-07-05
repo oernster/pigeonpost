@@ -3,7 +3,10 @@ package main
 import (
 	"context"
 
+	"github.com/wailsapp/wails/v2/pkg/runtime"
+
 	"github.com/oernster/pigeonpost/internal/application"
+	"github.com/oernster/pigeonpost/internal/infrastructure/taskbar"
 )
 
 // UnreadNotifier reflects the total unread count onto an out-of-window surface, namely the Windows
@@ -27,6 +30,7 @@ type App struct {
 	closer   func() error
 	notifier UnreadNotifier
 	alerter  ReminderAlerter
+	tray     *taskbar.Tray
 	accounts *application.AccountService
 	setup    *application.AccountSetupService
 	mailbox  *application.MailboxService
@@ -46,6 +50,7 @@ func NewApp(
 	closer func() error,
 	notifier UnreadNotifier,
 	alerter ReminderAlerter,
+	tray *taskbar.Tray,
 	accounts *application.AccountService,
 	setup *application.AccountSetupService,
 	mailbox *application.MailboxService,
@@ -63,6 +68,7 @@ func NewApp(
 		closer:   closer,
 		notifier: notifier,
 		alerter:  alerter,
+		tray:     tray,
 		accounts: accounts,
 		setup:    setup,
 		mailbox:  mailbox,
@@ -78,14 +84,27 @@ func NewApp(
 	}
 }
 
-// startup captures the Wails runtime context and starts the reminder scheduler.
+// startup captures the Wails runtime context, starts the tray (its menu items emit Wails events the
+// front end turns into the matching dialogs, so this layer owns the callbacks and the taskbar package
+// stays free of Wails), and starts the reminder scheduler.
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
+	if a.tray != nil {
+		a.tray.Start(taskbar.TrayActions{
+			About:        func() { runtime.EventsEmit(ctx, "menu:about") },
+			Licence:      func() { runtime.EventsEmit(ctx, "menu:licence") },
+			CheckUpdates: func() { runtime.EventsEmit(ctx, "menu:check-updates") },
+			Quit:         func() { runtime.Quit(ctx) },
+		})
+	}
 	go a.runReminderScheduler()
 }
 
-// shutdown releases infrastructure resources when the window closes.
+// shutdown releases infrastructure resources when the window closes, removing the tray icon first.
 func (a *App) shutdown(context.Context) {
+	if a.tray != nil {
+		a.tray.Stop()
+	}
 	if a.closer != nil {
 		_ = a.closer()
 	}

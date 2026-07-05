@@ -8,7 +8,8 @@ interface Reminder {
 }
 
 // ReminderNotifications listens for calendar reminders pushed from the backend scheduler and shows a
-// dismissible banner for each. On-screen only for now; OS-level toasts are a later addition.
+// dismissible banner for each. This is the in-window surface; when the window is in the background the
+// backend also flashes the taskbar and raises a Windows tray balloon.
 export function ReminderNotifications() {
     const [reminders, setReminders] = useState<Reminder[]>([])
     useEffect(() => {

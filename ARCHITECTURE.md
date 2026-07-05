@@ -32,8 +32,8 @@ enforced by a test in `tests/structural/boundary_test.go`, not by convention.
   the message-format logic is not duplicated), the shared message-body parser with HTML sanitising and
   image-blocking (`mailparse`, used by both the IMAP and POP3 read paths), the per-protocol dispatcher
   (`mailrouter`, which routes reads, verification and actions to the IMAP or POP3 adapter by account
-  protocol), the Windows taskbar unread-overlay badge and reminder flash (`taskbar`, a build-tagged
-  no-op elsewhere) and the OS keychain (`keychain`); later ICS, vCard and OAuth. Never imported by Domain or Application. The
+  protocol), the Windows taskbar unread-overlay badge, reminder flash and notification tray (`taskbar`, a
+  build-tagged no-op elsewhere) and the OS keychain (`keychain`); later ICS, vCard and OAuth. Never imported by Domain or Application. The
   `installer` package holds the setup program's install logic and is consumed by the `installer/` Wails
   setup app.
 - **UI**: the React front end plus the thin Wails facade in package `main` (`app.go` with its
@@ -295,7 +295,12 @@ polls it every thirty seconds and emits a Wails event that the front end shows a
 launch it first calls `PendingReminders(now)`, which fires reminders for still-imminent events (starting
 at or after now) whose trigger lapsed while the app was closed, so a reminder for an upcoming event is not
 missed; a reminder for an event already started or past is not resurrected, and the catch-up and live
-windows do not overlap. When a batch of reminders fires, the composition root also flashes the taskbar
-button through an injected `ReminderAlerter` (the `taskbar` package's `Flasher`, a build-tagged no-op off
-Windows), which is a no-op when the window is already in the foreground so an in-view reminder relies on
-its banner alone. OS-level toast notifications for a minimised window are a later addition.
+windows do not overlap. When a batch of reminders fires, the composition root also draws attention from
+outside the window: it flashes the taskbar button through an injected `ReminderAlerter` (the `taskbar`
+package's `Flasher`) and raises a Windows tray balloon through the `taskbar` package's `Tray`. Both are
+build-tagged no-ops off Windows and both skip the alert when the window is already in the foreground, so
+an in-view reminder relies on its banner alone. The `Tray` is a persistent, clickable notification-area
+icon: left-clicking it restores the window, and its right-click menu mirrors the Help menu (About,
+Licence, Check for Updates) plus Open and Quit. To keep the `taskbar` package free of any UI-framework
+dependency, the menu items invoke callbacks supplied by the `App` facade, which emit `menu:*` Wails
+events that the front end turns into the same dialogs the in-window Help menu opens.

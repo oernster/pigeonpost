@@ -6,6 +6,7 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 
 	"github.com/oernster/pigeonpost/internal/application"
+	"github.com/oernster/pigeonpost/internal/infrastructure/taskbar"
 )
 
 // reminderPollInterval is how often the scheduler checks for reminders that have come due.
@@ -49,8 +50,8 @@ func (a *App) runReminderScheduler() {
 	}
 }
 
-// emitReminders pushes each reminder to the front end as a Wails event, then flashes the taskbar button
-// once for the batch so a reminder is noticed while the window is in the background. The flash is a
+// emitReminders pushes each reminder to the front end as a Wails event, then draws attention from
+// outside the window for the batch: it flashes the taskbar button and raises a tray balloon. Both are a
 // no-op when the window is already in the foreground, so an in-view reminder relies on its banner alone.
 func (a *App) emitReminders(reminders []application.DueReminder) {
 	for _, r := range reminders {
@@ -60,7 +61,18 @@ func (a *App) emitReminders(reminders []application.DueReminder) {
 			Start:   r.OccurrenceStart.Format(time.RFC3339),
 		})
 	}
-	if len(reminders) > 0 && a.alerter != nil {
+	if len(reminders) == 0 {
+		return
+	}
+	if a.alerter != nil {
 		a.alerter.Flash()
+	}
+	if a.tray != nil {
+		summaries := make([]string, len(reminders))
+		for i, r := range reminders {
+			summaries[i] = r.Summary
+		}
+		title, body := taskbar.BalloonText(summaries)
+		a.tray.Notify(title, body)
 	}
 }

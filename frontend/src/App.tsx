@@ -21,6 +21,7 @@ import {ContactsModal} from './components/ContactsModal'
 import {CalendarModal} from './components/CalendarModal'
 import {ReminderNotifications} from './components/ReminderNotifications'
 import {Splash} from './components/Splash'
+import {EventsOn} from '../wailsjs/runtime'
 
 // focusRingRoot is the container the ring is scoped to: the topmost open modal when one is showing (so
 // focus stays trapped within the dialog), otherwise the whole document.
@@ -996,6 +997,17 @@ function App() {
     const checkUpdates = useCallback(() => {
         void api.openReleases()
     }, [])
+
+    // The Windows tray context menu mirrors the Help menu: its items emit these events from the backend,
+    // which open the same dialogs the in-window Help menu does.
+    useEffect(() => {
+        const off = [
+            EventsOn('menu:about', () => void showAbout()),
+            EventsOn('menu:licence', () => void showLicence()),
+            EventsOn('menu:check-updates', () => checkUpdates()),
+        ]
+        return () => off.forEach((unsubscribe) => unsubscribe())
+    }, [showAbout, showLicence, checkUpdates])
 
     // setReadState sets a message's read flag on the server and optimistically in the on-screen lists,
     // so it bolds or un-bolds at once. Used by the Mark submenu (explicit read/unread) and on view.

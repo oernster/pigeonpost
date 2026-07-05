@@ -91,8 +91,11 @@ func run() error {
 	overlay := taskbar.NewOverlay(windowTitle)
 	overlay.Start()
 	flasher := taskbar.NewFlasher(windowTitle)
+	// The tray icon is persistent and clickable; its context menu emits Wails events the front end maps
+	// to the Help dialogs, so the App facade supplies the callbacks at startup once the runtime exists.
+	tray := taskbar.NewTray(windowTitle, appName)
 
-	app := NewApp(store.Close, overlay, flasher, accountService, setupService, mailboxService, syncService, composeService, tagService, bodyService, actionService, folderService, ruleService, contactService, calendarService)
+	app := NewApp(store.Close, overlay, flasher, tray, accountService, setupService, mailboxService, syncService, composeService, tagService, bodyService, actionService, folderService, ruleService, contactService, calendarService)
 
 	err = wails.Run(&options.App{
 		Title:            windowTitle,
