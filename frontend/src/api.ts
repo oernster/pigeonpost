@@ -140,6 +140,7 @@ export interface CalendarEventInput {
     end: string
     allDay: boolean
     recurrence: string
+    timeZone: string
     extra: string
 }
 

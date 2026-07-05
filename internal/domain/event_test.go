@@ -34,14 +34,15 @@ func TestNewEventFullRoundTrip(t *testing.T) {
 	end := start.Add(time.Hour)
 	e, err := NewEvent(EventInput{
 		ID: "  e1 ", UID: "  uid-1 ", CalendarID: " cal1 ", Summary: "  Standup ",
-		Description: " daily ", Location: " Room 1 ", Start: start, End: end,
+		Description: " daily ", Location: " Room 1 ", Start: start, End: end, TimeZone: " Europe/London ",
 		AllDay: false, Recurrence: " FREQ=DAILY ", Extra: "BEGIN:VEVENT\r\nCATEGORIES:WORK\r\nEND:VEVENT\r\n",
 	})
 	if err != nil {
 		t.Fatalf("NewEvent: %v", err)
 	}
 	if e.ID() != "e1" || e.UID() != "uid-1" || e.CalendarID() != "cal1" || e.Summary() != "Standup" ||
-		e.Description() != "daily" || e.Location() != "Room 1" || e.Recurrence() != "FREQ=DAILY" {
+		e.Description() != "daily" || e.Location() != "Room 1" || e.Recurrence() != "FREQ=DAILY" ||
+		e.TimeZone() != "Europe/London" {
 		t.Errorf("fields not trimmed/exposed: %+v", e)
 	}
 	// Extra is preserved verbatim (not trimmed): it is an opaque ICS blob, not a display field.
@@ -156,6 +157,10 @@ func TestEventCopyMethods(t *testing.T) {
 	rekeyed := e.WithUID("uid-2")
 	if rekeyed.UID() != "uid-2" || e.UID() != "uid-1" {
 		t.Errorf("WithUID mutated the receiver: got %q, receiver %q", rekeyed.UID(), e.UID())
+	}
+	zoned := e.WithTimeZone("  Europe/London  ")
+	if zoned.TimeZone() != "Europe/London" || e.TimeZone() != "" {
+		t.Errorf("WithTimeZone wrong: got %q, receiver %q", zoned.TimeZone(), e.TimeZone())
 	}
 	reruled := e.WithRecurrence("  FREQ=WEEKLY  ")
 	if reruled.Recurrence() != "FREQ=WEEKLY" || e.Recurrence() != "FREQ=DAILY;COUNT=5" {

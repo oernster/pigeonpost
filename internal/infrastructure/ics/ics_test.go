@@ -208,6 +208,53 @@ func TestICSAllDayExceptionDateRoundTrip(t *testing.T) {
 	}
 }
 
+func TestICSTimeZoneRoundTrip(t *testing.T) {
+	data := cal(
+		"BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//x//EN",
+		"BEGIN:VEVENT", "UID:z1", "DTSTAMP:20260704T090000Z",
+		"DTSTART;TZID=Europe/London:20260705T090000", "DTEND;TZID=Europe/London:20260705T100000",
+		"SUMMARY:Standup", "RRULE:FREQ=DAILY", "END:VEVENT", "END:VCALENDAR",
+	)
+	events, err := New().Decode(data)
+	if err != nil || len(events) != 1 {
+		t.Fatalf("Decode: %v (n=%d)", err, len(events))
+	}
+	e := events[0]
+	if e.TimeZone() != "Europe/London" {
+		t.Errorf("zone not parsed: %q", e.TimeZone())
+	}
+	// 09:00 London on 5 July 2026 is 08:00 UTC (BST).
+	if !e.Start().Equal(time.Date(2026, 7, 5, 8, 0, 0, 0, time.UTC)) {
+		t.Errorf("zoned start instant = %v, want 08:00 UTC", e.Start().UTC())
+	}
+	// Re-encoding keeps the TZID and the local wall time (not a UTC Z value).
+	s := string(mustEncode(t, e))
+	if !strings.Contains(s, "DTSTART;TZID=Europe/London:20260705T090000") {
+		t.Errorf("TZID start not re-encoded:\n%s", s)
+	}
+	if !strings.Contains(s, "DTEND;TZID=Europe/London:20260705T100000") {
+		t.Errorf("TZID end not re-encoded:\n%s", s)
+	}
+}
+
+func TestICSUTCEventHasNoZone(t *testing.T) {
+	data := cal(
+		"BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//x//EN",
+		"BEGIN:VEVENT", "UID:u1", "DTSTAMP:20260704T090000Z", "DTSTART:20260705T090000Z",
+		"SUMMARY:UTC event", "END:VEVENT", "END:VCALENDAR",
+	)
+	events, err := New().Decode(data)
+	if err != nil || len(events) != 1 {
+		t.Fatalf("Decode: %v (n=%d)", err, len(events))
+	}
+	if events[0].TimeZone() != "" {
+		t.Errorf("UTC event should carry no zone, got %q", events[0].TimeZone())
+	}
+	if s := string(mustEncode(t, events[0])); !strings.Contains(s, "DTSTART:20260705T090000Z") {
+		t.Errorf("UTC event should re-encode as a Z value:\n%s", s)
+	}
+}
+
 func mustEncode(t *testing.T, events ...domain.Event) []byte {
 	t.Helper()
 	out, err := New().Encode(events)

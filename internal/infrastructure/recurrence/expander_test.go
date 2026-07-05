@@ -188,6 +188,43 @@ func TestTruncateBeforeRejectsInvalidRule(t *testing.T) {
 	}
 }
 
+func TestExpandZonedKeepsWallClockAcrossDST(t *testing.T) {
+	// 09:00 Europe/London on 24 Oct 2026 is 08:00 UTC (BST). UK clocks go back on 25 Oct 2026, so from
+	// then 09:00 London is 09:00 UTC (GMT). A daily event must keep 09:00 local, shifting its UTC instant.
+	start := time.Date(2026, time.October, 24, 8, 0, 0, 0, time.UTC)
+	e := mustEvent(t, domain.EventInput{
+		ID: "e1", Summary: "Standup", Start: start, End: start.Add(time.Hour),
+		Recurrence: "FREQ=DAILY;COUNT=3", TimeZone: "Europe/London",
+	})
+	insts, err := New().Expand(e, time.Date(2026, time.October, 1, 0, 0, 0, 0, time.UTC),
+		time.Date(2026, time.November, 1, 0, 0, 0, 0, time.UTC))
+	if err != nil {
+		t.Fatalf("Expand: %v", err)
+	}
+	want := []time.Time{
+		time.Date(2026, time.October, 24, 8, 0, 0, 0, time.UTC),
+		time.Date(2026, time.October, 25, 9, 0, 0, 0, time.UTC),
+		time.Date(2026, time.October, 26, 9, 0, 0, 0, time.UTC),
+	}
+	wantStarts(t, insts, want...)
+	// The end keeps the one-hour duration measured as an instant.
+	if !insts[2].End().Equal(time.Date(2026, time.October, 26, 10, 0, 0, 0, time.UTC)) {
+		t.Errorf("end = %v, want 10:00 UTC", insts[2].End())
+	}
+}
+
+func TestExpandUnknownZoneFallsBackToUTC(t *testing.T) {
+	e := mustEvent(t, domain.EventInput{
+		ID: "e1", Summary: "Standup", Start: at(4, 9), End: at(4, 10),
+		Recurrence: "FREQ=DAILY;COUNT=2", TimeZone: "Not/AZone",
+	})
+	insts, err := New().Expand(e, windowStart(), windowEnd())
+	if err != nil {
+		t.Fatalf("Expand: %v", err)
+	}
+	wantStarts(t, insts, at(4, 9), at(5, 9))
+}
+
 func TestExpandRejectsInvalidRule(t *testing.T) {
 	e := mustEvent(t, domain.EventInput{
 		ID: "e1", Summary: "Standup", Start: at(4, 9), End: at(4, 10), Recurrence: "FREQ=DAILY;INTERVAL=oops",

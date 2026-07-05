@@ -155,6 +155,28 @@ func TestEventRecurrenceSetRoundTrip(t *testing.T) {
 	}
 }
 
+func TestEventTimeZoneRoundTrip(t *testing.T) {
+	store := openTestStore(t)
+	ctx := context.Background()
+	ev, err := domain.NewEvent(domain.EventInput{
+		ID: "e1", Summary: "Standup", Start: baseStart(), End: baseStart().Add(time.Hour),
+		Recurrence: "FREQ=DAILY", TimeZone: "Europe/London",
+	})
+	if err != nil {
+		t.Fatalf("event: %v", err)
+	}
+	if err := store.SaveEvent(ctx, ev); err != nil {
+		t.Fatalf("SaveEvent: %v", err)
+	}
+	got, err := store.GetEvent(ctx, "e1")
+	if err != nil {
+		t.Fatalf("GetEvent: %v", err)
+	}
+	if got.TimeZone() != "Europe/London" {
+		t.Errorf("time zone not persisted: %q", got.TimeZone())
+	}
+}
+
 func TestEventOverrideRoundTrip(t *testing.T) {
 	store := openTestStore(t)
 	ctx := context.Background()

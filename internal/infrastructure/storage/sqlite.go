@@ -12,7 +12,7 @@ import (
 )
 
 // schemaVersion is the current on-disk schema version, tracked via SQLite's PRAGMA user_version.
-const schemaVersion = 18
+const schemaVersion = 19
 
 const driverName = "sqlite"
 
@@ -298,9 +298,16 @@ ALTER TABLE event ADD COLUMN exdate TEXT NOT NULL DEFAULT '';
 ALTER TABLE event ADD COLUMN recurrence_id INTEGER NOT NULL DEFAULT 0;
 `
 
+// schemaV19 records the IANA time zone an event's wall-clock times are kept in, so a recurring event
+// holds its local time across daylight-saving changes. Existing rows default to ”, a floating or UTC
+// event.
+const schemaV19 = `
+ALTER TABLE event ADD COLUMN time_zone TEXT NOT NULL DEFAULT '';
+`
+
 // migrations is the ordered list of schema steps. Index i upgrades the database from version i to
 // version i+1, so a fresh database applies them all and an existing one applies only what it lacks.
-var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15, schemaV16, schemaV17, schemaV18}
+var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15, schemaV16, schemaV17, schemaV18, schemaV19}
 
 // Store is the SQLite-backed implementation of the application storage ports.
 type Store struct {

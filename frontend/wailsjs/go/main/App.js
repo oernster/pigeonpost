@@ -42,6 +42,10 @@ export function DeleteEvent(arg1) {
   return window['go']['main']['App']['DeleteEvent'](arg1);
 }
 
+export function DeleteEventScoped(arg1, arg2, arg3) {
+  return window['go']['main']['App']['DeleteEventScoped'](arg1, arg2, arg3);
+}
+
 export function DeleteFolder(arg1) {
   return window['go']['main']['App']['DeleteFolder'](arg1);
 }
@@ -110,20 +114,12 @@ export function ListContacts() {
   return window['go']['main']['App']['ListContacts']();
 }
 
-export function ListEvents() {
-  return window['go']['main']['App']['ListEvents']();
-}
-
 export function ListEventInstances(arg1, arg2) {
   return window['go']['main']['App']['ListEventInstances'](arg1, arg2);
 }
 
-export function SaveEventScoped(arg1, arg2, arg3) {
-  return window['go']['main']['App']['SaveEventScoped'](arg1, arg2, arg3);
-}
-
-export function DeleteEventScoped(arg1, arg2, arg3) {
-  return window['go']['main']['App']['DeleteEventScoped'](arg1, arg2, arg3);
+export function ListEvents() {
+  return window['go']['main']['App']['ListEvents']();
 }
 
 export function ListFolders(arg1) {
@@ -208,6 +204,10 @@ export function SaveDraft(arg1) {
 
 export function SaveEvent(arg1) {
   return window['go']['main']['App']['SaveEvent'](arg1);
+}
+
+export function SaveEventScoped(arg1, arg2, arg3) {
+  return window['go']['main']['App']['SaveEventScoped'](arg1, arg2, arg3);
 }
 
 export function SaveMessageAs(arg1, arg2) {

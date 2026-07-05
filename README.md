@@ -57,7 +57,9 @@ Shipped:
 - **Calendar**: month, week and day views. Week and day are an hour time-grid with an all-day strip;
   clashing events sit in side-by-side lanes. Recurring events (daily, weekly on chosen weekdays, monthly
   or yearly, with an interval and an optional end) expand across every view, and an edit or delete of a
-  recurring event asks whether it applies to this occurrence, this and following, or all. ICS (.ics)
+  recurring event asks whether it applies to this occurrence, this and following, or all. Each event
+  carries its own time zone, so a recurring event keeps its local time across daylight-saving changes.
+  ICS (.ics)
   import and export (RFC 5545, including RRULE, RDATE, EXDATE and RECURRENCE-ID) round-trips with Outlook
   and Thunderbird; an event keeps its ICS UID so an export re-imports cleanly.
 - **Contacts**: an address book with a list and an editor. vCard (.vcf) and CSV import and export, so
@@ -69,8 +71,7 @@ Planned (see [DESIGN_PLAN.md](DESIGN_PLAN.md) for the full roadmap):
 - Tags round-tripped onto IMAP keywords, move/delete filter rules.
 - Microsoft one-click sign-in (deferred: it needs an Azure/Entra tenant). Multiple accounts already
   work, each with its own inbox.
-- Calendar invites (iTIP), alarms with OS notifications, and event timezones (recurrence stays in UTC
-  for now).
+- Calendar invites (iTIP) and alarms with OS notifications.
 - Cross-platform delivery (macOS and Linux) and two-way CalDAV / CardDAV.
 
 ## Stack

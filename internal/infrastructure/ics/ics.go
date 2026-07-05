@@ -81,8 +81,11 @@ func eventFromICS(e goical.Event) (domain.Event, bool) {
 		summary = "(no title)"
 	}
 	allDay := false
+	zone := ""
 	if startProp := e.Props.Get(goical.PropDateTimeStart); startProp != nil {
 		allDay = startProp.ValueType() == goical.ValueDate
+		// The TZID parameter names the IANA zone the wall-clock time is in; a UTC or all-day start has none.
+		zone = startProp.Params.Get(goical.PropTimezoneID)
 	}
 	recurrence := ""
 	if rrule := e.Props.Get(goical.PropRecurrenceRule); rrule != nil {
@@ -101,6 +104,7 @@ func eventFromICS(e goical.Event) (domain.Event, bool) {
 		RDates:       parseDateList(e.Props, goical.PropRecurrenceDates),
 		ExDates:      parseDateList(e.Props, goical.PropExceptionDates),
 		RecurrenceID: parseRecurrenceID(e.Props),
+		TimeZone:     zone,
 		Extra:        rawICS(e),
 	})
 	if err != nil {
@@ -188,9 +192,10 @@ func eventToComponent(ev domain.Event) *goical.Component {
 		comp.Props.SetDateTime(goical.PropDateTimeStamp, ev.Start().UTC())
 	}
 	comp.Props.SetText(goical.PropSummary, ev.Summary())
-	setWhen(comp, goical.PropDateTimeStart, ev.Start(), ev.AllDay())
+	loc := icsLocation(ev.TimeZone())
+	setWhen(comp, goical.PropDateTimeStart, ev.Start(), ev.AllDay(), loc)
 	if ev.HasEnd() {
-		setWhen(comp, goical.PropDateTimeEnd, ev.End(), ev.AllDay())
+		setWhen(comp, goical.PropDateTimeEnd, ev.End(), ev.AllDay(), loc)
 		comp.Props.Del(goical.PropDuration)
 	} else {
 		comp.Props.Del(goical.PropDateTimeEnd)
@@ -207,7 +212,7 @@ func eventToComponent(ev domain.Event) *goical.Component {
 	setDateList(comp, goical.PropRecurrenceDates, ev.RDates(), ev.AllDay())
 	setDateList(comp, goical.PropExceptionDates, ev.ExDates(), ev.AllDay())
 	if ev.IsOverride() {
-		setWhen(comp, goical.PropRecurrenceID, ev.RecurrenceID(), ev.AllDay())
+		setWhen(comp, goical.PropRecurrenceID, ev.RecurrenceID(), ev.AllDay(), loc)
 	} else {
 		comp.Props.Del(goical.PropRecurrenceID)
 	}
@@ -307,13 +312,26 @@ func rawICS(e goical.Event) string {
 	return buf.String()
 }
 
-// setWhen writes a date or date-time property depending on whether the event is all-day.
-func setWhen(comp *goical.Component, name string, when time.Time, allDay bool) {
+// setWhen writes a date or date-time property. A timed value is written in loc: a real zone makes go-ical
+// add the TZID parameter and a floating value, while UTC yields a Z value. An all-day value is a DATE.
+func setWhen(comp *goical.Component, name string, when time.Time, allDay bool, loc *time.Location) {
 	if allDay {
 		comp.Props.SetDate(name, when)
 		return
 	}
-	comp.Props.SetDateTime(name, when)
+	comp.Props.SetDateTime(name, when.In(loc))
+}
+
+// icsLocation loads the IANA zone, falling back to UTC for an empty name or an unknown zone so export
+// never fails on a bad zone; a UTC location makes setWhen write plain Z values.
+func icsLocation(zone string) *time.Location {
+	if zone == "" {
+		return time.UTC
+	}
+	if loc, err := time.LoadLocation(zone); err == nil {
+		return loc
+	}
+	return time.UTC
 }
 
 // generatedID returns a random hex id for an event that carries no UID.

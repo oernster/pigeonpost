@@ -360,12 +360,13 @@ export namespace main {
 	    end: string;
 	    allDay: boolean;
 	    recurrence: string;
+	    timeZone: string;
 	    extra: string;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new EventDTO(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
@@ -378,8 +379,45 @@ export namespace main {
 	        this.end = source["end"];
 	        this.allDay = source["allDay"];
 	        this.recurrence = source["recurrence"];
+	        this.timeZone = source["timeZone"];
 	        this.extra = source["extra"];
 	    }
+	}
+	export class EventInstanceDTO {
+	    event: EventDTO;
+	    start: string;
+	    end: string;
+	    recurrenceId: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new EventInstanceDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.event = this.convertValues(source["event"], EventDTO);
+	        this.start = source["start"];
+	        this.end = source["end"];
+	        this.recurrenceId = source["recurrenceId"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 	export class EventRequest {
 	    id: string;
@@ -392,12 +430,13 @@ export namespace main {
 	    end: string;
 	    allDay: boolean;
 	    recurrence: string;
+	    timeZone: string;
 	    extra: string;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new EventRequest(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
@@ -410,25 +449,8 @@ export namespace main {
 	        this.end = source["end"];
 	        this.allDay = source["allDay"];
 	        this.recurrence = source["recurrence"];
+	        this.timeZone = source["timeZone"];
 	        this.extra = source["extra"];
-	    }
-	}
-	export class EventInstanceDTO {
-	    event: EventDTO;
-	    start: string;
-	    end: string;
-	    recurrenceId: string;
-
-	    static createFrom(source: any = {}) {
-	        return new EventInstanceDTO(source);
-	    }
-
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.event = EventDTO.createFrom(source["event"]);
-	        this.start = source["start"];
-	        this.end = source["end"];
-	        this.recurrenceId = source["recurrenceId"];
 	    }
 	}
 	export class FolderDTO {
@@ -533,11 +555,11 @@ export namespace main {
 	    createdMs: number;
 	    failed: boolean;
 	    failure: string;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new OutboxItemDTO(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];

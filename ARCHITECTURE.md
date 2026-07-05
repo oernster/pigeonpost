@@ -271,4 +271,15 @@ than losing the event. Editing or deleting a recurring occurrence carries a scop
 all): `this` writes a single-occurrence override, `future` truncates the master with UNTIL and starts a
 new series from the split (migrating later overrides), and `all` rewrites the master. The `ics` codec
 extracts and re-emits RDATE, EXDATE and RECURRENCE-ID alongside the existing opaque `Extra`
-pass-through, so the round-trip stays lossless. Timezones remain a later concern: all times stay UTC.
+pass-through, so the round-trip stays lossless.
+
+**Event timezones.** An `Event` also carries an IANA zone (schema v19 `time_zone`), so a recurring event
+keeps its local wall-clock time across daylight-saving changes: its Start and End stay absolute instants,
+and the zone says how they are shown and expanded. The expander anchors DTSTART in that zone before
+generating, so a 9am daily event stays 9am local while its UTC instant shifts across the DST boundary;
+the IANA database is embedded (`time/tzdata`) so `LoadLocation` resolves on Windows. The `ics` codec reads
+the `TZID` parameter on import and writes `DTSTART;TZID=...` on export (the IANA name, which Google,
+Outlook and Thunderbird resolve from their own databases); a UTC or all-day event carries no zone. On the
+front end a zone picker sets the event zone, the form interprets and shows its wall-clock times in that
+zone, and occurrences render in the browser's local zone. A generated `VTIMEZONE` block is a later
+refinement; RDATE, EXDATE and RECURRENCE-ID are written as UTC instants.

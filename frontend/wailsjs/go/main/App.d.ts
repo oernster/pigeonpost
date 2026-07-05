@@ -22,6 +22,8 @@ export function DeleteContactGroup(arg1:string):Promise<void>;
 
 export function DeleteEvent(arg1:string):Promise<void>;
 
+export function DeleteEventScoped(arg1:number,arg2:string,arg3:string):Promise<void>;
+
 export function DeleteFolder(arg1:string):Promise<void>;
 
 export function DeleteMessage(arg1:string):Promise<void>;
@@ -56,13 +58,9 @@ export function ListContactGroups():Promise<Array<main.ContactGroupDTO>>;
 
 export function ListContacts():Promise<Array<main.ContactDTO>>;
 
-export function ListEvents():Promise<Array<main.EventDTO>>;
-
 export function ListEventInstances(arg1:string,arg2:string):Promise<Array<main.EventInstanceDTO>>;
 
-export function SaveEventScoped(arg1:main.EventRequest,arg2:number,arg3:string):Promise<void>;
-
-export function DeleteEventScoped(arg1:number,arg2:string,arg3:string):Promise<void>;
+export function ListEvents():Promise<Array<main.EventDTO>>;
 
 export function ListFolders(arg1:string):Promise<Array<main.FolderDTO>>;
 
@@ -105,6 +103,8 @@ export function SaveContactGroup(arg1:main.ContactGroupRequest):Promise<void>;
 export function SaveDraft(arg1:main.ComposeRequest):Promise<void>;
 
 export function SaveEvent(arg1:main.EventRequest):Promise<void>;
+
+export function SaveEventScoped(arg1:main.EventRequest,arg2:number,arg3:string):Promise<void>;
 
 export function SaveMessageAs(arg1:string,arg2:string):Promise<void>;
 

@@ -1,5 +1,6 @@
 import {useEffect, useRef, useState} from 'react'
 import {api, Calendar, CalendarEvent, CalendarEventInput, CalendarEventInstance, EventScope} from '../api'
+import {browserZone, instantToZonedWall, zonedWallToISO, zoneOptions} from '../tz'
 import {ModalClose} from './ModalClose'
 import {ConfirmDialog} from './ConfirmDialog'
 import {ScopeChooser} from './ScopeChooser'
@@ -38,6 +39,9 @@ interface EventForm {
     allDay: boolean
     start: string
     end: string
+    // timeZone is the IANA zone the start and end wall-clock times are entered in; empty is treated as the
+    // browser zone. It is ignored for all-day events.
+    timeZone: string
     recurrence: string
     // extra is the opaque preserved ICS, carried unchanged so an edit does not strip unmodelled data.
     extra: string
@@ -213,8 +217,8 @@ export function CalendarModal({events, onChanged, onClose}: CalendarModalProps) 
         end.setHours(10, 0, 0, 0)
         setForm({
             id: '', uid: '', calendarId: defaultCalendarId(), summary: '', description: '', location: '',
-            allDay: false, start: dateTimeInput(start), end: dateTimeInput(end), recurrence: '', extra: '',
-            scope: null, occurrence: '', series: false,
+            allDay: false, start: dateTimeInput(start), end: dateTimeInput(end), timeZone: browserZone(),
+            recurrence: '', extra: '', scope: null, occurrence: '', series: false,
         })
     }
 
@@ -224,8 +228,8 @@ export function CalendarModal({events, onChanged, onClose}: CalendarModalProps) 
         end.setHours(start.getHours() + HOURS_PER_EVENT)
         setForm({
             id: '', uid: '', calendarId: defaultCalendarId(), summary: '', description: '', location: '',
-            allDay: false, start: dateTimeInput(start), end: dateTimeInput(end), recurrence: '', extra: '',
-            scope: null, occurrence: '', series: false,
+            allDay: false, start: dateTimeInput(start), end: dateTimeInput(end), timeZone: browserZone(),
+            recurrence: '', extra: '', scope: null, occurrence: '', series: false,
         })
     }
 
@@ -244,13 +248,14 @@ export function CalendarModal({events, onChanged, onClose}: CalendarModalProps) 
         const useMaster = scope === EventScope.All
         const startISO = useMaster ? ev.start : inst.start
         const endISO = useMaster ? ev.end : inst.end
-        const start = new Date(startISO)
-        const end = endISO ? new Date(endISO) : null
+        const zone = ev.timeZone || browserZone()
+        // Timed events show their wall time in the event's own zone; all-day events are floating dates.
+        const startWall = ev.allDay ? dateInput(new Date(startISO)) : instantToZonedWall(startISO, zone)
+        const endWall = endISO ? (ev.allDay ? dateInput(new Date(endISO)) : instantToZonedWall(endISO, zone)) : ''
         setForm({
             id: ev.id, uid: ev.uid, calendarId: ev.calendarId, summary: ev.summary,
             description: ev.description, location: ev.location, allDay: ev.allDay,
-            start: ev.allDay ? dateInput(start) : dateTimeInput(start),
-            end: end ? (ev.allDay ? dateInput(end) : dateTimeInput(end)) : '',
+            start: startWall, end: endWall, timeZone: zone,
             recurrence: ev.recurrence, extra: ev.extra,
             scope, occurrence: inst.recurrenceId, series: isSeries(inst),
         })
@@ -268,11 +273,15 @@ export function CalendarModal({events, onChanged, onClose}: CalendarModalProps) 
         setBusy(true)
         setError('')
         try {
+            // A timed event's wall time is interpreted in its chosen zone; an all-day date is floating and
+            // carries no zone.
+            const startISO = form.allDay ? toISO(form.start) : zonedWallToISO(form.start, form.timeZone)
+            const endISO = form.allDay ? toISO(form.end) : (form.end ? zonedWallToISO(form.end, form.timeZone) : '')
             const req: CalendarEventInput = {
                 id: form.id, uid: form.uid, calendarId: form.calendarId, summary: form.summary,
                 description: form.description, location: form.location, allDay: form.allDay,
-                start: toISO(form.start), end: toISO(form.end), recurrence: form.recurrence,
-                extra: form.extra,
+                start: startISO, end: endISO, timeZone: form.allDay ? '' : form.timeZone,
+                recurrence: form.recurrence, extra: form.extra,
             }
             if (form.scope !== null) await api.saveEventScoped(req, form.scope, form.occurrence)
             else await api.saveEvent(req)
@@ -491,6 +500,17 @@ export function CalendarModal({events, onChanged, onClose}: CalendarModalProps) 
                                     <PickerButton target={endRef}/>
                                 </div>
                             </div>
+                            {!form.allDay && (
+                                <label className="cal-tz">
+                                    Time zone
+                                    <select className="tag-name-input" aria-label="Time zone" value={form.timeZone}
+                                            onChange={(e) => set('timeZone', e.target.value)}>
+                                        {zoneOptions(form.timeZone).map((z) => (
+                                            <option key={z} value={z}>{z}</option>
+                                        ))}
+                                    </select>
+                                </label>
+                            )}
                             <input className="tag-name-input" placeholder="Location" value={form.location}
                                    onChange={(e) => set('location', e.target.value)}/>
                             <textarea className="tag-name-input" placeholder="Description" rows={2} value={form.description}

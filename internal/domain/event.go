@@ -25,6 +25,10 @@ type EventInput struct {
 	// RecurrenceID marks this event as an override of a single occurrence of the series sharing its UID.
 	// It holds the original start of the occurrence being replaced; the zero time means "not an override".
 	RecurrenceID time.Time
+	// TimeZone is the IANA name (Europe/London) the event's wall-clock times are kept in, so a recurring
+	// event holds its local time across daylight-saving changes. It is empty for a floating or UTC event.
+	// Start and End remain absolute instants; the zone is how they are shown and expanded.
+	TimeZone string
 	// Extra is an opaque store of the original ICS VEVENT so import and export never strip the
 	// properties PigeonPost does not model yet (categories, status, alarms and the rest). It is empty
 	// for an event created in the app and is round-tripped unchanged through storage and the UI.
@@ -48,6 +52,7 @@ type Event struct {
 	rdates       []time.Time
 	exdates      []time.Time
 	recurrenceID time.Time
+	timeZone     string
 	extra        string
 }
 
@@ -82,6 +87,7 @@ func NewEvent(in EventInput) (Event, error) {
 		rdates:       copyNonZeroTimes(in.RDates),
 		exdates:      copyNonZeroTimes(in.ExDates),
 		recurrenceID: in.RecurrenceID,
+		timeZone:     strings.TrimSpace(in.TimeZone),
 		extra:        in.Extra,
 	}, nil
 }
@@ -162,9 +168,20 @@ func (e Event) RecurrenceID() time.Time { return e.recurrenceID }
 // IsOverride reports whether the event overrides a single occurrence of its series (RECURRENCE-ID set).
 func (e Event) IsOverride() bool { return !e.recurrenceID.IsZero() }
 
+// TimeZone returns the IANA name the event's wall-clock times are kept in, or an empty string for a
+// floating or UTC event.
+func (e Event) TimeZone() string { return e.timeZone }
+
 // Extra returns the opaque original ICS VEVENT preserved for a lossless round-trip, or an empty string
 // for an event that did not come from an import.
 func (e Event) Extra() string { return e.extra }
+
+// WithTimeZone returns a copy of the event with its IANA time zone replaced (trimmed); an empty name
+// clears it. The event stays immutable: the receiver is unchanged.
+func (e Event) WithTimeZone(zone string) Event {
+	e.timeZone = strings.TrimSpace(zone)
+	return e
+}
 
 // WithRecurrence returns a copy of the event with its recurrence rule replaced (trimmed); an empty rule
 // clears it. The event stays immutable: the receiver is unchanged.

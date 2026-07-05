@@ -28,22 +28,26 @@ func New() *Expander { return &Expander{} }
 // duration (the zero time when the event has no end) and a RecurrenceID equal to its start. An invalid
 // rule yields an error so the caller can decide how to degrade.
 func (e *Expander) Expand(event domain.Event, from, to time.Time) ([]domain.EventInstance, error) {
-	set, err := buildSet(event)
+	set, err := buildSet(event, locationOf(event.TimeZone()))
 	if err != nil {
 		return nil, err
 	}
 	hasEnd := event.HasEnd()
 	duration := event.Duration()
 	// Set.Between returns occurrences sorted and already de-duplicated (an RDATE equal to a rule
-	// occurrence is emitted once), so each start maps directly to one instance.
+	// occurrence is emitted once), so each start maps directly to one instance. Between compares instants,
+	// so the window can stay in UTC while the set generates in the event's zone.
 	starts := set.Between(from, to, true)
 	instances := make([]domain.EventInstance, 0, len(starts))
 	for _, start := range starts {
+		// The occurrence is generated in the event's zone; store it as the absolute instant so downstream
+		// code stays zone-agnostic and daylight-saving shifts are already baked in.
+		occurrence := start.UTC()
 		end := time.Time{}
 		if hasEnd {
-			end = start.Add(duration)
+			end = occurrence.Add(duration)
 		}
-		instances = append(instances, domain.NewEventInstance(event, start, end, start))
+		instances = append(instances, domain.NewEventInstance(event, occurrence, end, occurrence))
 	}
 	return instances, nil
 }
@@ -64,11 +68,13 @@ func (e *Expander) TruncateBefore(rule string, at time.Time) (string, error) {
 	return option.RRuleString(), nil
 }
 
-// buildSet assembles an rrule.Set from the event's rule and recurrence dates, anchored to the event
-// start. When the event carries no rule the start is added as an RDATE so it remains an occurrence, per
-// RFC 5545 where DTSTART is always part of the recurrence set.
-func buildSet(event domain.Event) (*rrule.Set, error) {
+// buildSet assembles an rrule.Set from the event's rule and recurrence dates, anchored to the event start
+// expressed in loc, so occurrences keep the same wall-clock time across daylight-saving changes. When the
+// event carries no rule the start is added as an RDATE so it remains an occurrence, per RFC 5545 where
+// DTSTART is always part of the recurrence set.
+func buildSet(event domain.Event, loc *time.Location) (*rrule.Set, error) {
 	set := &rrule.Set{}
+	start := event.Start().In(loc)
 	if rule := strings.TrimSpace(event.Recurrence()); rule != "" {
 		rule = strings.TrimPrefix(rule, rrulePrefix)
 		parsed, err := rrule.StrToRRule(rule)
@@ -77,14 +83,26 @@ func buildSet(event domain.Event) (*rrule.Set, error) {
 		}
 		set.RRule(parsed)
 	} else {
-		set.RDate(event.Start())
+		set.RDate(start)
 	}
-	set.DTStart(event.Start())
+	set.DTStart(start)
 	for _, d := range event.RDates() {
-		set.RDate(d)
+		set.RDate(d.In(loc))
 	}
 	for _, d := range event.ExDates() {
-		set.ExDate(d)
+		set.ExDate(d.In(loc))
 	}
 	return set, nil
+}
+
+// locationOf loads the IANA zone, falling back to UTC for an empty name or an unknown zone so a bad zone
+// degrades to floating time rather than failing expansion.
+func locationOf(zone string) *time.Location {
+	if zone == "" {
+		return time.UTC
+	}
+	if loc, err := time.LoadLocation(zone); err == nil {
+		return loc
+	}
+	return time.UTC
 }

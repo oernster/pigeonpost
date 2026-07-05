@@ -41,6 +41,7 @@ type EventDTO struct {
 	End         string `json:"end"`
 	AllDay      bool   `json:"allDay"`
 	Recurrence  string `json:"recurrence"`
+	TimeZone    string `json:"timeZone"`
 	Extra       string `json:"extra"`
 }
 
@@ -58,6 +59,7 @@ type EventRequest struct {
 	End         string `json:"end"`
 	AllDay      bool   `json:"allDay"`
 	Recurrence  string `json:"recurrence"`
+	TimeZone    string `json:"timeZone"`
 	Extra       string `json:"extra"`
 }
 
@@ -138,6 +140,7 @@ func (a *App) SaveEvent(req EventRequest) error {
 		End:         end,
 		AllDay:      req.AllDay,
 		Recurrence:  req.Recurrence,
+		TimeZone:    req.TimeZone,
 		Extra:       req.Extra,
 	})
 }
@@ -196,6 +199,7 @@ func (a *App) SaveEventScoped(req EventRequest, scope int, occurrence string) er
 		End:         end,
 		AllDay:      req.AllDay,
 		Recurrence:  req.Recurrence,
+		TimeZone:    req.TimeZone,
 		Extra:       req.Extra,
 	}, occurrenceTime)
 }
@@ -272,6 +276,7 @@ func toEventDTO(e domain.Event) EventDTO {
 		End:         end,
 		AllDay:      e.AllDay(),
 		Recurrence:  e.Recurrence(),
+		TimeZone:    e.TimeZone(),
 		Extra:       e.Extra(),
 	}
 }

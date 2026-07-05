@@ -1,0 +1,65 @@
+// tz centralises the small amount of IANA-timezone maths the calendar needs: converting between an
+// absolute instant and the wall-clock time in a named zone, so an event's form shows and stores its times
+// in the event's own zone rather than the browser's.
+
+// browserZone returns the user's current IANA zone, used as the default zone for a new event.
+export function browserZone(): string {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
+}
+
+// COMMON_ZONES is a short curated list offered in the zone picker; the browser's own zone and the event's
+// current zone are added to it where missing.
+export const COMMON_ZONES: string[] = [
+    'UTC',
+    'Europe/London', 'Europe/Paris', 'Europe/Berlin', 'Europe/Madrid', 'Europe/Athens', 'Europe/Moscow',
+    'America/New_York', 'America/Chicago', 'America/Denver', 'America/Los_Angeles', 'America/Sao_Paulo',
+    'Asia/Dubai', 'Asia/Kolkata', 'Asia/Singapore', 'Asia/Shanghai', 'Asia/Tokyo',
+    'Australia/Sydney', 'Pacific/Auckland',
+]
+
+// zoneOptions returns the picker's zones with the browser zone and the event's current zone folded in, so
+// an imported unusual zone still displays as the selected option.
+export function zoneOptions(current: string): string[] {
+    return Array.from(new Set([browserZone(), current, ...COMMON_ZONES].filter(Boolean)))
+}
+
+function pad(n: number): string {
+    return n < 10 ? '0' + n : String(n)
+}
+
+interface CalendarParts {
+    year: number
+    month: number
+    day: number
+    hour: number
+    minute: number
+    second: number
+}
+
+// zoneParts renders an instant in a zone into its numeric calendar parts.
+function zoneParts(instant: Date, zone: string): CalendarParts {
+    const parts = new Intl.DateTimeFormat('en-US', {
+        timeZone: zone, hourCycle: 'h23',
+        year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit', second: '2-digit',
+    }).formatToParts(instant)
+    const get = (t: string) => Number(parts.find((p) => p.type === t)?.value)
+    return {year: get('year'), month: get('month'), day: get('day'), hour: get('hour'), minute: get('minute'), second: get('second')}
+}
+
+// instantToZonedWall formats an ISO instant as the datetime-local wall value (YYYY-MM-DDTHH:mm) in zone.
+export function instantToZonedWall(iso: string, zone: string): string {
+    const p = zoneParts(new Date(iso), zone)
+    return `${p.year}-${pad(p.month)}-${pad(p.day)}T${pad(p.hour)}:${pad(p.minute)}`
+}
+
+// zonedWallToISO interprets a datetime-local wall value (no zone) as a time in zone and returns the
+// absolute UTC instant. The zone offset is measured at that wall time, so daylight saving is handled.
+export function zonedWallToISO(wall: string, zone: string): string {
+    const asUTC = new Date(wall + ':00Z').getTime()
+    if (Number.isNaN(asUTC)) return ''
+    const p = zoneParts(new Date(asUTC), zone)
+    const rendered = Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute, p.second)
+    const offset = rendered - asUTC
+    return new Date(asUTC - offset).toISOString()
+}

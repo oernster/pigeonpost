@@ -2014,6 +2014,18 @@
     width: 64px;
 }
 
+.cal-tz {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--text-dim);
+}
+
+.cal-tz select {
+    flex: 1;
+}
+
 .recur-first {
     align-items: center;
 }
