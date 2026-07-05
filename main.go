@@ -84,13 +84,15 @@ func run() error {
 	contactService := application.NewContactService(store, newContactID)
 	calendarService := application.NewCalendarService(store, newCalendarID, recurrence.New())
 
-	// The taskbar overlay badge reflects the total unread count. It finds the main window by its title,
-	// so it is given the same title the Wails window uses below.
+	// The taskbar overlay badge reflects the total unread count, and the flasher flashes the taskbar
+	// button when a reminder fires while the window is in the background. Both locate the main window by
+	// its title, so they are given the same title the Wails window uses below.
 	windowTitle := appName + " " + version()
 	overlay := taskbar.NewOverlay(windowTitle)
 	overlay.Start()
+	flasher := taskbar.NewFlasher(windowTitle)
 
-	app := NewApp(store.Close, overlay, accountService, setupService, mailboxService, syncService, composeService, tagService, bodyService, actionService, folderService, ruleService, contactService, calendarService)
+	app := NewApp(store.Close, overlay, flasher, accountService, setupService, mailboxService, syncService, composeService, tagService, bodyService, actionService, folderService, ruleService, contactService, calendarService)
 
 	err = wails.Run(&options.App{
 		Title:            windowTitle,

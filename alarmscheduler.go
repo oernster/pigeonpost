@@ -49,7 +49,9 @@ func (a *App) runReminderScheduler() {
 	}
 }
 
-// emitReminders pushes each reminder to the front end as a Wails event.
+// emitReminders pushes each reminder to the front end as a Wails event, then flashes the taskbar button
+// once for the batch so a reminder is noticed while the window is in the background. The flash is a
+// no-op when the window is already in the foreground, so an in-view reminder relies on its banner alone.
 func (a *App) emitReminders(reminders []application.DueReminder) {
 	for _, r := range reminders {
 		runtime.EventsEmit(a.ctx, reminderEventName, ReminderDTO{
@@ -57,5 +59,8 @@ func (a *App) emitReminders(reminders []application.DueReminder) {
 			Summary: r.Summary,
 			Start:   r.OccurrenceStart.Format(time.RFC3339),
 		})
+	}
+	if len(reminders) > 0 && a.alerter != nil {
+		a.alerter.Flash()
 	}
 }

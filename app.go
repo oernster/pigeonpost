@@ -13,12 +13,20 @@ type UnreadNotifier interface {
 	SetUnread(total int)
 }
 
+// ReminderAlerter draws attention to a due calendar reminder from outside the window, by flashing the
+// taskbar button when the window is not in the foreground. It is injected so the facade stays decoupled
+// from the OS-specific implementation; on platforms without a taskbar it is a no-op.
+type ReminderAlerter interface {
+	Flash()
+}
+
 // App is the Wails facade: the single boundary the React front end talks to. It holds no business
 // logic, delegating every call to an application use case and mapping domain results to DTOs.
 type App struct {
 	ctx      context.Context
 	closer   func() error
 	notifier UnreadNotifier
+	alerter  ReminderAlerter
 	accounts *application.AccountService
 	setup    *application.AccountSetupService
 	mailbox  *application.MailboxService
@@ -37,6 +45,7 @@ type App struct {
 func NewApp(
 	closer func() error,
 	notifier UnreadNotifier,
+	alerter ReminderAlerter,
 	accounts *application.AccountService,
 	setup *application.AccountSetupService,
 	mailbox *application.MailboxService,
@@ -53,6 +62,7 @@ func NewApp(
 	return &App{
 		closer:   closer,
 		notifier: notifier,
+		alerter:  alerter,
 		accounts: accounts,
 		setup:    setup,
 		mailbox:  mailbox,
