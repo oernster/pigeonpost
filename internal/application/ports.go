@@ -165,6 +165,21 @@ type CalendarCodec interface {
 	Encode(events []domain.Event, passthrough []domain.CalendarPassthrough) ([]byte, error)
 }
 
+// SchedulingCodec converts iTIP (RFC 5546) scheduling messages to and from the text/calendar payload an
+// email carries (RFC 6047 iMIP). It is the seam the scheduling service uses: DecodeScheduling reads an
+// incoming invite or reply (the VCALENDAR METHOD and its events, each with its organizer and attendees),
+// and the encode methods build the REQUEST, REPLY and CANCEL a two-way invite flow sends back out.
+type SchedulingCodec interface {
+	DecodeScheduling(data []byte) (domain.SchedulingMessage, error)
+	// EncodeRequest builds a METHOD:REQUEST inviting the attendees carried on the events.
+	EncodeRequest(events []domain.Event) ([]byte, error)
+	// EncodeCancel builds a METHOD:CANCEL withdrawing the events.
+	EncodeCancel(events []domain.Event) ([]byte, error)
+	// EncodeReply builds a METHOD:REPLY carrying the responder as the single attendee with the status that
+	// is their answer, so the organizer sees only the response that changed.
+	EncodeReply(event domain.Event, responder domain.EmailAddress, status domain.ParticipationStatus) ([]byte, error)
+}
+
 // RecurrenceService performs the recurrence operations that need RRULE parsing, kept outside the domain
 // because that parsing needs a dedicated library the domain must not depend on.
 type RecurrenceService interface {
