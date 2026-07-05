@@ -91,6 +91,9 @@ func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
 	if a.tray != nil {
 		a.tray.Start(taskbar.TrayActions{
+			// Open must go through the Wails runtime, not a Win32 window search: when the window is hidden
+			// to the tray it is no longer a findable visible window.
+			Open:         func() { runtime.WindowShow(ctx); runtime.WindowUnminimise(ctx) },
 			About:        func() { runtime.EventsEmit(ctx, "menu:about") },
 			Licence:      func() { runtime.EventsEmit(ctx, "menu:licence") },
 			CheckUpdates: func() { runtime.EventsEmit(ctx, "menu:check-updates") },

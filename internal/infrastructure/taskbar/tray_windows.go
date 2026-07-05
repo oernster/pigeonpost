@@ -13,8 +13,11 @@ import (
 )
 
 // TrayActions holds the callbacks the tray context menu invokes. They are supplied by the composition
-// root, which owns the Wails runtime, so this package stays free of any UI-framework dependency.
+// root, which owns the Wails runtime, so this package stays free of any UI-framework dependency. Open
+// restores the window (which may be hidden to the tray, so it goes through the runtime rather than a
+// Win32 window search).
 type TrayActions struct {
+	Open         func()
 	About        func()
 	Licence      func()
 	CheckUpdates func()
@@ -158,7 +161,7 @@ func trayWndProc(hwnd, message, wParam, lParam uintptr) uintptr {
 	case wmTrayCallback:
 		switch lParam & 0xFFFF {
 		case wmLButtonUp, wmLButtonDblClk:
-			restoreMainWindow(t.title)
+			invoke(t.actions.Open)
 		case wmRButtonUp:
 			t.showMenu()
 		}
@@ -198,16 +201,16 @@ func (t *Tray) showMenu() {
 }
 
 // dispatch runs the selected menu command. The dialog-opening items restore the window first so the
-// dialog is visible if the app was minimised.
+// dialog is visible if the app was hidden to the tray or minimised.
 func (t *Tray) dispatch(cmd uint32) {
 	switch cmd {
 	case idOpen:
-		restoreMainWindow(t.title)
+		invoke(t.actions.Open)
 	case idAbout:
-		restoreMainWindow(t.title)
+		invoke(t.actions.Open)
 		invoke(t.actions.About)
 	case idLicence:
-		restoreMainWindow(t.title)
+		invoke(t.actions.Open)
 		invoke(t.actions.Licence)
 	case idCheckUpdates:
 		invoke(t.actions.CheckUpdates)

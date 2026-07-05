@@ -37,9 +37,6 @@ const (
 	tpmNonotify    = 0x0080
 	tpmReturnCmd   = 0x0100
 
-	swShow    = 5
-	swRestore = 9
-
 	idiApplication = 32512
 	trayIconID     = 1
 	balloonBuffer  = 16
@@ -74,9 +71,7 @@ var (
 	procDestroyMenu         = moduser32.NewProc("DestroyMenu")
 	procGetCursorPos        = moduser32.NewProc("GetCursorPos")
 	procLoadIcon            = moduser32.NewProc("LoadIconW")
-	procShowWindow          = moduser32.NewProc("ShowWindow")
 	procSetForegroundWindow = moduser32.NewProc("SetForegroundWindow")
-	procIsIconic            = moduser32.NewProc("IsIconic")
 )
 
 // notifyIconData mirrors NOTIFYICONDATAW. cbSize is set to the whole structure so the shell treats it
@@ -152,18 +147,4 @@ func appendMenuItem(menu uintptr, id uint32, label string) {
 // appendMenuSeparator adds a divider to a popup menu.
 func appendMenuSeparator(menu uintptr) {
 	procAppendMenu.Call(menu, mfSeparator, 0, 0)
-}
-
-// restoreMainWindow brings the main window to the foreground, un-minimising it first if it is iconic.
-func restoreMainWindow(title string) {
-	hwnd := findMainWindow(title)
-	if hwnd == 0 {
-		return
-	}
-	if iconic, _, _ := procIsIconic.Call(uintptr(hwnd)); iconic != 0 {
-		procShowWindow.Call(uintptr(hwnd), swRestore)
-	} else {
-		procShowWindow.Call(uintptr(hwnd), swShow)
-	}
-	procSetForegroundWindow.Call(uintptr(hwnd))
 }
