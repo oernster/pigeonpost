@@ -29,6 +29,20 @@ const MONTHS_SHORT = [
 type ViewMode = 'month' | 'week' | 'day'
 const VIEW_MODES: ViewMode[] = ['month', 'week', 'day']
 
+// REMINDER_PRESETS are the reminder lead times offered in the form, in whole minutes before the start.
+const REMINDER_PRESETS: {minutes: number; label: string}[] = [
+    {minutes: 0, label: 'At time of event'},
+    {minutes: 5, label: '5 minutes before'},
+    {minutes: 10, label: '10 minutes before'},
+    {minutes: 15, label: '15 minutes before'},
+    {minutes: 30, label: '30 minutes before'},
+    {minutes: 60, label: '1 hour before'},
+    {minutes: 120, label: '2 hours before'},
+    {minutes: 1440, label: '1 day before'},
+    {minutes: 10080, label: '1 week before'},
+]
+const DEFAULT_REMINDER_MINUTES = 15
+
 interface EventForm {
     id: string
     uid: string
@@ -42,6 +56,8 @@ interface EventForm {
     // timeZone is the IANA zone the start and end wall-clock times are entered in; empty is treated as the
     // browser zone. It is ignored for all-day events.
     timeZone: string
+    // reminders are lead times in whole minutes before the start.
+    reminders: number[]
     recurrence: string
     // extra is the opaque preserved ICS, carried unchanged so an edit does not strip unmodelled data.
     extra: string
@@ -218,7 +234,7 @@ export function CalendarModal({events, onChanged, onClose}: CalendarModalProps) 
         setForm({
             id: '', uid: '', calendarId: defaultCalendarId(), summary: '', description: '', location: '',
             allDay: false, start: dateTimeInput(start), end: dateTimeInput(end), timeZone: browserZone(),
-            recurrence: '', extra: '', scope: null, occurrence: '', series: false,
+            reminders: [], recurrence: '', extra: '', scope: null, occurrence: '', series: false,
         })
     }
 
@@ -229,7 +245,7 @@ export function CalendarModal({events, onChanged, onClose}: CalendarModalProps) 
         setForm({
             id: '', uid: '', calendarId: defaultCalendarId(), summary: '', description: '', location: '',
             allDay: false, start: dateTimeInput(start), end: dateTimeInput(end), timeZone: browserZone(),
-            recurrence: '', extra: '', scope: null, occurrence: '', series: false,
+            reminders: [], recurrence: '', extra: '', scope: null, occurrence: '', series: false,
         })
     }
 
@@ -256,7 +272,7 @@ export function CalendarModal({events, onChanged, onClose}: CalendarModalProps) 
             id: ev.id, uid: ev.uid, calendarId: ev.calendarId, summary: ev.summary,
             description: ev.description, location: ev.location, allDay: ev.allDay,
             start: startWall, end: endWall, timeZone: zone,
-            recurrence: ev.recurrence, extra: ev.extra,
+            reminders: [...ev.reminders], recurrence: ev.recurrence, extra: ev.extra,
             scope, occurrence: inst.recurrenceId, series: isSeries(inst),
         })
         setEditScope(null)
@@ -265,6 +281,13 @@ export function CalendarModal({events, onChanged, onClose}: CalendarModalProps) 
     const chooseEditScope = (scope: EventScope) => {
         if (editScope) openForm(editScope, scope)
     }
+
+    const setReminder = (index: number, minutes: number) =>
+        setForm((f) => (f ? {...f, reminders: f.reminders.map((r, i) => (i === index ? minutes : r))} : f))
+    const addReminder = () =>
+        setForm((f) => (f ? {...f, reminders: [...f.reminders, DEFAULT_REMINDER_MINUTES]} : f))
+    const removeReminder = (index: number) =>
+        setForm((f) => (f ? {...f, reminders: f.reminders.filter((_, i) => i !== index)} : f))
 
     const toISO = (value: string): string => (value ? new Date(value).toISOString() : '')
 
@@ -281,7 +304,7 @@ export function CalendarModal({events, onChanged, onClose}: CalendarModalProps) 
                 id: form.id, uid: form.uid, calendarId: form.calendarId, summary: form.summary,
                 description: form.description, location: form.location, allDay: form.allDay,
                 start: startISO, end: endISO, timeZone: form.allDay ? '' : form.timeZone,
-                recurrence: form.recurrence, extra: form.extra,
+                reminders: form.reminders, recurrence: form.recurrence, extra: form.extra,
             }
             if (form.scope !== null) await api.saveEventScoped(req, form.scope, form.occurrence)
             else await api.saveEvent(req)
@@ -521,6 +544,27 @@ export function CalendarModal({events, onChanged, onClose}: CalendarModalProps) 
                                 <RecurrenceEditor value={form.recurrence} onChange={(r) => set('recurrence', r)}
                                                   startDate={form.start}/>
                             )}
+                            <div className="reminders">
+                                <div className="reminders-head">
+                                    <span>Reminders</span>
+                                    <button type="button" className="btn" onClick={addReminder}>+ Add reminder</button>
+                                </div>
+                                {form.reminders.map((r, i) => (
+                                    <div key={i} className="reminder-row">
+                                        <select className="tag-name-input" aria-label="Reminder" value={r}
+                                                onChange={(e) => setReminder(i, Number(e.target.value))}>
+                                            {!REMINDER_PRESETS.some((p) => p.minutes === r) && (
+                                                <option value={r}>{r} minutes before</option>
+                                            )}
+                                            {REMINDER_PRESETS.map((p) => (
+                                                <option key={p.minutes} value={p.minutes}>{p.label}</option>
+                                            ))}
+                                        </select>
+                                        <button type="button" className="btn danger" aria-label="Remove reminder"
+                                                onClick={() => removeReminder(i)}>×</button>
+                                    </div>
+                                ))}
+                            </div>
                             <div className="modal-actions spread">
                                 <span>
                                     {form.id && (

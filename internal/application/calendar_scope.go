@@ -44,6 +44,7 @@ func (s *CalendarService) saveEditedMaster(ctx context.Context, master domain.Ev
 		AllDay:      in.AllDay,
 		Recurrence:  in.Recurrence,
 		TimeZone:    in.TimeZone,
+		Alarms:      in.Alarms,
 		RDates:      master.RDates(),
 		ExDates:     master.ExDates(),
 		Extra:       master.Extra(),
@@ -82,6 +83,7 @@ func (s *CalendarService) saveOccurrenceOverride(ctx context.Context, master dom
 		End:          in.End,
 		AllDay:       in.AllDay,
 		TimeZone:     in.TimeZone,
+		Alarms:       in.Alarms,
 		RecurrenceID: occurrence,
 	})
 	if err != nil {
@@ -121,6 +123,7 @@ func (s *CalendarService) splitSeries(ctx context.Context, master domain.Event, 
 		AllDay:      in.AllDay,
 		Recurrence:  in.Recurrence,
 		TimeZone:    in.TimeZone,
+		Alarms:      in.Alarms,
 	})
 	if err != nil {
 		return fmt.Errorf("calendar: build split series: %w", err)

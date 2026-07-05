@@ -361,6 +361,7 @@ export namespace main {
 	    allDay: boolean;
 	    recurrence: string;
 	    timeZone: string;
+	    reminders: number[];
 	    extra: string;
 	
 	    static createFrom(source: any = {}) {
@@ -380,6 +381,7 @@ export namespace main {
 	        this.allDay = source["allDay"];
 	        this.recurrence = source["recurrence"];
 	        this.timeZone = source["timeZone"];
+	        this.reminders = source["reminders"];
 	        this.extra = source["extra"];
 	    }
 	}
@@ -431,6 +433,7 @@ export namespace main {
 	    allDay: boolean;
 	    recurrence: string;
 	    timeZone: string;
+	    reminders: number[];
 	    extra: string;
 	
 	    static createFrom(source: any = {}) {
@@ -450,6 +453,7 @@ export namespace main {
 	        this.allDay = source["allDay"];
 	        this.recurrence = source["recurrence"];
 	        this.timeZone = source["timeZone"];
+	        this.reminders = source["reminders"];
 	        this.extra = source["extra"];
 	    }
 	}

@@ -35,7 +35,8 @@ func TestNewEventFullRoundTrip(t *testing.T) {
 	e, err := NewEvent(EventInput{
 		ID: "  e1 ", UID: "  uid-1 ", CalendarID: " cal1 ", Summary: "  Standup ",
 		Description: " daily ", Location: " Room 1 ", Start: start, End: end, TimeZone: " Europe/London ",
-		AllDay: false, Recurrence: " FREQ=DAILY ", Extra: "BEGIN:VEVENT\r\nCATEGORIES:WORK\r\nEND:VEVENT\r\n",
+		AllDay: false, Recurrence: " FREQ=DAILY ", Alarms: []Alarm{NewAlarm(-15 * time.Minute)},
+		Extra: "BEGIN:VEVENT\r\nCATEGORIES:WORK\r\nEND:VEVENT\r\n",
 	})
 	if err != nil {
 		t.Fatalf("NewEvent: %v", err)
@@ -44,6 +45,9 @@ func TestNewEventFullRoundTrip(t *testing.T) {
 		e.Description() != "daily" || e.Location() != "Room 1" || e.Recurrence() != "FREQ=DAILY" ||
 		e.TimeZone() != "Europe/London" {
 		t.Errorf("fields not trimmed/exposed: %+v", e)
+	}
+	if alarms := e.Alarms(); len(alarms) != 1 || alarms[0].Offset() != -15*time.Minute {
+		t.Errorf("alarms not exposed: %v", e.Alarms())
 	}
 	// Extra is preserved verbatim (not trimmed): it is an opaque ICS blob, not a display field.
 	if e.Extra() != "BEGIN:VEVENT\r\nCATEGORIES:WORK\r\nEND:VEVENT\r\n" {
@@ -161,6 +165,19 @@ func TestEventCopyMethods(t *testing.T) {
 	zoned := e.WithTimeZone("  Europe/London  ")
 	if zoned.TimeZone() != "Europe/London" || e.TimeZone() != "" {
 		t.Errorf("WithTimeZone wrong: got %q, receiver %q", zoned.TimeZone(), e.TimeZone())
+	}
+	alarmed := e.WithAlarms([]Alarm{NewAlarm(-10 * time.Minute)})
+	if got := alarmed.Alarms(); len(got) != 1 || got[0].Offset() != -10*time.Minute {
+		t.Errorf("WithAlarms wrong: %v", got)
+	}
+	if len(e.Alarms()) != 0 {
+		t.Errorf("WithAlarms mutated the receiver: %v", e.Alarms())
+	}
+	// A returned slice must not alias the event's storage.
+	got := alarmed.Alarms()
+	got[0] = NewAlarm(0)
+	if again := alarmed.Alarms(); again[0].Offset() != -10*time.Minute {
+		t.Errorf("returned slice aliases event storage: %v", again)
 	}
 	reruled := e.WithRecurrence("  FREQ=WEEKLY  ")
 	if reruled.Recurrence() != "FREQ=WEEKLY" || e.Recurrence() != "FREQ=DAILY;COUNT=5" {

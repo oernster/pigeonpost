@@ -29,6 +29,8 @@ type EventInput struct {
 	// event holds its local time across daylight-saving changes. It is empty for a floating or UTC event.
 	// Start and End remain absolute instants; the zone is how they are shown and expanded.
 	TimeZone string
+	// Alarms are the reminders for the event, each a lead time before (or after) its start.
+	Alarms []Alarm
 	// Extra is an opaque store of the original ICS VEVENT so import and export never strip the
 	// properties PigeonPost does not model yet (categories, status, alarms and the rest). It is empty
 	// for an event created in the app and is round-tripped unchanged through storage and the UI.
@@ -53,6 +55,7 @@ type Event struct {
 	exdates      []time.Time
 	recurrenceID time.Time
 	timeZone     string
+	alarms       []Alarm
 	extra        string
 }
 
@@ -88,8 +91,18 @@ func NewEvent(in EventInput) (Event, error) {
 		exdates:      copyNonZeroTimes(in.ExDates),
 		recurrenceID: in.RecurrenceID,
 		timeZone:     strings.TrimSpace(in.TimeZone),
+		alarms:       copyAlarms(in.Alarms),
 		extra:        in.Extra,
 	}, nil
+}
+
+// copyAlarms returns a fresh slice of the alarms so the constructed Event does not share backing storage
+// with the caller.
+func copyAlarms(src []Alarm) []Alarm {
+	if len(src) == 0 {
+		return nil
+	}
+	return append([]Alarm(nil), src...)
 }
 
 // copyNonZeroTimes returns a fresh slice holding the non-zero entries of src, so the constructed Event
@@ -172,6 +185,9 @@ func (e Event) IsOverride() bool { return !e.recurrenceID.IsZero() }
 // floating or UTC event.
 func (e Event) TimeZone() string { return e.timeZone }
 
+// Alarms returns a copy of the event's reminders so callers cannot mutate the event.
+func (e Event) Alarms() []Alarm { return append([]Alarm(nil), e.alarms...) }
+
 // Extra returns the opaque original ICS VEVENT preserved for a lossless round-trip, or an empty string
 // for an event that did not come from an import.
 func (e Event) Extra() string { return e.extra }
@@ -201,5 +217,12 @@ func (e Event) WithExDates(dates []time.Time) Event {
 // split moves an occurrence to a new series.
 func (e Event) WithUID(uid string) Event {
 	e.uid = strings.TrimSpace(uid)
+	return e
+}
+
+// WithAlarms returns a copy of the event with its reminders replaced. The slice is copied so neither the
+// receiver nor the caller's slice is shared.
+func (e Event) WithAlarms(alarms []Alarm) Event {
+	e.alarms = copyAlarms(alarms)
 	return e
 }

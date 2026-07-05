@@ -90,8 +90,9 @@ func TestICSPreservesUnmodelledProperties(t *testing.T) {
 		t.Fatalf("Encode: %v", err)
 	}
 	s := string(out)
-	for _, want := range []string{"CATEGORIES:WORK", "STATUS:CONFIRMED", "PRIORITY:1",
-		"X-CUSTOM-FLAG:keepme", "BEGIN:VALARM", "TRIGGER:-PT15M"} {
+	// VALARM is now a modelled property, re-emitted from the alarm model, so it is covered by the alarm
+	// round-trip test rather than asserted verbatim here.
+	for _, want := range []string{"CATEGORIES:WORK", "STATUS:CONFIRMED", "PRIORITY:1", "X-CUSTOM-FLAG:keepme"} {
 		if !strings.Contains(s, want) {
 			t.Errorf("re-encoded ICS dropped %q:\n%s", want, s)
 		}
@@ -252,6 +253,31 @@ func TestICSUTCEventHasNoZone(t *testing.T) {
 	}
 	if s := string(mustEncode(t, events[0])); !strings.Contains(s, "DTSTART:20260705T090000Z") {
 		t.Errorf("UTC event should re-encode as a Z value:\n%s", s)
+	}
+}
+
+func TestICSAlarmRoundTrip(t *testing.T) {
+	data := cal(
+		"BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//x//EN",
+		"BEGIN:VEVENT", "UID:a1", "DTSTAMP:20260704T090000Z", "DTSTART:20260705T090000Z", "SUMMARY:Standup",
+		"BEGIN:VALARM", "ACTION:DISPLAY", "TRIGGER:-PT15M", "DESCRIPTION:Reminder", "END:VALARM",
+		"END:VEVENT", "END:VCALENDAR",
+	)
+	events, err := New().Decode(data)
+	if err != nil || len(events) != 1 {
+		t.Fatalf("Decode: %v (n=%d)", err, len(events))
+	}
+	alarms := events[0].Alarms()
+	if len(alarms) != 1 || alarms[0].Offset() != -15*time.Minute {
+		t.Errorf("alarm not parsed: %v", alarms)
+	}
+	// Re-encoding writes exactly one VALARM with the same trigger, not a duplicate.
+	s := string(mustEncode(t, events[0]))
+	if strings.Count(s, "BEGIN:VALARM") != 1 {
+		t.Errorf("expected one VALARM, got %d:\n%s", strings.Count(s, "BEGIN:VALARM"), s)
+	}
+	if !strings.Contains(s, "TRIGGER:-PT15M") {
+		t.Errorf("alarm trigger not re-encoded:\n%s", s)
 	}
 }
 

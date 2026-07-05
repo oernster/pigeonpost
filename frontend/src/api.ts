@@ -141,6 +141,8 @@ export interface CalendarEventInput {
     allDay: boolean
     recurrence: string
     timeZone: string
+    // reminders are lead times in whole minutes before the event start (0 means at the start).
+    reminders: number[]
     extra: string
 }
 

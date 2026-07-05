@@ -283,3 +283,11 @@ Outlook and Thunderbird resolve from their own databases); a UTC or all-day even
 front end a zone picker sets the event zone, the form interprets and shows its wall-clock times in that
 zone, and occurrences render in the browser's local zone. A generated `VTIMEZONE` block is a later
 refinement; RDATE, EXDATE and RECURRENCE-ID are written as UTC instants.
+
+**Reminders.** An `Event` carries a list of `Alarm` reminders, each a signed trigger offset from the start
+(schema v20 stores them as comma-separated seconds; the facade exposes them to the UI as whole
+minutes-before). The `ics` codec reads relative-trigger `VALARM` children into alarms and re-emits one
+`DISPLAY VALARM` per modelled alarm with a friendly duration (`-PT15M`, not the library's `-PT900S`);
+because it owns the property it strips existing VALARMs first, so an exotic imported alarm (an absolute
+trigger, an email action) is not preserved. Firing the reminders (a scheduler plus an on-screen or OS
+notification) is the next step and is not yet wired.

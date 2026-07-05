@@ -31,6 +31,8 @@ type EventInput struct {
 	Recurrence  string
 	// TimeZone is the IANA name the event's wall-clock times are kept in (empty for floating or UTC).
 	TimeZone string
+	// Alarms are the event's reminders, each a lead time relative to its start.
+	Alarms []domain.Alarm
 	// Extra carries the preserved original ICS opaquely so an in-app edit does not strip the
 	// properties PigeonPost does not model. The UI round-trips it unchanged.
 	Extra string
@@ -118,6 +120,7 @@ func (s *CalendarService) SaveEvent(ctx context.Context, in EventInput) error {
 		AllDay:      in.AllDay,
 		Recurrence:  in.Recurrence,
 		TimeZone:    in.TimeZone,
+		Alarms:      in.Alarms,
 		Extra:       in.Extra,
 	})
 	if err != nil {

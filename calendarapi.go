@@ -42,6 +42,7 @@ type EventDTO struct {
 	AllDay      bool   `json:"allDay"`
 	Recurrence  string `json:"recurrence"`
 	TimeZone    string `json:"timeZone"`
+	Reminders   []int  `json:"reminders"`
 	Extra       string `json:"extra"`
 }
 
@@ -60,6 +61,7 @@ type EventRequest struct {
 	AllDay      bool   `json:"allDay"`
 	Recurrence  string `json:"recurrence"`
 	TimeZone    string `json:"timeZone"`
+	Reminders   []int  `json:"reminders"`
 	Extra       string `json:"extra"`
 }
 
@@ -141,6 +143,7 @@ func (a *App) SaveEvent(req EventRequest) error {
 		AllDay:      req.AllDay,
 		Recurrence:  req.Recurrence,
 		TimeZone:    req.TimeZone,
+		Alarms:      remindersToAlarms(req.Reminders),
 		Extra:       req.Extra,
 	})
 }
@@ -200,6 +203,7 @@ func (a *App) SaveEventScoped(req EventRequest, scope int, occurrence string) er
 		AllDay:      req.AllDay,
 		Recurrence:  req.Recurrence,
 		TimeZone:    req.TimeZone,
+		Alarms:      remindersToAlarms(req.Reminders),
 		Extra:       req.Extra,
 	}, occurrenceTime)
 }
@@ -277,8 +281,29 @@ func toEventDTO(e domain.Event) EventDTO {
 		AllDay:      e.AllDay(),
 		Recurrence:  e.Recurrence(),
 		TimeZone:    e.TimeZone(),
+		Reminders:   alarmsToReminders(e.Alarms()),
 		Extra:       e.Extra(),
 	}
+}
+
+// alarmsToReminders renders alarms as whole minutes before the event start (a negative offset before the
+// start becomes a positive minutes-before value), the friendly form the front end works in.
+func alarmsToReminders(alarms []domain.Alarm) []int {
+	reminders := make([]int, 0, len(alarms))
+	for _, a := range alarms {
+		reminders = append(reminders, int(-a.Offset()/time.Minute))
+	}
+	return reminders
+}
+
+// remindersToAlarms is the inverse of alarmsToReminders: each minutes-before value becomes an alarm whose
+// trigger offset is that many minutes before the start.
+func remindersToAlarms(reminders []int) []domain.Alarm {
+	alarms := make([]domain.Alarm, 0, len(reminders))
+	for _, m := range reminders {
+		alarms = append(alarms, domain.NewAlarm(time.Duration(-m)*time.Minute))
+	}
+	return alarms
 }
 
 // toEventInstanceDTO maps a domain event instance to its DTO, formatting times as RFC 3339.

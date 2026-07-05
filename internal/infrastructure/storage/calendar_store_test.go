@@ -200,6 +200,42 @@ func TestEventOverrideRoundTrip(t *testing.T) {
 	}
 }
 
+func TestEventAlarmsRoundTrip(t *testing.T) {
+	store := openTestStore(t)
+	ctx := context.Background()
+	ev, err := domain.NewEvent(domain.EventInput{
+		ID: "e1", Summary: "Standup", Start: baseStart(),
+		Alarms: []domain.Alarm{domain.NewAlarm(-15 * time.Minute), domain.NewAlarm(-24 * time.Hour)},
+	})
+	if err != nil {
+		t.Fatalf("event: %v", err)
+	}
+	if err := store.SaveEvent(ctx, ev); err != nil {
+		t.Fatalf("SaveEvent: %v", err)
+	}
+	got, err := store.GetEvent(ctx, "e1")
+	if err != nil {
+		t.Fatalf("GetEvent: %v", err)
+	}
+	alarms := got.Alarms()
+	if len(alarms) != 2 || alarms[0].Offset() != -15*time.Minute || alarms[1].Offset() != -24*time.Hour {
+		t.Errorf("alarms not persisted: %v", alarms)
+	}
+}
+
+func TestEncodeDecodeAlarms(t *testing.T) {
+	if s := encodeAlarms(nil); s != "" {
+		t.Errorf("empty encode = %q, want empty", s)
+	}
+	got, err := decodeAlarms(encodeAlarms([]domain.Alarm{domain.NewAlarm(-15 * time.Minute)}))
+	if err != nil || len(got) != 1 || got[0].Offset() != -15*time.Minute {
+		t.Errorf("round trip = %v, %v", got, err)
+	}
+	if _, err := decodeAlarms("not-a-number"); err == nil {
+		t.Errorf("expected an error decoding a non-numeric alarm")
+	}
+}
+
 func TestEncodeDecodeTimesRoundTrip(t *testing.T) {
 	if s := encodeTimes(nil); s != "" {
 		t.Errorf("empty encode = %q, want empty", s)

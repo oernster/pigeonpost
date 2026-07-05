@@ -105,6 +105,7 @@ func eventFromICS(e goical.Event) (domain.Event, bool) {
 		ExDates:      parseDateList(e.Props, goical.PropExceptionDates),
 		RecurrenceID: parseRecurrenceID(e.Props),
 		TimeZone:     zone,
+		Alarms:       parseAlarms(e.Component),
 		Extra:        rawICS(e),
 	})
 	if err != nil {
@@ -216,6 +217,7 @@ func eventToComponent(ev domain.Event) *goical.Component {
 	} else {
 		comp.Props.Del(goical.PropRecurrenceID)
 	}
+	setAlarms(comp, ev.Alarms())
 	return comp
 }
 
