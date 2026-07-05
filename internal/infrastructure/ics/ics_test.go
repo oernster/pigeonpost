@@ -24,11 +24,11 @@ func TestICSRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("event: %v", err)
 	}
-	data, err := New().Encode([]domain.Event{ev})
+	data, err := New().Encode([]domain.Event{ev}, nil)
 	if err != nil {
 		t.Fatalf("Encode: %v", err)
 	}
-	got, err := New().Decode(data)
+	got, _, err := New().Decode(data)
 	if err != nil {
 		t.Fatalf("Decode: %v", err)
 	}
@@ -53,11 +53,11 @@ func TestICSAllDayRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("event: %v", err)
 	}
-	data, err := New().Encode([]domain.Event{ev})
+	data, err := New().Encode([]domain.Event{ev}, nil)
 	if err != nil {
 		t.Fatalf("Encode: %v", err)
 	}
-	got, err := New().Decode(data)
+	got, _, err := New().Decode(data)
 	if err != nil {
 		t.Fatalf("Decode: %v", err)
 	}
@@ -78,14 +78,14 @@ func TestICSPreservesUnmodelledProperties(t *testing.T) {
 		"BEGIN:VALARM", "ACTION:DISPLAY", "TRIGGER:-PT15M", "DESCRIPTION:Reminder", "END:VALARM",
 		"END:VEVENT", "END:VCALENDAR",
 	)
-	events, err := New().Decode(data)
+	events, _, err := New().Decode(data)
 	if err != nil {
 		t.Fatalf("Decode: %v", err)
 	}
 	if len(events) != 1 {
 		t.Fatalf("decoded %d, want 1", len(events))
 	}
-	out, err := New().Encode(events)
+	out, err := New().Encode(events, nil)
 	if err != nil {
 		t.Fatalf("Encode: %v", err)
 	}
@@ -109,7 +109,7 @@ func TestICSEditPreservesUnmodelledProperties(t *testing.T) {
 		"SUMMARY:Old title", "CATEGORIES:PERSONAL", "X-KEEP:yes",
 		"END:VEVENT", "END:VCALENDAR",
 	)
-	events, err := New().Decode(data)
+	events, _, err := New().Decode(data)
 	if err != nil || len(events) != 1 {
 		t.Fatalf("Decode: %v (n=%d)", err, len(events))
 	}
@@ -141,7 +141,7 @@ func TestICSRecurrenceDatesRoundTrip(t *testing.T) {
 		"RDATE:20260710T090000Z,20260712T090000Z", "EXDATE:20260705T090000Z",
 		"END:VEVENT", "END:VCALENDAR",
 	)
-	events, err := New().Decode(data)
+	events, _, err := New().Decode(data)
 	if err != nil || len(events) != 1 {
 		t.Fatalf("Decode: %v (n=%d)", err, len(events))
 	}
@@ -171,7 +171,7 @@ func TestICSRecurrenceIDRoundTrip(t *testing.T) {
 		"DTEND:20260706T120000Z", "SUMMARY:Standup moved", "RECURRENCE-ID:20260706T090000Z",
 		"END:VEVENT", "END:VCALENDAR",
 	)
-	events, err := New().Decode(data)
+	events, _, err := New().Decode(data)
 	if err != nil || len(events) != 1 {
 		t.Fatalf("Decode: %v (n=%d)", err, len(events))
 	}
@@ -192,7 +192,7 @@ func TestICSAllDayExceptionDateRoundTrip(t *testing.T) {
 		"SUMMARY:Daily standup", "RRULE:FREQ=DAILY;COUNT=3", "EXDATE;VALUE=DATE:20260705",
 		"END:VEVENT", "END:VCALENDAR",
 	)
-	events, err := New().Decode(data)
+	events, _, err := New().Decode(data)
 	if err != nil || len(events) != 1 {
 		t.Fatalf("Decode: %v (n=%d)", err, len(events))
 	}
@@ -216,7 +216,7 @@ func TestICSTimeZoneRoundTrip(t *testing.T) {
 		"DTSTART;TZID=Europe/London:20260705T090000", "DTEND;TZID=Europe/London:20260705T100000",
 		"SUMMARY:Standup", "RRULE:FREQ=DAILY", "END:VEVENT", "END:VCALENDAR",
 	)
-	events, err := New().Decode(data)
+	events, _, err := New().Decode(data)
 	if err != nil || len(events) != 1 {
 		t.Fatalf("Decode: %v (n=%d)", err, len(events))
 	}
@@ -244,7 +244,7 @@ func TestICSUTCEventHasNoZone(t *testing.T) {
 		"BEGIN:VEVENT", "UID:u1", "DTSTAMP:20260704T090000Z", "DTSTART:20260705T090000Z",
 		"SUMMARY:UTC event", "END:VEVENT", "END:VCALENDAR",
 	)
-	events, err := New().Decode(data)
+	events, _, err := New().Decode(data)
 	if err != nil || len(events) != 1 {
 		t.Fatalf("Decode: %v (n=%d)", err, len(events))
 	}
@@ -263,7 +263,7 @@ func TestICSAlarmRoundTrip(t *testing.T) {
 		"BEGIN:VALARM", "ACTION:DISPLAY", "TRIGGER:-PT15M", "DESCRIPTION:Reminder", "END:VALARM",
 		"END:VEVENT", "END:VCALENDAR",
 	)
-	events, err := New().Decode(data)
+	events, _, err := New().Decode(data)
 	if err != nil || len(events) != 1 {
 		t.Fatalf("Decode: %v (n=%d)", err, len(events))
 	}
@@ -283,7 +283,7 @@ func TestICSAlarmRoundTrip(t *testing.T) {
 
 func mustEncode(t *testing.T, events ...domain.Event) []byte {
 	t.Helper()
-	out, err := New().Encode(events)
+	out, err := New().Encode(events, nil)
 	if err != nil {
 		t.Fatalf("Encode: %v", err)
 	}
@@ -297,7 +297,7 @@ func TestDecodeThunderbirdStyleCalendar(t *testing.T) {
 		"DTEND:20260704T110000Z", "SUMMARY:Team meeting", "LOCATION:HQ", "DESCRIPTION:Quarterly review",
 		"END:VEVENT", "END:VCALENDAR",
 	)
-	got, err := New().Decode(data)
+	got, _, err := New().Decode(data)
 	if err != nil {
 		t.Fatalf("Decode: %v", err)
 	}
@@ -319,7 +319,7 @@ func TestDecodeNoUIDGeneratesID(t *testing.T) {
 		"BEGIN:VEVENT", "DTSTAMP:20260704T090000Z", "DTSTART:20260704T100000Z", "SUMMARY:No Uid",
 		"END:VEVENT", "END:VCALENDAR",
 	)
-	got, err := New().Decode(data)
+	got, _, err := New().Decode(data)
 	if err != nil {
 		t.Fatalf("Decode: %v", err)
 	}
@@ -334,7 +334,7 @@ func TestDecodeMissingSummaryGetsDefault(t *testing.T) {
 		"BEGIN:VEVENT", "UID:x1", "DTSTAMP:20260704T090000Z", "DTSTART:20260704T100000Z",
 		"END:VEVENT", "END:VCALENDAR",
 	)
-	got, err := New().Decode(data)
+	got, _, err := New().Decode(data)
 	if err != nil {
 		t.Fatalf("Decode: %v", err)
 	}
@@ -349,7 +349,7 @@ func TestDecodeSkipsEventWithoutStart(t *testing.T) {
 		"BEGIN:VEVENT", "UID:x1", "DTSTAMP:20260704T090000Z", "SUMMARY:No Start",
 		"END:VEVENT", "END:VCALENDAR",
 	)
-	got, err := New().Decode(data)
+	got, _, err := New().Decode(data)
 	if err != nil {
 		t.Fatalf("Decode: %v", err)
 	}
@@ -364,7 +364,7 @@ func TestDecodeSkipsEndBeforeStart(t *testing.T) {
 		"BEGIN:VEVENT", "UID:x1", "DTSTAMP:20260704T090000Z", "DTSTART:20260704T110000Z",
 		"DTEND:20260704T100000Z", "SUMMARY:Backwards", "END:VEVENT", "END:VCALENDAR",
 	)
-	got, err := New().Decode(data)
+	got, _, err := New().Decode(data)
 	if err != nil {
 		t.Fatalf("Decode: %v", err)
 	}
@@ -374,18 +374,61 @@ func TestDecodeSkipsEndBeforeStart(t *testing.T) {
 }
 
 func TestEncodeEmptyIsMinimalCalendar(t *testing.T) {
-	data, err := New().Encode(nil)
+	data, err := New().Encode(nil, nil)
 	if err != nil {
 		t.Fatalf("Encode(nil): %v", err)
 	}
-	got, err := New().Decode(data)
+	got, _, err := New().Decode(data)
 	if err != nil || len(got) != 0 {
 		t.Errorf("empty round-trip = %v, %v", got, err)
 	}
 }
 
 func TestDecodeMalformedReturnsError(t *testing.T) {
-	if _, err := New().Decode([]byte("this is not an ics file")); err == nil {
+	if _, _, err := New().Decode([]byte("this is not an ics file")); err == nil {
 		t.Errorf("expected a decode error for malformed input")
+	}
+}
+
+func TestICSPreservesTodoAndJournalPassthrough(t *testing.T) {
+	data := cal(
+		"BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//x//EN",
+		"BEGIN:VEVENT", "UID:e1", "DTSTAMP:20260704T090000Z", "DTSTART:20260704T100000Z",
+		"SUMMARY:Meeting", "END:VEVENT",
+		"BEGIN:VTODO", "UID:todo-1", "DTSTAMP:20260704T090000Z", "SUMMARY:Buy milk",
+		"STATUS:NEEDS-ACTION", "END:VTODO",
+		"BEGIN:VJOURNAL", "UID:journal-1", "DTSTAMP:20260704T090000Z", "SUMMARY:Notes",
+		"DESCRIPTION:Today went well", "END:VJOURNAL",
+		"END:VCALENDAR",
+	)
+	events, passthrough, err := New().Decode(data)
+	if err != nil {
+		t.Fatalf("Decode: %v", err)
+	}
+	if len(events) != 1 {
+		t.Errorf("decoded %d events, want 1", len(events))
+	}
+	if len(passthrough) != 2 {
+		t.Fatalf("decoded %d passthrough, want 2 (VTODO + VJOURNAL)", len(passthrough))
+	}
+	kinds := map[string]bool{}
+	for _, p := range passthrough {
+		kinds[p.Kind()] = true
+	}
+	if !kinds[domain.PassthroughToDo] || !kinds[domain.PassthroughJournal] {
+		t.Errorf("passthrough kinds = %v, want both VTODO and VJOURNAL", kinds)
+	}
+	out, err := New().Encode(events, passthrough)
+	if err != nil {
+		t.Fatalf("Encode: %v", err)
+	}
+	s := string(out)
+	for _, want := range []string{
+		"BEGIN:VTODO", "UID:todo-1", "SUMMARY:Buy milk", "STATUS:NEEDS-ACTION",
+		"BEGIN:VJOURNAL", "UID:journal-1", "DESCRIPTION:Today went well",
+	} {
+		if !strings.Contains(s, want) {
+			t.Errorf("round-trip dropped %q:\n%s", want, s)
+		}
 	}
 }

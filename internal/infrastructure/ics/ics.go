@@ -33,28 +33,35 @@ type Codec struct{}
 // New constructs an ICS codec.
 func New() Codec { return Codec{} }
 
-// Decode parses the VEVENTs from one or more VCALENDARs into events. An event's UID becomes its id so a
-// re-import updates the same record; a UID-less event is given a generated id. An event that cannot form
-// a valid domain value (no start, or an end before its start) is skipped rather than failing the import.
-func (Codec) Decode(data []byte) ([]domain.Event, error) {
+// Decode parses the VEVENTs from one or more VCALENDARs into events, and preserves any VTODO or VJOURNAL
+// components as passthrough so they survive a round-trip. An event's or component's UID becomes its id so
+// a re-import updates the same record; one without a UID is given a generated id. An event that cannot
+// form a valid domain value (no start, or an end before its start) is skipped rather than failing the
+// import.
+func (Codec) Decode(data []byte) ([]domain.Event, []domain.CalendarPassthrough, error) {
 	dec := goical.NewDecoder(bytes.NewReader(data))
 	var events []domain.Event
+	var passthrough []domain.CalendarPassthrough
 	for {
 		cal, err := dec.Decode()
 		if err == io.EOF {
 			break
 		}
 		if err != nil {
-			return nil, fmt.Errorf("ics: decode: %w", err)
+			return nil, nil, fmt.Errorf("ics: decode: %w", err)
 		}
 		for _, e := range cal.Events() {
-			event, ok := eventFromICS(e)
-			if ok {
+			if event, ok := eventFromICS(e); ok {
 				events = append(events, event)
 			}
 		}
+		for _, child := range cal.Children {
+			if p, ok := passthroughFromComponent(child); ok {
+				passthrough = append(passthrough, p)
+			}
+		}
 	}
-	return events, nil
+	return events, passthrough, nil
 }
 
 // eventFromICS maps a parsed VEVENT into a domain event. The bool is false for an event that cannot be
@@ -160,9 +167,10 @@ func text(props goical.Props, name string) string {
 	return v
 }
 
-// Encode writes the events as a single VCALENDAR. An empty event set yields a minimal valid calendar.
-func (Codec) Encode(events []domain.Event) ([]byte, error) {
-	if len(events) == 0 {
+// Encode writes the events and preserved passthrough components as a single VCALENDAR. An empty set
+// yields a minimal valid calendar.
+func (Codec) Encode(events []domain.Event, passthrough []domain.CalendarPassthrough) ([]byte, error) {
+	if len(events) == 0 && len(passthrough) == 0 {
 		return emptyCalendar, nil
 	}
 	cal := goical.NewCalendar()
@@ -170,6 +178,11 @@ func (Codec) Encode(events []domain.Event) ([]byte, error) {
 	cal.Props.SetText(goical.PropProductID, productID)
 	for _, ev := range events {
 		cal.Children = append(cal.Children, eventToComponent(ev))
+	}
+	for _, p := range passthrough {
+		if comp := decodeComponent(p.Raw()); comp != nil {
+			cal.Children = append(cal.Children, comp)
+		}
 	}
 	var buf bytes.Buffer
 	if err := goical.NewEncoder(&buf).Encode(cal); err != nil {

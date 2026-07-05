@@ -141,7 +141,7 @@ type ContactCodec interface {
 	Encode(contacts []domain.Contact) ([]byte, error)
 }
 
-// CalendarStore persists calendars and their events.
+// CalendarStore persists calendars, their events and any preserved non-event passthrough components.
 type CalendarStore interface {
 	ListCalendars(ctx context.Context) ([]domain.Calendar, error)
 	SaveCalendar(ctx context.Context, calendar domain.Calendar) error
@@ -150,14 +150,19 @@ type CalendarStore interface {
 	GetEvent(ctx context.Context, id string) (domain.Event, error)
 	SaveEvent(ctx context.Context, event domain.Event) error
 	DeleteEvent(ctx context.Context, id string) error
+	// SavePassthrough stores or replaces (by UID) a preserved VTODO or VJOURNAL; ListPassthrough returns
+	// them all for re-export.
+	SavePassthrough(ctx context.Context, passthrough domain.CalendarPassthrough) error
+	ListPassthrough(ctx context.Context) ([]domain.CalendarPassthrough, error)
 }
 
 // CalendarCodec converts events to and from a serialised calendar format (ICS). It is the import/export
-// seam. A decoded event carries its own id (an ICS UID where present) so an import can reconcile
-// against existing records.
+// seam. A decoded event carries its own id (an ICS UID where present) so an import can reconcile against
+// existing records. Non-event components PigeonPost does not model (to-dos and journal entries) are
+// carried as passthrough so they survive a round-trip.
 type CalendarCodec interface {
-	Decode(data []byte) ([]domain.Event, error)
-	Encode(events []domain.Event) ([]byte, error)
+	Decode(data []byte) ([]domain.Event, []domain.CalendarPassthrough, error)
+	Encode(events []domain.Event, passthrough []domain.CalendarPassthrough) ([]byte, error)
 }
 
 // RecurrenceService performs the recurrence operations that need RRULE parsing, kept outside the domain

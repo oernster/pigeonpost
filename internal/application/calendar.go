@@ -140,11 +140,12 @@ func (s *CalendarService) DeleteEvent(ctx context.Context, id string) error {
 	return nil
 }
 
-// ImportEvents decodes events from the given bytes with the codec and saves each. A decoded event keeps
-// its own id (an ICS UID where present), so re-importing updates the matching events rather than
-// duplicating them. It returns the number imported.
+// ImportEvents decodes events from the given bytes with the codec and saves each, along with any
+// preserved passthrough components (to-dos and journal entries). A decoded event or passthrough keeps
+// its own id (an ICS UID where present), so re-importing updates the matching records rather than
+// duplicating them. It returns the number of events imported.
 func (s *CalendarService) ImportEvents(ctx context.Context, codec CalendarCodec, data []byte) (int, error) {
-	events, err := codec.Decode(data)
+	events, passthrough, err := codec.Decode(data)
 	if err != nil {
 		return 0, fmt.Errorf("calendar: decode import: %w", err)
 	}
@@ -153,16 +154,26 @@ func (s *CalendarService) ImportEvents(ctx context.Context, codec CalendarCodec,
 			return i, fmt.Errorf("calendar: import save %q: %w", e.ID(), err)
 		}
 	}
+	for _, p := range passthrough {
+		if err := s.store.SavePassthrough(ctx, p); err != nil {
+			return len(events), fmt.Errorf("calendar: import save passthrough %q: %w", p.UID(), err)
+		}
+	}
 	return len(events), nil
 }
 
-// ExportEvents encodes every event with the codec into its serialised form.
+// ExportEvents encodes every event and preserved passthrough component with the codec into its
+// serialised form, so an imported calendar's to-dos and journal entries survive the round-trip.
 func (s *CalendarService) ExportEvents(ctx context.Context, codec CalendarCodec) ([]byte, error) {
 	events, err := s.store.ListEvents(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("calendar: list for export: %w", err)
 	}
-	data, err := codec.Encode(events)
+	passthrough, err := s.store.ListPassthrough(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("calendar: list passthrough for export: %w", err)
+	}
+	data, err := codec.Encode(events, passthrough)
 	if err != nil {
 		return nil, fmt.Errorf("calendar: encode export: %w", err)
 	}

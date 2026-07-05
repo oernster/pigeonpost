@@ -2,6 +2,7 @@ package storage
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -268,5 +269,37 @@ func TestDeleteEvent(t *testing.T) {
 	}
 	if _, err := store.GetEvent(ctx, "e1"); err == nil {
 		t.Errorf("expected an error getting a deleted event")
+	}
+}
+
+func TestPassthroughRoundTrip(t *testing.T) {
+	store := openTestStore(t)
+	ctx := context.Background()
+	p, err := domain.NewCalendarPassthrough("todo-1", domain.PassthroughToDo,
+		"BEGIN:VCALENDAR\r\nBEGIN:VTODO\r\nUID:todo-1\r\nEND:VTODO\r\nEND:VCALENDAR\r\n")
+	if err != nil {
+		t.Fatalf("passthrough: %v", err)
+	}
+	if err := store.SavePassthrough(ctx, p); err != nil {
+		t.Fatalf("SavePassthrough: %v", err)
+	}
+	// A re-save under the same UID replaces rather than duplicates.
+	replaced, _ := domain.NewCalendarPassthrough("todo-1", domain.PassthroughToDo,
+		"BEGIN:VCALENDAR\r\nBEGIN:VTODO\r\nUID:todo-1\r\nSUMMARY:Updated\r\nEND:VTODO\r\nEND:VCALENDAR\r\n")
+	if err := store.SavePassthrough(ctx, replaced); err != nil {
+		t.Fatalf("SavePassthrough replace: %v", err)
+	}
+	got, err := store.ListPassthrough(ctx)
+	if err != nil {
+		t.Fatalf("ListPassthrough: %v", err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("got %d passthrough, want 1 (replaced by UID)", len(got))
+	}
+	if got[0].UID() != "todo-1" || got[0].Kind() != domain.PassthroughToDo {
+		t.Errorf("passthrough = %+v", got[0])
+	}
+	if !strings.Contains(got[0].Raw(), "SUMMARY:Updated") {
+		t.Errorf("raw not replaced: %q", got[0].Raw())
 	}
 }

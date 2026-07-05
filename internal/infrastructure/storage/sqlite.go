@@ -12,7 +12,7 @@ import (
 )
 
 // schemaVersion is the current on-disk schema version, tracked via SQLite's PRAGMA user_version.
-const schemaVersion = 20
+const schemaVersion = 21
 
 const driverName = "sqlite"
 
@@ -311,9 +311,19 @@ const schemaV20 = `
 ALTER TABLE event ADD COLUMN alarms TEXT NOT NULL DEFAULT '';
 `
 
+// schemaV21 adds the passthrough table: VTODO and VJOURNAL components preserved verbatim so an imported
+// calendar's to-dos and journal entries survive an export, keyed by UID so a re-import replaces them.
+const schemaV21 = `
+CREATE TABLE calendar_passthrough (
+	uid  TEXT PRIMARY KEY,
+	kind TEXT NOT NULL,
+	raw  TEXT NOT NULL
+);
+`
+
 // migrations is the ordered list of schema steps. Index i upgrades the database from version i to
 // version i+1, so a fresh database applies them all and an existing one applies only what it lacks.
-var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15, schemaV16, schemaV17, schemaV18, schemaV19, schemaV20}
+var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15, schemaV16, schemaV17, schemaV18, schemaV19, schemaV20, schemaV21}
 
 // Store is the SQLite-backed implementation of the application storage ports.
 type Store struct {

@@ -229,6 +229,43 @@ func decodeAlarms(s string) ([]domain.Alarm, error) {
 	return out, nil
 }
 
+// SavePassthrough inserts or replaces (by UID) a preserved VTODO or VJOURNAL component.
+func (s *Store) SavePassthrough(ctx context.Context, p domain.CalendarPassthrough) error {
+	_, err := s.db.ExecContext(ctx,
+		`INSERT INTO calendar_passthrough (uid, kind, raw) VALUES (?, ?, ?)
+		 ON CONFLICT(uid) DO UPDATE SET kind = excluded.kind, raw = excluded.raw;`,
+		p.UID(), p.Kind(), p.Raw())
+	if err != nil {
+		return fmt.Errorf("save passthrough %q: %w", p.UID(), err)
+	}
+	return nil
+}
+
+// ListPassthrough returns every preserved passthrough component, ordered by UID for a stable export.
+func (s *Store) ListPassthrough(ctx context.Context) ([]domain.CalendarPassthrough, error) {
+	rows, err := s.db.QueryContext(ctx, "SELECT uid, kind, raw FROM calendar_passthrough ORDER BY uid;")
+	if err != nil {
+		return nil, fmt.Errorf("query passthrough: %w", err)
+	}
+	defer rows.Close()
+	var out []domain.CalendarPassthrough
+	for rows.Next() {
+		var uid, kind, raw string
+		if err := rows.Scan(&uid, &kind, &raw); err != nil {
+			return nil, fmt.Errorf("scan passthrough: %w", err)
+		}
+		p, err := domain.NewCalendarPassthrough(uid, kind, raw)
+		if err != nil {
+			return nil, fmt.Errorf("rebuild passthrough %q: %w", uid, err)
+		}
+		out = append(out, p)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate passthrough: %w", err)
+	}
+	return out, nil
+}
+
 // decodeTimes parses the comma-separated Unix millisecond values written by encodeTimes back into UTC
 // times. The empty string decodes to no times.
 func decodeTimes(s string) ([]time.Time, error) {

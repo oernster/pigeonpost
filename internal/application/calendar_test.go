@@ -11,22 +11,26 @@ import (
 
 // fakeCalendarStore is a hand-written in-memory CalendarStore with error-injection fields.
 type fakeCalendarStore struct {
-	calendars  []domain.Calendar
-	events     []domain.Event
-	gotEvent   domain.Event
-	listCalErr error
-	saveCalErr error
-	delCalErr  error
-	listEvtErr error
-	getEvtErr  error
-	saveEvtErr error
-	delEvtErr  error
-	failSaveID string
-	failDelID  string
-	savedCal   []domain.Calendar
-	deletedCal []string
-	savedEvt   []domain.Event
-	deletedEvt []string
+	calendars   []domain.Calendar
+	events      []domain.Event
+	gotEvent    domain.Event
+	listCalErr  error
+	saveCalErr  error
+	delCalErr   error
+	listEvtErr  error
+	getEvtErr   error
+	saveEvtErr  error
+	delEvtErr   error
+	failSaveID  string
+	failDelID   string
+	savedCal    []domain.Calendar
+	deletedCal  []string
+	savedEvt    []domain.Event
+	deletedEvt  []string
+	passthrough []domain.CalendarPassthrough
+	savePassErr error
+	listPassErr error
+	savedPass   []domain.CalendarPassthrough
 }
 
 func (f *fakeCalendarStore) ListCalendars(context.Context) ([]domain.Calendar, error) {
@@ -88,6 +92,21 @@ func (f *fakeCalendarStore) DeleteEvent(_ context.Context, id string) error {
 	return nil
 }
 
+func (f *fakeCalendarStore) SavePassthrough(_ context.Context, p domain.CalendarPassthrough) error {
+	if f.savePassErr != nil {
+		return f.savePassErr
+	}
+	f.savedPass = append(f.savedPass, p)
+	return nil
+}
+
+func (f *fakeCalendarStore) ListPassthrough(context.Context) ([]domain.CalendarPassthrough, error) {
+	if f.listPassErr != nil {
+		return nil, f.listPassErr
+	}
+	return f.passthrough, nil
+}
+
 // fakeRecurrence is a hand-written RecurrenceService with error-injection and a scripted expansion.
 type fakeRecurrence struct {
 	expandFunc  func(domain.Event, time.Time, time.Time) ([]domain.EventInstance, error)
@@ -120,25 +139,28 @@ func (f *fakeRecurrence) TruncateBefore(rule string, _ time.Time) (string, error
 
 // fakeCalendarCodec is a hand-written CalendarCodec with error-injection fields.
 type fakeCalendarCodec struct {
-	decoded   []domain.Event
-	decodeErr error
-	encoded   []byte
-	encodeErr error
-	gotEncode []domain.Event
+	decoded       []domain.Event
+	decodedPass   []domain.CalendarPassthrough
+	decodeErr     error
+	encoded       []byte
+	encodeErr     error
+	gotEncode     []domain.Event
+	gotEncodePass []domain.CalendarPassthrough
 }
 
-func (f *fakeCalendarCodec) Decode([]byte) ([]domain.Event, error) {
+func (f *fakeCalendarCodec) Decode([]byte) ([]domain.Event, []domain.CalendarPassthrough, error) {
 	if f.decodeErr != nil {
-		return nil, f.decodeErr
+		return nil, nil, f.decodeErr
 	}
-	return f.decoded, nil
+	return f.decoded, f.decodedPass, nil
 }
 
-func (f *fakeCalendarCodec) Encode(es []domain.Event) ([]byte, error) {
+func (f *fakeCalendarCodec) Encode(es []domain.Event, ps []domain.CalendarPassthrough) ([]byte, error) {
 	if f.encodeErr != nil {
 		return nil, f.encodeErr
 	}
 	f.gotEncode = es
+	f.gotEncodePass = ps
 	return f.encoded, nil
 }
 
@@ -151,6 +173,15 @@ func mustEvent(t *testing.T, id, summary string) domain.Event {
 		t.Fatalf("event: %v", err)
 	}
 	return e
+}
+
+func mustPassthrough(t *testing.T, uid string) domain.CalendarPassthrough {
+	t.Helper()
+	p, err := domain.NewCalendarPassthrough(uid, domain.PassthroughToDo, "BEGIN:VCALENDAR\r\nEND:VCALENDAR\r\n")
+	if err != nil {
+		t.Fatalf("passthrough: %v", err)
+	}
+	return p
 }
 
 func TestCalendarServiceListCalendars(t *testing.T) {
@@ -286,12 +317,29 @@ func TestCalendarServiceImportEvents(t *testing.T) {
 		t.Errorf("save err path = %d, %v", n, err)
 	}
 
+	// A passthrough that fails to save reports the error after the events are saved.
+	passErr := &fakeCalendarCodec{
+		decoded:     []domain.Event{mustEvent(t, "e1", "A")},
+		decodedPass: []domain.CalendarPassthrough{mustPassthrough(t, "todo-1")},
+	}
+	if n, err := NewCalendarService(&fakeCalendarStore{savePassErr: errBoom}, fixedID("x"), &fakeRecurrence{}).
+		ImportEvents(context.Background(), passErr, nil); n != 1 || !errors.Is(err, errBoom) {
+		t.Errorf("passthrough save err path = %d, %v", n, err)
+	}
+
 	good := &fakeCalendarStore{}
-	if n, err := NewCalendarService(good, fixedID("x"), &fakeRecurrence{}).ImportEvents(context.Background(), codec, []byte("x")); err != nil || n != 2 {
+	full := &fakeCalendarCodec{
+		decoded:     []domain.Event{mustEvent(t, "e1", "A"), mustEvent(t, "e2", "B")},
+		decodedPass: []domain.CalendarPassthrough{mustPassthrough(t, "todo-1")},
+	}
+	if n, err := NewCalendarService(good, fixedID("x"), &fakeRecurrence{}).ImportEvents(context.Background(), full, []byte("x")); err != nil || n != 2 {
 		t.Fatalf("import = %d, %v; want 2", n, err)
 	}
 	if len(good.savedEvt) != 2 {
 		t.Errorf("saved %d events, want 2", len(good.savedEvt))
+	}
+	if len(good.savedPass) != 1 || good.savedPass[0].UID() != "todo-1" {
+		t.Errorf("saved passthrough = %+v", good.savedPass)
 	}
 }
 
@@ -300,7 +348,14 @@ func TestCalendarServiceExportEvents(t *testing.T) {
 		ExportEvents(context.Background(), &fakeCalendarCodec{}); !errors.Is(err, errBoom) {
 		t.Errorf("list err = %v, want wrapped errBoom", err)
 	}
-	store := &fakeCalendarStore{events: []domain.Event{mustEvent(t, "e1", "A")}}
+	if _, err := NewCalendarService(&fakeCalendarStore{listPassErr: errBoom}, fixedID("x"), &fakeRecurrence{}).
+		ExportEvents(context.Background(), &fakeCalendarCodec{}); !errors.Is(err, errBoom) {
+		t.Errorf("list passthrough err = %v, want wrapped errBoom", err)
+	}
+	store := &fakeCalendarStore{
+		events:      []domain.Event{mustEvent(t, "e1", "A")},
+		passthrough: []domain.CalendarPassthrough{mustPassthrough(t, "todo-1")},
+	}
 	if _, err := NewCalendarService(store, fixedID("x"), &fakeRecurrence{}).
 		ExportEvents(context.Background(), &fakeCalendarCodec{encodeErr: errBoom}); !errors.Is(err, errBoom) {
 		t.Errorf("encode err = %v, want wrapped errBoom", err)
@@ -311,6 +366,9 @@ func TestCalendarServiceExportEvents(t *testing.T) {
 		t.Fatalf("export = %q, %v", data, err)
 	}
 	if len(codec.gotEncode) != 1 || codec.gotEncode[0].ID() != "e1" {
-		t.Errorf("codec received %+v", codec.gotEncode)
+		t.Errorf("codec received events %+v", codec.gotEncode)
+	}
+	if len(codec.gotEncodePass) != 1 || codec.gotEncodePass[0].UID() != "todo-1" {
+		t.Errorf("codec received passthrough %+v", codec.gotEncodePass)
 	}
 }

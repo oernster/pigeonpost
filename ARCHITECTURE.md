@@ -239,7 +239,7 @@ description, and an optional recurrence rule), with time entering only as alread
 domain still reads no wall clock.
 
 **Application.** New ports mirroring the mail stores: `ContactStore` (list, get, save, delete contacts
-and groups) and `CalendarStore` (calendars and events). Import and export sit behind a codec seam
+and groups) and `CalendarStore` (calendars, events and preserved passthrough components). Import and export sit behind a codec seam
 so the use case is format-agnostic: a `ContactCodec` interface with `Decode([]byte) ([]domain.Contact,
 error)` and `Encode([]domain.Contact) ([]byte, error)`, implemented once per format, and a
 `CalendarCodec` likewise. An `ImportContacts` / `ExportContacts` use case selects the codec by the
@@ -288,6 +288,13 @@ Outlook and Thunderbird resolve from their own databases); a UTC or all-day even
 front end a zone picker sets the event zone, the form interprets and shows its wall-clock times in that
 zone, and occurrences render in the browser's local zone. A generated `VTIMEZONE` block is a later
 refinement; RDATE, EXDATE and RECURRENCE-ID are written as UTC instants.
+
+**To-dos and journals.** The `ics` codec models only VEVENTs, but a VTODO or VJOURNAL is preserved
+verbatim as a `domain.CalendarPassthrough` (UID, kind, the component re-serialised as a standalone
+VCALENDAR) rather than dropped. `Decode` returns passthrough alongside the events; `ImportEvents` stores
+each in the `calendar_passthrough` table (schema v21, keyed by UID so a re-import replaces); and
+`ExportEvents` re-emits them. So an imported calendar's tasks and notes survive an import and export
+round-trip even though PigeonPost does not yet display them.
 
 **Reminders.** An `Event` carries a list of `Alarm` reminders, each a signed trigger offset from the start
 (schema v20 stores them as comma-separated seconds; the facade exposes them to the UI as whole
