@@ -8,6 +8,7 @@ import (
 
 	wailsruntime "github.com/wailsapp/wails/v2/pkg/runtime"
 
+	"github.com/oernster/pigeonpost/internal/infrastructure/keychain"
 	"github.com/oernster/pigeonpost/internal/installer"
 )
 
@@ -135,7 +136,7 @@ func (a *App) SetLaunchOnBoot(enabled bool) error {
 }
 
 // Uninstall removes shortcuts, the login entry, the registry record and the installed files,
-// optionally deleting the user's mail data as well.
+// optionally deleting the user's mail data and saved passwords as well.
 func (a *App) Uninstall(removeData bool) error {
 	// Refuse to remove a running instance: the scheduled directory deletion cannot remove a locked
 	// PigeonPost.exe, so ask the user to close it first.
@@ -158,6 +159,9 @@ func (a *App) Uninstall(removeData bool) error {
 		if data, err := installer.UserDataDir(); err == nil {
 			_ = installer.RemoveTree(data)
 		}
+		// The mail cache and settings live on disk; the account passwords live in the OS keychain.
+		// Removing the user's data means clearing both, so no saved secrets are left behind.
+		_ = keychain.NewVault().PurgeAll()
 	}
 
 	a.progress(90, "Removing files...")

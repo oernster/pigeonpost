@@ -51,6 +51,30 @@ func TestVaultRoundTrip(t *testing.T) {
 	}
 }
 
+func TestVaultPurgeAll(t *testing.T) {
+	keyring.MockInit()
+	vault := NewVault()
+	account := testAccount(t)
+
+	if err := vault.SetPassword(context.Background(), account, "s3cret"); err != nil {
+		t.Fatalf("set: %v", err)
+	}
+	if err := keyring.Set(serviceName, "acc-2", "another"); err != nil {
+		t.Fatalf("set second: %v", err)
+	}
+
+	if err := vault.PurgeAll(); err != nil {
+		t.Fatalf("purge: %v", err)
+	}
+
+	if _, err := vault.Password(context.Background(), account); err == nil {
+		t.Error("expected error reading a purged secret")
+	}
+	if _, err := keyring.Get(serviceName, "acc-2"); err == nil {
+		t.Error("expected the second secret to be purged too")
+	}
+}
+
 func TestVaultWrapsErrors(t *testing.T) {
 	boom := errors.New("keychain unavailable")
 	keyring.MockInitWithError(boom)
@@ -65,5 +89,8 @@ func TestVaultWrapsErrors(t *testing.T) {
 	}
 	if err := vault.DeletePassword(context.Background(), account); !errors.Is(err, boom) {
 		t.Errorf("DeletePassword error = %v, want wrapped boom", err)
+	}
+	if err := vault.PurgeAll(); !errors.Is(err, boom) {
+		t.Errorf("PurgeAll error = %v, want wrapped boom", err)
 	}
 }

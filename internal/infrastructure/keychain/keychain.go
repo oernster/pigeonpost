@@ -50,3 +50,13 @@ func (v *Vault) DeletePassword(_ context.Context, account domain.Account) error 
 	}
 	return nil
 }
+
+// PurgeAll removes every stored PigeonPost secret from the OS keychain in a single call, without
+// needing the individual account IDs. The uninstaller uses it so that choosing to delete user data
+// leaves no saved passwords behind in the credential store.
+func (v *Vault) PurgeAll() error {
+	if err := keyring.DeleteAll(v.service); err != nil {
+		return fmt.Errorf("keychain: purge all secrets: %w", err)
+	}
+	return nil
+}
