@@ -117,8 +117,8 @@ install, repair, upgrade and uninstall, plus a launch-on-boot option.
 
 Outputs:
 
-- `build/bin/PigeonPost.exe` — the application.
-- `dist-installer/PigeonPostSetup.exe` — the per-user setup program that embeds the app, installs to
+- `build/bin/PigeonPost.exe`: the application.
+- `dist-installer/PigeonPostSetup.exe`: the per-user setup program that embeds the app, installs to
   `%LOCALAPPDATA%\Programs\PigeonPost`, writes the uninstall registry entry and creates shortcuts.
 
 ## Versioning

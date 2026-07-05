@@ -1,4 +1,4 @@
-# PigeonPost — Design Plan
+# PigeonPost: Design Plan
 
 Cross-platform desktop email, calendar and address book client. Go core, React front end,
 local-first. Delivered as a signed download at https://www.pigeonpost.ink.
@@ -150,21 +150,21 @@ Credentials are excluded from the DB and live in the OS keychain, referenced by 
 Schema versioning (`schema_version` row + migrations) from day one, because storage format is the
 hardest thing to change later.
 
-- account — id, display name, email, protocol (imap/pop3), server config, auth method
+- account: id, display name, email, protocol (imap/pop3), server config, auth method
   (password/oauth), keychain_ref.
-- folder — id, account_id, path, kind (inbox/sent/drafts/trash/junk/archive/custom), uid_validity,
+- folder: id, account_id, path, kind (inbox/sent/drafts/trash/junk/archive/custom), uid_validity,
   unread_count.
-- message — id, folder_id, imap_uid, message_id, thread_id, from/to/cc, subject, date, size, flags
+- message: id, folder_id, imap_uid, message_id, thread_id, from/to/cc, subject, date, size, flags
   bitfield, has_attachments, snippet, is_read, is_starred.
-- message_body — message_id, plaintext, html, headers_blob (lazy-loaded).
-- attachment — id, message_id, filename, mime, size, content_ref.
-- tag — id, name, colour (the coloured-flags system).
-- message_tag — message_id, tag_id.
-- contact / contact_email / contact_group — address book, vCard-backed.
-- calendar / event — event with RRULE, reminders, ICS UID for round-trip.
-- filter_rule — condition + action set, evaluated on arrival.
-- outbox_op — queued action (send/move/flag/delete) for offline replay with idempotency key.
-- message_fts — FTS5 virtual table over subject/body/sender for instant local search.
+- message_body: message_id, plaintext, html, headers_blob (lazy-loaded).
+- attachment: id, message_id, filename, mime, size, content_ref.
+- tag: id, name, colour (the coloured-flags system).
+- message_tag: message_id, tag_id.
+- contact / contact_email / contact_group: address book, vCard-backed.
+- calendar / event: event with RRULE, reminders, ICS UID for round-trip.
+- filter_rule: condition + action set, evaluated on arrival.
+- outbox_op: queued action (send/move/flag/delete) for offline replay with idempotency key.
+- message_fts: FTS5 virtual table over subject/body/sender for instant local search.
 
 ---
 
