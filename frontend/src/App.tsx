@@ -89,6 +89,17 @@ function trapTab(e: KeyboardEvent) {
     }
 }
 
+// ignoreMultiClick wraps a click handler so only the first click of a rapid multi-click runs. It stops
+// toggle buttons (theme, reading pane) from flickering back to their previous state when double-clicked:
+// a separate, deliberate click has detail 1, the second and later clicks of a double-click have detail > 1.
+function ignoreMultiClick(fn: () => void) {
+    return (e: {detail: number}) => {
+        if (e.detail <= 1) {
+            fn()
+        }
+    }
+}
+
 function escapeHtml(s: string): string {
     return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 }
@@ -1237,7 +1248,7 @@ function App() {
                         data-tip={previewEnabled ? 'Hide the reading pane' : 'Show the reading pane'}
                         aria-label={previewEnabled ? 'Hide the reading pane' : 'Show the reading pane'}
                         aria-pressed={previewEnabled}
-                        onClick={togglePreview}
+                        onClick={ignoreMultiClick(togglePreview)}
                     >
                         {previewEnabled ? '◫\u{FE0E}' : '▯\u{FE0E}'}
                     </button>
@@ -1259,7 +1270,7 @@ function App() {
                         className="icon-btn theme-toggle"
                         data-tip={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
                         aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
-                        onClick={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
+                        onClick={ignoreMultiClick(() => setTheme((t) => (t === 'dark' ? 'light' : 'dark')))}
                     >
                         {theme === 'dark' ? '☀️' : '\u{1F319}'}
                     </button>
