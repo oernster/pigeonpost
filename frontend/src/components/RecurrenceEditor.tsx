@@ -1,8 +1,10 @@
-// RecurrenceEditor is a friendly builder for an RFC 5545 RRULE string. It is stateless: it parses the
-// current rule on every render and calls onChange with the rebuilt rule, so the parent owns the value.
-// It covers the common calendar cases (daily, weekly with weekdays, monthly, yearly; an interval; and an
-// end of never, after a count, or on a date); rarer rule parts are not offered but are preserved only if
-// the parent does not overwrite them, so this editor is used for app-authored rules.
+// RecurrenceEditor is a friendly builder for an RFC 5545 RRULE string. It holds the choices in local
+// state and calls onChange with the rebuilt rule, re-syncing from the value only when a different rule
+// arrives, because the rule string cannot represent every intermediate choice (an end-on-date with no
+// date picked yet). It covers the common calendar cases (daily, weekly with weekdays, monthly, yearly; an
+// interval; and an end of never, after a count, or on a date); rarer rule parts are not offered but are
+// preserved only if the parent does not overwrite them, so this editor is used for app-authored rules.
+import {useEffect, useState} from 'react'
 
 const FREQUENCIES: {value: Frequency; label: string}[] = [
     {value: '', label: 'Does not repeat'},
@@ -103,8 +105,23 @@ interface RecurrenceEditorProps {
 }
 
 export function RecurrenceEditor({value, onChange}: RecurrenceEditorProps) {
-    const state = parseRule(value)
-    const update = (patch: Partial<RuleState>) => onChange(buildRule({...state, ...patch}))
+    const [state, setState] = useState<RuleState>(() => parseRule(value))
+
+    // Re-sync only when a genuinely different rule arrives (a different event opened). The rule string
+    // cannot represent "ends on a date that has not been picked yet" (an until with no date builds a rule
+    // with no UNTIL), so deriving state from the rule every render would snap that choice back to "never".
+    // Holding it in state keeps the selection until the user picks a date. buildRule(state) equals the last
+    // value we emitted, so our own edits never trigger a resync.
+    useEffect(() => {
+        if (value !== buildRule(state)) setState(parseRule(value))
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [value])
+
+    const update = (patch: Partial<RuleState>) => {
+        const next = {...state, ...patch}
+        setState(next)
+        onChange(buildRule(next))
+    }
 
     const toggleDay = (code: string) => {
         const next = state.byday.includes(code)
