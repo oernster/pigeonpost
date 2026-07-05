@@ -738,10 +738,11 @@ function App() {
         })
     }, [])
 
-    // openContextMenu selects the right-clicked message (so the reader and actions target it) and opens
-    // the menu at the cursor.
+    // openContextMenu opens the action menu at the cursor without selecting the message. A right-click is
+    // not "reading" the message, so it is not shown in the reader and not auto-marked read, which would
+    // otherwise leave the menu's read/unread state (and the message) wrong. Every menu action receives
+    // the message directly, so it does not need to be the selected one.
     const openContextMenu = useCallback((message: Message, x: number, y: number) => {
-        setSelectedMessage(message)
         setContextMenu({message, x, y})
     }, [])
 
