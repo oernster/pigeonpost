@@ -14,15 +14,24 @@ import (
 // high-DPI displays.
 const trayIconPx = 32
 
-// decodeScaledIcon decodes a PNG and scales it to a square premultiplied-alpha image of the given size,
-// ready to be turned into a tray icon.
+// decodeScaledIcon decodes a PNG and fits it, preserving aspect ratio, onto a square premultiplied-alpha
+// image of the given size, ready to be turned into a tray icon. A non-square source is centred with
+// transparent margins rather than stretched.
 func decodeScaledIcon(data []byte, size int) (*image.RGBA, error) {
 	src, err := png.Decode(bytes.NewReader(data))
 	if err != nil {
 		return nil, err
 	}
 	dst := image.NewRGBA(image.Rect(0, 0, size, size))
-	xdraw.CatmullRom.Scale(dst, dst.Bounds(), src, src.Bounds(), xdraw.Src, nil)
+	b := src.Bounds()
+	w, h := size, size
+	if b.Dx() > b.Dy() {
+		h = size * b.Dy() / b.Dx()
+	} else if b.Dy() > b.Dx() {
+		w = size * b.Dx() / b.Dy()
+	}
+	ox, oy := (size-w)/2, (size-h)/2
+	xdraw.CatmullRom.Scale(dst, image.Rect(ox, oy, ox+w, oy+h), src, b, xdraw.Src, nil)
 	return dst, nil
 }
 
