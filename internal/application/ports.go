@@ -110,6 +110,7 @@ type OutboxStore interface {
 	EnqueueOutbox(ctx context.Context, item domain.OutboxItem) error
 	ListOutbox(ctx context.Context) ([]domain.OutboxItem, error)
 	DeleteOutbox(ctx context.Context, id string) error
+	MarkOutboxFailed(ctx context.Context, id, reason string) error
 }
 
 // RuleStore persists user-defined filter rules, applied to messages as they are synced.

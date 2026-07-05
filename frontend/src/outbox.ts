@@ -11,14 +11,19 @@ export function isOutboxMessage(message: Message): boolean {
 }
 
 // outboxItemToMessage maps a queued item to the message shape the list and reader render. The sender
-// column shows the recipients (this is outgoing mail), and the plain body doubles as the snippet.
+// column shows the recipients (this is outgoing mail), and the plain body doubles as the snippet. A
+// permanently failed item is marked so it does not read as merely waiting: the subject is prefixed and
+// the snippet leads with the failure reason, so the user sees it did not send and why.
 export function outboxItemToMessage(item: OutboxItem): Message {
     const recipients = item.to.join(', ')
     const preview = item.body.replace(/\s+/g, ' ').trim()
+    const snippet = item.failed
+        ? `Failed to send: ${item.failure}`.slice(0, 200)
+        : preview.slice(0, 200)
     return {
         id: item.id,
         folderId: OUTBOX_FOLDER_ID,
-        subject: item.subject,
+        subject: item.failed ? `(Not sent) ${item.subject}` : item.subject,
         fromName: recipients ? `To: ${recipients}` : '(no recipient)',
         fromAddress: item.to[0] ?? '',
         to: item.to.map((address) => ({name: '', address})),
@@ -28,6 +33,6 @@ export function outboxItemToMessage(item: OutboxItem): Message {
         read: true,
         flagged: false,
         hasAttachments: false,
-        snippet: preview.slice(0, 200),
+        snippet,
     }
 }

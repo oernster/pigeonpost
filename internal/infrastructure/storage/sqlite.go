@@ -11,7 +11,7 @@ import (
 )
 
 // schemaVersion is the current on-disk schema version, tracked via SQLite's PRAGMA user_version.
-const schemaVersion = 15
+const schemaVersion = 16
 
 const driverName = "sqlite"
 
@@ -271,9 +271,17 @@ CREATE INDEX IF NOT EXISTS idx_event_calendar ON event(calendar_id);
 CREATE INDEX IF NOT EXISTS idx_event_start ON event(start_ms);
 `
 
+// schemaV16 records a permanent send failure on an outbox row. A replay that fails for a
+// non-transient reason (the account is gone, the message was rejected) keeps the item and stamps the
+// reason here, rather than dropping it silently, so the user can see it in the outbox and act. Existing
+// rows default to ”, meaning not failed.
+const schemaV16 = `
+ALTER TABLE outbox ADD COLUMN failure TEXT NOT NULL DEFAULT '';
+`
+
 // migrations is the ordered list of schema steps. Index i upgrades the database from version i to
 // version i+1, so a fresh database applies them all and an existing one applies only what it lacks.
-var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15}
+var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15, schemaV16}
 
 // Store is the SQLite-backed implementation of the application storage ports.
 type Store struct {

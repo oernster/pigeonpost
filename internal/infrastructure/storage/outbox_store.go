@@ -59,7 +59,7 @@ func (s *Store) EnqueueOutbox(ctx context.Context, item domain.OutboxItem) error
 func (s *Store) ListOutbox(ctx context.Context) ([]domain.OutboxItem, error) {
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT id, account_id, kind, from_display, from_address, to_json, cc_json,
-		        bcc_json, subject, body, html_body, attachments_json, created_ms
+		        bcc_json, subject, body, html_body, attachments_json, created_ms, failure
 		 FROM outbox ORDER BY created_ms ASC, id ASC;`)
 	if err != nil {
 		return nil, fmt.Errorf("query outbox: %w", err)
@@ -88,6 +88,15 @@ func (s *Store) DeleteOutbox(ctx context.Context, id string) error {
 	return nil
 }
 
+// MarkOutboxFailed stamps a permanent-failure reason on a queued operation so it is kept in the outbox
+// for the user to see rather than dropped after a replay that cannot succeed.
+func (s *Store) MarkOutboxFailed(ctx context.Context, id, reason string) error {
+	if _, err := s.db.ExecContext(ctx, "UPDATE outbox SET failure = ? WHERE id = ?;", reason, id); err != nil {
+		return fmt.Errorf("mark outbox item %q failed: %w", id, err)
+	}
+	return nil
+}
+
 func scanOutbox(row scanner) (domain.OutboxItem, error) {
 	var (
 		id, accountID            string
@@ -97,9 +106,10 @@ func scanOutbox(row scanner) (domain.OutboxItem, error) {
 		subject, body, htmlBody  string
 		attachmentsJSON          string
 		createdMS                int64
+		failure                  string
 	)
 	if err := row.Scan(&id, &accountID, &kind, &fromDisplay, &fromAddress, &toJSON, &ccJSON,
-		&bccJSON, &subject, &body, &htmlBody, &attachmentsJSON, &createdMS); err != nil {
+		&bccJSON, &subject, &body, &htmlBody, &attachmentsJSON, &createdMS, &failure); err != nil {
 		return domain.OutboxItem{}, fmt.Errorf("scan outbox item: %w", err)
 	}
 
@@ -139,6 +149,9 @@ func scanOutbox(row scanner) (domain.OutboxItem, error) {
 	item, err := domain.NewOutboxItem(id, accountID, domain.OutboxKind(kind), msg, time.UnixMilli(createdMS).UTC())
 	if err != nil {
 		return domain.OutboxItem{}, fmt.Errorf("rebuild outbox item %q: %w", id, err)
+	}
+	if failure != "" {
+		item = item.WithFailure(failure)
 	}
 	return item, nil
 }

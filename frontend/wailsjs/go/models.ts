@@ -509,11 +509,13 @@ export namespace main {
 	    to: string[];
 	    body: string;
 	    createdMs: number;
-	
+	    failed: boolean;
+	    failure: string;
+
 	    static createFrom(source: any = {}) {
 	        return new OutboxItemDTO(source);
 	    }
-	
+
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
@@ -523,6 +525,8 @@ export namespace main {
 	        this.to = source["to"];
 	        this.body = source["body"];
 	        this.createdMs = source["createdMs"];
+	        this.failed = source["failed"];
+	        this.failure = source["failure"];
 	    }
 	}
 	export class RuleDTO {

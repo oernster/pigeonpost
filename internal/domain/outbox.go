@@ -41,6 +41,7 @@ type OutboxItem struct {
 	kind      OutboxKind
 	message   OutgoingMessage
 	createdAt time.Time
+	failure   string
 }
 
 // NewOutboxItem validates and constructs a queued item. The created time is passed in (via the
@@ -83,3 +84,18 @@ func (i OutboxItem) Message() OutgoingMessage { return i.message }
 
 // CreatedAt returns the time the item was queued.
 func (i OutboxItem) CreatedAt() time.Time { return i.createdAt }
+
+// Failure returns the reason a permanent replay failure kept the item in the queue, or an empty string
+// when the item has not failed. A permanently failed item (the account is gone, the message was
+// rejected) is retained rather than dropped so the user can see it and act on it.
+func (i OutboxItem) Failure() string { return i.failure }
+
+// Failed reports whether the item carries a permanent-failure reason.
+func (i OutboxItem) Failed() bool { return i.failure != "" }
+
+// WithFailure returns a copy of the item marked with a permanent-failure reason. The receiver is
+// unchanged, keeping the value immutable.
+func (i OutboxItem) WithFailure(reason string) OutboxItem {
+	i.failure = reason
+	return i
+}

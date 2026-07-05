@@ -324,22 +324,55 @@ func TestComposeReplayOutbox(t *testing.T) {
 		}
 	})
 
-	t.Run("permanent failure drops item and reports", func(t *testing.T) {
+	t.Run("permanent failure marks item and keeps it", func(t *testing.T) {
 		d := newComposeDeps() // no account registered: the item's account is gone
 		d.outbox.items = []domain.OutboxItem{outboxItem(t, "q1", "a1", domain.OutboxSend)}
 		n, err := d.service().ReplayOutbox(context.Background())
 		if err == nil {
-			t.Fatal("expected an error reporting the dropped item")
+			t.Fatal("expected an error reporting the failed item")
 		}
 		if n != 0 {
 			t.Errorf("replayed = %d, want 0", n)
 		}
-		if len(d.outbox.deleted) != 1 {
-			t.Errorf("expected the undeliverable item to be dropped, deleted=%v", d.outbox.deleted)
+		if len(d.outbox.deleted) != 0 {
+			t.Errorf("a permanently failed item must not be dropped, deleted=%v", d.outbox.deleted)
+		}
+		if _, ok := d.outbox.failed["q1"]; !ok {
+			t.Errorf("expected the undeliverable item marked failed, failed=%v", d.outbox.failed)
+		}
+		if len(d.outbox.items) != 1 || !d.outbox.items[0].Failed() {
+			t.Errorf("expected the item kept and flagged failed, items=%+v", d.outbox.items)
 		}
 	})
 
-	t.Run("draft replay without drafts folder drops item", func(t *testing.T) {
+	t.Run("already failed item is skipped", func(t *testing.T) {
+		d := newComposeDeps().withAccount(t)
+		d.outbox.items = []domain.OutboxItem{outboxItem(t, "q1", "a1", domain.OutboxSend).WithFailure("gone")}
+		n, err := d.service().ReplayOutbox(context.Background())
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if n != 0 {
+			t.Errorf("replayed = %d, want 0 (a failed item is not retried)", n)
+		}
+		if len(d.transport.sent) != 0 {
+			t.Errorf("a failed item must not be re-sent, sent=%d", len(d.transport.sent))
+		}
+		if len(d.outbox.items) != 1 {
+			t.Errorf("expected the failed item kept, items=%+v", d.outbox.items)
+		}
+	})
+
+	t.Run("mark-failed error is reported", func(t *testing.T) {
+		d := newComposeDeps() // account gone, so the send fails permanently
+		d.outbox.items = []domain.OutboxItem{outboxItem(t, "q1", "a1", domain.OutboxSend)}
+		d.outbox.markErr = errBoom
+		if _, err := d.service().ReplayOutbox(context.Background()); !errors.Is(err, errBoom) {
+			t.Errorf("error = %v, want wrapped boom", err)
+		}
+	})
+
+	t.Run("draft replay without drafts folder marks item failed", func(t *testing.T) {
 		d := newComposeDeps().withAccount(t) // account exists but no Drafts folder
 		d.outbox.items = []domain.OutboxItem{outboxItem(t, "q1", "a1", domain.OutboxDraft)}
 		n, err := d.service().ReplayOutbox(context.Background())
@@ -348,6 +381,9 @@ func TestComposeReplayOutbox(t *testing.T) {
 		}
 		if n != 0 {
 			t.Errorf("replayed = %d, want 0", n)
+		}
+		if _, ok := d.outbox.failed["q1"]; !ok {
+			t.Errorf("expected the draft marked failed, failed=%v", d.outbox.failed)
 		}
 	})
 

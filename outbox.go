@@ -11,6 +11,8 @@ type OutboxItemDTO struct {
 	To        []string `json:"to"`
 	Body      string   `json:"body"`
 	CreatedMs int64    `json:"createdMs"`
+	Failed    bool     `json:"failed"`
+	Failure   string   `json:"failure"`
 }
 
 // ListOutbox returns the queued outgoing operations, oldest first, for the outbox view.
@@ -34,6 +36,8 @@ func (a *App) ListOutbox() ([]OutboxItemDTO, error) {
 			To:        to,
 			Body:      msg.Body(),
 			CreatedMs: item.CreatedAt().UnixMilli(),
+			Failed:    item.Failed(),
+			Failure:   item.Failure(),
 		})
 	}
 	return out, nil

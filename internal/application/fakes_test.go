@@ -550,7 +550,9 @@ type fakeOutboxStore struct {
 	enqueueErr error
 	listErr    error
 	deleteErr  error
+	markErr    error
 	deleted    []string
+	failed     map[string]string
 }
 
 func (f *fakeOutboxStore) EnqueueOutbox(_ context.Context, item domain.OutboxItem) error {
@@ -580,6 +582,22 @@ func (f *fakeOutboxStore) DeleteOutbox(_ context.Context, id string) error {
 		}
 	}
 	f.items = kept
+	return nil
+}
+
+func (f *fakeOutboxStore) MarkOutboxFailed(_ context.Context, id, reason string) error {
+	if f.markErr != nil {
+		return f.markErr
+	}
+	if f.failed == nil {
+		f.failed = map[string]string{}
+	}
+	f.failed[id] = reason
+	for i, item := range f.items {
+		if item.ID() == id {
+			f.items[i] = item.WithFailure(reason)
+		}
+	}
 	return nil
 }
 

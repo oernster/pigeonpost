@@ -38,6 +38,25 @@ func TestNewOutboxItem(t *testing.T) {
 	}
 }
 
+func TestOutboxItemFailure(t *testing.T) {
+	created := time.Date(2026, time.July, 3, 9, 0, 0, 0, time.UTC)
+	item, err := NewOutboxItem("q1", "a1", OutboxSend, outboxMessage(t), created)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if item.Failed() || item.Failure() != "" {
+		t.Errorf("a fresh item should not be failed, got failed=%v reason=%q", item.Failed(), item.Failure())
+	}
+
+	failed := item.WithFailure("mailbox unavailable")
+	if !failed.Failed() || failed.Failure() != "mailbox unavailable" {
+		t.Errorf("WithFailure did not record the reason, got failed=%v reason=%q", failed.Failed(), failed.Failure())
+	}
+	if item.Failed() {
+		t.Error("WithFailure must not mutate the original item")
+	}
+}
+
 func TestNewOutboxItemInvalid(t *testing.T) {
 	valid := outboxMessage(t)
 	cases := map[string]struct {

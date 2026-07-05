@@ -111,3 +111,38 @@ func TestOutboxRoundTrip(t *testing.T) {
 		t.Errorf("expected only q-new to remain, got %+v", remaining)
 	}
 }
+
+func TestOutboxMarkFailed(t *testing.T) {
+	store := openTestStore(t)
+	ctx := context.Background()
+
+	item := outboxTestItem(t, "q1", domain.OutboxSend)
+	if err := store.EnqueueOutbox(ctx, item); err != nil {
+		t.Fatalf("enqueue: %v", err)
+	}
+
+	// A freshly enqueued item is not failed.
+	items, err := store.ListOutbox(ctx)
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	if len(items) != 1 || items[0].Failed() {
+		t.Fatalf("expected one un-failed item, got %+v", items)
+	}
+
+	// Marking it failed persists the reason, and the item stays in the queue.
+	const reason = "550 mailbox unavailable"
+	if err := store.MarkOutboxFailed(ctx, "q1", reason); err != nil {
+		t.Fatalf("mark failed: %v", err)
+	}
+	items, err = store.ListOutbox(ctx)
+	if err != nil {
+		t.Fatalf("list after mark: %v", err)
+	}
+	if len(items) != 1 {
+		t.Fatalf("a failed item must be kept, got %d", len(items))
+	}
+	if !items[0].Failed() || items[0].Failure() != reason {
+		t.Errorf("failure not persisted, failed=%v reason=%q", items[0].Failed(), items[0].Failure())
+	}
+}

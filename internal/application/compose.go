@@ -151,9 +151,10 @@ func (s *ComposeService) CancelOutbox(ctx context.Context, id string) error {
 
 // ReplayOutbox attempts every queued operation, oldest first. A successful operation is removed from
 // the queue. If the server is still unreachable, replay stops and the remaining items stay queued. An
-// operation that fails for any other reason (the account is gone, the message is rejected) is removed
-// so it cannot wedge the queue, and its error is collected and returned. It returns how many
-// operations succeeded.
+// operation that fails for any other reason (the account is gone, the message is rejected) is kept in
+// the queue and stamped with its failure reason, so it surfaces in the outbox for the user to see and
+// act on rather than vanishing. An item already marked failed is skipped, not retried. Its error is
+// also collected and returned. It returns how many operations succeeded.
 func (s *ComposeService) ReplayOutbox(ctx context.Context) (int, error) {
 	items, err := s.outbox.ListOutbox(ctx)
 	if err != nil {
@@ -162,15 +163,21 @@ func (s *ComposeService) ReplayOutbox(ctx context.Context) (int, error) {
 	replayed := 0
 	var failures []error
 	for _, item := range items {
+		if item.Failed() {
+			continue
+		}
 		err := s.replayItem(ctx, item)
 		if errors.Is(err, domain.ErrOffline) {
 			return replayed, nil
 		}
 		if err != nil {
-			failures = append(failures, fmt.Errorf("compose: drop outbox item %q: %w", item.ID(), err))
-		} else {
-			replayed++
+			if markErr := s.outbox.MarkOutboxFailed(ctx, item.ID(), err.Error()); markErr != nil {
+				return replayed, fmt.Errorf("compose: mark outbox item %q failed: %w", item.ID(), markErr)
+			}
+			failures = append(failures, fmt.Errorf("compose: outbox item %q failed: %w", item.ID(), err))
+			continue
 		}
+		replayed++
 		if delErr := s.outbox.DeleteOutbox(ctx, item.ID()); delErr != nil {
 			return replayed, fmt.Errorf("compose: remove replayed item %q: %w", item.ID(), delErr)
 		}
