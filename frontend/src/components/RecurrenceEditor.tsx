@@ -4,7 +4,8 @@
 // date picked yet). It covers the common calendar cases (daily, weekly with weekdays, monthly, yearly; an
 // interval; and an end of never, after a count, or on a date); rarer rule parts are not offered but are
 // preserved only if the parent does not overwrite them, so this editor is used for app-authored rules.
-import {useEffect, useState} from 'react'
+import {useEffect, useRef, useState} from 'react'
+import {PickerButton} from './PickerButton'
 
 const FREQUENCIES: {value: Frequency; label: string}[] = [
     {value: '', label: 'Does not repeat'},
@@ -42,6 +43,14 @@ interface RuleState {
 
 function pad(n: number): string {
     return n < 10 ? '0' + n : String(n)
+}
+
+// tomorrowInput is the earliest date the series may end on: tomorrow, as a yyyy-mm-dd input value. An end
+// date must be in the future so the rule keeps at least the next occurrence.
+function tomorrowInput(): string {
+    const d = new Date()
+    d.setDate(d.getDate() + 1)
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
 }
 
 // parseRule turns an RRULE value into editor state, defaulting the parts the rule does not specify.
@@ -117,11 +126,25 @@ export function RecurrenceEditor({value, onChange}: RecurrenceEditorProps) {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [value])
 
+    const untilRef = useRef<HTMLInputElement>(null)
+    const minUntil = tomorrowInput()
+
     const update = (patch: Partial<RuleState>) => {
         const next = {...state, ...patch}
         setState(next)
         onChange(buildRule(next))
     }
+
+    // changeEndMode switches how the series ends. Choosing an end date with none set yet seeds a valid
+    // future default so the rule carries an UNTIL immediately and the picker opens on a sensible day.
+    const changeEndMode = (mode: EndMode) => {
+        if (mode === 'until' && state.until === '') update({endMode: mode, until: minUntil})
+        else update({endMode: mode})
+    }
+
+    // changeUntil keeps the chosen end date in the future, clamping an earlier or cleared value up to the
+    // minimum. yyyy-mm-dd strings compare correctly as text.
+    const changeUntil = (value: string) => update({until: value < minUntil ? minUntil : value})
 
     const toggleDay = (code: string) => {
         const next = state.byday.includes(code)
@@ -164,7 +187,7 @@ export function RecurrenceEditor({value, onChange}: RecurrenceEditorProps) {
             {state.freq !== '' && (
                 <div className="rule-form-row recur-end">
                     <select className="tag-name-input" aria-label="Ends" value={state.endMode}
-                            onChange={(e) => update({endMode: e.target.value as EndMode})}>
+                            onChange={(e) => changeEndMode(e.target.value as EndMode)}>
                         <option value="never">Never ends</option>
                         <option value="count">Ends after</option>
                         <option value="until">Ends on date</option>
@@ -178,8 +201,11 @@ export function RecurrenceEditor({value, onChange}: RecurrenceEditorProps) {
                         </label>
                     )}
                     {state.endMode === 'until' && (
-                        <input className="tag-name-input" type="date" aria-label="Repeat until" value={state.until}
-                               onChange={(e) => update({until: e.target.value})}/>
+                        <div className="date-field">
+                            <input ref={untilRef} className="tag-name-input" type="date" aria-label="Repeat until"
+                                   min={minUntil} value={state.until} onChange={(e) => changeUntil(e.target.value)}/>
+                            <PickerButton target={untilRef}/>
+                        </div>
                     )}
                 </div>
             )}
