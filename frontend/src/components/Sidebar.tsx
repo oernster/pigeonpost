@@ -338,10 +338,17 @@ function FolderTree(props: FolderTreeProps) {
                         <span className="folder-name">
                             {parent ? (
                                 <button
+                                    type="button"
                                     className="folder-toggle"
                                     aria-label={isCollapsed ? `Expand ${leaf}` : `Collapse ${leaf}`}
                                     onClick={(e) => {
                                         e.stopPropagation()
+                                        // Ignore the second and later clicks of a rapid multi-click, so a
+                                        // double-click cannot expand then collapse (or the reverse) and
+                                        // appear to do nothing. A separate, deliberate click has detail 1.
+                                        if (e.detail > 1) {
+                                            return
+                                        }
                                         toggle(folder.path)
                                     }}
                                 >
