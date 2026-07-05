@@ -1,10 +1,11 @@
-import {useState} from 'react'
+import {useRef, useState} from 'react'
 import {useBackdropDismiss} from './useBackdropDismiss'
 import {EditorContent, useEditor} from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Link from '@tiptap/extension-link'
 import {api, ComposeInput} from '../api'
 import {ModalClose} from './ModalClose'
+import {ConfirmDialog} from './ConfirmDialog'
 
 // normaliseUrl gives a bare host a scheme so the link is absolute rather than treated as relative.
 function normaliseUrl(url: string): string {
@@ -65,9 +66,25 @@ export function ComposeModal({accountId, initial, canSaveDraft, onClose}: Compos
     const [linkOpen, setLinkOpen] = useState(false)
     const [linkUrl, setLinkUrl] = useState('')
 
+    // attemptSendRef lets the editor's key handler call the latest attemptSend without recreating the
+    // editor: the editor is built once, but attemptSend closes over state that changes each render.
+    const attemptSendRef = useRef<() => void>(() => {})
+
     const editor = useEditor({
         extensions: [StarterKit, Link.configure({openOnClick: false, autolink: true, linkOnPaste: true})],
         content: initial?.bodyHtml ?? '',
+        editorProps: {
+            // Ctrl+Enter (Cmd+Enter on macOS) sends. Returning true stops TipTap from also inserting its
+            // default Mod-Enter hard break.
+            handleKeyDown: (_view, event) => {
+                if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
+                    event.preventDefault()
+                    attemptSendRef.current()
+                    return true
+                }
+                return false
+            },
+        },
     })
 
     const openLinkEditor = () => {
@@ -142,6 +159,27 @@ export function ComposeModal({accountId, initial, canSaveDraft, onClose}: Compos
         }
     }
 
+    const [attachWarn, setAttachWarn] = useState(false)
+
+    // canSend mirrors the Send button's enabled state, so Ctrl+Enter behaves exactly like the button.
+    const canSend = () => !sending && !savingDraft && to.trim() !== ''
+    const hasAttachments = () => attachments.length > 0 || messageAttachments.length > 0
+    // mentionsAttachment matches the whole words "attach" or "attached" in the subject or body, so a
+    // message that talks about attaching something can prompt a reminder before it is sent.
+    const mentionsAttachment = () => /\battach(ed)?\b/i.test(subject + ' ' + (editor?.getText() ?? ''))
+
+    // attemptSend is the single entry point for both the Send button and Ctrl+Enter. It warns once when
+    // the message mentions an attachment but none is attached, otherwise it sends straight away.
+    const attemptSend = () => {
+        if (!canSend()) return
+        if (mentionsAttachment() && !hasAttachments()) {
+            setAttachWarn(true)
+            return
+        }
+        void send()
+    }
+    attemptSendRef.current = attemptSend
+
     const saveDraft = async () => {
         setSavingDraft(true)
         setError('')
@@ -170,7 +208,16 @@ export function ComposeModal({accountId, initial, canSaveDraft, onClose}: Compos
 
     return (
         <div className="modal-backdrop" {...dismiss}>
-            <div className="modal compose" role="dialog" aria-label="New message" onClick={(e) => e.stopPropagation()}>
+            <div className="modal compose" role="dialog" aria-label="New message" onClick={(e) => e.stopPropagation()}
+                 onKeyDownCapture={(e) => {
+                     // The editor handles Ctrl+Enter itself (see editorProps); this covers the
+                     // To, Cc, Bcc and Subject fields, where there is no editor to intercept it.
+                     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter' &&
+                         !(e.target as HTMLElement).closest('.ProseMirror')) {
+                         e.preventDefault()
+                         attemptSend()
+                     }
+                 }}>
                 <ModalClose onClose={onClose}/>
                 <h2 className="modal-title">New message</h2>
                 {error && <div className="compose-error">{error}</div>}
@@ -270,12 +317,27 @@ export function ComposeModal({accountId, initial, canSaveDraft, onClose}: Compos
                                 {savingDraft ? 'Saving...' : 'Save draft'}
                             </button>
                         )}
-                        <button className="btn primary" onClick={() => void send()} disabled={sending || savingDraft || to.trim() === ''}>
+                        <button className="btn primary" onClick={attemptSend} disabled={sending || savingDraft || to.trim() === ''}
+                                title="Send (Ctrl+Enter)">
                             {sending ? 'Sending...' : 'Send'}
                         </button>
                     </div>
                 </div>
             </div>
+
+            {attachWarn && (
+                <ConfirmDialog
+                    title="Attachment reminder"
+                    message="Did you want to attach anything before sending?"
+                    confirmLabel="Send anyway"
+                    busy={sending}
+                    onConfirm={() => {
+                        setAttachWarn(false)
+                        void send()
+                    }}
+                    onCancel={() => setAttachWarn(false)}
+                />
+            )}
         </div>
     )
 }
