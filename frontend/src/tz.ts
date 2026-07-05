@@ -7,9 +7,9 @@ export function browserZone(): string {
     return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
 }
 
-// COMMON_ZONES is a short curated list offered in the zone picker; the browser's own zone and the event's
-// current zone are added to it where missing.
-export const COMMON_ZONES: string[] = [
+// FALLBACK_ZONES is used only when the runtime lacks Intl.supportedValuesOf; every modern browser (and
+// the WebView2 that hosts the app) returns the full IANA list, so this short list is a safety net.
+const FALLBACK_ZONES: string[] = [
     'UTC',
     'Europe/London', 'Europe/Paris', 'Europe/Berlin', 'Europe/Madrid', 'Europe/Athens', 'Europe/Moscow',
     'America/New_York', 'America/Chicago', 'America/Denver', 'America/Los_Angeles', 'America/Sao_Paulo',
@@ -17,10 +17,23 @@ export const COMMON_ZONES: string[] = [
     'Australia/Sydney', 'Pacific/Auckland',
 ]
 
-// zoneOptions returns the picker's zones with the browser zone and the event's current zone folded in, so
-// an imported unusual zone still displays as the selected option.
+// allZones returns every IANA zone the runtime knows, or the fallback list when the API is unavailable.
+function allZones(): string[] {
+    const intl = Intl as unknown as {supportedValuesOf?: (key: string) => string[]}
+    if (typeof intl.supportedValuesOf === 'function') {
+        try {
+            return intl.supportedValuesOf('timeZone')
+        } catch {
+            return FALLBACK_ZONES
+        }
+    }
+    return FALLBACK_ZONES
+}
+
+// zoneOptions returns the full list of zones for the picker, with the browser zone first (then UTC) for
+// quick access and the event's current zone folded in, so an unusual imported zone still shows selected.
 export function zoneOptions(current: string): string[] {
-    return Array.from(new Set([browserZone(), current, ...COMMON_ZONES].filter(Boolean)))
+    return Array.from(new Set([browserZone(), 'UTC', current, ...allZones()].filter(Boolean)))
 }
 
 function pad(n: number): string {
