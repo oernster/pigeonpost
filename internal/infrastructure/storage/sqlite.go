@@ -6,6 +6,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 
 	_ "modernc.org/sqlite"
 )
@@ -298,21 +299,28 @@ type Store struct {
 // Open opens (or creates) the database at path and applies pending migrations. Use ":memory:" for a
 // transient in-memory database in tests.
 func Open(ctx context.Context, path string) (*Store, error) {
-	db, err := sql.Open(driverName, path)
+	// The pragmas live in the DSN so the driver applies them to every pooled connection, not just the
+	// first. busy_timeout and foreign_keys are per-connection settings: run once via Exec they leave the
+	// pool's other connections without them, which is what made a concurrent write fail immediately with
+	// SQLITE_BUSY instead of waiting. The full set gives every connection the same ACID behaviour:
+	//   - busy_timeout(5000): a writer blocked by another waits up to 5s rather than failing (isolation).
+	//   - journal_mode(WAL): readers see a consistent snapshot while one writer proceeds (isolation).
+	//   - synchronous(NORMAL): commits are durable across an application crash, the common case, while
+	//     avoiding an fsync on every write (durability).
+	//   - foreign_keys(ON): referential constraints are enforced so no operation can leave orphan rows
+	//     (consistency).
+	//   - _txlock=immediate: every transaction takes the write lock at BEGIN, so two writers serialise
+	//     cleanly instead of both starting as readers and deadlocking on the upgrade (atomicity).
+	dsn := path + "?" + strings.Join([]string{
+		"_pragma=busy_timeout(5000)",
+		"_pragma=journal_mode(WAL)",
+		"_pragma=synchronous(NORMAL)",
+		"_pragma=foreign_keys(ON)",
+		"_txlock=immediate",
+	}, "&")
+	db, err := sql.Open(driverName, dsn)
 	if err != nil {
 		return nil, fmt.Errorf("open sqlite %q: %w", path, err)
-	}
-	// Local-first single process: one writer, WAL for concurrent readers, wait rather than fail on
-	// a busy lock.
-	for _, pragma := range []string{
-		"PRAGMA busy_timeout = 5000;",
-		"PRAGMA journal_mode = WAL;",
-		"PRAGMA foreign_keys = ON;",
-	} {
-		if _, err := db.ExecContext(ctx, pragma); err != nil {
-			_ = db.Close()
-			return nil, fmt.Errorf("apply pragma %q: %w", pragma, err)
-		}
 	}
 	store := &Store{db: db}
 	if err := store.migrate(ctx); err != nil {
