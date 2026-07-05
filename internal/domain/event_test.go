@@ -207,3 +207,72 @@ func TestEventOverride(t *testing.T) {
 		t.Errorf("override not exposed: isOverride=%v id=%v", override.IsOverride(), override.RecurrenceID())
 	}
 }
+
+func TestNewEventWithoutSchedulingIsPlain(t *testing.T) {
+	e, err := NewEvent(EventInput{ID: "e1", Summary: "Standup", Start: eventStart()})
+	if err != nil {
+		t.Fatalf("NewEvent: %v", err)
+	}
+	if e.HasOrganizer() || !e.Organizer().IsZero() {
+		t.Errorf("plain event reported an organizer")
+	}
+	if e.Attendees() != nil {
+		t.Errorf("plain event Attendees() = %v, want nil", e.Attendees())
+	}
+}
+
+func TestNewEventCarriesOrganizerAndAttendees(t *testing.T) {
+	organizer, err := NewOrganizer(mustAddress(t, "chair@example.com"), "Chair")
+	if err != nil {
+		t.Fatalf("NewOrganizer: %v", err)
+	}
+	guest, err := NewAttendee(AttendeeInput{Address: mustAddress(t, "guest@example.com"), Status: PartStatNeedsAction})
+	if err != nil {
+		t.Fatalf("NewAttendee: %v", err)
+	}
+	in := EventInput{
+		ID: "e1", Summary: "Sync", Start: eventStart(),
+		Organizer: organizer, Attendees: []Attendee{guest},
+	}
+	e, err := NewEvent(in)
+	if err != nil {
+		t.Fatalf("NewEvent: %v", err)
+	}
+	if !e.HasOrganizer() || e.Organizer().Address().Address() != "chair@example.com" {
+		t.Errorf("organizer not exposed: %+v", e.Organizer())
+	}
+	if got := e.Attendees(); len(got) != 1 || got[0].Address().Address() != "guest@example.com" {
+		t.Errorf("attendees not exposed: %v", got)
+	}
+	// Mutating the caller's input slice after construction must not affect the event.
+	in.Attendees[0] = guest.WithStatus(PartStatDeclined)
+	if e.Attendees()[0].Status() != PartStatNeedsAction {
+		t.Errorf("event shares attendee backing storage with caller input")
+	}
+	// A returned slice must not alias the event storage.
+	got := e.Attendees()
+	got[0] = guest.WithStatus(PartStatDeclined)
+	if e.Attendees()[0].Status() != PartStatNeedsAction {
+		t.Errorf("returned slice aliases event attendee storage")
+	}
+}
+
+func TestEventWithOrganizerAndAttendees(t *testing.T) {
+	e, err := NewEvent(EventInput{ID: "e1", Summary: "Sync", Start: eventStart()})
+	if err != nil {
+		t.Fatalf("NewEvent: %v", err)
+	}
+	organizer, _ := NewOrganizer(mustAddress(t, "chair@example.com"), "Chair")
+	withOrg := e.WithOrganizer(organizer)
+	if !withOrg.HasOrganizer() || e.HasOrganizer() {
+		t.Errorf("WithOrganizer mutated the receiver: recv=%v", e.HasOrganizer())
+	}
+	guest, _ := NewAttendee(AttendeeInput{Address: mustAddress(t, "guest@example.com")})
+	withAtt := e.WithAttendees([]Attendee{guest})
+	if got := withAtt.Attendees(); len(got) != 1 {
+		t.Errorf("WithAttendees = %v, want one attendee", got)
+	}
+	if e.Attendees() != nil {
+		t.Errorf("WithAttendees mutated the receiver: %v", e.Attendees())
+	}
+}

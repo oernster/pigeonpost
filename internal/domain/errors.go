@@ -44,6 +44,13 @@ var (
 	ErrEmptyEventSummary    = errors.New("event summary is empty")
 	ErrEmptyEventStart      = errors.New("event start time is not set")
 	ErrEventEndsBeforeStart = errors.New("event end is before its start")
+
+	ErrEmptyOrganizerAddress      = errors.New("organizer address is empty")
+	ErrEmptyAttendeeAddress       = errors.New("attendee address is empty")
+	ErrInvalidParticipationStatus = errors.New("participation status is not valid")
+	ErrInvalidRole                = errors.New("attendee role is not valid")
+	ErrInvalidMethod              = errors.New("scheduling method is not valid")
+	ErrNoSchedulingEvents         = errors.New("scheduling message has no events")
 )
 
 // ErrOffline marks a failure caused by the mail server being unreachable (a connection could not be

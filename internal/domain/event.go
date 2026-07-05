@@ -35,6 +35,12 @@ type EventInput struct {
 	// properties PigeonPost does not model yet (categories, status, alarms and the rest). It is empty
 	// for an event created in the app and is round-tripped unchanged through storage and the UI.
 	Extra string
+	// Organizer is the party that owns the meeting and collects its replies (RFC 5545 ORGANIZER). It is
+	// the zero Organizer for an event that is not a scheduled meeting.
+	Organizer Organizer
+	// Attendees are the invited parties on the meeting (RFC 5545 ATTENDEE), each with a role, a reply
+	// status and an RSVP flag. It is empty for an event that is not a scheduled meeting.
+	Attendees []Attendee
 }
 
 // Event is a single calendar entry. It is immutable once constructed. UID carries the ICS UID for a
@@ -57,6 +63,8 @@ type Event struct {
 	timeZone     string
 	alarms       []Alarm
 	extra        string
+	organizer    Organizer
+	attendees    []Attendee
 }
 
 // NewEvent validates and constructs an event. An end before the start is rejected; an unset (zero) end
@@ -93,7 +101,18 @@ func NewEvent(in EventInput) (Event, error) {
 		timeZone:     strings.TrimSpace(in.TimeZone),
 		alarms:       copyAlarms(in.Alarms),
 		extra:        in.Extra,
+		organizer:    in.Organizer,
+		attendees:    copyAttendees(in.Attendees),
 	}, nil
+}
+
+// copyAttendees returns a fresh slice of the attendees so the constructed Event does not share backing
+// storage with the caller.
+func copyAttendees(src []Attendee) []Attendee {
+	if len(src) == 0 {
+		return nil
+	}
+	return append([]Attendee(nil), src...)
 }
 
 // copyAlarms returns a fresh slice of the alarms so the constructed Event does not share backing storage
@@ -192,6 +211,17 @@ func (e Event) Alarms() []Alarm { return append([]Alarm(nil), e.alarms...) }
 // for an event that did not come from an import.
 func (e Event) Extra() string { return e.extra }
 
+// Organizer returns the meeting organizer, or the zero Organizer when the event is not a scheduled
+// meeting.
+func (e Event) Organizer() Organizer { return e.organizer }
+
+// HasOrganizer reports whether the event carries an organizer, so it is a scheduled meeting rather than
+// a plain calendar entry.
+func (e Event) HasOrganizer() bool { return !e.organizer.IsZero() }
+
+// Attendees returns a copy of the meeting attendees so callers cannot mutate the event.
+func (e Event) Attendees() []Attendee { return append([]Attendee(nil), e.attendees...) }
+
 // WithTimeZone returns a copy of the event with its IANA time zone replaced (trimmed); an empty name
 // clears it. The event stays immutable: the receiver is unchanged.
 func (e Event) WithTimeZone(zone string) Event {
@@ -224,5 +254,20 @@ func (e Event) WithUID(uid string) Event {
 // receiver nor the caller's slice is shared.
 func (e Event) WithAlarms(alarms []Alarm) Event {
 	e.alarms = copyAlarms(alarms)
+	return e
+}
+
+// WithOrganizer returns a copy of the event with its organizer replaced. The event stays immutable: the
+// receiver is unchanged.
+func (e Event) WithOrganizer(organizer Organizer) Event {
+	e.organizer = organizer
+	return e
+}
+
+// WithAttendees returns a copy of the event with its attendees replaced, used when an incoming REPLY
+// updates one attendee's status. The slice is copied so neither the receiver nor the caller's slice is
+// shared.
+func (e Event) WithAttendees(attendees []Attendee) Event {
+	e.attendees = copyAttendees(attendees)
 	return e
 }
