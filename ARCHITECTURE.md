@@ -291,6 +291,9 @@ minutes-before). The `ics` codec reads relative-trigger `VALARM` children into a
 because it owns the property it strips existing VALARMs first, so an exotic imported alarm (an absolute
 trigger, an email action) is not preserved. `CalendarService.DueReminders(since, now)` expands events and
 returns the reminders whose trigger falls in that window; a scheduler goroutine in the composition root
-polls it every thirty seconds (starting from launch so no backlog fires) and emits a Wails event that the
-front end shows as an on-screen banner. It fires while the app runs; OS-level toasts and a taskbar flash
-for a minimised window are a later addition.
+polls it every thirty seconds and emits a Wails event that the front end shows as an on-screen banner. On
+launch it first calls `PendingReminders(now)`, which fires reminders for still-imminent events (starting
+at or after now) whose trigger lapsed while the app was closed, so a reminder for an upcoming event is not
+missed; a reminder for an event already started or past is not resurrected, and the catch-up and live
+windows do not overlap. It fires while the app runs; OS-level toasts and a taskbar flash for a minimised
+window are a later addition.

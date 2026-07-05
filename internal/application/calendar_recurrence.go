@@ -149,14 +149,41 @@ func (s *CalendarService) DueReminders(ctx context.Context, since, now time.Time
 		for _, alarm := range inst.Event().Alarms() {
 			trigger := alarm.TriggerAt(inst.Start())
 			if trigger.After(since) && !trigger.After(now) {
-				due = append(due, DueReminder{
-					EventID:         inst.Event().ID(),
-					Summary:         inst.Event().Summary(),
-					OccurrenceStart: inst.Start(),
-					TriggerAt:       trigger,
-				})
+				due = append(due, newDueReminder(inst, trigger))
 			}
 		}
 	}
 	return due, nil
+}
+
+// PendingReminders returns reminders for still-upcoming occurrences (starting at or after now, within the
+// reminder lead) whose trigger time has already passed. It is called once at launch so a reminder for an
+// imminent event is not silently missed when the app was not running at its trigger time; a reminder for
+// an event that has already started or passed is not resurrected. The recurring DueReminders check then
+// covers triggers that fall due while the app runs, and the two windows do not overlap.
+func (s *CalendarService) PendingReminders(ctx context.Context, now time.Time) ([]DueReminder, error) {
+	instances, err := s.ListEventInstances(ctx, now, now.Add(maxReminderLead))
+	if err != nil {
+		return nil, fmt.Errorf("calendar: pending reminders: %w", err)
+	}
+	var due []DueReminder
+	for _, inst := range instances {
+		for _, alarm := range inst.Event().Alarms() {
+			trigger := alarm.TriggerAt(inst.Start())
+			if !trigger.After(now) {
+				due = append(due, newDueReminder(inst, trigger))
+			}
+		}
+	}
+	return due, nil
+}
+
+// newDueReminder builds a DueReminder for an occurrence and one of its alarm's trigger times.
+func newDueReminder(inst domain.EventInstance, trigger time.Time) DueReminder {
+	return DueReminder{
+		EventID:         inst.Event().ID(),
+		Summary:         inst.Event().Summary(),
+		OccurrenceStart: inst.Start(),
+		TriggerAt:       trigger,
+	}
 }

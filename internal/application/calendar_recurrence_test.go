@@ -204,6 +204,35 @@ func TestDueRemindersWindow(t *testing.T) {
 	}
 }
 
+func TestPendingRemindersListError(t *testing.T) {
+	svc := NewCalendarService(&fakeCalendarStore{listEvtErr: errBoom}, fixedID("x"), &fakeRecurrence{})
+	if _, err := svc.PendingReminders(context.Background(), day(4, 9)); !errors.Is(err, errBoom) {
+		t.Errorf("err = %v, want wrapped errBoom", err)
+	}
+}
+
+func TestPendingRemindersCatchesLapsedTriggersForUpcomingEvents(t *testing.T) {
+	now := day(4, 9)
+	// An event ten minutes out: its 15-minute reminder already lapsed (fire it), its 5-minute reminder is
+	// still ahead (leave it for the live check).
+	start := now.Add(10 * time.Minute)
+	ev, err := domain.NewEvent(domain.EventInput{
+		ID: "e1", Summary: "Standup", Start: start, End: start.Add(time.Hour),
+		Alarms: []domain.Alarm{domain.NewAlarm(-15 * time.Minute), domain.NewAlarm(-5 * time.Minute)},
+	})
+	if err != nil {
+		t.Fatalf("event: %v", err)
+	}
+	svc := NewCalendarService(&fakeCalendarStore{events: []domain.Event{ev}}, fixedID("x"), &fakeRecurrence{})
+	due, err := svc.PendingReminders(context.Background(), now)
+	if err != nil {
+		t.Fatalf("PendingReminders: %v", err)
+	}
+	if len(due) != 1 || !due[0].TriggerAt.Equal(start.Add(-15*time.Minute)) {
+		t.Fatalf("got %+v, want the lapsed 15-minute reminder", due)
+	}
+}
+
 func TestUpdateEventScopeLoadError(t *testing.T) {
 	svc := NewCalendarService(&fakeCalendarStore{getEvtErr: errBoom}, fixedID("x"), &fakeRecurrence{})
 	if err := svc.UpdateEventScope(context.Background(), ScopeAll, EventInput{ID: "m1"}, day(4, 9)); !errors.Is(err, errBoom) {

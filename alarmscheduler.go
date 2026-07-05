@@ -4,6 +4,8 @@ import (
 	"time"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
+
+	"github.com/oernster/pigeonpost/internal/application"
 )
 
 // reminderPollInterval is how often the scheduler checks for reminders that have come due.
@@ -19,11 +21,16 @@ type ReminderDTO struct {
 	Start   string `json:"start"`
 }
 
-// runReminderScheduler polls for reminders that have come due and pushes each to the front end. It starts
-// from the current time so a backlog of past reminders is not fired on launch, advances its checkpoint
-// each tick so a reminder fires once, and stops when the runtime context is cancelled at shutdown.
+// runReminderScheduler pushes reminders to the front end as they come due. On launch it first catches up
+// reminders for still-imminent events whose trigger lapsed while the app was closed (so a reminder for an
+// upcoming event is not missed), without resurrecting reminders for events already past. It then polls
+// every interval, advancing its checkpoint so each reminder fires once, and stops when the runtime
+// context is cancelled at shutdown.
 func (a *App) runReminderScheduler() {
 	last := time.Now()
+	if pending, err := a.calendar.PendingReminders(a.ctx, last); err == nil {
+		a.emitReminders(pending)
+	}
 	ticker := time.NewTicker(reminderPollInterval)
 	defer ticker.Stop()
 	for {
@@ -37,13 +44,18 @@ func (a *App) runReminderScheduler() {
 			if err != nil {
 				continue
 			}
-			for _, r := range due {
-				runtime.EventsEmit(a.ctx, reminderEventName, ReminderDTO{
-					EventID: r.EventID,
-					Summary: r.Summary,
-					Start:   r.OccurrenceStart.Format(time.RFC3339),
-				})
-			}
+			a.emitReminders(due)
 		}
+	}
+}
+
+// emitReminders pushes each reminder to the front end as a Wails event.
+func (a *App) emitReminders(reminders []application.DueReminder) {
+	for _, r := range reminders {
+		runtime.EventsEmit(a.ctx, reminderEventName, ReminderDTO{
+			EventID: r.EventID,
+			Summary: r.Summary,
+			Start:   r.OccurrenceStart.Format(time.RFC3339),
+		})
 	}
 }
