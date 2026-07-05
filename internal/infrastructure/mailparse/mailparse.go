@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"mime"
 	"regexp"
 	"strings"
 
@@ -37,46 +38,78 @@ func buildSanitizer() *bluemonday.Policy {
 // blankLines collapses three or more consecutive newlines down to two.
 var blankLines = regexp.MustCompile(`\n{3,}`)
 
-// ParseBody parses a raw RFC 5322 message into its plain-text and HTML bodies. When the message has
-// only an HTML body, a plain-text rendering is derived from it so the message is always readable.
-func ParseBody(raw []byte) (plain, htmlBody string, err error) {
+// ParsedBody is the result of parsing a raw message: its plain-text and HTML bodies, and the raw
+// text/calendar payload when the message carried one (an iMIP scheduling object such as a meeting
+// invite). Invite is nil when the message carried no calendar part.
+type ParsedBody struct {
+	Plain  string
+	HTML   string
+	Invite []byte
+}
+
+// ParseBody parses a raw RFC 5322 message into its plain-text and HTML bodies plus any text/calendar
+// scheduling payload. When the message has only an HTML body, a plain-text rendering is derived from it
+// so the message is always readable. A text/calendar part (whether sent inline or as an attachment) is
+// captured as the invite rather than folded into the readable body; the first such part wins.
+func ParseBody(raw []byte) (ParsedBody, error) {
 	reader, err := mail.CreateReader(bytes.NewReader(raw))
 	if err != nil {
-		return "", "", fmt.Errorf("mailparse: parse message: %w", err)
+		return ParsedBody{}, fmt.Errorf("mailparse: parse message: %w", err)
 	}
 	var plainBuf, htmlBuf strings.Builder
+	var invite []byte
 	for {
 		part, err := reader.NextPart()
 		if err == io.EOF {
 			break
 		}
 		if err != nil {
-			return "", "", fmt.Errorf("mailparse: read part: %w", err)
+			return ParsedBody{}, fmt.Errorf("mailparse: read part: %w", err)
 		}
-		inline, ok := part.Header.(*mail.InlineHeader)
-		if !ok {
+		mediaType := partMediaType(part.Header)
+		if mediaType == "text/calendar" {
+			content, err := io.ReadAll(part.Body)
+			if err != nil {
+				return ParsedBody{}, fmt.Errorf("mailparse: read part body: %w", err)
+			}
+			if invite == nil {
+				invite = content
+			}
+			continue
+		}
+		if _, ok := part.Header.(*mail.InlineHeader); !ok {
 			continue // an attachment; not part of the readable body
 		}
 		content, err := io.ReadAll(part.Body)
 		if err != nil {
-			return "", "", fmt.Errorf("mailparse: read part body: %w", err)
+			return ParsedBody{}, fmt.Errorf("mailparse: read part body: %w", err)
 		}
-		contentType, _, _ := inline.ContentType()
-		if contentType == "text/html" {
+		if mediaType == "text/html" {
 			htmlBuf.Write(content)
 		} else {
 			plainBuf.Write(content)
 		}
 	}
-	plain = plainBuf.String()
-	htmlBody = htmlBuf.String()
+	plain := plainBuf.String()
+	htmlBody := htmlBuf.String()
 	if htmlBody != "" {
 		htmlBody = htmlSanitizer.Sanitize(prepareHTML(htmlBody))
 	}
 	if strings.TrimSpace(plain) == "" && htmlBody != "" {
 		plain = htmlToText(htmlBody)
 	}
-	return plain, htmlBody, nil
+	return ParsedBody{Plain: plain, HTML: htmlBody, Invite: invite}, nil
+}
+
+// partMediaType returns a part's media type (lowercased, without parameters), or an empty string when
+// the part has no readable Content-Type. It reads the raw header so it works for an attachment part as
+// well as an inline one, since the PartHeader interface exposes no typed ContentType accessor.
+func partMediaType(header mail.PartHeader) string {
+	mediaType, _, err := mime.ParseMediaType(header.Get("Content-Type"))
+	if err != nil {
+		return ""
+	}
+	return mediaType
 }
 
 // prepareHTML walks the parsed message HTML before sanitising to do two things the sanitiser cannot.

@@ -448,6 +448,21 @@ func TestMessageBodyCache(t *testing.T) {
 	if got.Plain() != "plain text" || got.HTML() != "<p>html</p>" {
 		t.Errorf("round-tripped body wrong: %+v", got)
 	}
+	if got.HasInvite() {
+		t.Errorf("a body saved with no invite should round-trip without one")
+	}
+
+	invite := []byte("BEGIN:VCALENDAR\r\nMETHOD:REQUEST\r\nEND:VCALENDAR\r\n")
+	if err := store.SaveMessageBody(ctx, body.WithInvite(invite)); err != nil {
+		t.Fatalf("save body with invite: %v", err)
+	}
+	withInvite, err := store.GetMessageBody(ctx, "m1")
+	if err != nil {
+		t.Fatalf("get body with invite: %v", err)
+	}
+	if !withInvite.HasInvite() || string(withInvite.Invite()) != string(invite) {
+		t.Errorf("invite did not round-trip through storage: %q", withInvite.Invite())
+	}
 }
 
 func TestGetMessageAndFolder(t *testing.T) {

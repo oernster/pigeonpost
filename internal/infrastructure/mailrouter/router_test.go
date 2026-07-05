@@ -24,9 +24,9 @@ func (r *recorder) FetchMessages(context.Context, domain.Account, domain.Folder)
 	return nil, nil
 }
 
-func (r *recorder) FetchBody(context.Context, domain.Account, domain.Folder, string) (string, string, error) {
+func (r *recorder) FetchBody(context.Context, domain.Account, domain.Folder, string) (string, string, []byte, error) {
 	r.calls = append(r.calls, "body")
-	return "", "", nil
+	return "", "", nil, nil
 }
 
 func (r *recorder) FetchRaw(context.Context, domain.Account, domain.Folder, string) ([]byte, error) {
@@ -96,7 +96,7 @@ func exercise(t *testing.T, router *Router, account domain.Account) {
 	if _, err := router.FetchMessages(ctx, account, folder); err != nil {
 		t.Fatalf("FetchMessages: %v", err)
 	}
-	if _, _, err := router.FetchBody(ctx, account, folder, "1"); err != nil {
+	if _, _, _, err := router.FetchBody(ctx, account, folder, "1"); err != nil {
 		t.Fatalf("FetchBody: %v", err)
 	}
 	if _, err := router.FetchRaw(ctx, account, folder, "1"); err != nil {

@@ -11,21 +11,21 @@ import (
 )
 
 // FetchBody fetches and parses the full body of one message by UID, returning its plain-text and HTML
-// forms. It satisfies application.MailSource.
-func (s *Source) FetchBody(ctx context.Context, account domain.Account, folder domain.Folder, uid string) (string, string, error) {
+// forms plus any text/calendar scheduling payload. It satisfies application.MailSource.
+func (s *Source) FetchBody(ctx context.Context, account domain.Account, folder domain.Folder, uid string) (string, string, []byte, error) {
 	client, err := s.connect(ctx, account)
 	if err != nil {
-		return "", "", err
+		return "", "", nil, err
 	}
 	defer func() { _ = client.Logout().Wait() }()
 
 	if _, err := client.Select(folder.Path(), &imap.SelectOptions{ReadOnly: true}).Wait(); err != nil {
-		return "", "", fmt.Errorf("imap: select %q: %w", folder.Path(), err)
+		return "", "", nil, fmt.Errorf("imap: select %q: %w", folder.Path(), err)
 	}
 
 	u, err := parseUID(uid)
 	if err != nil {
-		return "", "", err
+		return "", "", nil, err
 	}
 	uidSet := imap.UIDSet{}
 	uidSet.AddNum(u)
@@ -34,16 +34,20 @@ func (s *Source) FetchBody(ctx context.Context, account domain.Account, folder d
 
 	buffers, err := client.Fetch(uidSet, options).Collect()
 	if err != nil {
-		return "", "", fmt.Errorf("imap: fetch body uid %q: %w", uid, err)
+		return "", "", nil, fmt.Errorf("imap: fetch body uid %q: %w", uid, err)
 	}
 	if len(buffers) == 0 {
-		return "", "", nil
+		return "", "", nil, nil
 	}
 	raw := buffers[0].FindBodySection(section)
 	if raw == nil {
-		return "", "", nil
+		return "", "", nil, nil
 	}
-	return mailparse.ParseBody(raw)
+	parsed, err := mailparse.ParseBody(raw)
+	if err != nil {
+		return "", "", nil, err
+	}
+	return parsed.Plain, parsed.HTML, parsed.Invite, nil
 }
 
 // FetchRaw returns the full raw RFC822 bytes of a message by UID, for export (.eml) and for attaching

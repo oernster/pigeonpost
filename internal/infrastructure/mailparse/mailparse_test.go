@@ -22,10 +22,11 @@ func TestParseBodyMultipartAlternative(t *testing.T) {
 		"<p>Hello <b>html</b></p>\r\n" +
 		"--bd--\r\n"
 
-	plain, html, err := ParseBody([]byte(raw))
+	parsed, err := ParseBody([]byte(raw))
 	if err != nil {
 		t.Fatalf("ParseBody: %v", err)
 	}
+	plain, html := parsed.Plain, parsed.HTML
 	if !strings.Contains(plain, "Hello plain") {
 		t.Errorf("plain = %q, want it to contain Hello plain", plain)
 	}
@@ -43,15 +44,65 @@ func TestParseBodyHTMLOnlyDerivesPlain(t *testing.T) {
 		"\r\n" +
 		"<p>Line one</p><p>Line two</p>\r\n"
 
-	plain, html, err := ParseBody([]byte(raw))
+	parsed, err := ParseBody([]byte(raw))
 	if err != nil {
 		t.Fatalf("ParseBody: %v", err)
 	}
+	plain, html := parsed.Plain, parsed.HTML
 	if !strings.Contains(html, "Line one") {
 		t.Errorf("html = %q", html)
 	}
 	if !strings.Contains(plain, "Line one") || !strings.Contains(plain, "Line two") {
 		t.Errorf("derived plain = %q, want both lines", plain)
+	}
+}
+
+func TestParseBodyExtractsCalendarInvite(t *testing.T) {
+	raw := "From: chair@example.com\r\n" +
+		"To: guest@example.com\r\n" +
+		"Subject: Invite\r\n" +
+		"MIME-Version: 1.0\r\n" +
+		"Content-Type: multipart/mixed; boundary=\"bd\"\r\n" +
+		"\r\n" +
+		"--bd\r\n" +
+		"Content-Type: text/plain; charset=utf-8\r\n" +
+		"\r\n" +
+		"Please come to the sync.\r\n" +
+		"--bd\r\n" +
+		"Content-Type: text/calendar; method=REQUEST; charset=utf-8\r\n" +
+		"Content-Disposition: attachment; filename=\"invite.ics\"\r\n" +
+		"\r\n" +
+		"BEGIN:VCALENDAR\r\nMETHOD:REQUEST\r\nEND:VCALENDAR\r\n" +
+		"--bd--\r\n"
+
+	parsed, err := ParseBody([]byte(raw))
+	if err != nil {
+		t.Fatalf("ParseBody: %v", err)
+	}
+	if !strings.Contains(string(parsed.Invite), "METHOD:REQUEST") {
+		t.Errorf("calendar part not captured as invite: %q", parsed.Invite)
+	}
+	if !strings.Contains(parsed.Plain, "Please come to the sync") {
+		t.Errorf("plain body lost: %q", parsed.Plain)
+	}
+	// The calendar payload must not leak into the readable body.
+	if strings.Contains(parsed.Plain, "VCALENDAR") {
+		t.Errorf("calendar payload leaked into the plain body: %q", parsed.Plain)
+	}
+}
+
+func TestParseBodyNoCalendarYieldsNilInvite(t *testing.T) {
+	raw := "MIME-Version: 1.0\r\n" +
+		"Content-Type: text/plain; charset=utf-8\r\n" +
+		"\r\n" +
+		"Just a note.\r\n"
+
+	parsed, err := ParseBody([]byte(raw))
+	if err != nil {
+		t.Fatalf("ParseBody: %v", err)
+	}
+	if parsed.Invite != nil {
+		t.Errorf("a message with no calendar part should yield a nil invite, got %q", parsed.Invite)
 	}
 }
 
@@ -74,10 +125,11 @@ func TestParseBodySanitizesHTML(t *testing.T) {
 		`<p>Safe <b>text</b></p><script>alert('xss')</script>` +
 		`<a href="javascript:evil()">bad</a><img src="http://x/pixel.gif" onerror="steal()">` + "\r\n"
 
-	_, html, err := ParseBody([]byte(raw))
+	parsed, err := ParseBody([]byte(raw))
 	if err != nil {
 		t.Fatalf("ParseBody: %v", err)
 	}
+	html := parsed.HTML
 	for _, banned := range []string{"<script", "javascript:", "onerror", "alert("} {
 		if strings.Contains(strings.ToLower(html), banned) {
 			t.Errorf("sanitised html still contains %q: %s", banned, html)
@@ -100,10 +152,11 @@ func TestParseBodyRemovesHiddenPreheader(t *testing.T) {
 		`<p style="line-height:0">Line height kept</p>` +
 		`<p style="font-size:0.9em">Visible body text</p>` + "\r\n"
 
-	_, html, err := ParseBody([]byte(raw))
+	parsed, err := ParseBody([]byte(raw))
 	if err != nil {
 		t.Fatalf("ParseBody: %v", err)
 	}
+	html := parsed.HTML
 	for _, gone := range []string{"Hidden preheader duplicate", "Zero opacity teaser", "Zero height preheader", "Hidden attribute snippet"} {
 		if strings.Contains(html, gone) {
 			t.Errorf("sender-hidden node should be removed, still present %q: %s", gone, html)
@@ -162,10 +215,11 @@ func TestParseBodyBlocksRemoteImages(t *testing.T) {
 		"\r\n" +
 		`<p>Hello</p><img src="http://tracker.example/pixel.gif" srcset="http://tracker.example/2x.gif 2x" alt="pic">` + "\r\n"
 
-	_, html, err := ParseBody([]byte(raw))
+	parsed, err := ParseBody([]byte(raw))
 	if err != nil {
 		t.Fatalf("ParseBody: %v", err)
 	}
+	html := parsed.HTML
 	// The original source is parked in the data attribute, not left where the browser would fetch it.
 	if !strings.Contains(html, `data-pp-src="http://tracker.example/pixel.gif"`) {
 		t.Errorf("expected image source parked in data-pp-src, got: %s", html)

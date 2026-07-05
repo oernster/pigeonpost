@@ -65,7 +65,9 @@ type TagStore interface {
 type MailSource interface {
 	FetchFolders(ctx context.Context, account domain.Account) ([]domain.Folder, error)
 	FetchMessages(ctx context.Context, account domain.Account, folder domain.Folder) ([]domain.MessageSummary, error)
-	FetchBody(ctx context.Context, account domain.Account, folder domain.Folder, uid string) (plain, html string, err error)
+	// FetchBody returns a message's plain-text and HTML bodies plus any raw text/calendar scheduling
+	// payload (an iMIP invite or reply), which is nil when the message carried none.
+	FetchBody(ctx context.Context, account domain.Account, folder domain.Folder, uid string) (plain, html string, invite []byte, err error)
 	// FetchRaw returns the full raw RFC822 bytes of a message by its opaque handle, used for export
 	// (.eml) and for attaching an existing message to a new one.
 	FetchRaw(ctx context.Context, account domain.Account, folder domain.Folder, uid string) ([]byte, error)

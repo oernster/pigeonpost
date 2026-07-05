@@ -393,15 +393,16 @@ type fakeMailSource struct {
 	fetchBodyErr     error
 	bodyPlain        string
 	bodyHTML         string
+	bodyInvite       []byte
 	fetchRawErr      error
 	raw              []byte
 }
 
-func (f *fakeMailSource) FetchBody(context.Context, domain.Account, domain.Folder, string) (string, string, error) {
+func (f *fakeMailSource) FetchBody(context.Context, domain.Account, domain.Folder, string) (string, string, []byte, error) {
 	if f.fetchBodyErr != nil {
-		return "", "", f.fetchBodyErr
+		return "", "", nil, f.fetchBodyErr
 	}
-	return f.bodyPlain, f.bodyHTML, nil
+	return f.bodyPlain, f.bodyHTML, f.bodyInvite, nil
 }
 
 func (f *fakeMailSource) FetchRaw(context.Context, domain.Account, domain.Folder, string) ([]byte, error) {
