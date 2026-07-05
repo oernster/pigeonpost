@@ -36,6 +36,8 @@ interface EventForm {
     start: string
     end: string
     recurrence: string
+    // extra is the opaque preserved ICS, carried unchanged so an edit does not strip unmodelled data.
+    extra: string
 }
 
 function pad(n: number): string {
@@ -186,7 +188,7 @@ export function CalendarModal({events, onChanged, onClose}: CalendarModalProps) 
         end.setHours(10, 0, 0, 0)
         setForm({
             id: '', uid: '', calendarId: defaultCalendarId(), summary: '', description: '', location: '',
-            allDay: false, start: dateTimeInput(start), end: dateTimeInput(end), recurrence: '',
+            allDay: false, start: dateTimeInput(start), end: dateTimeInput(end), recurrence: '', extra: '',
         })
     }
 
@@ -196,7 +198,7 @@ export function CalendarModal({events, onChanged, onClose}: CalendarModalProps) 
         end.setHours(start.getHours() + HOURS_PER_EVENT)
         setForm({
             id: '', uid: '', calendarId: defaultCalendarId(), summary: '', description: '', location: '',
-            allDay: false, start: dateTimeInput(start), end: dateTimeInput(end), recurrence: '',
+            allDay: false, start: dateTimeInput(start), end: dateTimeInput(end), recurrence: '', extra: '',
         })
     }
 
@@ -209,6 +211,7 @@ export function CalendarModal({events, onChanged, onClose}: CalendarModalProps) 
             start: e.allDay ? dateInput(start) : dateTimeInput(start),
             end: end ? (e.allDay ? dateInput(end) : dateTimeInput(end)) : '',
             recurrence: e.recurrence,
+            extra: e.extra,
         })
     }
 
@@ -223,6 +226,7 @@ export function CalendarModal({events, onChanged, onClose}: CalendarModalProps) 
                 id: form.id, uid: form.uid, calendarId: form.calendarId, summary: form.summary,
                 description: form.description, location: form.location, allDay: form.allDay,
                 start: toISO(form.start), end: toISO(form.end), recurrence: form.recurrence,
+                extra: form.extra,
             }
             await api.saveEvent(req)
             setForm(null)

@@ -41,10 +41,12 @@ type EventDTO struct {
 	End         string `json:"end"`
 	AllDay      bool   `json:"allDay"`
 	Recurrence  string `json:"recurrence"`
+	Extra       string `json:"extra"`
 }
 
 // EventRequest is the front-end payload for creating or updating an event. An empty id means a new
-// event; Start is required and End may be empty.
+// event; Start is required and End may be empty. Extra is the opaque preserved ICS, round-tripped
+// unchanged so an edit does not strip unmodelled properties.
 type EventRequest struct {
 	ID          string `json:"id"`
 	UID         string `json:"uid"`
@@ -56,6 +58,7 @@ type EventRequest struct {
 	End         string `json:"end"`
 	AllDay      bool   `json:"allDay"`
 	Recurrence  string `json:"recurrence"`
+	Extra       string `json:"extra"`
 }
 
 // ListCalendars returns every calendar.
@@ -124,6 +127,7 @@ func (a *App) SaveEvent(req EventRequest) error {
 		End:         end,
 		AllDay:      req.AllDay,
 		Recurrence:  req.Recurrence,
+		Extra:       req.Extra,
 	})
 }
 
@@ -193,6 +197,7 @@ func toEventDTO(e domain.Event) EventDTO {
 		End:         end,
 		AllDay:      e.AllDay(),
 		Recurrence:  e.Recurrence(),
+		Extra:       e.Extra(),
 	}
 }
 

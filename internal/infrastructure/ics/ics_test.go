@@ -69,6 +69,78 @@ func TestICSAllDayRoundTrip(t *testing.T) {
 	}
 }
 
+func TestICSPreservesUnmodelledProperties(t *testing.T) {
+	data := cal(
+		"BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Mozilla.org//NONSGML Thunderbird//EN",
+		"BEGIN:VEVENT", "UID:keep-1", "DTSTAMP:20260704T090000Z", "DTSTART:20260704T100000Z",
+		"DTEND:20260704T110000Z", "SUMMARY:Review",
+		"CATEGORIES:WORK", "STATUS:CONFIRMED", "PRIORITY:1", "X-CUSTOM-FLAG:keepme",
+		"BEGIN:VALARM", "ACTION:DISPLAY", "TRIGGER:-PT15M", "DESCRIPTION:Reminder", "END:VALARM",
+		"END:VEVENT", "END:VCALENDAR",
+	)
+	events, err := New().Decode(data)
+	if err != nil {
+		t.Fatalf("Decode: %v", err)
+	}
+	if len(events) != 1 {
+		t.Fatalf("decoded %d, want 1", len(events))
+	}
+	out, err := New().Encode(events)
+	if err != nil {
+		t.Fatalf("Encode: %v", err)
+	}
+	s := string(out)
+	for _, want := range []string{"CATEGORIES:WORK", "STATUS:CONFIRMED", "PRIORITY:1",
+		"X-CUSTOM-FLAG:keepme", "BEGIN:VALARM", "TRIGGER:-PT15M"} {
+		if !strings.Contains(s, want) {
+			t.Errorf("re-encoded ICS dropped %q:\n%s", want, s)
+		}
+	}
+	if !strings.Contains(s, "SUMMARY:Review") || !strings.Contains(s, "UID:keep-1") {
+		t.Errorf("modelled fields missing after round-trip:\n%s", s)
+	}
+}
+
+func TestICSEditPreservesUnmodelledProperties(t *testing.T) {
+	data := cal(
+		"BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//x//EN",
+		"BEGIN:VEVENT", "UID:e9", "DTSTAMP:20260704T090000Z", "DTSTART:20260704T100000Z",
+		"SUMMARY:Old title", "CATEGORIES:PERSONAL", "X-KEEP:yes",
+		"END:VEVENT", "END:VCALENDAR",
+	)
+	events, err := New().Decode(data)
+	if err != nil || len(events) != 1 {
+		t.Fatalf("Decode: %v (n=%d)", err, len(events))
+	}
+	orig := events[0]
+	// Simulate an in-app edit: same event, a new summary, Extra carried through unchanged.
+	edited, err := domain.NewEvent(domain.EventInput{
+		ID: orig.ID(), UID: orig.UID(), Summary: "New title", Start: orig.Start(), Extra: orig.Extra(),
+	})
+	if err != nil {
+		t.Fatalf("edit: %v", err)
+	}
+	s := string(mustEncode(t, edited))
+	if !strings.Contains(s, "SUMMARY:New title") {
+		t.Errorf("edit not applied:\n%s", s)
+	}
+	if strings.Contains(s, "Old title") {
+		t.Errorf("old summary should have been overwritten:\n%s", s)
+	}
+	if !strings.Contains(s, "X-KEEP:yes") || !strings.Contains(s, "CATEGORIES:PERSONAL") {
+		t.Errorf("unmodelled props dropped on edit:\n%s", s)
+	}
+}
+
+func mustEncode(t *testing.T, events ...domain.Event) []byte {
+	t.Helper()
+	out, err := New().Encode(events)
+	if err != nil {
+		t.Fatalf("Encode: %v", err)
+	}
+	return out
+}
+
 func TestDecodeThunderbirdStyleCalendar(t *testing.T) {
 	data := cal(
 		"BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Mozilla.org//NONSGML Thunderbird//EN",

@@ -59,7 +59,7 @@ func (s *Store) DeleteCalendar(ctx context.Context, id string) error {
 	})
 }
 
-const eventColumns = "id, uid, calendar_id, summary, description, location, start_ms, end_ms, all_day, recurrence"
+const eventColumns = "id, uid, calendar_id, summary, description, location, start_ms, end_ms, all_day, recurrence, extra"
 
 // ListEvents returns every event, ordered by start time.
 func (s *Store) ListEvents(ctx context.Context) ([]domain.Event, error) {
@@ -99,13 +99,13 @@ func (s *Store) SaveEvent(ctx context.Context, e domain.Event) error {
 		endMs = e.End().UnixMilli()
 	}
 	_, err := s.db.ExecContext(ctx,
-		`INSERT INTO event (`+eventColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		`INSERT INTO event (`+eventColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		 ON CONFLICT(id) DO UPDATE SET uid = excluded.uid, calendar_id = excluded.calendar_id,
 		     summary = excluded.summary, description = excluded.description, location = excluded.location,
 		     start_ms = excluded.start_ms, end_ms = excluded.end_ms, all_day = excluded.all_day,
-		     recurrence = excluded.recurrence;`,
+		     recurrence = excluded.recurrence, extra = excluded.extra;`,
 		e.ID(), e.UID(), e.CalendarID(), e.Summary(), e.Description(), e.Location(),
-		e.Start().UnixMilli(), endMs, boolToInt(e.AllDay()), e.Recurrence())
+		e.Start().UnixMilli(), endMs, boolToInt(e.AllDay()), e.Recurrence(), e.Extra())
 	if err != nil {
 		return fmt.Errorf("save event %q: %w", e.ID(), err)
 	}
@@ -124,12 +124,12 @@ func (s *Store) DeleteEvent(ctx context.Context, id string) error {
 // end.
 func scanEvent(row interface{ Scan(...any) error }) (domain.Event, error) {
 	var (
-		id, uid, calendarID, summary, description, location, recurrence string
-		startMs, endMs                                                  int64
-		allDay                                                          int
+		id, uid, calendarID, summary, description, location, recurrence, extra string
+		startMs, endMs                                                         int64
+		allDay                                                                 int
 	)
 	if err := row.Scan(&id, &uid, &calendarID, &summary, &description, &location,
-		&startMs, &endMs, &allDay, &recurrence); err != nil {
+		&startMs, &endMs, &allDay, &recurrence, &extra); err != nil {
 		return domain.Event{}, fmt.Errorf("scan event: %w", err)
 	}
 	var end time.Time
@@ -147,6 +147,7 @@ func scanEvent(row interface{ Scan(...any) error }) (domain.Event, error) {
 		End:         end,
 		AllDay:      allDay != 0,
 		Recurrence:  recurrence,
+		Extra:       extra,
 	})
 	if err != nil {
 		return domain.Event{}, fmt.Errorf("rebuild event %q: %w", id, err)

@@ -11,7 +11,7 @@ import (
 )
 
 // schemaVersion is the current on-disk schema version, tracked via SQLite's PRAGMA user_version.
-const schemaVersion = 16
+const schemaVersion = 17
 
 const driverName = "sqlite"
 
@@ -279,9 +279,16 @@ const schemaV16 = `
 ALTER TABLE outbox ADD COLUMN failure TEXT NOT NULL DEFAULT '';
 `
 
+// schemaV17 stores the original ICS VEVENT text on an event so import and export do not strip the
+// properties PigeonPost does not model yet (categories, status, alarms and the rest). Existing rows
+// default to ”, meaning the event carries no preserved ICS.
+const schemaV17 = `
+ALTER TABLE event ADD COLUMN extra TEXT NOT NULL DEFAULT '';
+`
+
 // migrations is the ordered list of schema steps. Index i upgrades the database from version i to
 // version i+1, so a fresh database applies them all and an existing one applies only what it lacks.
-var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15, schemaV16}
+var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15, schemaV16, schemaV17}
 
 // Store is the SQLite-backed implementation of the application storage ports.
 type Store struct {

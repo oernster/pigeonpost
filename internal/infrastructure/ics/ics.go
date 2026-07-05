@@ -9,6 +9,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
+	"strings"
 	"time"
 
 	goical "github.com/emersion/go-ical"
@@ -97,6 +98,7 @@ func eventFromICS(e goical.Event) (domain.Event, bool) {
 		End:         end,
 		AllDay:      allDay,
 		Recurrence:  recurrence,
+		Extra:       rawICS(e),
 	})
 	if err != nil {
 		return domain.Event{}, false
@@ -131,29 +133,97 @@ func (Codec) Encode(events []domain.Event) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-// eventToComponent builds a VEVENT from an event. DTSTAMP is required, so the start time doubles as a
-// stable stamp; all-day events use DATE values, timed events use DATE-TIME.
+// eventToComponent builds a VEVENT for an event. An imported event starts from its preserved original
+// VEVENT (Extra) so properties PigeonPost does not model survive the round-trip; a fresh event starts
+// empty. The fields the app owns are then overlaid. DTSTAMP is required: an imported event keeps its
+// original stamp, a fresh one uses the start time. All-day events use DATE values, timed use DATE-TIME.
 func eventToComponent(ev domain.Event) *goical.Component {
-	comp := goical.NewComponent(goical.CompEvent)
+	comp := baseComponent(ev)
 	uid := ev.UID()
 	if uid == "" {
 		uid = ev.ID()
 	}
 	comp.Props.SetText(goical.PropUID, uid)
-	comp.Props.SetDateTime(goical.PropDateTimeStamp, ev.Start().UTC())
+	if comp.Props.Get(goical.PropDateTimeStamp) == nil {
+		comp.Props.SetDateTime(goical.PropDateTimeStamp, ev.Start().UTC())
+	}
 	comp.Props.SetText(goical.PropSummary, ev.Summary())
 	setWhen(comp, goical.PropDateTimeStart, ev.Start(), ev.AllDay())
 	if ev.HasEnd() {
 		setWhen(comp, goical.PropDateTimeEnd, ev.End(), ev.AllDay())
+		comp.Props.Del(goical.PropDuration)
+	} else {
+		comp.Props.Del(goical.PropDateTimeEnd)
 	}
-	setIfPresent(comp, goical.PropDescription, ev.Description())
-	setIfPresent(comp, goical.PropLocation, ev.Location())
+	setOrDel(comp, goical.PropDescription, ev.Description())
+	setOrDel(comp, goical.PropLocation, ev.Location())
 	if ev.Recurrence() != "" {
 		rrule := goical.NewProp(goical.PropRecurrenceRule)
 		rrule.Value = ev.Recurrence()
 		comp.Props.Set(rrule)
+	} else {
+		comp.Props.Del(goical.PropRecurrenceRule)
 	}
 	return comp
+}
+
+// baseComponent returns the VEVENT to build on: the preserved original when the event was imported, or
+// a new empty VEVENT otherwise. A preserved component that cannot be decoded falls back to empty.
+func baseComponent(ev domain.Event) *goical.Component {
+	if ev.Extra() != "" {
+		if comp := decodeExtra(ev.Extra()); comp != nil {
+			return comp
+		}
+	}
+	return goical.NewComponent(goical.CompEvent)
+}
+
+// decodeExtra parses the first VEVENT out of a preserved VCALENDAR string, or nil on any failure.
+func decodeExtra(raw string) *goical.Component {
+	cal, err := goical.NewDecoder(strings.NewReader(raw)).Decode()
+	if err != nil {
+		return nil
+	}
+	events := cal.Events()
+	if len(events) == 0 {
+		return nil
+	}
+	return events[0].Component
+}
+
+// setOrDel writes a text property when the value is non-empty, otherwise removes it, so clearing a
+// field in the app clears it in the exported (possibly preserved) component too.
+func setOrDel(comp *goical.Component, name, value string) {
+	if value != "" {
+		comp.Props.SetText(name, value)
+		return
+	}
+	comp.Props.Del(name)
+}
+
+// rawICS re-encodes a parsed VEVENT into a standalone VCALENDAR string for preservation. DTSTAMP and
+// UID are required by the encoder, so a source missing either is given a synthetic value (the UID is
+// overwritten from the domain on export, so a synthetic one here is harmless). An encoding failure
+// yields an empty string, degrading to the earlier lossy behaviour rather than failing the import.
+func rawICS(e goical.Event) string {
+	comp := e.Component
+	if comp.Props.Get(goical.PropDateTimeStamp) == nil {
+		if start, err := e.DateTimeStart(time.UTC); err == nil {
+			comp.Props.SetDateTime(goical.PropDateTimeStamp, start)
+		}
+	}
+	if comp.Props.Get(goical.PropUID) == nil {
+		comp.Props.SetText(goical.PropUID, generatedID())
+	}
+	cal := goical.NewCalendar()
+	cal.Props.SetText(goical.PropVersion, "2.0")
+	cal.Props.SetText(goical.PropProductID, productID)
+	cal.Children = append(cal.Children, comp)
+	var buf bytes.Buffer
+	if err := goical.NewEncoder(&buf).Encode(cal); err != nil {
+		return ""
+	}
+	return buf.String()
 }
 
 // setWhen writes a date or date-time property depending on whether the event is all-day.
@@ -163,13 +233,6 @@ func setWhen(comp *goical.Component, name string, when time.Time, allDay bool) {
 		return
 	}
 	comp.Props.SetDateTime(name, when)
-}
-
-// setIfPresent writes a text property only when the value is non-empty.
-func setIfPresent(comp *goical.Component, name, value string) {
-	if value != "" {
-		comp.Props.SetText(name, value)
-	}
 }
 
 // generatedID returns a random hex id for an event that carries no UID.

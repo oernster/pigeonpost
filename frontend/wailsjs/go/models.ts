@@ -360,11 +360,12 @@ export namespace main {
 	    end: string;
 	    allDay: boolean;
 	    recurrence: string;
-	
+	    extra: string;
+
 	    static createFrom(source: any = {}) {
 	        return new EventDTO(source);
 	    }
-	
+
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
@@ -377,6 +378,7 @@ export namespace main {
 	        this.end = source["end"];
 	        this.allDay = source["allDay"];
 	        this.recurrence = source["recurrence"];
+	        this.extra = source["extra"];
 	    }
 	}
 	export class EventRequest {
@@ -390,11 +392,12 @@ export namespace main {
 	    end: string;
 	    allDay: boolean;
 	    recurrence: string;
-	
+	    extra: string;
+
 	    static createFrom(source: any = {}) {
 	        return new EventRequest(source);
 	    }
-	
+
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
@@ -407,6 +410,7 @@ export namespace main {
 	        this.end = source["end"];
 	        this.allDay = source["allDay"];
 	        this.recurrence = source["recurrence"];
+	        this.extra = source["extra"];
 	    }
 	}
 	export class FolderDTO {

@@ -35,7 +35,7 @@ func TestNewEventFullRoundTrip(t *testing.T) {
 	e, err := NewEvent(EventInput{
 		ID: "  e1 ", UID: "  uid-1 ", CalendarID: " cal1 ", Summary: "  Standup ",
 		Description: " daily ", Location: " Room 1 ", Start: start, End: end,
-		AllDay: false, Recurrence: " FREQ=DAILY ",
+		AllDay: false, Recurrence: " FREQ=DAILY ", Extra: "BEGIN:VEVENT\r\nCATEGORIES:WORK\r\nEND:VEVENT\r\n",
 	})
 	if err != nil {
 		t.Fatalf("NewEvent: %v", err)
@@ -43,6 +43,10 @@ func TestNewEventFullRoundTrip(t *testing.T) {
 	if e.ID() != "e1" || e.UID() != "uid-1" || e.CalendarID() != "cal1" || e.Summary() != "Standup" ||
 		e.Description() != "daily" || e.Location() != "Room 1" || e.Recurrence() != "FREQ=DAILY" {
 		t.Errorf("fields not trimmed/exposed: %+v", e)
+	}
+	// Extra is preserved verbatim (not trimmed): it is an opaque ICS blob, not a display field.
+	if e.Extra() != "BEGIN:VEVENT\r\nCATEGORIES:WORK\r\nEND:VEVENT\r\n" {
+		t.Errorf("Extra not preserved verbatim: %q", e.Extra())
 	}
 	if !e.Start().Equal(start) || !e.End().Equal(end) || !e.HasEnd() || e.AllDay() {
 		t.Errorf("times/flags wrong: start=%v end=%v hasEnd=%v allDay=%v", e.Start(), e.End(), e.HasEnd(), e.AllDay())

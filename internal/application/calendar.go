@@ -29,6 +29,9 @@ type EventInput struct {
 	End         time.Time
 	AllDay      bool
 	Recurrence  string
+	// Extra carries the preserved original ICS opaquely so an in-app edit does not strip the
+	// properties PigeonPost does not model. The UI round-trips it unchanged.
+	Extra string
 }
 
 // CalendarService is the use-case boundary for managing calendars and their events.
@@ -110,6 +113,7 @@ func (s *CalendarService) SaveEvent(ctx context.Context, in EventInput) error {
 		End:         in.End,
 		AllDay:      in.AllDay,
 		Recurrence:  in.Recurrence,
+		Extra:       in.Extra,
 	})
 	if err != nil {
 		return fmt.Errorf("calendar: build event: %w", err)

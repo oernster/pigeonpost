@@ -18,6 +18,10 @@ type EventInput struct {
 	End         time.Time
 	AllDay      bool
 	Recurrence  string
+	// Extra is an opaque store of the original ICS VEVENT so import and export never strip the
+	// properties PigeonPost does not model yet (categories, status, alarms and the rest). It is empty
+	// for an event created in the app and is round-tripped unchanged through storage and the UI.
+	Extra string
 }
 
 // Event is a single calendar entry. It is immutable once constructed. UID carries the ICS UID for a
@@ -34,6 +38,7 @@ type Event struct {
 	end         time.Time
 	allDay      bool
 	recurrence  string
+	extra       string
 }
 
 // NewEvent validates and constructs an event. An end before the start is rejected; an unset (zero) end
@@ -64,6 +69,7 @@ func NewEvent(in EventInput) (Event, error) {
 		end:         in.End,
 		allDay:      in.AllDay,
 		recurrence:  strings.TrimSpace(in.Recurrence),
+		extra:       in.Extra,
 	}, nil
 }
 
@@ -99,3 +105,7 @@ func (e Event) AllDay() bool { return e.allDay }
 
 // Recurrence returns the raw RRULE text, which may be empty for a non-recurring event.
 func (e Event) Recurrence() string { return e.recurrence }
+
+// Extra returns the opaque original ICS VEVENT preserved for a lossless round-trip, or an empty string
+// for an event that did not come from an import.
+func (e Event) Extra() string { return e.extra }

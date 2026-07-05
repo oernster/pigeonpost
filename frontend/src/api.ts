@@ -128,6 +128,7 @@ export interface CalendarEventInput {
     end: string
     allDay: boolean
     recurrence: string
+    extra: string
 }
 
 export interface RuleInput {
