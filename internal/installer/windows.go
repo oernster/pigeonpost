@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
+	"time"
 	"unsafe"
 
 	"golang.org/x/sys/windows"
@@ -19,6 +20,20 @@ import (
 // ErrAppRunning indicates PigeonPost is running, so an install or uninstall that would overwrite or
 // remove the running executable must not proceed until the user closes it.
 var ErrAppRunning = errors.New("PigeonPost is running. Please close it and try again.")
+
+// ErrAppStillRunning indicates PigeonPost was asked to close but was still running after the wait, so
+// setup should not proceed.
+var ErrAppStillRunning = errors.New("PigeonPost could not be closed. Please close it manually and try again.")
+
+const (
+	// terminateWaitTimeout bounds how long CloseRunningApp waits for the app to exit after terminating
+	// it, so a stuck process cannot hang setup indefinitely.
+	terminateWaitTimeout = 5 * time.Second
+	// terminatePollStep is how often CloseRunningApp rechecks whether the app has exited.
+	terminatePollStep = 100 * time.Millisecond
+	// forcedExitCode is the exit code reported for a process ended by the installer.
+	forcedExitCode = 1
+)
 
 // hiddenProcess hides the console window of a child process so that shelling out to PowerShell or
 // cmd during install and uninstall does not flash a terminal at the user.
@@ -33,30 +48,67 @@ func IsAppRunning() bool {
 	return isProcessRunning(ExeName)
 }
 
-// isProcessRunning reports whether any running process has the given executable name, matched
-// case-insensitively. Any failure taking or walking the process snapshot is treated as "not running",
-// so a snapshot error never blocks a legitimate install or uninstall.
+// isProcessRunning reports whether any running process has the given executable name.
 func isProcessRunning(exeName string) bool {
+	return len(processIDs(exeName)) > 0
+}
+
+// processIDs returns the ids of every running process whose executable name matches, compared
+// case-insensitively. Any failure taking or walking the process snapshot yields no ids, so a snapshot
+// error never blocks a legitimate install or uninstall.
+func processIDs(exeName string) []uint32 {
 	snapshot, err := windows.CreateToolhelp32Snapshot(windows.TH32CS_SNAPPROCESS, 0)
 	if err != nil {
-		return false
+		return nil
 	}
 	defer windows.CloseHandle(snapshot)
 
 	var entry windows.ProcessEntry32
 	entry.Size = uint32(unsafe.Sizeof(entry))
 	if err := windows.Process32First(snapshot, &entry); err != nil {
-		return false
+		return nil
 	}
 	target := strings.ToLower(exeName)
+	var pids []uint32
 	for {
 		if strings.ToLower(windows.UTF16ToString(entry.ExeFile[:])) == target {
-			return true
+			pids = append(pids, entry.ProcessID)
 		}
 		if err := windows.Process32Next(snapshot, &entry); err != nil {
-			return false
+			return pids
 		}
 	}
+}
+
+// CloseRunningApp ends every running PigeonPost.exe and waits for the executable lock to release, so the
+// installer can overwrite or remove it. It backs the setup program's offer to close a running instance.
+// Termination is forced rather than a polite window close because the app intercepts a normal close (it
+// offers to minimise to the tray), so only ending the process reliably frees the file. A process that
+// has already exited or cannot be opened is skipped; if the app is still present after the wait,
+// ErrAppStillRunning is returned so setup does not proceed onto a locked file.
+func CloseRunningApp() error {
+	for _, pid := range processIDs(ExeName) {
+		terminateProcess(pid)
+	}
+	deadline := time.Now().Add(terminateWaitTimeout)
+	for IsAppRunning() {
+		if time.Now().After(deadline) {
+			return ErrAppStillRunning
+		}
+		time.Sleep(terminatePollStep)
+	}
+	return nil
+}
+
+// terminateProcess forcibly ends the process with the given id. Any failure to open or terminate it is
+// ignored: a process that has already exited, or that this user cannot open, needs no further action.
+func terminateProcess(pid uint32) {
+	handle, err := windows.OpenProcess(windows.PROCESS_TERMINATE, false, pid)
+	if err != nil {
+		return
+	}
+	defer windows.CloseHandle(handle)
+	_ = windows.TerminateProcess(handle, forcedExitCode)
 }
 
 const (

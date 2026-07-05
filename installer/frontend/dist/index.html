@@ -276,6 +276,13 @@
             </label>
         </section>
 
+        <!-- App running -->
+        <section class="screen" id="screen-running">
+            <h1>PigeonPost is open</h1>
+            <p class="lead">PigeonPost is running and must close before setup can continue. Closing it will
+                not affect your accounts or mail.</p>
+        </section>
+
         <!-- Progress -->
         <section class="screen" id="screen-progress">
             <h1 id="progress-title">Working...</h1>
@@ -343,10 +350,39 @@
             showScreen('done')
             setFooter(finalButtons || [{label: 'Close', kind: 'primary', onClick: () => backend().Quit()}])
         } catch (e) {
-            $('error-msg').textContent = String(e)
-            showScreen('error')
-            setFooter([{label: 'Close', kind: 'primary', onClick: () => backend().Quit()}])
+            showError(String(e))
         }
+    }
+
+    function showError(message) {
+        $('error-msg').textContent = message
+        showScreen('error')
+        setFooter([{label: 'Close', kind: 'primary', onClick: () => backend().Quit()}])
+    }
+
+    // withAppClosed runs proceed() once PigeonPost is not running. If it is running, it offers to close
+    // it and continue rather than failing later when the locked executable cannot be overwritten.
+    async function withAppClosed(proceed) {
+        if (!(await backend().AppRunning())) {
+            proceed()
+            return
+        }
+        showScreen('running')
+        setFooter([
+            {label: 'Cancel', onClick: () => route(currentState)},
+            {
+                label: 'Close PigeonPost and continue', kind: 'primary', onClick: async () => {
+                    setFooter([])
+                    try {
+                        await backend().CloseRunningApp()
+                    } catch (e) {
+                        showError(String(e))
+                        return
+                    }
+                    proceed()
+                },
+            },
+        ])
     }
 
     function routeInstall(state) {
@@ -357,9 +393,9 @@
         setFooter([
             {label: 'Cancel', onClick: () => backend().Quit()},
             {
-                label: 'Install', kind: 'primary', onClick: () => run(
+                label: 'Install', kind: 'primary', onClick: () => withAppClosed(() => run(
                     () => backend().Install($('boot-install').checked),
-                    'Installing PigeonPost', 'PigeonPost installed', 'You can launch it from the Start Menu.')
+                    'Installing PigeonPost', 'PigeonPost installed', 'You can launch it from the Start Menu.'))
             },
         ])
     }
@@ -372,9 +408,9 @@
             {label: 'Uninstall', kind: 'danger', onClick: () => routeUninstall(state)},
             {label: 'Later', onClick: () => backend().Quit()},
             {
-                label: 'Update', kind: 'primary', onClick: () => run(
+                label: 'Update', kind: 'primary', onClick: () => withAppClosed(() => run(
                     () => backend().Install(state.launchOnBoot),
-                    'Updating PigeonPost', 'PigeonPost updated', 'You are now on v' + state.thisVersion + '.')
+                    'Updating PigeonPost', 'PigeonPost updated', 'You are now on v' + state.thisVersion + '.'))
             },
         ])
     }
@@ -389,8 +425,8 @@
             {label: 'Uninstall', kind: 'danger', onClick: () => routeUninstall(state)},
             {label: 'Close', onClick: () => backend().Quit()},
             {
-                label: 'Repair', kind: 'primary', onClick: () => run(
-                    () => backend().Repair(), 'Repairing PigeonPost', 'Repair complete', 'PigeonPost has been reinstalled.')
+                label: 'Repair', kind: 'primary', onClick: () => withAppClosed(() => run(
+                    () => backend().Repair(), 'Repairing PigeonPost', 'Repair complete', 'PigeonPost has been reinstalled.'))
             },
         ])
     }
@@ -401,14 +437,17 @@
         setFooter([
             {label: 'Cancel', onClick: () => state.installed ? routeManage(state) : backend().Quit()},
             {
-                label: 'Uninstall', kind: 'danger', onClick: () => run(
+                label: 'Uninstall', kind: 'danger', onClick: () => withAppClosed(() => run(
                     () => backend().Uninstall($('remove-data').checked),
-                    'Removing PigeonPost', 'PigeonPost removed', 'PigeonPost has been uninstalled.')
+                    'Removing PigeonPost', 'PigeonPost removed', 'PigeonPost has been uninstalled.'))
             },
         ])
     }
 
+    let currentState = null
+
     function route(state) {
+        currentState = state
         if (state.mode === 'uninstall') {
             routeUninstall(state)
         } else if (state.mode === 'manage') {

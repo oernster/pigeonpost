@@ -67,6 +67,18 @@ func (a *App) DetectState() StateDTO {
 	}
 }
 
+// AppRunning reports whether PigeonPost is currently running, so the front end can offer to close it
+// before an install or uninstall rather than failing when the executable is locked.
+func (a *App) AppRunning() bool {
+	return installer.IsAppRunning()
+}
+
+// CloseRunningApp ends the running PigeonPost so setup can proceed, backing the front end's offer to
+// close it. It returns an error if the app is still running after being asked to close.
+func (a *App) CloseRunningApp() error {
+	return installer.CloseRunningApp()
+}
+
 // Install performs a fresh install or an upgrade (it overwrites files and preserves user data).
 func (a *App) Install(launchOnBoot bool) error {
 	return a.installInto(launchOnBoot)
