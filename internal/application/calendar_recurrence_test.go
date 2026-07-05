@@ -170,6 +170,40 @@ func TestListEventInstancesGroupsSeriesWithoutUID(t *testing.T) {
 	}
 }
 
+func TestDueRemindersListError(t *testing.T) {
+	svc := NewCalendarService(&fakeCalendarStore{listEvtErr: errBoom}, fixedID("x"), &fakeRecurrence{})
+	if _, err := svc.DueReminders(context.Background(), day(4, 8), day(4, 9)); !errors.Is(err, errBoom) {
+		t.Errorf("err = %v, want wrapped errBoom", err)
+	}
+}
+
+func TestDueRemindersWindow(t *testing.T) {
+	start := day(4, 9)
+	// One event at 09:00 with three reminders: at the start (due), one minute before (already past the
+	// window) and one minute after (still ahead of the window).
+	ev, err := domain.NewEvent(domain.EventInput{
+		ID: "e1", Summary: "Standup", Start: start, End: start.Add(time.Hour),
+		Alarms: []domain.Alarm{domain.NewAlarm(0), domain.NewAlarm(-time.Minute), domain.NewAlarm(time.Minute)},
+	})
+	if err != nil {
+		t.Fatalf("event: %v", err)
+	}
+	store := &fakeCalendarStore{events: []domain.Event{ev}}
+	svc := NewCalendarService(store, fixedID("x"), &fakeRecurrence{})
+	since := start.Add(-30 * time.Second)
+	due, err := svc.DueReminders(context.Background(), since, start)
+	if err != nil {
+		t.Fatalf("DueReminders: %v", err)
+	}
+	if len(due) != 1 {
+		t.Fatalf("got %d due reminders, want 1: %+v", len(due), due)
+	}
+	if due[0].EventID != "e1" || due[0].Summary != "Standup" || !due[0].TriggerAt.Equal(start) ||
+		!due[0].OccurrenceStart.Equal(start) {
+		t.Errorf("due reminder wrong: %+v", due[0])
+	}
+}
+
 func TestUpdateEventScopeLoadError(t *testing.T) {
 	svc := NewCalendarService(&fakeCalendarStore{getEvtErr: errBoom}, fixedID("x"), &fakeRecurrence{})
 	if err := svc.UpdateEventScope(context.Background(), ScopeAll, EventInput{ID: "m1"}, day(4, 9)); !errors.Is(err, errBoom) {

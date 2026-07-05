@@ -59,7 +59,8 @@ Shipped:
   or yearly, with an interval and an optional end) expand across every view, and an edit or delete of a
   recurring event asks whether it applies to this occurrence, this and following, or all. Each event
   carries its own time zone, so a recurring event keeps its local time across daylight-saving changes.
-  Events carry reminders (a lead time before the start) that round-trip as ICS alarms. ICS (.ics)
+  Events carry reminders (a lead time before the start) that fire an on-screen banner while the app runs
+  and round-trip as ICS alarms. ICS (.ics)
   import and export (RFC 5545, including RRULE, RDATE, EXDATE and RECURRENCE-ID) round-trips with Outlook
   and Thunderbird; an event keeps its ICS UID so an export re-imports cleanly.
 - **Contacts**: an address book with a list and an editor. vCard (.vcf) and CSV import and export, so

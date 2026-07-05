@@ -68,9 +68,10 @@ func NewApp(
 	}
 }
 
-// startup captures the Wails runtime context.
+// startup captures the Wails runtime context and starts the reminder scheduler.
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
+	go a.runReminderScheduler()
 }
 
 // shutdown releases infrastructure resources when the window closes.

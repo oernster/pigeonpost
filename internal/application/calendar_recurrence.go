@@ -123,3 +123,40 @@ func overlapsWindow(start, end, from, to time.Time) bool {
 	}
 	return !effectiveEnd.Before(from)
 }
+
+// maxReminderLead bounds how far ahead reminders are considered, a little over the longest offered
+// reminder (one week), so a due reminder for a near-future occurrence is found without expanding forever.
+const maxReminderLead = 8 * 24 * time.Hour
+
+// DueReminder is a reminder that has come due: which event and occurrence it belongs to and when it fired.
+type DueReminder struct {
+	EventID         string
+	Summary         string
+	OccurrenceStart time.Time
+	TriggerAt       time.Time
+}
+
+// DueReminders returns the reminders whose trigger time falls in the half-open window (since, now], across
+// every event and its expanded occurrences. The scheduler calls it each tick with the interval since its
+// last check, so a reminder is reported exactly once as the window advances.
+func (s *CalendarService) DueReminders(ctx context.Context, since, now time.Time) ([]DueReminder, error) {
+	instances, err := s.ListEventInstances(ctx, since, now.Add(maxReminderLead))
+	if err != nil {
+		return nil, fmt.Errorf("calendar: due reminders: %w", err)
+	}
+	var due []DueReminder
+	for _, inst := range instances {
+		for _, alarm := range inst.Event().Alarms() {
+			trigger := alarm.TriggerAt(inst.Start())
+			if trigger.After(since) && !trigger.After(now) {
+				due = append(due, DueReminder{
+					EventID:         inst.Event().ID(),
+					Summary:         inst.Event().Summary(),
+					OccurrenceStart: inst.Start(),
+					TriggerAt:       trigger,
+				})
+			}
+		}
+	}
+	return due, nil
+}

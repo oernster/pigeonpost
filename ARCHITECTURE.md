@@ -289,5 +289,8 @@ refinement; RDATE, EXDATE and RECURRENCE-ID are written as UTC instants.
 minutes-before). The `ics` codec reads relative-trigger `VALARM` children into alarms and re-emits one
 `DISPLAY VALARM` per modelled alarm with a friendly duration (`-PT15M`, not the library's `-PT900S`);
 because it owns the property it strips existing VALARMs first, so an exotic imported alarm (an absolute
-trigger, an email action) is not preserved. Firing the reminders (a scheduler plus an on-screen or OS
-notification) is the next step and is not yet wired.
+trigger, an email action) is not preserved. `CalendarService.DueReminders(since, now)` expands events and
+returns the reminders whose trigger falls in that window; a scheduler goroutine in the composition root
+polls it every thirty seconds (starting from launch so no backlog fires) and emits a Wails event that the
+front end shows as an on-screen banner. It fires while the app runs; OS-level toasts and a taskbar flash
+for a minimised window are a later addition.

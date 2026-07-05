@@ -19,6 +19,7 @@ import {PromptDialog} from './components/PromptDialog'
 import {RuleManagerModal} from './components/RuleManagerModal'
 import {ContactsModal} from './components/ContactsModal'
 import {CalendarModal} from './components/CalendarModal'
+import {ReminderNotifications} from './components/ReminderNotifications'
 import {Splash} from './components/Splash'
 
 // focusRingRoot is the container the ring is scoped to: the topmost open modal when one is showing (so
@@ -1201,6 +1202,7 @@ function App() {
                 style={{position: 'absolute', width: 0, height: 0, overflow: 'hidden', outline: 'none'}}
             />
             {splashVisible && <Splash version={appVersion} author={appAuthor} fading={splashFading}/>}
+            <ReminderNotifications/>
             <header className="titlebar">
                 <span className="brand">
                     PigeonPost
