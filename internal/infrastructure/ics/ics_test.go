@@ -432,3 +432,49 @@ func TestICSPreservesTodoAndJournalPassthrough(t *testing.T) {
 		}
 	}
 }
+
+func mustZonedEvent(t *testing.T, zone string) domain.Event {
+	t.Helper()
+	ev, err := domain.NewEvent(domain.EventInput{
+		ID: "e1", UID: "e1", Summary: "Standup",
+		Start: time.Date(2026, 7, 4, 9, 0, 0, 0, time.UTC), TimeZone: zone,
+	})
+	if err != nil {
+		t.Fatalf("event: %v", err)
+	}
+	return ev
+}
+
+func TestICSExportGeneratesVTimezoneForDSTZone(t *testing.T) {
+	out, err := New().Encode([]domain.Event{mustZonedEvent(t, "Europe/London")}, nil)
+	if err != nil {
+		t.Fatalf("Encode: %v", err)
+	}
+	s := string(out)
+	for _, want := range []string{
+		"BEGIN:VTIMEZONE", "TZID:Europe/London",
+		"BEGIN:DAYLIGHT", "TZOFFSETFROM:+0000", "TZOFFSETTO:+0100", "BYMONTH=3;BYDAY=-1SU",
+		"BEGIN:STANDARD", "TZOFFSETFROM:+0100", "TZOFFSETTO:+0000", "BYMONTH=10;BYDAY=-1SU",
+	} {
+		if !strings.Contains(s, want) {
+			t.Errorf("export missing %q:\n%s", want, s)
+		}
+	}
+}
+
+func TestICSExportVTimezoneForZoneWithoutDST(t *testing.T) {
+	s := string(mustEncode(t, mustZonedEvent(t, "Asia/Tokyo")))
+	if !strings.Contains(s, "TZID:Asia/Tokyo") || !strings.Contains(s, "BEGIN:STANDARD") ||
+		!strings.Contains(s, "TZOFFSETTO:+0900") {
+		t.Errorf("no-DST VTIMEZONE wrong:\n%s", s)
+	}
+	if strings.Contains(s, "BEGIN:DAYLIGHT") {
+		t.Errorf("a zone without daylight saving should have no DAYLIGHT:\n%s", s)
+	}
+}
+
+func TestICSExportNoVTimezoneForUTCEvent(t *testing.T) {
+	if s := string(mustEncode(t, mustZonedEvent(t, ""))); strings.Contains(s, "BEGIN:VTIMEZONE") {
+		t.Errorf("a UTC event should produce no VTIMEZONE:\n%s", s)
+	}
+}

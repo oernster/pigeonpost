@@ -176,6 +176,8 @@ func (Codec) Encode(events []domain.Event, passthrough []domain.CalendarPassthro
 	cal := goical.NewCalendar()
 	cal.Props.SetText(goical.PropVersion, "2.0")
 	cal.Props.SetText(goical.PropProductID, productID)
+	// VTIMEZONE definitions come first so the events' TZID references resolve within the file itself.
+	cal.Children = append(cal.Children, timezoneComponents(events)...)
 	for _, ev := range events {
 		cal.Children = append(cal.Children, eventToComponent(ev))
 	}
