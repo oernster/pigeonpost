@@ -9,14 +9,6 @@
 import {useEffect, useRef, useState} from 'react'
 import {PickerButton} from './PickerButton'
 
-const FREQUENCIES: {value: Frequency; label: string}[] = [
-    {value: '', label: 'Does not repeat'},
-    {value: 'DAILY', label: 'Daily'},
-    {value: 'WEEKLY', label: 'Weekly'},
-    {value: 'MONTHLY', label: 'Monthly'},
-    {value: 'YEARLY', label: 'Yearly'},
-]
-
 // WEEKDAYS lists the RFC 5545 weekday codes in display order with a short label for the weekly picker.
 const WEEKDAYS: {code: string; label: string}[] = [
     {code: 'MO', label: 'Mon'},
@@ -161,8 +153,10 @@ function buildRule(state: RuleState, facts: StartFacts | undefined): string {
     return parts.join(';')
 }
 
-// intervalUnit names the interval unit for the active frequency, pluralised when the interval is not one.
-function intervalUnit(freq: Frequency, interval: number): string {
+// unitLabel names the recurrence unit for a frequency, pluralised when the interval is not one, so the
+// frequency dropdown reads as the unit next to the interval ("every 3 days") rather than a separate word
+// that would contradict it ("Daily every 3 days").
+function unitLabel(freq: Frequency, interval: number): string {
     const unit = freq === 'DAILY' ? 'day' : freq === 'WEEKLY' ? 'week' : freq === 'MONTHLY' ? 'month' : 'year'
     return interval === 1 ? unit : `${unit}s`
 }
@@ -235,20 +229,23 @@ export function RecurrenceEditor({value, onChange, startDate}: RecurrenceEditorP
 
     return (
         <div className="recurrence-editor">
-            <div className="rule-form-row">
+            <div className="rule-form-row recur-first">
+                {state.freq !== '' && (
+                    <>
+                        <span className="recur-label">Repeat every</span>
+                        <input className="tag-name-input recur-interval-num" type="number" min={MIN_INTERVAL}
+                               aria-label="Interval" value={state.interval}
+                               onChange={(e) => update({interval: Math.max(MIN_INTERVAL, Number(e.target.value) || MIN_INTERVAL)})}/>
+                    </>
+                )}
                 <select className="tag-name-input" aria-label="Repeat" value={state.freq}
                         onChange={(e) => update({freq: e.target.value as Frequency})}>
-                    {FREQUENCIES.map((f) => (<option key={f.value} value={f.value}>{f.label}</option>))}
+                    <option value="">Does not repeat</option>
+                    <option value="DAILY">{unitLabel('DAILY', state.interval)}</option>
+                    <option value="WEEKLY">{unitLabel('WEEKLY', state.interval)}</option>
+                    <option value="MONTHLY">{unitLabel('MONTHLY', state.interval)}</option>
+                    <option value="YEARLY">{unitLabel('YEARLY', state.interval)}</option>
                 </select>
-                {state.freq !== '' && (
-                    <label className="recur-interval">
-                        every
-                        <input className="tag-name-input recur-interval-num" type="number" min={MIN_INTERVAL}
-                               value={state.interval}
-                               onChange={(e) => update({interval: Math.max(MIN_INTERVAL, Number(e.target.value) || MIN_INTERVAL)})}/>
-                        {intervalUnit(state.freq, state.interval)}
-                    </label>
-                )}
             </div>
 
             {showPattern && facts && (

@@ -2014,6 +2014,16 @@
     width: 64px;
 }
 
+.recur-first {
+    align-items: center;
+}
+
+.recur-label {
+    font-size: 13px;
+    color: var(--text-dim);
+    white-space: nowrap;
+}
+
 .recur-weekdays {
     display: flex;
     flex-wrap: wrap;
