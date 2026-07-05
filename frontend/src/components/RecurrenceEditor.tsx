@@ -2,7 +2,8 @@
 // state and calls onChange with the rebuilt rule, re-syncing from the value only when a different rule
 // arrives, because the rule string cannot represent every intermediate choice (an end-on-date with no
 // date picked yet). It covers the common calendar cases (daily; weekly on chosen weekdays; monthly or
-// yearly on a day-of-month or an Nth weekday derived from the event start; an interval; and an end of
+// yearly on a day-of-month or an Nth weekday derived from the event start; monthly presets for the last
+// day, first weekday or last weekday of the month using BYSETPOS/BYMONTHDAY; an interval; and an end of
 // never, after a count, or on a date). Rarer rule parts are not offered but are preserved only if the
 // parent does not overwrite them, so this editor is used for app-authored rules; the monthly and yearly
 // weekday patterns are recomputed from the event start rather than preserved verbatim.
@@ -41,9 +42,23 @@ const DAY_CODES = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA']
 
 type Frequency = '' | 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'YEARLY'
 type EndMode = 'never' | 'count' | 'until'
-// MonthPattern selects how a monthly or yearly rule lands: on the same day-of-month, or on the same
-// ordinal weekday (the third Tuesday, the last Friday) derived from the event start.
-type MonthPattern = 'day' | 'weekday'
+// MonthPattern selects how a monthly or yearly rule lands. The first two derive from the event start:
+// the same day-of-month, or the same ordinal weekday (the third Tuesday, the last Friday). The last
+// three are absolute monthly presets built with BYSETPOS/BYMONTHDAY: the last day, the first weekday
+// (Mon-Fri) and the last weekday of the month.
+type MonthPattern = 'day' | 'weekday' | 'lastDay' | 'firstWeekday' | 'lastWeekday'
+
+// MONTH_PRESETS are the MonthPattern values that do not derive from the event start; they are offered
+// only for monthly rules and reset when the frequency becomes yearly.
+const MONTH_PRESETS: MonthPattern[] = ['lastDay', 'firstWeekday', 'lastWeekday']
+
+// WEEKDAY_SET is the Monday-to-Friday BYDAY list a first/last-weekday preset pairs with a BYSETPOS.
+const WEEKDAY_SET = ['MO', 'TU', 'WE', 'TH', 'FR']
+
+// isWeekdaySet reports whether a BYDAY list is exactly the Monday-to-Friday set, in any order.
+function isWeekdaySet(byday: string[]): boolean {
+    return byday.length === WEEKDAY_SET.length && WEEKDAY_SET.every((d) => byday.includes(d))
+}
 
 interface RuleState {
     freq: Frequency
@@ -98,6 +113,8 @@ function parseRule(value: string): RuleState {
     }
     const trimmed = value.trim().replace(/^RRULE:/i, '')
     if (trimmed === '') return state
+    let bysetpos = ''
+    let bymonthday = ''
     for (const part of trimmed.split(';')) {
         const [rawKey, rawValue] = part.split('=')
         const key = (rawKey || '').toUpperCase()
@@ -105,6 +122,8 @@ function parseRule(value: string): RuleState {
         if (key === 'FREQ') state.freq = val.toUpperCase() as Frequency
         else if (key === 'INTERVAL') state.interval = Math.max(MIN_INTERVAL, parseInt(val, 10) || MIN_INTERVAL)
         else if (key === 'BYDAY') state.byday = val.split(',').map((d) => d.toUpperCase()).filter(Boolean)
+        else if (key === 'BYSETPOS') bysetpos = val.trim()
+        else if (key === 'BYMONTHDAY') bymonthday = val.trim()
         else if (key === 'COUNT') {
             state.endMode = 'count'
             state.count = Math.max(1, parseInt(val, 10) || DEFAULT_COUNT)
@@ -113,8 +132,12 @@ function parseRule(value: string): RuleState {
             state.until = untilToDateInput(val)
         }
     }
-    // A BYDAY carrying an ordinal (3TU, -1FR) means the monthly or yearly weekday pattern.
-    if (state.byday.some((d) => /\d/.test(d))) state.pattern = 'weekday'
+    // The absolute monthly presets (BYMONTHDAY=-1, or a weekday set with BYSETPOS) take precedence; then a
+    // BYDAY carrying an ordinal (3TU, -1FR) means the start-derived weekday pattern.
+    if (bymonthday === '-1') state.pattern = 'lastDay'
+    else if (bysetpos === '1' && isWeekdaySet(state.byday)) state.pattern = 'firstWeekday'
+    else if (bysetpos === '-1' && isWeekdaySet(state.byday)) state.pattern = 'lastWeekday'
+    else if (state.byday.some((d) => /\d/.test(d))) state.pattern = 'weekday'
     return state
 }
 
@@ -142,6 +165,9 @@ function buildRule(state: RuleState, facts: StartFacts | undefined): string {
     if (state.freq === 'WEEKLY' && state.byday.length > 0) parts.push(`BYDAY=${state.byday.join(',')}`)
     if (state.freq === 'MONTHLY' && facts) {
         if (state.pattern === 'weekday') parts.push(`BYDAY=${facts.ordinal}${facts.weekday}`)
+        else if (state.pattern === 'lastDay') parts.push('BYMONTHDAY=-1')
+        else if (state.pattern === 'firstWeekday') parts.push(`BYDAY=${WEEKDAY_SET.join(',')}`, 'BYSETPOS=1')
+        else if (state.pattern === 'lastWeekday') parts.push(`BYDAY=${WEEKDAY_SET.join(',')}`, 'BYSETPOS=-1')
         else parts.push(`BYMONTHDAY=${facts.day}`)
     }
     if (state.freq === 'YEARLY' && facts && state.pattern === 'weekday') {
@@ -225,6 +251,11 @@ export function RecurrenceEditor({value, onChange, startDate}: RecurrenceEditorP
     // minimum. yyyy-mm-dd strings compare correctly as text.
     const changeUntil = (value: string) => update({until: value < minUntil ? minUntil : value})
 
+    // changeFreq switches the frequency, resetting an absolute monthly preset when moving to yearly (where
+    // those presets are not offered) so the rule never carries a pattern the yearly builder would ignore.
+    const changeFreq = (freq: Frequency) =>
+        freq === 'YEARLY' && MONTH_PRESETS.includes(state.pattern) ? update({freq, pattern: 'day'}) : update({freq})
+
     const showPattern = (state.freq === 'MONTHLY' || state.freq === 'YEARLY') && facts !== undefined
 
     return (
@@ -239,7 +270,7 @@ export function RecurrenceEditor({value, onChange, startDate}: RecurrenceEditorP
                     </>
                 )}
                 <select className="tag-name-input" aria-label="Repeat" value={state.freq}
-                        onChange={(e) => update({freq: e.target.value as Frequency})}>
+                        onChange={(e) => changeFreq(e.target.value as Frequency)}>
                     <option value="">Does not repeat</option>
                     <option value="DAILY">{unitLabel('DAILY', state.interval)}</option>
                     <option value="WEEKLY">{unitLabel('WEEKLY', state.interval)}</option>
@@ -253,6 +284,13 @@ export function RecurrenceEditor({value, onChange, startDate}: RecurrenceEditorP
                         onChange={(e) => update({pattern: e.target.value as MonthPattern})}>
                     <option value="day">{patternDayLabel(state.freq, facts)}</option>
                     <option value="weekday">{patternWeekdayLabel(state.freq, facts)}</option>
+                    {state.freq === 'MONTHLY' && (
+                        <>
+                            <option value="lastDay">On the last day of the month</option>
+                            <option value="firstWeekday">On the first weekday of the month</option>
+                            <option value="lastWeekday">On the last weekday of the month</option>
+                        </>
+                    )}
                 </select>
             )}
 
