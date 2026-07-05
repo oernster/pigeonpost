@@ -313,3 +313,8 @@ so it exits without re-showing that prompt, since it drives the same close path.
 UI-framework dependency, the tray's Open and menu items invoke callbacks supplied by the `App` facade,
 which reopen the window (`WindowShow`), emit `menu:*` Wails events the front end turns into the same
 dialogs the in-window Help menu opens, or quit.
+
+Only one PigeonPost runs per user, enforced by Wails' `SingleInstanceLock` (a named mutex on Windows).
+A second launch does not open a new window: the running instance's `OnSecondInstanceLaunch` reveals its
+window through the same `WindowShow`/`WindowUnminimise` path the tray uses, so relaunching an app hidden
+in the tray simply brings it back.

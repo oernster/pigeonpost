@@ -4,6 +4,7 @@ import (
 	"context"
 	"sync/atomic"
 
+	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 
 	"github.com/oernster/pigeonpost/internal/application"
@@ -15,6 +16,10 @@ const (
 	closeDialogMinimise = "Minimise to tray"
 	closeDialogQuit     = "Quit"
 )
+
+// singleInstanceID names the per-user lock that keeps only one PigeonPost running; a second launch
+// signals this instance to reveal itself instead of starting its own window.
+const singleInstanceID = "uk.codecrafter.pigeonpost"
 
 // UnreadNotifier reflects the total unread count onto an out-of-window surface, namely the Windows
 // taskbar overlay badge. It is injected so the facade stays decoupled from the OS-specific
@@ -101,7 +106,7 @@ func (a *App) startup(ctx context.Context) {
 		a.tray.Start(taskbar.TrayActions{
 			// Open must go through the Wails runtime, not a Win32 window search: when the window is hidden
 			// to the tray it is no longer a findable visible window.
-			Open:         func() { runtime.WindowShow(ctx); runtime.WindowUnminimise(ctx) },
+			Open:         func() { a.revealWindow() },
 			About:        func() { runtime.EventsEmit(ctx, "menu:about") },
 			Licence:      func() { runtime.EventsEmit(ctx, "menu:licence") },
 			CheckUpdates: func() { runtime.EventsEmit(ctx, "menu:check-updates") },
@@ -143,6 +148,19 @@ func (a *App) beforeClose(ctx context.Context) bool {
 func (a *App) quit() {
 	a.quitting.Store(true)
 	runtime.Quit(a.ctx)
+}
+
+// onSecondInstance runs in the already-running instance when the user launches PigeonPost again. Rather
+// than start a second window, it reveals this one, which may be hidden in the tray or minimised.
+func (a *App) onSecondInstance(options.SecondInstanceData) {
+	a.revealWindow()
+}
+
+// revealWindow brings the window back into view: it un-hides it (it may be hidden to the tray) and
+// un-minimises it. Used by the tray's Open action and by a second launch.
+func (a *App) revealWindow() {
+	runtime.WindowShow(a.ctx)
+	runtime.WindowUnminimise(a.ctx)
 }
 
 // shutdown releases infrastructure resources when the window closes, removing the tray icon first.

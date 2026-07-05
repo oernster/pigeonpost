@@ -103,6 +103,12 @@ func run() error {
 		Height:           windowH,
 		AssetServer:      &assetserver.Options{Assets: assets},
 		BackgroundColour: &options.RGBA{R: 22, G: 27, B: 34, A: 1},
+		// Only one PigeonPost runs per user; a second launch reveals the existing instance (which may be
+		// hidden in the tray) rather than opening a new window.
+		SingleInstanceLock: &options.SingleInstanceLock{
+			UniqueId:               singleInstanceID,
+			OnSecondInstanceLaunch: app.onSecondInstance,
+		},
 		// Clicking the window's close button asks whether to minimise to the tray or quit, so the reminder
 		// scheduler and mail sync can keep running in the background; see App.beforeClose.
 		OnBeforeClose: app.beforeClose,
