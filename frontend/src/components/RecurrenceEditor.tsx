@@ -1,9 +1,11 @@
 // RecurrenceEditor is a friendly builder for an RFC 5545 RRULE string. It holds the choices in local
 // state and calls onChange with the rebuilt rule, re-syncing from the value only when a different rule
 // arrives, because the rule string cannot represent every intermediate choice (an end-on-date with no
-// date picked yet). It covers the common calendar cases (daily, weekly with weekdays, monthly, yearly; an
-// interval; and an end of never, after a count, or on a date); rarer rule parts are not offered but are
-// preserved only if the parent does not overwrite them, so this editor is used for app-authored rules.
+// date picked yet). It covers the common calendar cases (daily; weekly on chosen weekdays; monthly or
+// yearly on a day-of-month or an Nth weekday derived from the event start; an interval; and an end of
+// never, after a count, or on a date). Rarer rule parts are not offered but are preserved only if the
+// parent does not overwrite them, so this editor is used for app-authored rules; the monthly and yearly
+// weekday patterns are recomputed from the event start rather than preserved verbatim.
 import {useEffect, useRef, useState} from 'react'
 import {PickerButton} from './PickerButton'
 
@@ -26,35 +28,67 @@ const WEEKDAYS: {code: string; label: string}[] = [
     {code: 'SU', label: 'Sun'},
 ]
 
+const WEEKDAY_NAMES: Record<string, string> = {
+    MO: 'Monday', TU: 'Tuesday', WE: 'Wednesday', TH: 'Thursday', FR: 'Friday', SA: 'Saturday', SU: 'Sunday',
+}
+
+const MONTH_NAMES = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December',
+]
+
+// ORDINAL_WORDS names the position of a weekday within the month; -1 is the last occurrence of that day.
+const ORDINAL_WORDS: Record<number, string> = {1: 'first', 2: 'second', 3: 'third', 4: 'fourth', [-1]: 'last'}
+
 const DEFAULT_COUNT = 10
 const MIN_INTERVAL = 1
+const DAYS_PER_WEEK = 7
 
-// DAY_CODES maps JavaScript's getDay() (0 = Sunday) to the RFC 5545 weekday code, so the event's start
-// weekday can be shown as the default selection.
+// DAY_CODES maps JavaScript's getDay() (0 = Sunday) to the RFC 5545 weekday code.
 const DAY_CODES = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA']
 
 type Frequency = '' | 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'YEARLY'
 type EndMode = 'never' | 'count' | 'until'
+// MonthPattern selects how a monthly or yearly rule lands: on the same day-of-month, or on the same
+// ordinal weekday (the third Tuesday, the last Friday) derived from the event start.
+type MonthPattern = 'day' | 'weekday'
 
 interface RuleState {
     freq: Frequency
     interval: number
     byday: string[]
+    pattern: MonthPattern
     endMode: EndMode
     count: number
     until: string
+}
+
+// StartFacts are the parts of the event start a monthly or yearly rule needs: the day-of-month, the
+// month, the weekday code and the ordinal of that weekday within the month (-1 when it is the last).
+interface StartFacts {
+    day: number
+    month: number
+    weekday: string
+    ordinal: number
 }
 
 function pad(n: number): string {
     return n < 10 ? '0' + n : String(n)
 }
 
-// weekdayOf returns the RFC 5545 weekday code of a date-or-date-time input value, built from a local date
-// so the weekday does not shift with the timezone. It is undefined when the input has no date part.
-function weekdayOf(input: string): string | undefined {
+// startFactsOf derives the recurrence anchors from a date-or-date-time input value, built from a local
+// date so nothing shifts with the timezone. It is undefined when the input has no date part.
+function startFactsOf(input: string): StartFacts | undefined {
     const match = input.match(/^(\d{4})-(\d{2})-(\d{2})/)
     if (!match) return undefined
-    return DAY_CODES[new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3])).getDay()]
+    const year = Number(match[1])
+    const month = Number(match[2])
+    const day = Number(match[3])
+    const weekday = DAY_CODES[new Date(year, month - 1, day).getDay()]
+    const daysInMonth = new Date(year, month, 0).getDate()
+    const nth = Math.ceil(day / DAYS_PER_WEEK)
+    const isLast = day + DAYS_PER_WEEK > daysInMonth
+    return {day, month, weekday, ordinal: isLast ? -1 : nth}
 }
 
 // tomorrowInput is the earliest date the series may end on: tomorrow, as a yyyy-mm-dd input value. An end
@@ -67,7 +101,9 @@ function tomorrowInput(): string {
 
 // parseRule turns an RRULE value into editor state, defaulting the parts the rule does not specify.
 function parseRule(value: string): RuleState {
-    const state: RuleState = {freq: '', interval: MIN_INTERVAL, byday: [], endMode: 'never', count: DEFAULT_COUNT, until: ''}
+    const state: RuleState = {
+        freq: '', interval: MIN_INTERVAL, byday: [], pattern: 'day', endMode: 'never', count: DEFAULT_COUNT, until: '',
+    }
     const trimmed = value.trim().replace(/^RRULE:/i, '')
     if (trimmed === '') return state
     for (const part of trimmed.split(';')) {
@@ -85,6 +121,8 @@ function parseRule(value: string): RuleState {
             state.until = untilToDateInput(val)
         }
     }
+    // A BYDAY carrying an ordinal (3TU, -1FR) means the monthly or yearly weekday pattern.
+    if (state.byday.some((d) => /\d/.test(d))) state.pattern = 'weekday'
     return state
 }
 
@@ -103,12 +141,21 @@ function dateInputToUntil(value: string): string {
 }
 
 // buildRule renders editor state back into an RRULE value, or an empty string when the event does not
-// repeat.
-function buildRule(state: RuleState): string {
+// repeat. The monthly and yearly patterns are derived from the event start (facts), so they are omitted
+// when the start is unknown.
+function buildRule(state: RuleState, facts: StartFacts | undefined): string {
     if (state.freq === '') return ''
     const parts = [`FREQ=${state.freq}`]
     if (state.interval > MIN_INTERVAL) parts.push(`INTERVAL=${state.interval}`)
     if (state.freq === 'WEEKLY' && state.byday.length > 0) parts.push(`BYDAY=${state.byday.join(',')}`)
+    if (state.freq === 'MONTHLY' && facts) {
+        if (state.pattern === 'weekday') parts.push(`BYDAY=${facts.ordinal}${facts.weekday}`)
+        else parts.push(`BYMONTHDAY=${facts.day}`)
+    }
+    if (state.freq === 'YEARLY' && facts && state.pattern === 'weekday') {
+        parts.push(`BYMONTH=${facts.month}`)
+        parts.push(`BYDAY=${facts.ordinal}${facts.weekday}`)
+    }
     if (state.endMode === 'count' && state.count > 0) parts.push(`COUNT=${state.count}`)
     else if (state.endMode === 'until' && state.until !== '') parts.push(`UNTIL=${dateInputToUntil(state.until)}`)
     return parts.join(';')
@@ -120,46 +167,44 @@ function intervalUnit(freq: Frequency, interval: number): string {
     return interval === 1 ? unit : `${unit}s`
 }
 
+// patternDayLabel and patternWeekdayLabel describe the two monthly or yearly choices in plain English.
+function patternDayLabel(freq: Frequency, facts: StartFacts): string {
+    return freq === 'YEARLY' ? `On ${MONTH_NAMES[facts.month - 1]} ${facts.day}` : `On day ${facts.day}`
+}
+
+function patternWeekdayLabel(freq: Frequency, facts: StartFacts): string {
+    const base = `On the ${ORDINAL_WORDS[facts.ordinal]} ${WEEKDAY_NAMES[facts.weekday]}`
+    return freq === 'YEARLY' ? `${base} of ${MONTH_NAMES[facts.month - 1]}` : base
+}
+
 interface RecurrenceEditorProps {
     value: string
     onChange: (rule: string) => void
-    // startDate is the event's start (a date or date-time input value). A weekly rule with no weekday
-    // chosen repeats on this weekday, so it is shown as the default selection.
+    // startDate is the event's start (a date or date-time input value). Weekly rules default to its
+    // weekday, and monthly and yearly rules anchor their day and ordinal to it.
     startDate: string
 }
 
 export function RecurrenceEditor({value, onChange, startDate}: RecurrenceEditorProps) {
     const [state, setState] = useState<RuleState>(() => parseRule(value))
-
-    // Re-sync only when a genuinely different rule arrives (a different event opened). The rule string
-    // cannot represent "ends on a date that has not been picked yet" (an until with no date builds a rule
-    // with no UNTIL), so deriving state from the rule every render would snap that choice back to "never".
-    // Holding it in state keeps the selection until the user picks a date. buildRule(state) equals the last
-    // value we emitted, so our own edits never trigger a resync.
-    useEffect(() => {
-        if (value !== buildRule(state)) setState(parseRule(value))
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [value])
-
     const untilRef = useRef<HTMLInputElement>(null)
     const minUntil = tomorrowInput()
+    const facts = startFactsOf(startDate)
+
+    // Re-sync only when a genuinely different rule arrives (a different event opened). The rule string
+    // cannot represent every intermediate choice (an until with no date yet, a pattern with no start), so
+    // deriving state from the rule every render would drop those. buildRule(state) equals the last value
+    // we emitted, so our own edits never trigger a resync.
+    useEffect(() => {
+        if (value !== buildRule(state, facts)) setState(parseRule(value))
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [value])
 
     const update = (patch: Partial<RuleState>) => {
         const next = {...state, ...patch}
         setState(next)
-        onChange(buildRule(next))
+        onChange(buildRule(next, facts))
     }
-
-    // changeEndMode switches how the series ends. Choosing an end date with none set yet seeds a valid
-    // future default so the rule carries an UNTIL immediately and the picker opens on a sensible day.
-    const changeEndMode = (mode: EndMode) => {
-        if (mode === 'until' && state.until === '') update({endMode: mode, until: minUntil})
-        else update({endMode: mode})
-    }
-
-    // changeUntil keeps the chosen end date in the future, clamping an earlier or cleared value up to the
-    // minimum. yyyy-mm-dd strings compare correctly as text.
-    const changeUntil = (value: string) => update({until: value < minUntil ? minUntil : value})
 
     const toggleDay = (code: string) => {
         const next = state.byday.includes(code)
@@ -172,8 +217,21 @@ export function RecurrenceEditor({value, onChange, startDate}: RecurrenceEditorP
 
     // With no weekday chosen, a weekly rule repeats on the event's start weekday, so that day is shown as
     // the active default until the user picks explicit days.
-    const defaultDay = weekdayOf(startDate)
-    const dayActive = (code: string) => state.byday.includes(code) || (state.byday.length === 0 && code === defaultDay)
+    const dayActive = (code: string) =>
+        state.byday.includes(code) || (state.byday.length === 0 && code === facts?.weekday)
+
+    // changeEndMode switches how the series ends. Choosing an end date with none set yet seeds a valid
+    // future default so the rule carries an UNTIL immediately and the picker opens on a sensible day.
+    const changeEndMode = (mode: EndMode) => {
+        if (mode === 'until' && state.until === '') update({endMode: mode, until: minUntil})
+        else update({endMode: mode})
+    }
+
+    // changeUntil keeps the chosen end date in the future, clamping an earlier or cleared value up to the
+    // minimum. yyyy-mm-dd strings compare correctly as text.
+    const changeUntil = (value: string) => update({until: value < minUntil ? minUntil : value})
+
+    const showPattern = (state.freq === 'MONTHLY' || state.freq === 'YEARLY') && facts !== undefined
 
     return (
         <div className="recurrence-editor">
@@ -192,6 +250,14 @@ export function RecurrenceEditor({value, onChange, startDate}: RecurrenceEditorP
                     </label>
                 )}
             </div>
+
+            {showPattern && facts && (
+                <select className="tag-name-input" aria-label="Repeat pattern" value={state.pattern}
+                        onChange={(e) => update({pattern: e.target.value as MonthPattern})}>
+                    <option value="day">{patternDayLabel(state.freq, facts)}</option>
+                    <option value="weekday">{patternWeekdayLabel(state.freq, facts)}</option>
+                </select>
+            )}
 
             {state.freq === 'WEEKLY' && (
                 <div className="recur-weekdays">
