@@ -2119,3 +2119,80 @@
     text-align: left;
     cursor: pointer;
 }
+
+/* Contact-group filter bar: compact chips that filter the address book by group, plus the group
+   management actions. Chips wrap, and the spacer pushes the management actions to the right. */
+.cg-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    margin: 10px 0;
+}
+
+.cg-chip {
+    border: 1px solid var(--border);
+    background: var(--bg-elev);
+    color: var(--text);
+    border-radius: 999px;
+    padding: 4px 12px;
+    font-size: 13px;
+    font-family: inherit;
+    cursor: pointer;
+}
+
+.cg-chip:enabled:hover {
+    border-color: var(--accent);
+}
+
+.cg-chip.active {
+    background: var(--accent);
+    color: var(--accent-ink);
+    border-color: var(--accent);
+}
+
+.cg-bar-spacer {
+    flex: 1;
+}
+
+/* Member picker: a scrollable checkbox list of contacts shown when creating or editing a group. */
+.cg-members {
+    max-height: 220px;
+    overflow-y: auto;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px;
+    margin: 8px 0;
+}
+
+.cg-member {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 6px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+}
+
+.cg-member:hover {
+    background: var(--bg-elev-2);
+}
+
+/* Calendar colour swatch shown on a calendar chip, and the colour picker in the calendar editor. */
+.cal-swatch {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    margin-right: 6px;
+    vertical-align: middle;
+}
+
+.cal-colour {
+    width: 46px;
+    min-width: 46px;
+    height: 34px;
+    padding: 2px;
+    cursor: pointer;
+}

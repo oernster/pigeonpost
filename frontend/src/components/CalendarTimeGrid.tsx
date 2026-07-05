@@ -90,6 +90,7 @@ function allDayFor(day: Date, events: CalendarEvent[]): CalendarEvent[] {
 interface CalendarTimeGridProps {
     days: Date[]
     events: CalendarEvent[]
+    colourOf: (e: CalendarEvent) => string
     onNewAt: (start: Date) => void
     onEdit: (e: CalendarEvent) => void
 }
@@ -97,7 +98,7 @@ interface CalendarTimeGridProps {
 // CalendarTimeGrid renders a Thunderbird-style day or week grid: an hour gutter, a pinned all-day strip and
 // one column per day with timed events positioned and sized by their start and end. Clicking empty space
 // creates an event snapped to the nearest half hour; clicking an event edits it.
-export function CalendarTimeGrid({days, events, onNewAt, onEdit}: CalendarTimeGridProps) {
+export function CalendarTimeGrid({days, events, colourOf, onNewAt, onEdit}: CalendarTimeGridProps) {
     const bodyRef = useRef<HTMLDivElement>(null)
     useEffect(() => {
         if (bodyRef.current) bodyRef.current.scrollTop = DEFAULT_SCROLL_HOUR * HOUR_ROW_PX
@@ -135,6 +136,7 @@ export function CalendarTimeGrid({days, events, onNewAt, onEdit}: CalendarTimeGr
                             <div key={i} className="tg-allday-col">
                                 {allDayFor(d, events).map((e) => (
                                     <button key={e.id} className="tg-allday-ev" title={e.summary}
+                                            style={{borderLeft: `3px solid ${colourOf(e)}`}}
                                             onClick={() => onEdit(e)}>{e.summary}</button>
                                 ))}
                             </div>
@@ -162,7 +164,8 @@ export function CalendarTimeGrid({days, events, onNewAt, onEdit}: CalendarTimeGr
                                     const left = p.lane * width
                                     return (
                                         <button key={p.e.id} className="tg-event" title={p.e.summary}
-                                                style={{top, height, left: `${left}%`, width: `${width}%`}}
+                                                style={{top, height, left: `${left}%`, width: `${width}%`,
+                                                    borderLeft: `3px solid ${colourOf(p.e)}`}}
                                                 onClick={(evt) => {
                                                     evt.stopPropagation()
                                                     onEdit(p.e)

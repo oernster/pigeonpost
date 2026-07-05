@@ -1,5 +1,5 @@
-import {type RefObject, useRef, useState} from 'react'
-import {api, CalendarEvent, CalendarEventInput} from '../api'
+import {type RefObject, useEffect, useRef, useState} from 'react'
+import {api, Calendar, CalendarEvent, CalendarEventInput} from '../api'
 import {ModalClose} from './ModalClose'
 import {ConfirmDialog} from './ConfirmDialog'
 import {CalendarTimeGrid} from './CalendarTimeGrid'
@@ -7,6 +7,8 @@ import {useBackdropDismiss} from './useBackdropDismiss'
 
 const DAYS_IN_WEEK = 7
 const HOURS_PER_EVENT = 1
+// DEFAULT_EVENT_COLOUR marks events not assigned to a calendar (or whose calendar has no colour).
+const DEFAULT_EVENT_COLOUR = '#7fb0ff'
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 const WEEKDAYS_FULL = [
     'Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday',
@@ -121,6 +123,55 @@ export function CalendarModal({events, onChanged, onClose}: CalendarModalProps) 
     const [error, setError] = useState('')
     const [status, setStatus] = useState('')
     const [busy, setBusy] = useState(false)
+    const [calendars, setCalendars] = useState<Calendar[]>([])
+    const [managingCals, setManagingCals] = useState(false)
+    const [calForm, setCalForm] = useState<{id: string; name: string; colour: string} | null>(null)
+    const [pendingCalDelete, setPendingCalDelete] = useState<Calendar | null>(null)
+
+    const reloadCalendars = () =>
+        void api.listCalendars().then(setCalendars).catch((e) => setError(String(e)))
+    useEffect(() => {
+        reloadCalendars()
+    }, [])
+
+    // colourOf resolves an event's colour from its calendar, falling back to the default for events with
+    // no calendar. The map is rebuilt each render, which is cheap for the handful of calendars a user has.
+    const colourById = new Map(calendars.map((c) => [c.id, c.colour || DEFAULT_EVENT_COLOUR]))
+    const colourOf = (e: CalendarEvent) => colourById.get(e.calendarId) ?? DEFAULT_EVENT_COLOUR
+    const defaultCalendarId = () => calendars[0]?.id ?? ''
+
+    const saveCal = async () => {
+        if (!calForm || calForm.name.trim() === '') return
+        setBusy(true)
+        setError('')
+        try {
+            await api.saveCalendar({id: calForm.id, name: calForm.name.trim(), colour: calForm.colour})
+            setCalForm(null)
+            reloadCalendars()
+        } catch (e) {
+            setError(String(e))
+        } finally {
+            setBusy(false)
+        }
+    }
+
+    const confirmCalDelete = async () => {
+        if (!pendingCalDelete) return
+        setBusy(true)
+        setError('')
+        try {
+            // Deleting a calendar deletes its events too, so refresh the event list as well.
+            await api.deleteCalendar(pendingCalDelete.id)
+            if (calForm && calForm.id === pendingCalDelete.id) setCalForm(null)
+            setPendingCalDelete(null)
+            reloadCalendars()
+            onChanged()
+        } catch (e) {
+            setError(String(e))
+        } finally {
+            setBusy(false)
+        }
+    }
 
     const cells = monthCells(viewDate)
     const dated = events.map((e) => ({e, start: new Date(e.start)}))
@@ -134,7 +185,7 @@ export function CalendarModal({events, onChanged, onClose}: CalendarModalProps) 
         const end = new Date(start)
         end.setHours(10, 0, 0, 0)
         setForm({
-            id: '', uid: '', calendarId: '', summary: '', description: '', location: '',
+            id: '', uid: '', calendarId: defaultCalendarId(), summary: '', description: '', location: '',
             allDay: false, start: dateTimeInput(start), end: dateTimeInput(end), recurrence: '',
         })
     }
@@ -144,7 +195,7 @@ export function CalendarModal({events, onChanged, onClose}: CalendarModalProps) 
         const end = new Date(start)
         end.setHours(start.getHours() + HOURS_PER_EVENT)
         setForm({
-            id: '', uid: '', calendarId: '', summary: '', description: '', location: '',
+            id: '', uid: '', calendarId: defaultCalendarId(), summary: '', description: '', location: '',
             allDay: false, start: dateTimeInput(start), end: dateTimeInput(end), recurrence: '',
         })
     }
@@ -273,6 +324,7 @@ export function CalendarModal({events, onChanged, onClose}: CalendarModalProps) 
                         ))}
                     </span>
                     <span className="cal-spacer"/>
+                    <button className="btn" onClick={() => setManagingCals(true)}>Calendars</button>
                     <button className="btn" onClick={() => void doImport()}>Import…</button>
                     <button className="btn" onClick={() => void doExport()} disabled={events.length === 0}>Export ICS</button>
                 </div>
@@ -292,6 +344,7 @@ export function CalendarModal({events, onChanged, onClose}: CalendarModalProps) 
                                             }}>{day.getDate()}</button>
                                     {dayEvents.map((p) => (
                                         <button key={p.e.id} className="cal-event" title={p.e.summary}
+                                                style={{borderLeft: `3px solid ${colourOf(p.e)}`}}
                                                 onClick={(ev) => {
                                                     ev.stopPropagation()
                                                     openEdit(p.e)
@@ -307,6 +360,7 @@ export function CalendarModal({events, onChanged, onClose}: CalendarModalProps) 
                     <CalendarTimeGrid
                         days={viewMode === 'week' ? weekDays(viewDate) : [viewDate]}
                         events={events}
+                        colourOf={colourOf}
                         onNewAt={openAt}
                         onEdit={openEdit}
                     />
@@ -327,6 +381,15 @@ export function CalendarModal({events, onChanged, onClose}: CalendarModalProps) 
                         <div className="rule-form">
                             <input className="tag-name-input" placeholder="Event title" value={form.summary} autoFocus
                                    onChange={(e) => set('summary', e.target.value)}/>
+                            {calendars.length > 0 && (
+                                <select className="tag-name-input" aria-label="Calendar" value={form.calendarId}
+                                        onChange={(e) => set('calendarId', e.target.value)}>
+                                    <option value="">No calendar</option>
+                                    {calendars.map((c) => (
+                                        <option key={c.id} value={c.id}>{c.name}</option>
+                                    ))}
+                                </select>
+                            )}
                             <label className="cal-allday">
                                 <input type="checkbox" checked={form.allDay}
                                        onChange={(e) => set('allDay', e.target.checked)}/> All day
@@ -379,6 +442,78 @@ export function CalendarModal({events, onChanged, onClose}: CalendarModalProps) 
                     busy={busy}
                     onConfirm={() => void confirmDelete()}
                     onCancel={() => setPendingDelete(null)}
+                />
+            )}
+
+            {managingCals && (
+                <div className="modal-backdrop">
+                    <div className="modal event-form" role="dialog" aria-label="Calendars"
+                         onClick={(e) => e.stopPropagation()}>
+                        <ModalClose onClose={() => {
+                            setManagingCals(false)
+                            setCalForm(null)
+                        }}/>
+                        <h2 className="modal-title">Calendars</h2>
+                        <p className="setup-hint">Calendars group your events and colour them across every view.</p>
+                        <div className="cg-bar">
+                            {calendars.map((c) => (
+                                <button key={c.id} className="cg-chip"
+                                        onClick={() => setCalForm({id: c.id, name: c.name, colour: c.colour || DEFAULT_EVENT_COLOUR})}>
+                                    <span className="cal-swatch" style={{background: c.colour || DEFAULT_EVENT_COLOUR}}/>
+                                    {c.name}
+                                </button>
+                            ))}
+                            <button className="cg-chip"
+                                    onClick={() => setCalForm({id: '', name: '', colour: DEFAULT_EVENT_COLOUR})}>
+                                + New calendar
+                            </button>
+                        </div>
+                        {calForm && (
+                            <div className="rule-form">
+                                <div className="rule-form-row">
+                                    <input type="color" className="cal-colour" aria-label="Calendar colour"
+                                           value={calForm.colour}
+                                           onChange={(e) => setCalForm((cf) => cf ? {...cf, colour: e.target.value} : cf)}/>
+                                    <input className="tag-name-input" placeholder="Calendar name" value={calForm.name}
+                                           autoFocus
+                                           onChange={(e) => setCalForm((cf) => cf ? {...cf, name: e.target.value} : cf)}/>
+                                </div>
+                                <div className="modal-actions spread">
+                                    <span>
+                                        {calForm.id && (
+                                            <button className="btn danger" onClick={() => {
+                                                const c = calendars.find((x) => x.id === calForm.id)
+                                                if (c) setPendingCalDelete(c)
+                                            }}>Delete</button>
+                                        )}
+                                    </span>
+                                    <span className="cal-form-actions">
+                                        <button className="btn" onClick={() => setCalForm(null)}>Cancel</button>
+                                        <button className="btn primary" onClick={() => void saveCal()}
+                                                disabled={busy || calForm.name.trim() === ''}>
+                                            {busy ? 'Saving…' : (calForm.id ? 'Save calendar' : 'Add calendar')}
+                                        </button>
+                                    </span>
+                                </div>
+                            </div>
+                        )}
+                        {!calForm && (
+                            <div className="modal-actions spread">
+                                <button className="btn" onClick={() => setManagingCals(false)}>Done</button>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+
+            {pendingCalDelete && (
+                <ConfirmDialog
+                    title="Delete calendar"
+                    message={`Delete the calendar "${pendingCalDelete.name}"? Its events are deleted too. This cannot be undone.`}
+                    confirmLabel="Delete"
+                    busy={busy}
+                    onConfirm={() => void confirmCalDelete()}
+                    onCancel={() => setPendingCalDelete(null)}
                 />
             )}
         </div>

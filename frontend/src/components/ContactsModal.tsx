@@ -1,5 +1,5 @@
-import {useState} from 'react'
-import {api, Contact, ContactInput, ContactEmailInput, ContactPhoneInput} from '../api'
+import {useEffect, useState} from 'react'
+import {api, Contact, ContactInput, ContactEmailInput, ContactPhoneInput, ContactGroup, ContactGroupInput} from '../api'
 import {useBackdropDismiss} from './useBackdropDismiss'
 import {ModalClose} from './ModalClose'
 import {ConfirmDialog} from './ConfirmDialog'
@@ -26,6 +26,13 @@ interface ContactForm {
 const emptyForm: ContactForm = {
     id: '', uid: '', formattedName: '', givenName: '', familyName: '',
     organization: '', title: '', note: '', emails: [], phones: [],
+}
+
+// GroupForm backs the group editor: a name and the ids of the contacts in the group (a mailing list).
+interface GroupForm {
+    id: string
+    name: string
+    members: string[]
 }
 
 // displayNameOf derives the vCard formatted name (FN), which is required for export and used as the list
@@ -66,6 +73,79 @@ export function ContactsModal({contacts, onChanged, onClose}: ContactsModalProps
 
     const set = <K extends keyof ContactForm>(key: K, value: ContactForm[K]) =>
         setForm((f) => (f ? {...f, [key]: value} : f))
+
+    const [groups, setGroups] = useState<ContactGroup[]>([])
+    const [groupFilter, setGroupFilter] = useState('')
+    const [groupForm, setGroupForm] = useState<GroupForm | null>(null)
+    const [pendingGroupDelete, setPendingGroupDelete] = useState<ContactGroup | null>(null)
+
+    const reloadGroups = () =>
+        void api.listContactGroups().then(setGroups).catch((e) => setError(String(e)))
+    useEffect(() => {
+        reloadGroups()
+    }, [])
+
+    const activeGroup = groups.find((g) => g.id === groupFilter) ?? null
+    const shownContacts = activeGroup ? contacts.filter((c) => activeGroup.members.includes(c.id)) : contacts
+    const memberCount = (g: ContactGroup) => contacts.filter((c) => g.members.includes(c.id)).length
+
+    // The contact editor and the group editor are mutually exclusive: opening one closes the other so the
+    // modal never shows two forms at once.
+    const openContact = (c: Contact | null) => {
+        setGroupForm(null)
+        setError('')
+        setForm(c ? formFor(c) : {...emptyForm})
+    }
+
+    const openGroupEditor = (g: ContactGroup | null) => {
+        setForm(null)
+        setError('')
+        setGroupForm(g ? {id: g.id, name: g.name, members: [...g.members]} : {id: '', name: '', members: []})
+    }
+
+    const toggleMember = (id: string) =>
+        setGroupForm((gf) => gf ? {
+            ...gf,
+            members: gf.members.includes(id) ? gf.members.filter((m) => m !== id) : [...gf.members, id],
+        } : gf)
+
+    const saveGroup = async () => {
+        if (!groupForm || groupForm.name.trim() === '') return
+        setBusy(true)
+        setError('')
+        try {
+            const req: ContactGroupInput = {
+                id: groupForm.id,
+                name: groupForm.name.trim(),
+                // Drop any member id whose contact no longer exists, so a deleted contact does not linger.
+                members: groupForm.members.filter((id) => contacts.some((c) => c.id === id)),
+            }
+            await api.saveContactGroup(req)
+            setGroupForm(null)
+            reloadGroups()
+        } catch (e) {
+            setError(String(e))
+        } finally {
+            setBusy(false)
+        }
+    }
+
+    const confirmGroupDelete = async () => {
+        if (!pendingGroupDelete) return
+        setBusy(true)
+        setError('')
+        try {
+            await api.deleteContactGroup(pendingGroupDelete.id)
+            if (groupFilter === pendingGroupDelete.id) setGroupFilter('')
+            if (groupForm && groupForm.id === pendingGroupDelete.id) setGroupForm(null)
+            setPendingGroupDelete(null)
+            reloadGroups()
+        } catch (e) {
+            setError(String(e))
+        } finally {
+            setBusy(false)
+        }
+    }
 
     const save = async () => {
         if (!form) return
@@ -148,16 +228,37 @@ export function ContactsModal({contacts, onChanged, onClose}: ContactsModalProps
                     <button className="btn" onClick={() => void doExport('csv')} disabled={contacts.length === 0}>
                         Export CSV
                     </button>
-                    <button className="btn primary" onClick={() => setForm({...emptyForm})}>New contact</button>
+                    <button className="btn primary" onClick={() => openContact(null)}>New contact</button>
                 </div>
 
-                {contacts.length === 0 ? (
-                    <p className="empty-body">No contacts yet.</p>
+                <div className="cg-bar">
+                    <button className={'cg-chip' + (groupFilter === '' ? ' active' : '')}
+                            onClick={() => setGroupFilter('')}>
+                        All ({contacts.length})
+                    </button>
+                    {groups.map((g) => (
+                        <button key={g.id} className={'cg-chip' + (groupFilter === g.id ? ' active' : '')}
+                                onClick={() => setGroupFilter(g.id)}>
+                            {g.name} ({memberCount(g)})
+                        </button>
+                    ))}
+                    <span className="cg-bar-spacer"/>
+                    {activeGroup && (
+                        <>
+                            <button className="cg-chip" onClick={() => openGroupEditor(activeGroup)}>Edit group</button>
+                            <button className="cg-chip" onClick={() => setPendingGroupDelete(activeGroup)}>Delete group</button>
+                        </>
+                    )}
+                    <button className="cg-chip" onClick={() => openGroupEditor(null)}>+ New group</button>
+                </div>
+
+                {shownContacts.length === 0 ? (
+                    <p className="empty-body">{activeGroup ? 'No contacts in this group yet.' : 'No contacts yet.'}</p>
                 ) : (
                     <ul className="list">
-                        {contacts.map((c) => (
+                        {shownContacts.map((c) => (
                             <li key={c.id} className="list-item">
-                                <span className="item-text" onClick={() => setForm(formFor(c))}>
+                                <span className="item-text" onClick={() => openContact(c)}>
                                     <span className="item-title">{c.formattedName}</span>
                                     <span className="item-sub">
                                         {c.emails && c.emails.length > 0 ? c.emails[0].address : c.organization}
@@ -231,7 +332,35 @@ export function ContactsModal({contacts, onChanged, onClose}: ContactsModalProps
                     </div>
                 )}
 
-                {!form && (
+                {groupForm && (
+                    <div className="rule-form">
+                        <input className="tag-name-input" placeholder="Group name" value={groupForm.name} autoFocus
+                               onChange={(e) => setGroupForm((gf) => gf ? {...gf, name: e.target.value} : gf)}/>
+                        <p className="setup-hint">Choose the contacts in this group.</p>
+                        {contacts.length === 0 ? (
+                            <p className="empty-body">Add contacts first, then group them.</p>
+                        ) : (
+                            <div className="cg-members">
+                                {contacts.map((c) => (
+                                    <label key={c.id} className="cg-member">
+                                        <input type="checkbox" checked={groupForm.members.includes(c.id)}
+                                               onChange={() => toggleMember(c.id)}/>
+                                        <span>{c.formattedName}</span>
+                                    </label>
+                                ))}
+                            </div>
+                        )}
+                        <div className="modal-actions spread">
+                            <button className="btn" onClick={() => setGroupForm(null)}>Cancel</button>
+                            <button className="btn primary" onClick={() => void saveGroup()}
+                                    disabled={busy || groupForm.name.trim() === ''}>
+                                {busy ? 'Saving…' : (groupForm.id ? 'Save group' : 'Create group')}
+                            </button>
+                        </div>
+                    </div>
+                )}
+
+                {!form && !groupForm && (
                     <div className="modal-actions spread">
                         <button className="btn" onClick={onClose}>Close</button>
                     </div>
@@ -246,6 +375,17 @@ export function ContactsModal({contacts, onChanged, onClose}: ContactsModalProps
                     busy={busy}
                     onConfirm={() => void confirmDelete()}
                     onCancel={() => setPendingDelete(null)}
+                />
+            )}
+
+            {pendingGroupDelete && (
+                <ConfirmDialog
+                    title="Delete group"
+                    message={`Delete the group "${pendingGroupDelete.name}"? The contacts themselves are not deleted.`}
+                    confirmLabel="Delete"
+                    busy={busy}
+                    onConfirm={() => void confirmGroupDelete()}
+                    onCancel={() => setPendingGroupDelete(null)}
                 />
             )}
         </div>
