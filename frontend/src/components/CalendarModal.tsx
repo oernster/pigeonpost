@@ -498,7 +498,8 @@ export function CalendarModal({events, onChanged, onClose}: CalendarModalProps) 
                             {form.scope === EventScope.This ? (
                                 <p className="setup-hint">This change applies to this event only.</p>
                             ) : (
-                                <RecurrenceEditor value={form.recurrence} onChange={(r) => set('recurrence', r)}/>
+                                <RecurrenceEditor value={form.recurrence} onChange={(r) => set('recurrence', r)}
+                                                  startDate={form.start}/>
                             )}
                             <div className="modal-actions spread">
                                 <span>

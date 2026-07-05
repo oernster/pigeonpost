@@ -29,6 +29,10 @@ const WEEKDAYS: {code: string; label: string}[] = [
 const DEFAULT_COUNT = 10
 const MIN_INTERVAL = 1
 
+// DAY_CODES maps JavaScript's getDay() (0 = Sunday) to the RFC 5545 weekday code, so the event's start
+// weekday can be shown as the default selection.
+const DAY_CODES = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA']
+
 type Frequency = '' | 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'YEARLY'
 type EndMode = 'never' | 'count' | 'until'
 
@@ -43,6 +47,14 @@ interface RuleState {
 
 function pad(n: number): string {
     return n < 10 ? '0' + n : String(n)
+}
+
+// weekdayOf returns the RFC 5545 weekday code of a date-or-date-time input value, built from a local date
+// so the weekday does not shift with the timezone. It is undefined when the input has no date part.
+function weekdayOf(input: string): string | undefined {
+    const match = input.match(/^(\d{4})-(\d{2})-(\d{2})/)
+    if (!match) return undefined
+    return DAY_CODES[new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3])).getDay()]
 }
 
 // tomorrowInput is the earliest date the series may end on: tomorrow, as a yyyy-mm-dd input value. An end
@@ -111,9 +123,12 @@ function intervalUnit(freq: Frequency, interval: number): string {
 interface RecurrenceEditorProps {
     value: string
     onChange: (rule: string) => void
+    // startDate is the event's start (a date or date-time input value). A weekly rule with no weekday
+    // chosen repeats on this weekday, so it is shown as the default selection.
+    startDate: string
 }
 
-export function RecurrenceEditor({value, onChange}: RecurrenceEditorProps) {
+export function RecurrenceEditor({value, onChange, startDate}: RecurrenceEditorProps) {
     const [state, setState] = useState<RuleState>(() => parseRule(value))
 
     // Re-sync only when a genuinely different rule arrives (a different event opened). The rule string
@@ -155,6 +170,11 @@ export function RecurrenceEditor({value, onChange}: RecurrenceEditorProps) {
         update({byday: ordered})
     }
 
+    // With no weekday chosen, a weekly rule repeats on the event's start weekday, so that day is shown as
+    // the active default until the user picks explicit days.
+    const defaultDay = weekdayOf(startDate)
+    const dayActive = (code: string) => state.byday.includes(code) || (state.byday.length === 0 && code === defaultDay)
+
     return (
         <div className="recurrence-editor">
             <div className="rule-form-row">
@@ -177,8 +197,8 @@ export function RecurrenceEditor({value, onChange}: RecurrenceEditorProps) {
                 <div className="recur-weekdays">
                     {WEEKDAYS.map((w) => (
                         <button key={w.code} type="button"
-                                className={'recur-day' + (state.byday.includes(w.code) ? ' active' : '')}
-                                aria-pressed={state.byday.includes(w.code)}
+                                className={'recur-day' + (dayActive(w.code) ? ' active' : '')}
+                                aria-pressed={dayActive(w.code)}
                                 onClick={() => toggleDay(w.code)}>{w.label}</button>
                     ))}
                 </div>
