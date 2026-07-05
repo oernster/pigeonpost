@@ -1705,8 +1705,8 @@
     position: fixed;
     z-index: 60;
     min-width: 200px;
-    max-height: 80vh;
-    overflow-y: auto;
+    /* Visible overflow so hover flyout submenus are not clipped by the menu box. */
+    overflow: visible;
     background-color: var(--bg-elev);
     border: 1px solid var(--border);
     border-radius: 8px;
@@ -1714,8 +1714,7 @@
     padding: 4px;
 }
 
-.context-item,
-.context-back {
+.context-item {
     display: flex;
     align-items: center;
     gap: 8px;
@@ -1731,12 +1730,50 @@
 }
 
 .context-item:hover,
-.context-back:hover {
+.context-item:focus {
     background-color: var(--bg-elev-2);
+    outline: none;
 }
 
 .context-item.danger {
     color: var(--danger);
+}
+
+/* A submenu parent (the labelled row) and its flyout share a relatively-positioned wrapper. */
+.context-sub-wrap {
+    position: relative;
+}
+
+/* The flyout is hidden until the wrapper is hovered or holds focus, then it opens beside its parent. */
+.context-submenu {
+    display: none;
+    position: absolute;
+    top: -5px;
+    left: 100%;
+    min-width: 180px;
+    background-color: var(--bg-elev);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+    padding: 4px;
+    z-index: 61;
+}
+
+.context-sub-wrap:hover > .context-submenu,
+.context-sub-wrap:focus-within > .context-submenu {
+    display: block;
+}
+
+/* A long flyout (a folder list) scrolls; it holds no further flyouts, so clipping is safe here. */
+.context-submenu.scroll {
+    max-height: 70vh;
+    overflow-y: auto;
+}
+
+/* Near the right edge the menu carries .flip, so flyouts open to the left instead of overflowing. */
+.context-menu.flip .context-submenu {
+    left: auto;
+    right: 100%;
 }
 
 .context-item-label {
@@ -1751,14 +1788,6 @@
     margin-left: auto;
     color: var(--text-dim);
     font-size: 11px;
-}
-
-.context-chevron.back {
-    margin-left: 0;
-}
-
-.context-back {
-    color: var(--text-dim);
 }
 
 .context-sep {

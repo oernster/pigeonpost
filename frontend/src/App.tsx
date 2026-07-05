@@ -1046,9 +1046,20 @@ function App() {
     }, [previewEnabled])
 
     // A message shown in the reader (the preview pane, or the full-width reader when the pane is off)
-    // counts as read, so viewing or double-clicking a message un-bolds it.
+    // counts as read, so viewing or double-clicking a message un-bolds it. Auto-read fires once per
+    // selection, keyed by message id: without this guard, explicitly marking the open message unread
+    // re-runs this effect (its read flag changed) and immediately re-reads it. The id is unchanged on
+    // that re-run, so nothing happens; selecting a different message later reads it as expected.
+    const autoReadIdRef = useRef<string | null>(null)
     useEffect(() => {
-        if ((previewEnabled || readingFull) && selectedMessage && !selectedMessage.read) {
+        if (!(previewEnabled || readingFull) || !selectedMessage) {
+            return
+        }
+        if (autoReadIdRef.current === selectedMessage.id) {
+            return
+        }
+        autoReadIdRef.current = selectedMessage.id
+        if (!selectedMessage.read) {
             void markReadOnView(selectedMessage)
         }
     }, [selectedMessage, previewEnabled, readingFull, markReadOnView])
