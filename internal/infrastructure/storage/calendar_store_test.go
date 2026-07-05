@@ -124,6 +124,80 @@ func TestDeleteCalendarCascadesEvents(t *testing.T) {
 	}
 }
 
+func TestEventRecurrenceSetRoundTrip(t *testing.T) {
+	store := openTestStore(t)
+	ctx := context.Background()
+	start := baseStart()
+	rd := start.Add(48 * time.Hour)
+	ed := start.Add(24 * time.Hour)
+	ev, err := domain.NewEvent(domain.EventInput{
+		ID: "e1", UID: "uid-1", Summary: "Standup", Start: start, End: start.Add(time.Hour),
+		Recurrence: "FREQ=DAILY;COUNT=5", RDates: []time.Time{rd}, ExDates: []time.Time{ed},
+	})
+	if err != nil {
+		t.Fatalf("event: %v", err)
+	}
+	if err := store.SaveEvent(ctx, ev); err != nil {
+		t.Fatalf("SaveEvent: %v", err)
+	}
+	got, err := store.GetEvent(ctx, "e1")
+	if err != nil {
+		t.Fatalf("GetEvent: %v", err)
+	}
+	if gotRD := got.RDates(); len(gotRD) != 1 || !gotRD[0].Equal(rd) {
+		t.Errorf("RDates not persisted: %v", got.RDates())
+	}
+	if ex := got.ExDates(); len(ex) != 1 || !ex[0].Equal(ed) {
+		t.Errorf("ExDates not persisted: %v", got.ExDates())
+	}
+	if got.IsOverride() {
+		t.Errorf("non-override event came back as an override")
+	}
+}
+
+func TestEventOverrideRoundTrip(t *testing.T) {
+	store := openTestStore(t)
+	ctx := context.Background()
+	start := baseStart()
+	ev, err := domain.NewEvent(domain.EventInput{
+		ID: "e1-override", UID: "uid-1", Summary: "Standup moved", Start: start.Add(2 * time.Hour),
+		End: start.Add(3 * time.Hour), RecurrenceID: start,
+	})
+	if err != nil {
+		t.Fatalf("event: %v", err)
+	}
+	if err := store.SaveEvent(ctx, ev); err != nil {
+		t.Fatalf("SaveEvent: %v", err)
+	}
+	got, err := store.GetEvent(ctx, "e1-override")
+	if err != nil {
+		t.Fatalf("GetEvent: %v", err)
+	}
+	if !got.IsOverride() || !got.RecurrenceID().Equal(start) {
+		t.Errorf("override not persisted: isOverride=%v id=%v", got.IsOverride(), got.RecurrenceID())
+	}
+}
+
+func TestEncodeDecodeTimesRoundTrip(t *testing.T) {
+	if s := encodeTimes(nil); s != "" {
+		t.Errorf("empty encode = %q, want empty", s)
+	}
+	if got, err := decodeTimes(""); err != nil || got != nil {
+		t.Errorf("empty decode = %v, %v, want nil, nil", got, err)
+	}
+	times := []time.Time{baseStart(), baseStart().Add(time.Hour)}
+	got, err := decodeTimes(encodeTimes(times))
+	if err != nil {
+		t.Fatalf("decodeTimes: %v", err)
+	}
+	if len(got) != 2 || !got[0].Equal(times[0]) || !got[1].Equal(times[1]) {
+		t.Errorf("round trip mismatch: %v", got)
+	}
+	if _, err := decodeTimes("not-a-number"); err == nil {
+		t.Errorf("expected an error decoding a non-numeric value")
+	}
+}
+
 func TestDeleteEvent(t *testing.T) {
 	store := openTestStore(t)
 	ctx := context.Background()

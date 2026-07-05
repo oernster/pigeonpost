@@ -12,7 +12,7 @@ import (
 )
 
 // schemaVersion is the current on-disk schema version, tracked via SQLite's PRAGMA user_version.
-const schemaVersion = 17
+const schemaVersion = 18
 
 const driverName = "sqlite"
 
@@ -287,9 +287,20 @@ const schemaV17 = `
 ALTER TABLE event ADD COLUMN extra TEXT NOT NULL DEFAULT '';
 `
 
+// schemaV18 models the rest of an event's recurrence set so it can be expanded into concrete
+// occurrences: rdate and exdate hold the added and excluded occurrence starts as comma-separated Unix
+// millisecond values, and recurrence_id holds the original start (Unix milliseconds, 0 when not an
+// override) of the single occurrence an override event replaces. Existing rows default to no extra
+// dates and not an override.
+const schemaV18 = `
+ALTER TABLE event ADD COLUMN rdate TEXT NOT NULL DEFAULT '';
+ALTER TABLE event ADD COLUMN exdate TEXT NOT NULL DEFAULT '';
+ALTER TABLE event ADD COLUMN recurrence_id INTEGER NOT NULL DEFAULT 0;
+`
+
 // migrations is the ordered list of schema steps. Index i upgrades the database from version i to
 // version i+1, so a fresh database applies them all and an existing one applies only what it lacks.
-var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15, schemaV16, schemaV17}
+var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15, schemaV16, schemaV17, schemaV18}
 
 // Store is the SQLite-backed implementation of the application storage ports.
 type Store struct {

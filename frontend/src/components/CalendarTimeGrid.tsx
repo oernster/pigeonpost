@@ -1,5 +1,5 @@
 import {useEffect, useRef} from 'react'
-import {CalendarEvent} from '../api'
+import {CalendarEvent, CalendarEventInstance} from '../api'
 
 const HOURS_IN_DAY = 24
 const MINUTES_IN_HOUR = 60
@@ -30,28 +30,35 @@ function hhmm(minutes: number): string {
     return `${pad(Math.floor(minutes / MINUTES_IN_HOUR))}:${pad(minutes % MINUTES_IN_HOUR)}`
 }
 
+// occurrenceKey uniquely identifies an occurrence in the grid: the same recurring event yields many
+// occurrences with the same event id, so the start time disambiguates them.
+function occurrenceKey(i: CalendarEventInstance): string {
+    return `${i.event.id}@${i.start}`
+}
+
 interface Positioned {
-    e: CalendarEvent
+    inst: CalendarEventInstance
     startMin: number
     endMin: number
     lane: number
     lanes: number
 }
 
-// layoutDay places every timed event that starts on `day` into a lane, assigning a shared lane count per
-// overlap cluster so events that clash in time sit side by side rather than hiding one another. An event
-// with no end (or an end past midnight) is clamped to a default height inside the day.
-function layoutDay(day: Date, events: CalendarEvent[]): Positioned[] {
-    const items: Positioned[] = events
-        .filter((e) => !e.allDay && sameDay(new Date(e.start), day))
-        .map((e) => {
-            const start = new Date(e.start)
-            const end = e.end ? new Date(e.end) : null
+// layoutDay places every timed occurrence that starts on `day` into a lane, assigning a shared lane
+// count per overlap cluster so occurrences that clash in time sit side by side rather than hiding one
+// another. An occurrence with no end (or an end past midnight) is clamped to a default height inside the
+// day.
+function layoutDay(day: Date, instances: CalendarEventInstance[]): Positioned[] {
+    const items: Positioned[] = instances
+        .filter((i) => !i.event.allDay && sameDay(new Date(i.start), day))
+        .map((i) => {
+            const start = new Date(i.start)
+            const end = i.end ? new Date(i.end) : null
             const startMin = minutesOfDay(start)
             let endMin = end && sameDay(end, day) ? minutesOfDay(end) : MINUTES_IN_DAY
             if (endMin <= startMin) endMin = Math.min(startMin + DEFAULT_EVENT_MINUTES, MINUTES_IN_DAY)
             if (endMin - startMin < MIN_EVENT_MINUTES) endMin = Math.min(startMin + MIN_EVENT_MINUTES, MINUTES_IN_DAY)
-            return {e, startMin, endMin, lane: 0, lanes: 1}
+            return {inst: i, startMin, endMin, lane: 0, lanes: 1}
         })
         .sort((a, b) => a.startMin - b.startMin || a.endMin - b.endMin)
 
@@ -83,22 +90,22 @@ function layoutDay(day: Date, events: CalendarEvent[]): Positioned[] {
     return items
 }
 
-function allDayFor(day: Date, events: CalendarEvent[]): CalendarEvent[] {
-    return events.filter((e) => e.allDay && sameDay(new Date(e.start), day))
+function allDayFor(day: Date, instances: CalendarEventInstance[]): CalendarEventInstance[] {
+    return instances.filter((i) => i.event.allDay && sameDay(new Date(i.start), day))
 }
 
 interface CalendarTimeGridProps {
     days: Date[]
-    events: CalendarEvent[]
+    instances: CalendarEventInstance[]
     colourOf: (e: CalendarEvent) => string
     onNewAt: (start: Date) => void
-    onEdit: (e: CalendarEvent) => void
+    onEdit: (i: CalendarEventInstance) => void
 }
 
 // CalendarTimeGrid renders a Thunderbird-style day or week grid: an hour gutter, a pinned all-day strip and
-// one column per day with timed events positioned and sized by their start and end. Clicking empty space
-// creates an event snapped to the nearest half hour; clicking an event edits it.
-export function CalendarTimeGrid({days, events, colourOf, onNewAt, onEdit}: CalendarTimeGridProps) {
+// one column per day with timed occurrences positioned and sized by their start and end. Clicking empty
+// space creates an event snapped to the nearest half hour; clicking an occurrence edits it.
+export function CalendarTimeGrid({days, instances, colourOf, onNewAt, onEdit}: CalendarTimeGridProps) {
     const bodyRef = useRef<HTMLDivElement>(null)
     useEffect(() => {
         if (bodyRef.current) bodyRef.current.scrollTop = DEFAULT_SCROLL_HOUR * HOUR_ROW_PX
@@ -134,10 +141,10 @@ export function CalendarTimeGrid({days, events, colourOf, onNewAt, onEdit}: Cale
                         <div className="tg-allday-label">all-day</div>
                         {days.map((d, i) => (
                             <div key={i} className="tg-allday-col">
-                                {allDayFor(d, events).map((e) => (
-                                    <button key={e.id} className="tg-allday-ev" title={e.summary}
-                                            style={{borderLeft: `3px solid ${colourOf(e)}`}}
-                                            onClick={() => onEdit(e)}>{e.summary}</button>
+                                {allDayFor(d, instances).map((inst) => (
+                                    <button key={occurrenceKey(inst)} className="tg-allday-ev" title={inst.event.summary}
+                                            style={{borderLeft: `3px solid ${colourOf(inst.event)}`}}
+                                            onClick={() => onEdit(inst)}>{inst.event.summary}</button>
                                 ))}
                             </div>
                         ))}
@@ -150,7 +157,7 @@ export function CalendarTimeGrid({days, events, colourOf, onNewAt, onEdit}: Cale
                         ))}
                     </div>
                     {days.map((d, di) => {
-                        const positioned = layoutDay(d, events)
+                        const positioned = layoutDay(d, instances)
                         return (
                             <div key={di} className="tg-daycol"
                                  onClick={(ev) => createAt(d, ev.nativeEvent.offsetY)}>
@@ -163,14 +170,14 @@ export function CalendarTimeGrid({days, events, colourOf, onNewAt, onEdit}: Cale
                                     const width = FULL_WIDTH_PERCENT / p.lanes
                                     const left = p.lane * width
                                     return (
-                                        <button key={p.e.id} className="tg-event" title={p.e.summary}
+                                        <button key={occurrenceKey(p.inst)} className="tg-event" title={p.inst.event.summary}
                                                 style={{top, height, left: `${left}%`, width: `${width}%`,
-                                                    borderLeft: `3px solid ${colourOf(p.e)}`}}
+                                                    borderLeft: `3px solid ${colourOf(p.inst.event)}`}}
                                                 onClick={(evt) => {
                                                     evt.stopPropagation()
-                                                    onEdit(p.e)
+                                                    onEdit(p.inst)
                                                 }}>
-                                            {hhmm(p.startMin)} {p.e.summary}
+                                            {hhmm(p.startMin)} {p.inst.event.summary}
                                         </button>
                                     )
                                 })}

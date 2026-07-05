@@ -1,7 +1,9 @@
 import {type RefObject, useEffect, useRef, useState} from 'react'
-import {api, Calendar, CalendarEvent, CalendarEventInput} from '../api'
+import {api, Calendar, CalendarEvent, CalendarEventInput, CalendarEventInstance, EventScope} from '../api'
 import {ModalClose} from './ModalClose'
 import {ConfirmDialog} from './ConfirmDialog'
+import {ScopeChooser} from './ScopeChooser'
+import {RecurrenceEditor} from './RecurrenceEditor'
 import {CalendarTimeGrid} from './CalendarTimeGrid'
 import {useBackdropDismiss} from './useBackdropDismiss'
 
@@ -38,6 +40,12 @@ interface EventForm {
     recurrence: string
     // extra is the opaque preserved ICS, carried unchanged so an edit does not strip unmodelled data.
     extra: string
+    // scope is set when editing a recurring occurrence: it says how far the save reaches. It is null for a
+    // new event or a one-off edit, which save directly. occurrence is the RFC 3339 recurrence id of the
+    // occurrence being edited; series marks the event as part of a recurring series.
+    scope: EventScope | null
+    occurrence: string
+    series: boolean
 }
 
 function pad(n: number): string {
@@ -122,6 +130,8 @@ export function CalendarModal({events, onChanged, onClose}: CalendarModalProps) 
     const [viewMode, setViewMode] = useState<ViewMode>('month')
     const [form, setForm] = useState<EventForm | null>(null)
     const [pendingDelete, setPendingDelete] = useState<CalendarEvent | null>(null)
+    const [editScope, setEditScope] = useState<CalendarEventInstance | null>(null)
+    const [deleteScope, setDeleteScope] = useState<{seriesId: string; occurrence: string; summary: string} | null>(null)
     const [error, setError] = useState('')
     const [status, setStatus] = useState('')
     const [busy, setBusy] = useState(false)
@@ -129,12 +139,45 @@ export function CalendarModal({events, onChanged, onClose}: CalendarModalProps) 
     const [managingCals, setManagingCals] = useState(false)
     const [calForm, setCalForm] = useState<{id: string; name: string; colour: string} | null>(null)
     const [pendingCalDelete, setPendingCalDelete] = useState<Calendar | null>(null)
+    // instances are the concrete occurrences shown for the visible range, expanded from recurring events by
+    // the backend. reloadKey forces a refetch after a local change even if the parent's events prop is stable.
+    const [instances, setInstances] = useState<CalendarEventInstance[]>([])
+    const [reloadKey, setReloadKey] = useState(0)
+    const bumpReload = () => setReloadKey((k) => k + 1)
 
     const reloadCalendars = () =>
         void api.listCalendars().then(setCalendars).catch((e) => setError(String(e)))
     useEffect(() => {
         reloadCalendars()
     }, [])
+
+    // visibleRange is the inclusive [from, to] window of the active view, used to expand recurring events
+    // into just the occurrences on screen.
+    const visibleRange = (): {from: string; to: string} => {
+        const days = viewMode === 'month' ? monthCells(viewDate)
+            : viewMode === 'week' ? weekDays(viewDate) : [viewDate]
+        const first = new Date(days[0])
+        first.setHours(0, 0, 0, 0)
+        const last = new Date(days[days.length - 1])
+        last.setHours(23, 59, 59, 0)
+        return {from: first.toISOString(), to: last.toISOString()}
+    }
+
+    useEffect(() => {
+        const {from, to} = visibleRange()
+        let active = true
+        api.listEventInstances(from, to)
+            .then((xs) => {
+                if (active) setInstances(xs)
+            })
+            .catch((e) => {
+                if (active) setError(String(e))
+            })
+        return () => {
+            active = false
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [viewDate, viewMode, reloadKey, events])
 
     // colourOf resolves an event's colour from its calendar, falling back to the default for events with
     // no calendar. The map is rebuilt each render, which is cheap for the handful of calendars a user has.
@@ -176,7 +219,10 @@ export function CalendarModal({events, onChanged, onClose}: CalendarModalProps) 
     }
 
     const cells = monthCells(viewDate)
-    const dated = events.map((e) => ({e, start: new Date(e.start)}))
+    const datedInstances = instances.map((i) => ({i, start: new Date(i.start)}))
+    // isSeries reports whether an occurrence belongs to a recurring series, so an edit or delete asks how
+    // far it should reach. A one-off event carries neither a rule nor a recurrence id.
+    const isSeries = (i: CalendarEventInstance) => i.recurrenceId !== '' || i.event.recurrence !== ''
 
     const set = <K extends keyof EventForm>(key: K, value: EventForm[K]) =>
         setForm((f) => (f ? {...f, [key]: value} : f))
@@ -189,6 +235,7 @@ export function CalendarModal({events, onChanged, onClose}: CalendarModalProps) 
         setForm({
             id: '', uid: '', calendarId: defaultCalendarId(), summary: '', description: '', location: '',
             allDay: false, start: dateTimeInput(start), end: dateTimeInput(end), recurrence: '', extra: '',
+            scope: null, occurrence: '', series: false,
         })
     }
 
@@ -199,20 +246,40 @@ export function CalendarModal({events, onChanged, onClose}: CalendarModalProps) 
         setForm({
             id: '', uid: '', calendarId: defaultCalendarId(), summary: '', description: '', location: '',
             allDay: false, start: dateTimeInput(start), end: dateTimeInput(end), recurrence: '', extra: '',
+            scope: null, occurrence: '', series: false,
         })
     }
 
-    const openEdit = (e: CalendarEvent) => {
-        const start = new Date(e.start)
-        const end = e.end ? new Date(e.end) : null
+    // openInstance edits an occurrence. A recurring occurrence first asks the scope; a one-off opens the
+    // form directly.
+    const openInstance = (inst: CalendarEventInstance) => {
+        if (isSeries(inst)) setEditScope(inst)
+        else openForm(inst, null)
+    }
+
+    // openForm populates the edit form for an occurrence at the given scope. For an All-scope edit the form
+    // shows the series master's own start and end (so editing the time changes the series); otherwise it
+    // shows this occurrence's times.
+    const openForm = (inst: CalendarEventInstance, scope: EventScope | null) => {
+        const ev = inst.event
+        const useMaster = scope === EventScope.All
+        const startISO = useMaster ? ev.start : inst.start
+        const endISO = useMaster ? ev.end : inst.end
+        const start = new Date(startISO)
+        const end = endISO ? new Date(endISO) : null
         setForm({
-            id: e.id, uid: e.uid, calendarId: e.calendarId, summary: e.summary,
-            description: e.description, location: e.location, allDay: e.allDay,
-            start: e.allDay ? dateInput(start) : dateTimeInput(start),
-            end: end ? (e.allDay ? dateInput(end) : dateTimeInput(end)) : '',
-            recurrence: e.recurrence,
-            extra: e.extra,
+            id: ev.id, uid: ev.uid, calendarId: ev.calendarId, summary: ev.summary,
+            description: ev.description, location: ev.location, allDay: ev.allDay,
+            start: ev.allDay ? dateInput(start) : dateTimeInput(start),
+            end: end ? (ev.allDay ? dateInput(end) : dateTimeInput(end)) : '',
+            recurrence: ev.recurrence, extra: ev.extra,
+            scope, occurrence: inst.recurrenceId, series: isSeries(inst),
         })
+        setEditScope(null)
+    }
+
+    const chooseEditScope = (scope: EventScope) => {
+        if (editScope) openForm(editScope, scope)
     }
 
     const toISO = (value: string): string => (value ? new Date(value).toISOString() : '')
@@ -228,14 +295,28 @@ export function CalendarModal({events, onChanged, onClose}: CalendarModalProps) 
                 start: toISO(form.start), end: toISO(form.end), recurrence: form.recurrence,
                 extra: form.extra,
             }
-            await api.saveEvent(req)
+            if (form.scope !== null) await api.saveEventScoped(req, form.scope, form.occurrence)
+            else await api.saveEvent(req)
             setForm(null)
+            bumpReload()
             onChanged()
         } catch (e) {
             setError(String(e))
         } finally {
             setBusy(false)
         }
+    }
+
+    // requestDelete starts a delete from the edit form: a recurring occurrence asks the scope, a one-off is
+    // confirmed directly.
+    const requestDelete = () => {
+        if (!form) return
+        if (form.series) {
+            setDeleteScope({seriesId: form.id, occurrence: form.occurrence, summary: form.summary})
+            return
+        }
+        const ev = events.find((x) => x.id === form.id)
+        if (ev) setPendingDelete(ev)
     }
 
     const confirmDelete = async () => {
@@ -246,6 +327,24 @@ export function CalendarModal({events, onChanged, onClose}: CalendarModalProps) 
             await api.deleteEvent(pendingDelete.id)
             if (form && form.id === pendingDelete.id) setForm(null)
             setPendingDelete(null)
+            bumpReload()
+            onChanged()
+        } catch (e) {
+            setError(String(e))
+        } finally {
+            setBusy(false)
+        }
+    }
+
+    const confirmDeleteScope = async (scope: EventScope) => {
+        if (!deleteScope) return
+        setBusy(true)
+        setError('')
+        try {
+            await api.deleteEventScoped(scope, deleteScope.seriesId, deleteScope.occurrence)
+            setForm(null)
+            setDeleteScope(null)
+            bumpReload()
             onChanged()
         } catch (e) {
             setError(String(e))
@@ -261,6 +360,7 @@ export function CalendarModal({events, onChanged, onClose}: CalendarModalProps) 
             const n = await api.importEventsFromFile()
             if (n > 0) {
                 setStatus(`Imported ${n} event${n === 1 ? '' : 's'}.`)
+                bumpReload()
                 onChanged()
             }
         } catch (e) {
@@ -337,7 +437,7 @@ export function CalendarModal({events, onChanged, onClose}: CalendarModalProps) 
                     <div className="cal-grid">
                         {WEEKDAYS.map((w) => (<div key={w} className="cal-weekday">{w}</div>))}
                         {cells.map((day, i) => {
-                            const dayEvents = dated.filter((p) => sameDay(p.start, day))
+                            const dayEvents = datedInstances.filter((p) => sameDay(p.start, day))
                             const inMonth = day.getMonth() === viewDate.getMonth()
                             return (
                                 <div key={i} className={'cal-cell' + (inMonth ? '' : ' cal-cell-dim')} onClick={() => openNew(day)}>
@@ -347,13 +447,13 @@ export function CalendarModal({events, onChanged, onClose}: CalendarModalProps) 
                                                 openDay(day)
                                             }}>{day.getDate()}</button>
                                     {dayEvents.map((p) => (
-                                        <button key={p.e.id} className="cal-event" title={p.e.summary}
-                                                style={{borderLeft: `3px solid ${colourOf(p.e)}`}}
+                                        <button key={`${p.i.event.id}@${p.i.start}`} className="cal-event" title={p.i.event.summary}
+                                                style={{borderLeft: `3px solid ${colourOf(p.i.event)}`}}
                                                 onClick={(ev) => {
                                                     ev.stopPropagation()
-                                                    openEdit(p.e)
+                                                    openInstance(p.i)
                                                 }}>
-                                            {p.e.allDay ? '' : `${pad(p.start.getHours())}:${pad(p.start.getMinutes())} `}{p.e.summary}
+                                            {p.i.event.allDay ? '' : `${pad(p.start.getHours())}:${pad(p.start.getMinutes())} `}{p.i.event.summary}
                                         </button>
                                     ))}
                                 </div>
@@ -363,10 +463,10 @@ export function CalendarModal({events, onChanged, onClose}: CalendarModalProps) 
                 ) : (
                     <CalendarTimeGrid
                         days={viewMode === 'week' ? weekDays(viewDate) : [viewDate]}
-                        events={events}
+                        instances={instances}
                         colourOf={colourOf}
                         onNewAt={openAt}
-                        onEdit={openEdit}
+                        onEdit={openInstance}
                     />
                 )}
 
@@ -416,13 +516,15 @@ export function CalendarModal({events, onChanged, onClose}: CalendarModalProps) 
                                    onChange={(e) => set('location', e.target.value)}/>
                             <textarea className="tag-name-input" placeholder="Description" rows={2} value={form.description}
                                       onChange={(e) => set('description', e.target.value)}/>
+                            {form.scope === EventScope.This ? (
+                                <p className="setup-hint">This change applies to this event only.</p>
+                            ) : (
+                                <RecurrenceEditor value={form.recurrence} onChange={(r) => set('recurrence', r)}/>
+                            )}
                             <div className="modal-actions spread">
                                 <span>
                                     {form.id && (
-                                        <button className="btn danger" onClick={() => {
-                                            const ev = events.find((x) => x.id === form.id)
-                                            if (ev) setPendingDelete(ev)
-                                        }}>Delete</button>
+                                        <button className="btn danger" onClick={requestDelete}>Delete</button>
                                     )}
                                 </span>
                                 <span className="cal-form-actions">
@@ -446,6 +548,27 @@ export function CalendarModal({events, onChanged, onClose}: CalendarModalProps) 
                     busy={busy}
                     onConfirm={() => void confirmDelete()}
                     onCancel={() => setPendingDelete(null)}
+                />
+            )}
+
+            {editScope && (
+                <ScopeChooser
+                    title="Edit recurring event"
+                    message={`"${editScope.event.summary}" repeats. Which events should this change apply to?`}
+                    busy={busy}
+                    onChoose={chooseEditScope}
+                    onCancel={() => setEditScope(null)}
+                />
+            )}
+
+            {deleteScope && (
+                <ScopeChooser
+                    title="Delete recurring event"
+                    message={`"${deleteScope.summary}" repeats. Which events should be deleted? This cannot be undone.`}
+                    danger
+                    busy={busy}
+                    onChoose={(scope) => void confirmDeleteScope(scope)}
+                    onCancel={() => setDeleteScope(null)}
                 />
             )}
 

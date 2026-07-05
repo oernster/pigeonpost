@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"time"
 
 	"github.com/oernster/pigeonpost/internal/domain"
 )
@@ -157,4 +158,17 @@ type CalendarStore interface {
 type CalendarCodec interface {
 	Decode(data []byte) ([]domain.Event, error)
 	Encode(events []domain.Event) ([]byte, error)
+}
+
+// RecurrenceService performs the recurrence operations that need RRULE parsing, kept outside the domain
+// because that parsing needs a dedicated library the domain must not depend on.
+type RecurrenceService interface {
+	// Expand turns a recurring event's rule and recurrence dates (RRULE, RDATE, EXDATE) into the concrete
+	// occurrences whose start falls within the inclusive window [from, to]. Each returned instance carries
+	// a RecurrenceID equal to its own start, which identifies the occurrence.
+	Expand(event domain.Event, from, to time.Time) ([]domain.EventInstance, error)
+	// TruncateBefore returns the given RRULE rewritten so the series ends before at, used when a
+	// this-and-future edit or delete splits or shortens a series. Any COUNT is dropped in favour of an
+	// UNTIL of one second before at, so the occurrence at at and all later ones are removed.
+	TruncateBefore(rule string, at time.Time) (string, error)
 }

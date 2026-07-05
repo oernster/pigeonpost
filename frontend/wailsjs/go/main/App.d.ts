@@ -58,6 +58,12 @@ export function ListContacts():Promise<Array<main.ContactDTO>>;
 
 export function ListEvents():Promise<Array<main.EventDTO>>;
 
+export function ListEventInstances(arg1:string,arg2:string):Promise<Array<main.EventInstanceDTO>>;
+
+export function SaveEventScoped(arg1:main.EventRequest,arg2:number,arg3:string):Promise<void>;
+
+export function DeleteEventScoped(arg1:number,arg2:string,arg3:string):Promise<void>;
+
 export function ListFolders(arg1:string):Promise<Array<main.FolderDTO>>;
 
 export function ListMessages(arg1:string):Promise<Array<main.MessageDTO>>;

@@ -55,8 +55,11 @@ Shipped:
   in the database; external links open in your browser, not the app's webview; the unread total shows
   as a taskbar overlay badge on Windows.
 - **Calendar**: month, week and day views. Week and day are an hour time-grid with an all-day strip;
-  clashing events sit in side-by-side lanes. ICS (.ics) import and export (RFC 5545) round-trips with
-  Outlook and Thunderbird; an event keeps its ICS UID so an export re-imports cleanly.
+  clashing events sit in side-by-side lanes. Recurring events (daily, weekly on chosen weekdays, monthly
+  or yearly, with an interval and an optional end) expand across every view, and an edit or delete of a
+  recurring event asks whether it applies to this occurrence, this and following, or all. ICS (.ics)
+  import and export (RFC 5545, including RRULE, RDATE, EXDATE and RECURRENCE-ID) round-trips with Outlook
+  and Thunderbird; an event keeps its ICS UID so an export re-imports cleanly.
 - **Contacts**: an address book with a list and an editor. vCard (.vcf) and CSV import and export, so
   contacts round-trip with Outlook (whose bulk export is CSV) and Thunderbird.
 - **Help menu**: About (with credits), Licence and Check for Updates.
@@ -66,7 +69,8 @@ Planned (see [DESIGN_PLAN.md](DESIGN_PLAN.md) for the full roadmap):
 - Tags round-tripped onto IMAP keywords, move/delete filter rules.
 - Microsoft one-click sign-in (deferred: it needs an Azure/Entra tenant). Multiple accounts already
   work, each with its own inbox.
-- Colour-per-calendar and contact-group management UIs; calendar recurrence-edit, invites and alarms.
+- Calendar invites (iTIP), alarms with OS notifications, and event timezones (recurrence stays in UTC
+  for now).
 - Cross-platform delivery (macOS and Linux) and two-way CalDAV / CardDAV.
 
 ## Stack

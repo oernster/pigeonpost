@@ -36,13 +36,15 @@ type EventInput struct {
 
 // CalendarService is the use-case boundary for managing calendars and their events.
 type CalendarService struct {
-	store CalendarStore
-	newID IDGenerator
+	store      CalendarStore
+	newID      IDGenerator
+	recurrence RecurrenceService
 }
 
-// NewCalendarService constructs the service with its injected store and id generator.
-func NewCalendarService(store CalendarStore, newID IDGenerator) *CalendarService {
-	return &CalendarService{store: store, newID: newID}
+// NewCalendarService constructs the service with its injected store, id generator and recurrence
+// service (used to expand and split recurring events).
+func NewCalendarService(store CalendarStore, newID IDGenerator, recurrence RecurrenceService) *CalendarService {
+	return &CalendarService{store: store, newID: newID, recurrence: recurrence}
 }
 
 // ListCalendars returns all calendars.

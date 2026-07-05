@@ -34,11 +34,14 @@ import {
     ListContactGroups,
     ListContacts,
     ListEvents,
+    ListEventInstances,
     ListRules,
     SaveCalendar,
     SaveContact,
     SaveContactGroup,
     SaveEvent,
+    SaveEventScoped,
+    DeleteEventScoped,
     MoveMessage,
     RenameFolder,
     SaveRule,
@@ -110,6 +113,15 @@ export interface ContactGroupInput {
 
 export type Calendar = main.CalendarDTO
 export type CalendarEvent = main.EventDTO
+export type CalendarEventInstance = main.EventInstanceDTO
+
+// EventScope mirrors the Go application.EventScope: how far an edit or delete of a recurring occurrence
+// reaches. The integer values must match the Go constants.
+export enum EventScope {
+    This = 0,
+    Future = 1,
+    All = 2,
+}
 
 export interface CalendarInput {
     id: string
@@ -230,9 +242,15 @@ export const api = {
     saveCalendar: (req: CalendarInput): Promise<void> => SaveCalendar(main.CalendarRequest.createFrom(req)),
     deleteCalendar: (id: string): Promise<void> => DeleteCalendar(id),
     listEvents: (): Promise<CalendarEvent[]> => ListEvents(),
+    listEventInstances: (from: string, to: string): Promise<CalendarEventInstance[]> =>
+        ListEventInstances(from, to),
     getEvent: (id: string): Promise<CalendarEvent> => GetEvent(id),
     saveEvent: (req: CalendarEventInput): Promise<void> => SaveEvent(main.EventRequest.createFrom(req)),
+    saveEventScoped: (req: CalendarEventInput, scope: EventScope, occurrence: string): Promise<void> =>
+        SaveEventScoped(main.EventRequest.createFrom(req), scope, occurrence),
     deleteEvent: (id: string): Promise<void> => DeleteEvent(id),
+    deleteEventScoped: (scope: EventScope, seriesId: string, occurrence: string): Promise<void> =>
+        DeleteEventScoped(scope, seriesId, occurrence),
     importEventsFromFile: (): Promise<number> => ImportEventsFromFile(),
     exportEventsToFile: (): Promise<boolean> => ExportEventsToFile(),
 }

@@ -17,6 +17,7 @@ import (
 	"github.com/oernster/pigeonpost/internal/infrastructure/keychain"
 	"github.com/oernster/pigeonpost/internal/infrastructure/mailrouter"
 	"github.com/oernster/pigeonpost/internal/infrastructure/pop3"
+	"github.com/oernster/pigeonpost/internal/infrastructure/recurrence"
 	"github.com/oernster/pigeonpost/internal/infrastructure/smtp"
 	"github.com/oernster/pigeonpost/internal/infrastructure/storage"
 	"github.com/oernster/pigeonpost/internal/infrastructure/taskbar"
@@ -81,7 +82,7 @@ func run() error {
 	folderService := application.NewFolderService(store, store, imapSource, imapSource)
 	ruleService := application.NewRuleService(store, newRuleID)
 	contactService := application.NewContactService(store, newContactID)
-	calendarService := application.NewCalendarService(store, newCalendarID)
+	calendarService := application.NewCalendarService(store, newCalendarID, recurrence.New())
 
 	// The taskbar overlay badge reflects the total unread count. It finds the main window by its title,
 	// so it is given the same title the Wails window uses below.

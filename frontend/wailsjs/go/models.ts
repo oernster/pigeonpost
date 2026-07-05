@@ -413,6 +413,24 @@ export namespace main {
 	        this.extra = source["extra"];
 	    }
 	}
+	export class EventInstanceDTO {
+	    event: EventDTO;
+	    start: string;
+	    end: string;
+	    recurrenceId: string;
+
+	    static createFrom(source: any = {}) {
+	        return new EventInstanceDTO(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.event = EventDTO.createFrom(source["event"]);
+	        this.start = source["start"];
+	        this.end = source["end"];
+	        this.recurrenceId = source["recurrenceId"];
+	    }
+	}
 	export class FolderDTO {
 	    id: string;
 	    accountId: string;

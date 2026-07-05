@@ -21,6 +21,8 @@ type fakeCalendarStore struct {
 	getEvtErr  error
 	saveEvtErr error
 	delEvtErr  error
+	failSaveID string
+	failDelID  string
 	savedCal   []domain.Calendar
 	deletedCal []string
 	savedEvt   []domain.Event
@@ -68,6 +70,9 @@ func (f *fakeCalendarStore) SaveEvent(_ context.Context, e domain.Event) error {
 	if f.saveEvtErr != nil {
 		return f.saveEvtErr
 	}
+	if f.failSaveID != "" && e.ID() == f.failSaveID {
+		return errBoom
+	}
 	f.savedEvt = append(f.savedEvt, e)
 	return nil
 }
@@ -76,8 +81,41 @@ func (f *fakeCalendarStore) DeleteEvent(_ context.Context, id string) error {
 	if f.delEvtErr != nil {
 		return f.delEvtErr
 	}
+	if f.failDelID != "" && id == f.failDelID {
+		return errBoom
+	}
 	f.deletedEvt = append(f.deletedEvt, id)
 	return nil
+}
+
+// fakeRecurrence is a hand-written RecurrenceService with error-injection and a scripted expansion.
+type fakeRecurrence struct {
+	expandFunc  func(domain.Event, time.Time, time.Time) ([]domain.EventInstance, error)
+	expandErr   error
+	truncated   string
+	truncateErr error
+	gotTruncate string
+}
+
+func (f *fakeRecurrence) Expand(e domain.Event, from, to time.Time) ([]domain.EventInstance, error) {
+	if f.expandErr != nil {
+		return nil, f.expandErr
+	}
+	if f.expandFunc != nil {
+		return f.expandFunc(e, from, to)
+	}
+	return nil, nil
+}
+
+func (f *fakeRecurrence) TruncateBefore(rule string, _ time.Time) (string, error) {
+	f.gotTruncate = rule
+	if f.truncateErr != nil {
+		return "", f.truncateErr
+	}
+	if f.truncated != "" {
+		return f.truncated, nil
+	}
+	return rule, nil
 }
 
 // fakeCalendarCodec is a hand-written CalendarCodec with error-injection fields.
@@ -118,7 +156,7 @@ func mustEvent(t *testing.T, id, summary string) domain.Event {
 func TestCalendarServiceListCalendars(t *testing.T) {
 	cal, _ := domain.NewCalendar("cal1", "Work", "")
 	store := &fakeCalendarStore{calendars: []domain.Calendar{cal}}
-	svc := NewCalendarService(store, fixedID("x"))
+	svc := NewCalendarService(store, fixedID("x"), &fakeRecurrence{})
 	got, err := svc.ListCalendars(context.Background())
 	if err != nil || len(got) != 1 || got[0].ID() != "cal1" {
 		t.Fatalf("ListCalendars = %v, %v", got, err)
@@ -131,7 +169,7 @@ func TestCalendarServiceListCalendars(t *testing.T) {
 
 func TestCalendarServiceSaveCalendar(t *testing.T) {
 	store := &fakeCalendarStore{}
-	svc := NewCalendarService(store, fixedID("generated"))
+	svc := NewCalendarService(store, fixedID("generated"), &fakeRecurrence{})
 
 	if err := svc.SaveCalendar(context.Background(), CalendarInput{Name: "Work"}); err != nil {
 		t.Fatalf("SaveCalendar: %v", err)
@@ -156,7 +194,7 @@ func TestCalendarServiceSaveCalendar(t *testing.T) {
 
 func TestCalendarServiceDeleteCalendar(t *testing.T) {
 	store := &fakeCalendarStore{}
-	svc := NewCalendarService(store, fixedID("x"))
+	svc := NewCalendarService(store, fixedID("x"), &fakeRecurrence{})
 	if err := svc.DeleteCalendar(context.Background(), "cal1"); err != nil {
 		t.Fatalf("DeleteCalendar: %v", err)
 	}
@@ -171,7 +209,7 @@ func TestCalendarServiceDeleteCalendar(t *testing.T) {
 
 func TestCalendarServiceListEvents(t *testing.T) {
 	store := &fakeCalendarStore{events: []domain.Event{mustEvent(t, "e1", "Standup")}}
-	svc := NewCalendarService(store, fixedID("x"))
+	svc := NewCalendarService(store, fixedID("x"), &fakeRecurrence{})
 	got, err := svc.ListEvents(context.Background())
 	if err != nil || len(got) != 1 {
 		t.Fatalf("ListEvents = %v, %v", got, err)
@@ -184,7 +222,7 @@ func TestCalendarServiceListEvents(t *testing.T) {
 
 func TestCalendarServiceGetEvent(t *testing.T) {
 	store := &fakeCalendarStore{gotEvent: mustEvent(t, "e1", "Standup")}
-	svc := NewCalendarService(store, fixedID("x"))
+	svc := NewCalendarService(store, fixedID("x"), &fakeRecurrence{})
 	got, err := svc.GetEvent(context.Background(), "e1")
 	if err != nil || got.ID() != "e1" {
 		t.Fatalf("GetEvent = %v, %v", got, err)
@@ -197,7 +235,7 @@ func TestCalendarServiceGetEvent(t *testing.T) {
 
 func TestCalendarServiceSaveEvent(t *testing.T) {
 	store := &fakeCalendarStore{}
-	svc := NewCalendarService(store, fixedID("generated"))
+	svc := NewCalendarService(store, fixedID("generated"), &fakeRecurrence{})
 	start := time.Date(2026, 7, 4, 9, 0, 0, 0, time.UTC)
 
 	if err := svc.SaveEvent(context.Background(), EventInput{Summary: "Standup", Start: start}); err != nil {
@@ -223,7 +261,7 @@ func TestCalendarServiceSaveEvent(t *testing.T) {
 
 func TestCalendarServiceDeleteEvent(t *testing.T) {
 	store := &fakeCalendarStore{}
-	svc := NewCalendarService(store, fixedID("x"))
+	svc := NewCalendarService(store, fixedID("x"), &fakeRecurrence{})
 	if err := svc.DeleteEvent(context.Background(), "e1"); err != nil {
 		t.Fatalf("DeleteEvent: %v", err)
 	}
@@ -237,19 +275,19 @@ func TestCalendarServiceDeleteEvent(t *testing.T) {
 }
 
 func TestCalendarServiceImportEvents(t *testing.T) {
-	svc := NewCalendarService(&fakeCalendarStore{}, fixedID("x"))
+	svc := NewCalendarService(&fakeCalendarStore{}, fixedID("x"), &fakeRecurrence{})
 	if n, err := svc.ImportEvents(context.Background(), &fakeCalendarCodec{decodeErr: errBoom}, nil); n != 0 || !errors.Is(err, errBoom) {
 		t.Errorf("decode err path = %d, %v", n, err)
 	}
 
 	store := &fakeCalendarStore{saveEvtErr: errBoom}
 	codec := &fakeCalendarCodec{decoded: []domain.Event{mustEvent(t, "e1", "A"), mustEvent(t, "e2", "B")}}
-	if n, err := NewCalendarService(store, fixedID("x")).ImportEvents(context.Background(), codec, nil); n != 0 || !errors.Is(err, errBoom) {
+	if n, err := NewCalendarService(store, fixedID("x"), &fakeRecurrence{}).ImportEvents(context.Background(), codec, nil); n != 0 || !errors.Is(err, errBoom) {
 		t.Errorf("save err path = %d, %v", n, err)
 	}
 
 	good := &fakeCalendarStore{}
-	if n, err := NewCalendarService(good, fixedID("x")).ImportEvents(context.Background(), codec, []byte("x")); err != nil || n != 2 {
+	if n, err := NewCalendarService(good, fixedID("x"), &fakeRecurrence{}).ImportEvents(context.Background(), codec, []byte("x")); err != nil || n != 2 {
 		t.Fatalf("import = %d, %v; want 2", n, err)
 	}
 	if len(good.savedEvt) != 2 {
@@ -258,17 +296,17 @@ func TestCalendarServiceImportEvents(t *testing.T) {
 }
 
 func TestCalendarServiceExportEvents(t *testing.T) {
-	if _, err := NewCalendarService(&fakeCalendarStore{listEvtErr: errBoom}, fixedID("x")).
+	if _, err := NewCalendarService(&fakeCalendarStore{listEvtErr: errBoom}, fixedID("x"), &fakeRecurrence{}).
 		ExportEvents(context.Background(), &fakeCalendarCodec{}); !errors.Is(err, errBoom) {
 		t.Errorf("list err = %v, want wrapped errBoom", err)
 	}
 	store := &fakeCalendarStore{events: []domain.Event{mustEvent(t, "e1", "A")}}
-	if _, err := NewCalendarService(store, fixedID("x")).
+	if _, err := NewCalendarService(store, fixedID("x"), &fakeRecurrence{}).
 		ExportEvents(context.Background(), &fakeCalendarCodec{encodeErr: errBoom}); !errors.Is(err, errBoom) {
 		t.Errorf("encode err = %v, want wrapped errBoom", err)
 	}
 	codec := &fakeCalendarCodec{encoded: []byte("BEGIN:VCALENDAR")}
-	data, err := NewCalendarService(store, fixedID("x")).ExportEvents(context.Background(), codec)
+	data, err := NewCalendarService(store, fixedID("x"), &fakeRecurrence{}).ExportEvents(context.Background(), codec)
 	if err != nil || string(data) != "BEGIN:VCALENDAR" {
 		t.Fatalf("export = %q, %v", data, err)
 	}

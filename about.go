@@ -49,10 +49,12 @@ func (a *App) About() AboutDTO {
 			{Name: "emersion go-imap", Licence: "MIT"},
 			{Name: "emersion go-smtp", Licence: "MIT"},
 			{Name: "emersion go-message", Licence: "MIT"},
+			{Name: "emersion go-ical", Licence: "MIT"},
 			{Name: "microcosm-cc/bluemonday", Licence: "BSD-3-Clause"},
 			{Name: "emersion go-sasl", Licence: "MIT"},
 			{Name: "modernc.org/sqlite", Licence: "BSD-3-Clause"},
 			{Name: "zalando/go-keyring", Licence: "MIT"},
+			{Name: "teambition/rrule-go", Licence: "MIT"},
 		},
 	}
 }

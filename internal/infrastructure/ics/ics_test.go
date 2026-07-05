@@ -132,6 +132,82 @@ func TestICSEditPreservesUnmodelledProperties(t *testing.T) {
 	}
 }
 
+func TestICSRecurrenceDatesRoundTrip(t *testing.T) {
+	data := cal(
+		"BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//x//EN",
+		"BEGIN:VEVENT", "UID:r1", "DTSTAMP:20260704T090000Z", "DTSTART:20260704T090000Z",
+		"DTEND:20260704T100000Z", "SUMMARY:Standup", "RRULE:FREQ=DAILY;COUNT=5",
+		"RDATE:20260710T090000Z,20260712T090000Z", "EXDATE:20260705T090000Z",
+		"END:VEVENT", "END:VCALENDAR",
+	)
+	events, err := New().Decode(data)
+	if err != nil || len(events) != 1 {
+		t.Fatalf("Decode: %v (n=%d)", err, len(events))
+	}
+	e := events[0]
+	if got := e.RDates(); len(got) != 2 ||
+		!got[0].Equal(time.Date(2026, 7, 10, 9, 0, 0, 0, time.UTC)) ||
+		!got[1].Equal(time.Date(2026, 7, 12, 9, 0, 0, 0, time.UTC)) {
+		t.Errorf("RDATE not parsed: %v", e.RDates())
+	}
+	if got := e.ExDates(); len(got) != 1 || !got[0].Equal(time.Date(2026, 7, 5, 9, 0, 0, 0, time.UTC)) {
+		t.Errorf("EXDATE not parsed: %v", e.ExDates())
+	}
+	// Re-encoding reproduces the modelled recurrence dates.
+	s := string(mustEncode(t, e))
+	if !strings.Contains(s, "20260710T090000Z") || !strings.Contains(s, "20260712T090000Z") {
+		t.Errorf("RDATE dropped on re-encode:\n%s", s)
+	}
+	if !strings.Contains(s, "EXDATE") || !strings.Contains(s, "20260705T090000Z") {
+		t.Errorf("EXDATE dropped on re-encode:\n%s", s)
+	}
+}
+
+func TestICSRecurrenceIDRoundTrip(t *testing.T) {
+	data := cal(
+		"BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//x//EN",
+		"BEGIN:VEVENT", "UID:series-1", "DTSTAMP:20260704T090000Z", "DTSTART:20260706T110000Z",
+		"DTEND:20260706T120000Z", "SUMMARY:Standup moved", "RECURRENCE-ID:20260706T090000Z",
+		"END:VEVENT", "END:VCALENDAR",
+	)
+	events, err := New().Decode(data)
+	if err != nil || len(events) != 1 {
+		t.Fatalf("Decode: %v (n=%d)", err, len(events))
+	}
+	e := events[0]
+	if !e.IsOverride() || !e.RecurrenceID().Equal(time.Date(2026, 7, 6, 9, 0, 0, 0, time.UTC)) {
+		t.Errorf("RECURRENCE-ID not parsed: isOverride=%v id=%v", e.IsOverride(), e.RecurrenceID())
+	}
+	s := string(mustEncode(t, e))
+	if !strings.Contains(s, "RECURRENCE-ID") || !strings.Contains(s, "20260706T090000Z") {
+		t.Errorf("RECURRENCE-ID dropped on re-encode:\n%s", s)
+	}
+}
+
+func TestICSAllDayExceptionDateRoundTrip(t *testing.T) {
+	data := cal(
+		"BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//x//EN",
+		"BEGIN:VEVENT", "UID:h1", "DTSTAMP:20260704T090000Z", "DTSTART;VALUE=DATE:20260704",
+		"SUMMARY:Daily standup", "RRULE:FREQ=DAILY;COUNT=3", "EXDATE;VALUE=DATE:20260705",
+		"END:VEVENT", "END:VCALENDAR",
+	)
+	events, err := New().Decode(data)
+	if err != nil || len(events) != 1 {
+		t.Fatalf("Decode: %v (n=%d)", err, len(events))
+	}
+	e := events[0]
+	if !e.AllDay() {
+		t.Fatalf("expected all-day event")
+	}
+	if got := e.ExDates(); len(got) != 1 || !got[0].Equal(time.Date(2026, 7, 5, 0, 0, 0, 0, time.UTC)) {
+		t.Errorf("all-day EXDATE not parsed: %v", e.ExDates())
+	}
+	s := string(mustEncode(t, e))
+	if !strings.Contains(s, "EXDATE;VALUE=DATE:20260705") {
+		t.Errorf("all-day EXDATE not re-encoded as a DATE:\n%s", s)
+	}
+}
+
 func mustEncode(t *testing.T, events ...domain.Event) []byte {
 	t.Helper()
 	out, err := New().Encode(events)

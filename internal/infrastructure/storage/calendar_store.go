@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/oernster/pigeonpost/internal/domain"
@@ -59,7 +61,7 @@ func (s *Store) DeleteCalendar(ctx context.Context, id string) error {
 	})
 }
 
-const eventColumns = "id, uid, calendar_id, summary, description, location, start_ms, end_ms, all_day, recurrence, extra"
+const eventColumns = "id, uid, calendar_id, summary, description, location, start_ms, end_ms, all_day, recurrence, extra, rdate, exdate, recurrence_id"
 
 // ListEvents returns every event, ordered by start time.
 func (s *Store) ListEvents(ctx context.Context) ([]domain.Event, error) {
@@ -98,14 +100,20 @@ func (s *Store) SaveEvent(ctx context.Context, e domain.Event) error {
 	if e.HasEnd() {
 		endMs = e.End().UnixMilli()
 	}
+	var recurrenceIDMs int64
+	if e.IsOverride() {
+		recurrenceIDMs = e.RecurrenceID().UnixMilli()
+	}
 	_, err := s.db.ExecContext(ctx,
-		`INSERT INTO event (`+eventColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		`INSERT INTO event (`+eventColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		 ON CONFLICT(id) DO UPDATE SET uid = excluded.uid, calendar_id = excluded.calendar_id,
 		     summary = excluded.summary, description = excluded.description, location = excluded.location,
 		     start_ms = excluded.start_ms, end_ms = excluded.end_ms, all_day = excluded.all_day,
-		     recurrence = excluded.recurrence, extra = excluded.extra;`,
+		     recurrence = excluded.recurrence, extra = excluded.extra, rdate = excluded.rdate,
+		     exdate = excluded.exdate, recurrence_id = excluded.recurrence_id;`,
 		e.ID(), e.UID(), e.CalendarID(), e.Summary(), e.Description(), e.Location(),
-		e.Start().UnixMilli(), endMs, boolToInt(e.AllDay()), e.Recurrence(), e.Extra())
+		e.Start().UnixMilli(), endMs, boolToInt(e.AllDay()), e.Recurrence(), e.Extra(),
+		encodeTimes(e.RDates()), encodeTimes(e.ExDates()), recurrenceIDMs)
 	if err != nil {
 		return fmt.Errorf("save event %q: %w", e.ID(), err)
 	}
@@ -121,36 +129,82 @@ func (s *Store) DeleteEvent(ctx context.Context, id string) error {
 }
 
 // scanEvent reads one event row into a validated domain event. A zero end_ms means the event has no
-// end.
+// end; a zero recurrence_id means the event is not an override.
 func scanEvent(row interface{ Scan(...any) error }) (domain.Event, error) {
 	var (
-		id, uid, calendarID, summary, description, location, recurrence, extra string
-		startMs, endMs                                                         int64
-		allDay                                                                 int
+		id, uid, calendarID, summary, description, location, recurrence, extra, rdate, exdate string
+		startMs, endMs, recurrenceIDMs                                                        int64
+		allDay                                                                                int
 	)
 	if err := row.Scan(&id, &uid, &calendarID, &summary, &description, &location,
-		&startMs, &endMs, &allDay, &recurrence, &extra); err != nil {
+		&startMs, &endMs, &allDay, &recurrence, &extra, &rdate, &exdate, &recurrenceIDMs); err != nil {
 		return domain.Event{}, fmt.Errorf("scan event: %w", err)
 	}
 	var end time.Time
 	if endMs != 0 {
 		end = time.UnixMilli(endMs).UTC()
 	}
+	rdates, err := decodeTimes(rdate)
+	if err != nil {
+		return domain.Event{}, fmt.Errorf("rebuild event %q: %w", id, err)
+	}
+	exdates, err := decodeTimes(exdate)
+	if err != nil {
+		return domain.Event{}, fmt.Errorf("rebuild event %q: %w", id, err)
+	}
+	var recurrenceID time.Time
+	if recurrenceIDMs != 0 {
+		recurrenceID = time.UnixMilli(recurrenceIDMs).UTC()
+	}
 	event, err := domain.NewEvent(domain.EventInput{
-		ID:          id,
-		UID:         uid,
-		CalendarID:  calendarID,
-		Summary:     summary,
-		Description: description,
-		Location:    location,
-		Start:       time.UnixMilli(startMs).UTC(),
-		End:         end,
-		AllDay:      allDay != 0,
-		Recurrence:  recurrence,
-		Extra:       extra,
+		ID:           id,
+		UID:          uid,
+		CalendarID:   calendarID,
+		Summary:      summary,
+		Description:  description,
+		Location:     location,
+		Start:        time.UnixMilli(startMs).UTC(),
+		End:          end,
+		AllDay:       allDay != 0,
+		Recurrence:   recurrence,
+		RDates:       rdates,
+		ExDates:      exdates,
+		RecurrenceID: recurrenceID,
+		Extra:        extra,
 	})
 	if err != nil {
 		return domain.Event{}, fmt.Errorf("rebuild event %q: %w", id, err)
 	}
 	return event, nil
+}
+
+// encodeTimes serialises a list of times as comma-separated Unix millisecond values for storage. An
+// empty list encodes to the empty string.
+func encodeTimes(times []time.Time) string {
+	if len(times) == 0 {
+		return ""
+	}
+	parts := make([]string, len(times))
+	for i, t := range times {
+		parts[i] = strconv.FormatInt(t.UnixMilli(), 10)
+	}
+	return strings.Join(parts, ",")
+}
+
+// decodeTimes parses the comma-separated Unix millisecond values written by encodeTimes back into UTC
+// times. The empty string decodes to no times.
+func decodeTimes(s string) ([]time.Time, error) {
+	if s == "" {
+		return nil, nil
+	}
+	parts := strings.Split(s, ",")
+	out := make([]time.Time, 0, len(parts))
+	for _, p := range parts {
+		ms, err := strconv.ParseInt(p, 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("decode recurrence date %q: %w", p, err)
+		}
+		out = append(out, time.UnixMilli(ms).UTC())
+	}
+	return out, nil
 }

@@ -256,3 +256,19 @@ side-by-side lanes.
 
 **Interop acceptance.** A real export from Outlook and from Thunderbird imports cleanly into PigeonPost;
 a PigeonPost export imports back into both without loss, for calendar (ICS) and contacts (vCard and CSV).
+
+**Calendar recurrence (RFC 5545 expansion).** The `Event` now models the whole recurrence set: the raw
+RRULE plus RDATE and EXDATE occurrence lists and a RECURRENCE-ID for an override event, all as
+already-resolved values so the domain still reads no wall clock (schema v18 stores the date lists as
+comma-separated Unix milliseconds and the recurrence id as milliseconds). Expansion needs an RRULE
+parser, which the domain must not depend on, so it lives behind a new Application port,
+`RecurrenceService` (`Expand` an event into `EventInstance` occurrences within a window; `TruncateBefore`
+rewrite a rule to end before a time), implemented in `infrastructure/recurrence` over the pure-Go
+`teambition/rrule-go` library. `CalendarService.ListEventInstances(from, to)` groups events by series
+(UID, or id when absent), expands each master, suppresses the generated occurrence an override replaces,
+and merges one-off events, all sorted by start; a malformed rule degrades to a single instance rather
+than losing the event. Editing or deleting a recurring occurrence carries a scope (this, this-and-future,
+all): `this` writes a single-occurrence override, `future` truncates the master with UNTIL and starts a
+new series from the split (migrating later overrides), and `all` rewrites the master. The `ics` codec
+extracts and re-emits RDATE, EXDATE and RECURRENCE-ID alongside the existing opaque `Extra`
+pass-through, so the round-trip stays lossless. Timezones remain a later concern: all times stay UTC.

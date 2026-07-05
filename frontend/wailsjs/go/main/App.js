@@ -114,6 +114,18 @@ export function ListEvents() {
   return window['go']['main']['App']['ListEvents']();
 }
 
+export function ListEventInstances(arg1, arg2) {
+  return window['go']['main']['App']['ListEventInstances'](arg1, arg2);
+}
+
+export function SaveEventScoped(arg1, arg2, arg3) {
+  return window['go']['main']['App']['SaveEventScoped'](arg1, arg2, arg3);
+}
+
+export function DeleteEventScoped(arg1, arg2, arg3) {
+  return window['go']['main']['App']['DeleteEventScoped'](arg1, arg2, arg3);
+}
+
 export function ListFolders(arg1) {
   return window['go']['main']['App']['ListFolders'](arg1);
 }

@@ -89,21 +89,61 @@ func eventFromICS(e goical.Event) (domain.Event, bool) {
 		recurrence = rrule.Value
 	}
 	event, err := domain.NewEvent(domain.EventInput{
-		ID:          id,
-		UID:         uid,
-		Summary:     summary,
-		Description: text(e.Props, goical.PropDescription),
-		Location:    text(e.Props, goical.PropLocation),
-		Start:       start,
-		End:         end,
-		AllDay:      allDay,
-		Recurrence:  recurrence,
-		Extra:       rawICS(e),
+		ID:           id,
+		UID:          uid,
+		Summary:      summary,
+		Description:  text(e.Props, goical.PropDescription),
+		Location:     text(e.Props, goical.PropLocation),
+		Start:        start,
+		End:          end,
+		AllDay:       allDay,
+		Recurrence:   recurrence,
+		RDates:       parseDateList(e.Props, goical.PropRecurrenceDates),
+		ExDates:      parseDateList(e.Props, goical.PropExceptionDates),
+		RecurrenceID: parseRecurrenceID(e.Props),
+		Extra:        rawICS(e),
 	})
 	if err != nil {
 		return domain.Event{}, false
 	}
 	return event, true
+}
+
+// parseDateList reads every occurrence start from the named property (RDATE or EXDATE), which may repeat
+// and may carry a comma-separated list of DATE or DATE-TIME values. Unparseable or zero values are
+// skipped so a malformed entry cannot fail the whole import.
+func parseDateList(props goical.Props, name string) []time.Time {
+	var out []time.Time
+	for _, prop := range props[name] {
+		for _, raw := range strings.Split(prop.Value, ",") {
+			raw = strings.TrimSpace(raw)
+			if raw == "" {
+				continue
+			}
+			part := prop
+			part.Value = raw
+			when, err := part.DateTime(time.UTC)
+			if err != nil || when.IsZero() {
+				continue
+			}
+			out = append(out, when.UTC())
+		}
+	}
+	return out
+}
+
+// parseRecurrenceID reads the RECURRENCE-ID that marks an event as an override of a single occurrence,
+// returning the zero time when the property is absent or unparseable.
+func parseRecurrenceID(props goical.Props) time.Time {
+	prop := props.Get(goical.PropRecurrenceID)
+	if prop == nil {
+		return time.Time{}
+	}
+	when, err := prop.DateTime(time.UTC)
+	if err != nil {
+		return time.Time{}
+	}
+	return when.UTC()
 }
 
 // text returns a property's text value, or an empty string when it is absent or unreadable.
@@ -164,7 +204,48 @@ func eventToComponent(ev domain.Event) *goical.Component {
 	} else {
 		comp.Props.Del(goical.PropRecurrenceRule)
 	}
+	setDateList(comp, goical.PropRecurrenceDates, ev.RDates(), ev.AllDay())
+	setDateList(comp, goical.PropExceptionDates, ev.ExDates(), ev.AllDay())
+	if ev.IsOverride() {
+		setWhen(comp, goical.PropRecurrenceID, ev.RecurrenceID(), ev.AllDay())
+	} else {
+		comp.Props.Del(goical.PropRecurrenceID)
+	}
 	return comp
+}
+
+// setDateList overwrites a date-list property (RDATE or EXDATE) with the given occurrence starts as a
+// single comma-separated value, or removes it when the list is empty, so an in-app edit replaces rather
+// than duplicates any preserved list. Values are DATE for an all-day event and UTC DATE-TIME otherwise.
+func setDateList(comp *goical.Component, name string, times []time.Time, allDay bool) {
+	comp.Props.Del(name)
+	if len(times) == 0 {
+		return
+	}
+	parts := make([]string, len(times))
+	for i, t := range times {
+		parts[i] = formatWhen(t, allDay)
+	}
+	prop := goical.NewProp(name)
+	if allDay {
+		prop.SetValueType(goical.ValueDate)
+	} else {
+		prop.SetValueType(goical.ValueDateTime)
+	}
+	prop.Value = strings.Join(parts, ",")
+	comp.Props.Set(prop)
+}
+
+// formatWhen renders a single time in the ICS DATE or UTC DATE-TIME wire form, reusing the library's own
+// property setters so the format strings are not duplicated here.
+func formatWhen(t time.Time, allDay bool) string {
+	prop := goical.NewProp(goical.PropDateTimeStart)
+	if allDay {
+		prop.SetDate(t)
+	} else {
+		prop.SetDateTime(t.UTC())
+	}
+	return prop.Value
 }
 
 // baseComponent returns the VEVENT to build on: the preserved original when the event was imported, or

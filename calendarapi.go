@@ -61,6 +61,17 @@ type EventRequest struct {
 	Extra       string `json:"extra"`
 }
 
+// EventInstanceDTO is one concrete occurrence of an event within a queried window. Event is the source
+// event (the recurring master, an override, or a one-off); Start and End are this occurrence's times as
+// RFC 3339 (End empty when the event has no end); RecurrenceID identifies the occurrence within its
+// series (empty for a non-recurring event) and is the value passed back when editing or deleting it.
+type EventInstanceDTO struct {
+	Event        EventDTO `json:"event"`
+	Start        string   `json:"start"`
+	End          string   `json:"end"`
+	RecurrenceID string   `json:"recurrenceId"`
+}
+
 // ListCalendars returns every calendar.
 func (a *App) ListCalendars() ([]CalendarDTO, error) {
 	calendars, err := a.calendar.ListCalendars(a.ctx)
@@ -136,6 +147,70 @@ func (a *App) DeleteEvent(id string) error {
 	return a.calendar.DeleteEvent(a.ctx, id)
 }
 
+// ListEventInstances expands every event into its concrete occurrences within the inclusive window
+// [from, to] (RFC 3339), sorted by start, so the calendar view can render recurring events.
+func (a *App) ListEventInstances(from, to string) ([]EventInstanceDTO, error) {
+	fromTime, err := parseEventTime(from)
+	if err != nil {
+		return nil, err
+	}
+	toTime, err := parseEventTime(to)
+	if err != nil {
+		return nil, err
+	}
+	instances, err := a.calendar.ListEventInstances(a.ctx, fromTime, toTime)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]EventInstanceDTO, 0, len(instances))
+	for _, instance := range instances {
+		out = append(out, toEventInstanceDTO(instance))
+	}
+	return out, nil
+}
+
+// SaveEventScoped applies an edit to a recurring occurrence at the given scope (0 this, 1 this and
+// future, 2 all). occurrence is the RFC 3339 original start of the instance being edited (its
+// recurrenceId); req carries the edited fields and its id identifies the series.
+func (a *App) SaveEventScoped(req EventRequest, scope int, occurrence string) error {
+	start, err := parseEventTime(req.Start)
+	if err != nil {
+		return err
+	}
+	end, err := parseOptionalEventTime(req.End)
+	if err != nil {
+		return err
+	}
+	occurrenceTime, err := parseEventTime(occurrence)
+	if err != nil {
+		return err
+	}
+	return a.calendar.UpdateEventScope(a.ctx, application.EventScope(scope), application.EventInput{
+		ID:          req.ID,
+		UID:         req.UID,
+		CalendarID:  req.CalendarID,
+		Summary:     req.Summary,
+		Description: req.Description,
+		Location:    req.Location,
+		Start:       start,
+		End:         end,
+		AllDay:      req.AllDay,
+		Recurrence:  req.Recurrence,
+		Extra:       req.Extra,
+	}, occurrenceTime)
+}
+
+// DeleteEventScoped removes a recurring occurrence at the given scope (0 this, 1 this and future, 2 all).
+// seriesID is the id of the occurrence's event (master or override); occurrence is its RFC 3339 original
+// start.
+func (a *App) DeleteEventScoped(scope int, seriesID, occurrence string) error {
+	occurrenceTime, err := parseEventTime(occurrence)
+	if err != nil {
+		return err
+	}
+	return a.calendar.DeleteEventScope(a.ctx, application.EventScope(scope), seriesID, occurrenceTime)
+}
+
 // ImportEventsFromFile opens a native file dialog, reads the chosen .ics file and imports its events,
 // returning the number imported. A cancelled dialog is a no-op returning zero.
 func (a *App) ImportEventsFromFile() (int, error) {
@@ -198,6 +273,24 @@ func toEventDTO(e domain.Event) EventDTO {
 		AllDay:      e.AllDay(),
 		Recurrence:  e.Recurrence(),
 		Extra:       e.Extra(),
+	}
+}
+
+// toEventInstanceDTO maps a domain event instance to its DTO, formatting times as RFC 3339.
+func toEventInstanceDTO(i domain.EventInstance) EventInstanceDTO {
+	end := ""
+	if i.HasEnd() {
+		end = i.End().Format(time.RFC3339)
+	}
+	recurrenceID := ""
+	if !i.RecurrenceID().IsZero() {
+		recurrenceID = i.RecurrenceID().Format(time.RFC3339)
+	}
+	return EventInstanceDTO{
+		Event:        toEventDTO(i.Event()),
+		Start:        i.Start().Format(time.RFC3339),
+		End:          end,
+		RecurrenceID: recurrenceID,
 	}
 }
 
