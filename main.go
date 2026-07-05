@@ -103,12 +103,12 @@ func run() error {
 		Height:           windowH,
 		AssetServer:      &assetserver.Options{Assets: assets},
 		BackgroundColour: &options.RGBA{R: 22, G: 27, B: 34, A: 1},
-		// Closing the window hides it to the tray instead of quitting, so the reminder scheduler and mail
-		// sync keep running in the background; the tray menu's Quit is the way out.
-		HideWindowOnClose: true,
-		OnStartup:         app.startup,
-		OnShutdown:        app.shutdown,
-		Bind:              []interface{}{app},
+		// Clicking the window's close button asks whether to minimise to the tray or quit, so the reminder
+		// scheduler and mail sync can keep running in the background; see App.beforeClose.
+		OnBeforeClose: app.beforeClose,
+		OnStartup:     app.startup,
+		OnShutdown:    app.shutdown,
+		Bind:          []interface{}{app},
 	})
 	if err != nil {
 		return fmt.Errorf("run wails: %w", err)

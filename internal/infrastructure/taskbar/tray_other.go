@@ -24,6 +24,10 @@ type Tray struct {
 // NewTray returns a tray that only raises notifications. The window title is unused off Windows.
 func NewTray(_ string, appName string) *Tray { return &Tray{appName: appName} }
 
+// CanHideToTray reports whether hiding the window leaves a restorable tray icon. Off Windows there is no
+// tray icon, so hiding the window would strand it; closing therefore quits instead.
+func (t *Tray) CanHideToTray() bool { return false }
+
 // Start does nothing off Windows: there is no icon or message loop to run.
 func (t *Tray) Start(TrayActions) {}
 

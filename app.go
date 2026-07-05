@@ -2,11 +2,18 @@ package main
 
 import (
 	"context"
+	"sync/atomic"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 
 	"github.com/oernster/pigeonpost/internal/application"
 	"github.com/oernster/pigeonpost/internal/infrastructure/taskbar"
+)
+
+// Close-choice dialog button labels, shared by the dialog and the branch that reads its result.
+const (
+	closeDialogMinimise = "Minimise to tray"
+	closeDialogQuit     = "Quit"
 )
 
 // UnreadNotifier reflects the total unread count onto an out-of-window surface, namely the Windows
@@ -31,6 +38,7 @@ type App struct {
 	notifier UnreadNotifier
 	alerter  ReminderAlerter
 	tray     *taskbar.Tray
+	quitting atomic.Bool // set when an explicit Quit is under way, so the close prompt is skipped
 	accounts *application.AccountService
 	setup    *application.AccountSetupService
 	mailbox  *application.MailboxService
@@ -97,10 +105,44 @@ func (a *App) startup(ctx context.Context) {
 			About:        func() { runtime.EventsEmit(ctx, "menu:about") },
 			Licence:      func() { runtime.EventsEmit(ctx, "menu:licence") },
 			CheckUpdates: func() { runtime.EventsEmit(ctx, "menu:check-updates") },
-			Quit:         func() { runtime.Quit(ctx) },
+			Quit:         func() { a.quit() },
 		})
 	}
 	go a.runReminderScheduler()
+}
+
+// beforeClose runs when the user clicks the window's close button. It asks whether to minimise to the
+// tray (keeping the reminder scheduler and mail sync running) or to quit, and returns true to keep the
+// window open when the answer is to minimise. An explicit Quit already under way, or an error or
+// dismissed dialog, skips the prompt: the safe default is to keep running rather than quit unasked.
+func (a *App) beforeClose(ctx context.Context) bool {
+	if a.quitting.Load() {
+		return false
+	}
+	// Without a restorable tray icon (every platform but Windows) hiding the window would strand it, so
+	// closing quits normally there.
+	if a.tray == nil || !a.tray.CanHideToTray() {
+		return false
+	}
+	choice, err := runtime.MessageDialog(ctx, runtime.MessageDialogOptions{
+		Type:          runtime.QuestionDialog,
+		Title:         "Close PigeonPost",
+		Message:       "Minimise PigeonPost to the system tray, or quit the application?",
+		Buttons:       []string{closeDialogMinimise, closeDialogQuit},
+		DefaultButton: closeDialogMinimise,
+		CancelButton:  closeDialogMinimise,
+	})
+	if err == nil && choice == closeDialogQuit {
+		return false
+	}
+	runtime.WindowHide(ctx)
+	return true
+}
+
+// quit records that an explicit Quit is under way, so beforeClose does not prompt, then quits.
+func (a *App) quit() {
+	a.quitting.Store(true)
+	runtime.Quit(a.ctx)
 }
 
 // shutdown releases infrastructure resources when the window closes, removing the tray icon first.

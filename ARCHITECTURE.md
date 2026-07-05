@@ -304,9 +304,12 @@ notification off Windows (a freedesktop D-Bus notification on Linux, an `osascri
 macOS, a no-op on any other platform). Both alerts skip when the window is already in the foreground, so
 an in-view reminder relies on its banner alone. On Windows the `Tray` is a persistent, clickable
 notification-area icon: left-clicking it reopens the window, and its right-click menu mirrors the Help
-menu (About, Licence, Check for Updates) plus Open and Quit. The window's close button hides it to the
-tray rather than quitting (`HideWindowOnClose`), so the scheduler and mail sync keep running in the
-background and Quit on the tray menu is the way out. To keep the `taskbar` package free of any
+menu (About, Licence, Check for Updates) plus Open and Quit. Where a restorable tray icon exists (only
+Windows, gated by `Tray.CanHideToTray`), the window's close button asks whether to minimise to the tray
+or quit (`OnBeforeClose` shows the question dialog): minimising hides the window so the scheduler and
+mail sync keep running in the background, while quitting exits. A dismissed dialog minimises rather than
+quits unasked. Where no tray icon exists the close button simply quits. The tray menu's Quit sets a flag
+so it exits without re-showing that prompt, since it drives the same close path. To keep the `taskbar` package free of any
 UI-framework dependency, the tray's Open and menu items invoke callbacks supplied by the `App` facade,
 which reopen the window (`WindowShow`), emit `menu:*` Wails events the front end turns into the same
 dialogs the in-window Help menu opens, or quit.

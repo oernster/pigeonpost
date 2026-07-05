@@ -56,6 +56,10 @@ func NewTray(windowTitle, appName string) *Tray {
 	return &Tray{title: windowTitle, appName: appName, balloons: make(chan balloonMsg, balloonBuffer)}
 }
 
+// CanHideToTray reports whether hiding the window leaves a restorable tray icon. On Windows the tray is
+// a persistent clickable icon, so it does.
+func (t *Tray) CanHideToTray() bool { return true }
+
 // Start records the menu callbacks and launches the tray's message-pump thread.
 func (t *Tray) Start(actions TrayActions) {
 	t.actions = actions
