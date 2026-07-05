@@ -32,6 +32,9 @@ var versionRaw string
 //go:embed LICENSE
 var licenceText string
 
+//go:embed pigeonpost.png
+var appIconPNG []byte
+
 const (
 	appName     = "PigeonPost"
 	dataDirName = "PigeonPost"
@@ -93,7 +96,8 @@ func run() error {
 	flasher := taskbar.NewFlasher(windowTitle)
 	// The tray icon is persistent and clickable; its context menu emits Wails events the front end maps
 	// to the Help dialogs, so the App facade supplies the callbacks at startup once the runtime exists.
-	tray := taskbar.NewTray(windowTitle, appName)
+	// The embedded app icon is composited with the unread badge to form the tray icon.
+	tray := taskbar.NewTray(windowTitle, appName, appIconPNG)
 
 	app := NewApp(store.Close, overlay, flasher, tray, accountService, setupService, mailboxService, syncService, composeService, tagService, bodyService, actionService, folderService, ruleService, contactService, calendarService)
 

@@ -13,6 +13,7 @@ const (
 	wmApp           = 0x8000
 	wmTrayCallback  = wmApp + 1 // the tray icon posts its mouse events here
 	wmShowBalloon   = wmApp + 2 // Notify posts this so the tray thread shows a queued balloon
+	wmSetUnread     = wmApp + 3 // SetUnread posts this so the tray thread re-renders the count badge
 	wmNull          = 0x0000
 	wmClose         = 0x0010
 	wmDestroy       = 0x0002

@@ -3,7 +3,7 @@
 package taskbar
 
 import (
-	"os"
+	"image"
 	"runtime"
 	"sync/atomic"
 	"syscall"
@@ -31,10 +31,13 @@ type TrayActions struct {
 type Tray struct {
 	title    string // main window title, used to find and restore the window
 	appName  string // tray icon tooltip
+	iconPNG  []byte // app icon source, composited with the unread badge into the tray icon
 	actions  TrayActions
 	balloons chan balloonMsg
 	hwnd     atomic.Uintptr
-	hIcon    windows.Handle
+	baseImg  *image.RGBA    // decoded, scaled app icon; nil if the PNG could not be decoded
+	hIcon    windows.Handle // fallback icon handle when baseImg is nil
+	unread   atomic.Int32   // latest unread total reflected onto the tray icon badge
 }
 
 type balloonMsg struct{ title, body string }
@@ -51,14 +54,24 @@ var taskbarCreated uint32
 // trayWndProcCallback is the C-callable window procedure, created once.
 var trayWndProcCallback = syscall.NewCallback(trayWndProc)
 
-// NewTray constructs a tray targeting the window with the given title and using appName as its tooltip.
-func NewTray(windowTitle, appName string) *Tray {
-	return &Tray{title: windowTitle, appName: appName, balloons: make(chan balloonMsg, balloonBuffer)}
+// NewTray constructs a tray targeting the window with the given title, using appName as its tooltip and
+// compositing iconPNG (the app icon) with the unread badge to form the tray icon.
+func NewTray(windowTitle, appName string, iconPNG []byte) *Tray {
+	return &Tray{title: windowTitle, appName: appName, iconPNG: iconPNG, balloons: make(chan balloonMsg, balloonBuffer)}
 }
 
 // CanHideToTray reports whether hiding the window leaves a restorable tray icon. On Windows the tray is
 // a persistent clickable icon, so it does.
 func (t *Tray) CanHideToTray() bool { return true }
+
+// SetUnread reflects the unread total onto the tray icon as a red count badge (0 clears it). It hands
+// the value to the tray thread, which owns the icon; only the latest value matters.
+func (t *Tray) SetUnread(total int) {
+	t.unread.Store(int32(total))
+	if h := t.hwnd.Load(); h != 0 {
+		procPostMessage.Call(h, wmSetUnread, 0, 0)
+	}
+}
 
 // Start records the menu callbacks and launches the tray's message-pump thread.
 func (t *Tray) Start(actions TrayActions) {
@@ -123,7 +136,7 @@ func (t *Tray) run() {
 	t.hwnd.Store(hwnd)
 	registerTaskbarCreated()
 
-	t.loadIcon()
+	t.prepareIcon()
 	t.addIcon()
 
 	var m msg
@@ -172,6 +185,9 @@ func trayWndProc(hwnd, message, wParam, lParam uintptr) uintptr {
 		return 0
 	case wmShowBalloon:
 		t.drainBalloons()
+		return 0
+	case wmSetUnread:
+		t.refreshIcon()
 		return 0
 	case wmDestroy:
 		procPostQuitMessage.Call(0)
@@ -253,12 +269,16 @@ func (t *Tray) baseNID() notifyIconData {
 
 // addIcon installs the tray icon with its tooltip and click-callback message.
 func (t *Tray) addIcon() {
+	icon, owned := t.buildIcon(int(t.unread.Load()))
 	n := t.baseNID()
 	n.uFlags = nifMessage | nifIcon | nifTip
 	n.uCallbackMessage = wmTrayCallback
-	n.hIcon = t.hIcon
+	n.hIcon = icon
 	copyUTF16(n.szTip[:], t.appName)
 	procShellNotifyIcon.Call(nimAdd, uintptr(unsafe.Pointer(&n)))
+	if owned {
+		procDestroyIcon.Call(uintptr(icon))
+	}
 }
 
 // showBalloon raises a balloon notification on the existing tray icon.
@@ -275,27 +295,4 @@ func (t *Tray) showBalloon(title, body string) {
 func (t *Tray) deleteIcon() {
 	n := t.baseNID()
 	procShellNotifyIcon.Call(nimDelete, uintptr(unsafe.Pointer(&n)))
-}
-
-// loadIcon takes the application icon from the running executable, falling back to the generic
-// application icon if the executable carries none.
-func (t *Tray) loadIcon() {
-	if exe, err := os.Executable(); err == nil {
-		if p, perr := windows.UTF16PtrFromString(exe); perr == nil {
-			var large, small windows.Handle
-			n, _, _ := procExtractIconEx.Call(
-				uintptr(unsafe.Pointer(p)), 0,
-				uintptr(unsafe.Pointer(&large)), uintptr(unsafe.Pointer(&small)), 1)
-			if n > 0 && small != 0 {
-				t.hIcon = small
-				return
-			}
-			if large != 0 {
-				t.hIcon = large
-				return
-			}
-		}
-	}
-	h, _, _ := procLoadIcon.Call(0, idiApplication)
-	t.hIcon = windows.Handle(h)
 }

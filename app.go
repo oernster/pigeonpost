@@ -202,10 +202,14 @@ func (a *App) UnreadCounts() (UnreadCountsDTO, error) {
 		byAccount = map[string]int{}
 	}
 	// This is the single derived-total choke point the front end refreshes after every read-state
-	// change, so reflecting the total onto the taskbar badge here keeps the badge correct without a
-	// separate trigger at each call site.
+	// change, so reflecting the total onto the taskbar badge and the tray icon here keeps both correct
+	// without a separate trigger at each call site. The taskbar badge shows on the window's taskbar
+	// button; the tray badge shows even when the window is hidden to the tray.
 	if a.notifier != nil {
 		a.notifier.SetUnread(totals.Total)
+	}
+	if a.tray != nil {
+		a.tray.SetUnread(totals.Total)
 	}
 	return UnreadCountsDTO{Total: totals.Total, ByAccount: byAccount}, nil
 }

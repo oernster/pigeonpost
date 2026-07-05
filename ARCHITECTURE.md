@@ -32,9 +32,10 @@ enforced by a test in `tests/structural/boundary_test.go`, not by convention.
   the message-format logic is not duplicated), the shared message-body parser with HTML sanitising and
   image-blocking (`mailparse`, used by both the IMAP and POP3 read paths), the per-protocol dispatcher
   (`mailrouter`, which routes reads, verification and actions to the IMAP or POP3 adapter by account
-  protocol), the reminder alerting surfaces (`taskbar`: the Windows taskbar unread-overlay badge and
-  reminder flash, no-ops off Windows, plus the notification tray, a Windows tray icon or a native desktop
-  notification elsewhere) and the OS keychain (`keychain`); later ICS, vCard and OAuth. Never imported by Domain or Application. The
+  protocol), the reminder and unread surfaces (`taskbar`: the Windows taskbar unread-overlay badge and
+  reminder flash, no-ops off Windows, plus the notification tray, a Windows tray icon that also carries
+  the unread badge, or a native desktop notification elsewhere) and the OS keychain (`keychain`); later
+  ICS, vCard and OAuth. Never imported by Domain or Application. The
   `installer` package holds the setup program's install logic and is consumed by the `installer/` Wails
   setup app.
 - **UI**: the React front end plus the thin Wails facade in package `main` (`app.go` with its
@@ -183,7 +184,10 @@ Mark read/unread and star/flag: the UI calls the facade, which routes through th
 `MessageActionService`. It writes the flag (`\Seen` or `\Flagged`) to the IMAP server first (via the
 `MailActions` port) and only then updates the local cache, so the change is durable: a later sync
 mirrors server state back and preserves it rather than overwriting a local-only flag. The unread
-(bold) state and the star follow the cached flags.
+(bold) state and the star follow the cached flags. `UnreadCounts` is the single derived-total choke
+point: it reflects the cross-account total onto both the taskbar overlay badge and the tray icon (the
+tray icon composites the app icon with the same red count badge, so the count stays visible even when
+the window is hidden to the tray).
 
 Search: the `MailboxService.Search` use case runs a free-text query against the local cache through
 the `MailStore`. The store keeps a SQLite FTS5 index (`message_fts`, schema v4) in step with the
