@@ -20,6 +20,7 @@ import {RuleManagerModal} from './components/RuleManagerModal'
 import {ContactsModal} from './components/ContactsModal'
 import {CalendarModal} from './components/CalendarModal'
 import {ReminderNotifications} from './components/ReminderNotifications'
+import {CloseChoiceDialog} from './components/CloseChoiceDialog'
 import {Splash} from './components/Splash'
 import {EventsOn} from '../wailsjs/runtime'
 
@@ -176,6 +177,7 @@ function App() {
     const [theme, setTheme] = useState<Theme>(loadTheme())
     const [about, setAbout] = useState<AboutInfo | null>(null)
     const [licence, setLicence] = useState<string | null>(null)
+    const [closeChoice, setCloseChoice] = useState(false)
     const [composing, setComposing] = useState<boolean>(false)
     const [composeInitial, setComposeInitial] = useState<ComposeInitial | undefined>(undefined)
     const [settingUp, setSettingUp] = useState<boolean>(false)
@@ -999,12 +1001,14 @@ function App() {
     }, [])
 
     // The Windows tray context menu mirrors the Help menu: its items emit these events from the backend,
-    // which open the same dialogs the in-window Help menu does.
+    // which open the same dialogs the in-window Help menu does. The close button emits close-request so
+    // the choice of minimise-to-tray or quit uses the app's own themed dialog rather than a native one.
     useEffect(() => {
         const off = [
             EventsOn('menu:about', () => void showAbout()),
             EventsOn('menu:licence', () => void showLicence()),
             EventsOn('menu:check-updates', () => checkUpdates()),
+            EventsOn('app:close-request', () => setCloseChoice(true)),
         ]
         return () => off.forEach((unsubscribe) => unsubscribe())
     }, [showAbout, showLicence, checkUpdates])
@@ -1326,6 +1330,19 @@ function App() {
             )}
             <AboutModal about={about} onClose={() => setAbout(null)}/>
             <LicenceModal text={licence} onClose={() => setLicence(null)}/>
+            {closeChoice && (
+                <CloseChoiceDialog
+                    onMinimise={() => {
+                        setCloseChoice(false)
+                        void api.minimiseToTray()
+                    }}
+                    onQuit={() => {
+                        setCloseChoice(false)
+                        void api.requestQuit()
+                    }}
+                    onCancel={() => setCloseChoice(false)}
+                />
+            )}
             {composing && selectedAccount && (
                 <ComposeModal
                     accountId={selectedAccount}

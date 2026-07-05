@@ -78,6 +78,8 @@ export function MarkRead(arg1:string,arg2:boolean):Promise<void>;
 
 export function MessageTags(arg1:string):Promise<Array<main.TagDTO>>;
 
+export function MinimiseToTray():Promise<void>;
+
 export function MoveMessage(arg1:string,arg2:string):Promise<void>;
 
 export function OpenExternal(arg1:string):Promise<void>;
@@ -93,6 +95,8 @@ export function RemoveAccount(arg1:string):Promise<void>;
 export function RenameFolder(arg1:string,arg2:string):Promise<void>;
 
 export function ReplayOutbox():Promise<number>;
+
+export function RequestQuit():Promise<void>;
 
 export function SaveCalendar(arg1:main.CalendarRequest):Promise<void>;
 

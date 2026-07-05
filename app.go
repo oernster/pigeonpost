@@ -11,12 +11,6 @@ import (
 	"github.com/oernster/pigeonpost/internal/infrastructure/taskbar"
 )
 
-// Close-choice dialog button labels, shared by the dialog and the branch that reads its result.
-const (
-	closeDialogMinimise = "Minimise to tray"
-	closeDialogQuit     = "Quit"
-)
-
 // singleInstanceID names the per-user lock that keeps only one PigeonPost running; a second launch
 // signals this instance to reveal itself instead of starting its own window.
 const singleInstanceID = "uk.codecrafter.pigeonpost"
@@ -116,32 +110,32 @@ func (a *App) startup(ctx context.Context) {
 	go a.runReminderScheduler()
 }
 
-// beforeClose runs when the user clicks the window's close button. It asks whether to minimise to the
-// tray (keeping the reminder scheduler and mail sync running) or to quit, and returns true to keep the
-// window open when the answer is to minimise. An explicit Quit already under way, or an error or
-// dismissed dialog, skips the prompt: the safe default is to keep running rather than quit unasked.
+// beforeClose runs when the user clicks the window's close button. Rather than quit, it asks the front
+// end to show the close-choice dialog (the app's own dark-themed dialog, not a native one) and keeps the
+// window open by returning true; the dialog then calls MinimiseToTray or RequestQuit. An explicit Quit
+// already under way, or a platform without a restorable tray icon (every platform but Windows, where
+// hiding the window would strand it), skips the prompt and lets the close proceed.
 func (a *App) beforeClose(ctx context.Context) bool {
 	if a.quitting.Load() {
 		return false
 	}
-	// Without a restorable tray icon (every platform but Windows) hiding the window would strand it, so
-	// closing quits normally there.
 	if a.tray == nil || !a.tray.CanHideToTray() {
 		return false
 	}
-	choice, err := runtime.MessageDialog(ctx, runtime.MessageDialogOptions{
-		Type:          runtime.QuestionDialog,
-		Title:         "Close PigeonPost",
-		Message:       "Minimise PigeonPost to the system tray, or quit the application?",
-		Buttons:       []string{closeDialogMinimise, closeDialogQuit},
-		DefaultButton: closeDialogMinimise,
-		CancelButton:  closeDialogMinimise,
-	})
-	if err == nil && choice == closeDialogQuit {
-		return false
-	}
-	runtime.WindowHide(ctx)
+	runtime.EventsEmit(ctx, "app:close-request")
 	return true
+}
+
+// MinimiseToTray hides the window so PigeonPost keeps running in the tray. The close-choice dialog calls
+// this for its Minimise option.
+func (a *App) MinimiseToTray() {
+	runtime.WindowHide(a.ctx)
+}
+
+// RequestQuit quits the application from the close-choice dialog's Quit option, recording the intent so
+// the close prompt is not shown again for this quit.
+func (a *App) RequestQuit() {
+	a.quit()
 }
 
 // quit records that an explicit Quit is under way, so beforeClose does not prompt, then quits.
