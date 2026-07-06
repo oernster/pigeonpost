@@ -47,8 +47,10 @@ type App struct {
 	alerter    ReminderAlerter
 	tray       *taskbar.Tray
 	watcher    MailWatcher
-	mailCheck  sync.Mutex  // serialises checkMail so the poll and IDLE pushes do not detect concurrently
-	quitting   atomic.Bool // set when an explicit Quit is under way, so the close prompt is skipped
+	watchers   map[string]context.CancelFunc // per-account IDLE watcher cancels, keyed by account id
+	watchersMu sync.Mutex                    // guards watchers
+	mailCheck  sync.Mutex                    // serialises checkMail so the poll and IDLE pushes do not detect concurrently
+	quitting   atomic.Bool                   // set when an explicit Quit is under way, so the close prompt is skipped
 	accounts   *application.AccountService
 	setup      *application.AccountSetupService
 	mailbox    *application.MailboxService
@@ -91,6 +93,7 @@ func NewApp(
 		alerter:    alerter,
 		tray:       tray,
 		watcher:    watcher,
+		watchers:   make(map[string]context.CancelFunc),
 		accounts:   accounts,
 		setup:      setup,
 		mailbox:    mailbox,
@@ -193,9 +196,14 @@ func (a *App) ListAccounts() ([]AccountDTO, error) {
 	return toAccountDTOs(accounts), nil
 }
 
-// RemoveAccount deletes an account together with its cached mail and its keychain secret.
+// RemoveAccount deletes an account together with its cached mail and its keychain secret, and stops its
+// IDLE watcher so a removed account leaves no stale server connection behind.
 func (a *App) RemoveAccount(accountID string) error {
-	return a.accounts.Remove(a.ctx, accountID)
+	if err := a.accounts.Remove(a.ctx, accountID); err != nil {
+		return err
+	}
+	a.stopMailWatcher(accountID)
+	return nil
 }
 
 // ListFolders returns the cached folders for an account.

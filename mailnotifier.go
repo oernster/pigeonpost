@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"time"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
@@ -51,9 +52,10 @@ func (a *App) runMailNotifier() {
 	}
 }
 
-// startMailWatchers launches an IMAP IDLE watcher per IMAP account, each calling checkMail the instant the
-// server reports new mail. An account added after launch falls back to the poll until the next start, and
-// a POP3 account has no IDLE and relies on the poll.
+// startMailWatchers launches an IMAP IDLE watcher for every IMAP account at startup, each calling checkMail
+// the instant the server reports new mail. Accounts added, reconfigured or removed after launch are kept in
+// sync by AddAccount, UpdateAccount and RemoveAccount through startMailWatcher and stopMailWatcher, so no
+// restart is needed. A POP3 account has no IDLE and relies on the backstop poll.
 func (a *App) startMailWatchers() {
 	if a.watcher == nil {
 		return
@@ -64,12 +66,45 @@ func (a *App) startMailWatchers() {
 		return
 	}
 	for _, account := range accounts {
-		if account.Protocol() != domain.ProtocolIMAP {
-			continue
-		}
-		acc := account
-		runtime.LogDebugf(a.ctx, "mail-notifier: starting IDLE watcher for %q", acc.ID())
-		go a.watcher.Watch(a.ctx, acc, func() { a.checkMail("idle") })
+		a.startMailWatcher(account)
+	}
+}
+
+// startMailWatcher starts an IMAP account's IDLE watcher, replacing any watcher already running for that
+// account so a freshly added or reconfigured account gets instant push without a restart. It first stops an
+// existing watcher for the id (so changed server settings take effect, and a switch to POP3 leaves no stale
+// IMAP watcher), then starts a new one only for an IMAP account. A nil watcher or a non-IMAP account leaves
+// the backstop poll as the only mechanism. Each watcher runs under a child of the app context, so shutdown
+// stops them all and stopMailWatcher can stop one on its own.
+func (a *App) startMailWatcher(account domain.Account) {
+	if a.watcher == nil {
+		return
+	}
+	a.watchersMu.Lock()
+	defer a.watchersMu.Unlock()
+	if cancel, ok := a.watchers[account.ID()]; ok {
+		cancel()
+		delete(a.watchers, account.ID())
+	}
+	if account.Protocol() != domain.ProtocolIMAP {
+		return
+	}
+	ctx, cancel := context.WithCancel(a.ctx)
+	a.watchers[account.ID()] = cancel
+	acc := account
+	runtime.LogDebugf(a.ctx, "mail-notifier: starting IDLE watcher for %q", acc.ID())
+	go a.watcher.Watch(ctx, acc, func() { a.checkMail("idle") })
+}
+
+// stopMailWatcher stops the IDLE watcher for an account, if one is running, so a removed account leaves no
+// stale server connection. It is safe to call for an account that has no watcher (a POP3 account, or one
+// added before the watcher existed).
+func (a *App) stopMailWatcher(accountID string) {
+	a.watchersMu.Lock()
+	defer a.watchersMu.Unlock()
+	if cancel, ok := a.watchers[accountID]; ok {
+		cancel()
+		delete(a.watchers, accountID)
 	}
 }
 

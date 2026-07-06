@@ -38,7 +38,13 @@ func (a *App) AddAccount(req AccountSetupRequest) error {
 	if err != nil {
 		return err
 	}
-	return a.setup.Configure(a.ctx, account, secret)
+	if err := a.setup.Configure(a.ctx, account, secret); err != nil {
+		return err
+	}
+	// Start the IDLE watcher now so an account added after launch gets instant push straight away rather
+	// than waiting for the next restart; a POP3 account is a no-op and stays on the backstop poll.
+	a.startMailWatcher(account)
+	return nil
 }
 
 // UpdateAccount re-configures an existing account from the edit wizard. A blank password keeps the
@@ -48,7 +54,13 @@ func (a *App) UpdateAccount(req AccountSetupRequest) error {
 	if err != nil {
 		return err
 	}
-	return a.setup.Update(a.ctx, account, strings.TrimSpace(req.Password))
+	if err := a.setup.Update(a.ctx, account, strings.TrimSpace(req.Password)); err != nil {
+		return err
+	}
+	// Restart the watcher so changed server settings take effect without a restart, and a switch to POP3
+	// leaves no stale IMAP watcher running.
+	a.startMailWatcher(account)
+	return nil
 }
 
 // parseProtocol maps a wire protocol identifier to the domain Protocol, defaulting to IMAP when the
