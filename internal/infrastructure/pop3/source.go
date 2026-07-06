@@ -112,17 +112,21 @@ func (s *Source) FetchMessages(ctx context.Context, account domain.Account, fold
 }
 
 // FetchBody fetches and parses a message's body into its plain-text and HTML forms plus any
-// text/calendar scheduling payload.
-func (s *Source) FetchBody(ctx context.Context, account domain.Account, _ domain.Folder, uid string) (string, string, []byte, error) {
+// text/calendar scheduling payload and its attachments.
+func (s *Source) FetchBody(ctx context.Context, account domain.Account, _ domain.Folder, uid string) (string, string, []byte, []domain.Attachment, error) {
 	raw, err := s.fetchRaw(ctx, account, uid)
 	if err != nil {
-		return "", "", nil, err
+		return "", "", nil, nil, err
 	}
 	parsed, err := mailparse.ParseBody(raw)
 	if err != nil {
-		return "", "", nil, err
+		return "", "", nil, nil, err
 	}
-	return parsed.Plain, parsed.HTML, parsed.Invite, nil
+	attachments, err := mailparse.DomainAttachments(parsed.Attachments)
+	if err != nil {
+		return "", "", nil, nil, err
+	}
+	return parsed.Plain, parsed.HTML, parsed.Invite, attachments, nil
 }
 
 // FetchRaw returns the full raw RFC822 bytes of a message by its UIDL, for export and forwarding.

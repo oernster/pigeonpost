@@ -12,6 +12,7 @@ import {Reader} from './components/Reader'
 import {MenuBar} from './components/MenuBar'
 import {AboutModal} from './components/AboutModal'
 import {LicenceModal} from './components/LicenceModal'
+import {arrangeByConversation} from './threads'
 import {ComposeInitial, ComposeModal} from './components/ComposeModal'
 import {AccountSetupModal} from './components/AccountSetupModal'
 import {ConfirmDialog} from './components/ConfirmDialog'
@@ -243,6 +244,26 @@ function App() {
     }, [])
 
     const searchActive = searchQuery.trim() !== ''
+    // conversationView groups the folder's messages into conversations; it does not apply to search
+    // results, which stay ranked by relevance. The choice is remembered across launches.
+    const [conversationView, setConversationView] = useState<boolean>(() => localStorage.getItem('conversationView') === '1')
+    const toggleConversationView = useCallback(() => {
+        setConversationView((on) => {
+            const next = !on
+            localStorage.setItem('conversationView', next ? '1' : '0')
+            return next
+        })
+    }, [])
+    // displayMessages is the folder message list in the order the list renders it: conversation-grouped
+    // when the view is on, otherwise as loaded. conversationHeads labels the first row of each multi-message
+    // conversation. Both selection and keyboard navigation read displayMessages, so ranges and arrow keys
+    // follow exactly what the user sees.
+    const {ordered: displayMessages, heads: conversationHeads} = useMemo(
+        () => (conversationView && !searchActive
+            ? arrangeByConversation(messages)
+            : {ordered: messages, heads: new Map()}),
+        [conversationView, searchActive, messages],
+    )
     const [appVersion, setAppVersion] = useState<string>('')
     const [appAuthor, setAppAuthor] = useState<string>('')
     const [splashVisible, setSplashVisible] = useState<boolean>(true)
@@ -435,7 +456,7 @@ function App() {
         // An outbox message is not in the store; show the queued body directly (no fetch).
         if (isOutboxMessage(selectedMessage)) {
             const item = outbox.find((o) => o.id === selectedMessage.id)
-            setMessageBody({plain: item?.body ?? '', html: '', hasInvite: false})
+            setMessageBody({plain: item?.body ?? '', html: '', hasInvite: false, attachments: []})
             setBodyLoading(false)
             return
         }
@@ -724,7 +745,7 @@ function App() {
             return
         }
         const id = messageToDelete.id
-        const list = searchActive ? searchResults : messages
+        const list = searchActive ? searchResults : displayMessages
         const next = neighbourAfterRemoval(list, id)
         setDeletingMessage(true)
         setError('')
@@ -741,7 +762,7 @@ function App() {
         } finally {
             setDeletingMessage(false)
         }
-    }, [messageToDelete, searchActive, searchResults, messages, loadUnread])
+    }, [messageToDelete, searchActive, searchResults, displayMessages, loadUnread])
 
     // deletePermanent is the confirmed, irreversible delete behind Shift+Delete: it removes the message
     // from the server without moving it to Trash, then advances the selection.
@@ -750,7 +771,7 @@ function App() {
             return
         }
         const id = messageToPurge.id
-        const list = searchActive ? searchResults : messages
+        const list = searchActive ? searchResults : displayMessages
         const next = neighbourAfterRemoval(list, id)
         setPurgingMessage(true)
         setError('')
@@ -767,7 +788,7 @@ function App() {
         } finally {
             setPurgingMessage(false)
         }
-    }, [messageToPurge, searchActive, searchResults, messages, loadUnread])
+    }, [messageToPurge, searchActive, searchResults, displayMessages, loadUnread])
 
     // requestDelete always asks for confirmation before deleting. The confirmed delete moves the
     // message to Trash where the account has one, or removes it permanently otherwise (the dialog says
@@ -797,7 +818,7 @@ function App() {
     // selects the contiguous range from the anchor. The clicked row always becomes the active one shown in
     // the reader, and a Shift range keeps the existing anchor so successive Shift clicks re-range from it.
     const activateRow = useCallback((message: Message, mods: {ctrl: boolean; shift: boolean}) => {
-        const list = searchActive ? searchResults : messages
+        const list = searchActive ? searchResults : displayMessages
         if (mods.shift && anchorId) {
             const from = list.findIndex((m) => m.id === anchorId)
             const to = list.findIndex((m) => m.id === message.id)
@@ -829,7 +850,7 @@ function App() {
         setMarkedIds(new Set())
         setAnchorId(message.id)
         selectMessage(message)
-    }, [searchActive, searchResults, messages, anchorId, selectedMessage, selectMessage])
+    }, [searchActive, searchResults, displayMessages, anchorId, selectedMessage, selectMessage])
 
     // openInNewTab pins a message as a reader tab (if not already open) and shows it. With the reading
     // pane off this opens the message full-width (readingFull); with it on the tab appears in the pane.
@@ -957,6 +978,25 @@ function App() {
         (message: Message, destFolderId: string) => moveMessageById(message.id, destFolderId),
         [moveMessageById],
     )
+
+    // markJunk files a message into the account's Junk folder and removes it from the current view,
+    // advancing the selection and refreshing the unread counts as a move out of the inbox does.
+    const markJunk = useCallback(async (message: Message) => {
+        const id = message.id
+        const list = searchActive ? searchResults : displayMessages
+        const next = neighbourAfterRemoval(list, id)
+        setError('')
+        try {
+            await api.markJunk(id)
+            setMessages((prev) => prev.filter((m) => m.id !== id))
+            setSearchResults((prev) => prev.filter((m) => m.id !== id))
+            setTabs((prev) => prev.filter((m) => m.id !== id))
+            setSelectedMessage((prev) => (prev?.id === id ? next : prev))
+            await loadUnread()
+        } catch (e) {
+            setError(String(e))
+        }
+    }, [searchActive, searchResults, displayMessages, loadUnread])
 
     // dropMessageOnFolder is the drag-and-drop target handler. Dragging a row that is part of the
     // multi-selection moves the whole selection; dragging any other row moves just that one. A message is
@@ -1371,7 +1411,7 @@ function App() {
             Boolean(messageToCancelSend) ||
             Boolean(messageToDelete) || Boolean(accountToDelete) || Boolean(folderToDelete) ||
             Boolean(messageToPurge) || Boolean(contextMenu) || Boolean(bulkToDelete) || Boolean(bulkToPurge)
-        const list = searchActive ? searchResults : messages
+        const list = searchActive ? searchResults : displayMessages
         const onKeyDown = (e: KeyboardEvent) => {
             const target = e.target as HTMLElement | null
             const isText = Boolean(target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' ||
@@ -1526,7 +1566,7 @@ function App() {
         window.addEventListener('keydown', onKeyDown)
         return () => window.removeEventListener('keydown', onKeyDown)
     }, [
-        searchActive, searchResults, messages, selectedMessage, requestDelete, markedIds, anchorId,
+        searchActive, searchResults, displayMessages, selectedMessage, requestDelete, markedIds, anchorId,
         splashVisible, composing, settingUp, accountToEdit, managingRules, managingContacts, managingCalendar, about,
         licence, folderPrompt, messageToDelete, accountToDelete, folderToDelete, messageToPurge,
         contextMenu, messageToCancelSend, bulkToDelete, bulkToPurge, togglePreview,
@@ -1541,7 +1581,7 @@ function App() {
     // the active message when there is none), the messages any bulk action operates on, and whether more
     // than one is selected. menuSelection is what a right-click menu acts on: the whole set when the
     // clicked row is within a multi-selection, otherwise just that row.
-    const visibleList = searchActive ? searchResults : messages
+    const visibleList = searchActive ? searchResults : displayMessages
     const selectionIds = markedIds.size
         ? markedIds
         : (selectedMessage ? new Set<string>([selectedMessage.id]) : new Set<string>())
@@ -1556,6 +1596,7 @@ function App() {
     const messageListEl = (
         <MessageList
             messages={visibleList}
+            conversationHeads={conversationHeads}
             selectedIds={selectionIds}
             activeId={selectedMessage?.id ?? null}
             folderSelected={Boolean(selectedFolder)}
@@ -1626,6 +1667,15 @@ function App() {
                     )}
                 </span>
                 <div className="titlebar-right">
+                    <button
+                        className={'sync-btn' + (conversationView ? ' active' : '')}
+                        data-tip={conversationView ? 'Conversation view on' : 'Conversation view off'}
+                        aria-label="Toggle conversation view"
+                        aria-pressed={conversationView}
+                        onClick={toggleConversationView}
+                    >
+                        {'\u{1F4AC}'}
+                    </button>
                     <button
                         className="sync-btn"
                         data-tip="Compose"
@@ -1884,6 +1934,7 @@ function App() {
                     onSaveAs={(m) => void saveMessageAs(m)}
                     onPrint={(m) => void printMessage(m)}
                     onAttachToNew={attachToNewMessage}
+                    onMarkJunk={(m) => void markJunk(m)}
                     onDelete={requestDelete}
                     onDeletePermanent={(m) => setMessageToPurge(m)}
                     onCancelSend={(m) => setMessageToCancelSend(m)}

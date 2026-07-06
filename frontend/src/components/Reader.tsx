@@ -48,7 +48,20 @@ interface ReaderProps {
 export function Reader({message, onToggleRead, onReply, onReplyAll, onForward, onDelete, onCancelSend, folders, onMove, onCopy, canMoveCopy, messageTags, onToggleTag, body, bodyLoading, tabs, onSelectTab, onCloseTab, onBack}: ReaderProps) {
     const [tagMenuOpen, setTagMenuOpen] = useState(false)
     const [imagesShown, setImagesShown] = useState(false)
+    const [attachError, setAttachError] = useState('')
     const menuRef = useRef<HTMLDivElement>(null)
+
+    // saveAttachment writes a received attachment to disk through a native save dialog; its bytes come
+    // from the locally cached body, so it works offline once the message has been opened.
+    const saveAttachment = async (index: number) => {
+        if (!message) return
+        setAttachError('')
+        try {
+            await api.saveAttachment(message.id, index)
+        } catch (e) {
+            setAttachError(String(e))
+        }
+    }
 
     const tabStrip = tabs.length > 0
         ? <ReaderTabs tabs={tabs} activeMessageId={message?.id ?? ''} onSelectTab={onSelectTab} onCloseTab={onCloseTab}/>
@@ -71,6 +84,7 @@ export function Reader({message, onToggleRead, onReply, onReplyAll, onForward, o
     useEffect(() => {
         setTagMenuOpen(false)
         setImagesShown(false)
+        setAttachError('')
     }, [message?.id])
 
     if (!message) {
@@ -234,8 +248,47 @@ export function Reader({message, onToggleRead, onReply, onReplyAll, onForward, o
                     <p className="empty-body">This message has no text content.</p>
                 )}
             </div>
+            {!bodyLoading && body && body.attachments && body.attachments.length > 0 && (
+                <div className="reader-attachments">
+                    <div className="reader-attachments-title">
+                        {body.attachments.length === 1 ? '1 attachment' : `${body.attachments.length} attachments`}
+                    </div>
+                    {attachError && <div className="compose-error">{attachError}</div>}
+                    <ul className="attachment-list">
+                        {body.attachments.map((att) => (
+                            <li key={att.index} className="attachment-chip">
+                                <span className="attachment-name" title={att.filename}>{att.filename}</span>
+                                <span className="attachment-size">{formatBytes(att.size)}</span>
+                                <button
+                                    type="button"
+                                    className="btn"
+                                    onClick={() => void saveAttachment(att.index)}
+                                >
+                                    Save
+                                </button>
+                            </li>
+                        ))}
+                    </ul>
+                </div>
+            )}
         </section>
     )
+}
+
+// formatBytes renders an attachment size in the largest unit that keeps the number readable.
+function formatBytes(bytes: number): string {
+    const kib = 1024
+    if (bytes < kib) {
+        return `${bytes} B`
+    }
+    const units = ['KB', 'MB', 'GB']
+    let value = bytes / kib
+    let unit = 0
+    while (value >= kib && unit < units.length - 1) {
+        value /= kib
+        unit += 1
+    }
+    return `${value.toFixed(1)} ${units[unit]}`
 }
 
 // readableInk picks black or white text for a #rrggbb background using its perceived luminance, so a

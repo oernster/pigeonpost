@@ -465,6 +465,53 @@ func TestMessageBodyCache(t *testing.T) {
 	}
 }
 
+func TestMessageBodyAttachmentsRoundTrip(t *testing.T) {
+	store := openTestStore(t)
+	ctx := context.Background()
+
+	body, _ := domain.NewMessageBody("m1", "see attached", "")
+	pdf, _ := domain.NewAttachment("report.pdf", "application/pdf", []byte("PDF"))
+	txt, _ := domain.NewAttachment("notes.txt", "text/plain", []byte("hello"))
+	if err := store.SaveMessageBody(ctx, body.WithAttachments([]domain.Attachment{pdf, txt})); err != nil {
+		t.Fatalf("save body with attachments: %v", err)
+	}
+	got, err := store.GetMessageBody(ctx, "m1")
+	if err != nil {
+		t.Fatalf("get body: %v", err)
+	}
+	atts := got.Attachments()
+	if len(atts) != 2 {
+		t.Fatalf("got %d attachments, want 2", len(atts))
+	}
+	// Order is preserved and content round-trips.
+	if atts[0].Filename() != "report.pdf" || string(atts[0].Content()) != "PDF" {
+		t.Errorf("first attachment = %+v", atts[0])
+	}
+	if atts[1].Filename() != "notes.txt" || atts[1].ContentType() != "text/plain" {
+		t.Errorf("second attachment = %+v", atts[1])
+	}
+
+	// Re-saving with a smaller set replaces the previous attachments rather than appending.
+	if err := store.SaveMessageBody(ctx, body.WithAttachments([]domain.Attachment{txt})); err != nil {
+		t.Fatalf("re-save body: %v", err)
+	}
+	reGot, err := store.GetMessageBody(ctx, "m1")
+	if err != nil {
+		t.Fatalf("get body after re-save: %v", err)
+	}
+	if len(reGot.Attachments()) != 1 || reGot.Attachments()[0].Filename() != "notes.txt" {
+		t.Errorf("re-saved attachments = %+v, want just notes.txt", reGot.Attachments())
+	}
+
+	// Deleting the message clears its cached attachments.
+	if err := store.DeleteMessage(ctx, "m1"); err != nil {
+		t.Fatalf("delete message: %v", err)
+	}
+	if _, err := store.GetMessageBody(ctx, "m1"); !errors.Is(err, application.ErrBodyNotCached) {
+		t.Errorf("after delete: %v, want ErrBodyNotCached", err)
+	}
+}
+
 func TestGetMessageAndFolder(t *testing.T) {
 	store := openTestStore(t)
 	ctx := context.Background()

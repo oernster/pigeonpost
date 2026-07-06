@@ -420,3 +420,105 @@ func TestMoveCacheError(t *testing.T) {
 		t.Errorf("Move error = %v, want wrapped boom", err)
 	}
 }
+
+func junkFolder(t *testing.T, id, accountID string) domain.Folder {
+	t.Helper()
+	folder, err := domain.NewFolder(id, accountID, "Junk", domain.FolderJunk, 0, 0)
+	if err != nil {
+		t.Fatalf("build junk folder: %v", err)
+	}
+	return folder
+}
+
+func TestMarkJunkMovesToJunk(t *testing.T) {
+	svc, store, accounts, remote := newActionService()
+	seedMessageLocation(t, store, accounts)
+	store.folders["a1"] = append(store.folders["a1"], junkFolder(t, "fj", "a1"))
+
+	if err := svc.MarkJunk(context.Background(), "m1"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(remote.moveDestPaths) != 1 || remote.moveDestPaths[0] != "Junk" {
+		t.Errorf("expected move to Junk, got %v", remote.moveDestPaths)
+	}
+	if len(store.deletedMessages) != 1 || store.deletedMessages[0] != "m1" {
+		t.Errorf("expected local removal of m1, got %v", store.deletedMessages)
+	}
+}
+
+func TestMarkJunkNoJunkFolder(t *testing.T) {
+	svc, store, accounts, _ := newActionService()
+	seedMessageLocation(t, store, accounts) // only an inbox folder, no Junk
+	if err := svc.MarkJunk(context.Background(), "m1"); !errors.Is(err, ErrNoJunkFolder) {
+		t.Errorf("error = %v, want ErrNoJunkFolder", err)
+	}
+}
+
+func TestMarkJunkAlreadyInJunk(t *testing.T) {
+	svc, store, accounts, _ := newActionService()
+	accounts.accounts["a1"] = testAccount(t, "a1")
+	store.folders["a1"] = []domain.Folder{junkFolder(t, "fj", "a1")}
+	store.messages["fj"] = []domain.MessageSummary{testMessage(t, "m1", "fj")}
+	if err := svc.MarkJunk(context.Background(), "m1"); !errors.Is(err, ErrAlreadyJunk) {
+		t.Errorf("error = %v, want ErrAlreadyJunk", err)
+	}
+}
+
+func TestMarkJunkGetMessageError(t *testing.T) {
+	svc, store, _, _ := newActionService()
+	store.getMessageErr = errBoom
+	if err := svc.MarkJunk(context.Background(), "m1"); !errors.Is(err, errBoom) {
+		t.Errorf("error = %v, want wrapped boom", err)
+	}
+}
+
+func TestMarkJunkGetFolderError(t *testing.T) {
+	svc, store, accounts, _ := newActionService()
+	seedMessageLocation(t, store, accounts)
+	store.getFolderErr = errBoom
+	if err := svc.MarkJunk(context.Background(), "m1"); !errors.Is(err, errBoom) {
+		t.Errorf("error = %v, want wrapped boom", err)
+	}
+}
+
+func TestMarkJunkGetAccountError(t *testing.T) {
+	svc, store, accounts, _ := newActionService()
+	seedMessageLocation(t, store, accounts)
+	store.folders["a1"] = append(store.folders["a1"], junkFolder(t, "fj", "a1"))
+	accounts.getErr = errBoom
+	if err := svc.MarkJunk(context.Background(), "m1"); !errors.Is(err, errBoom) {
+		t.Errorf("error = %v, want wrapped boom", err)
+	}
+}
+
+func TestMarkJunkResolveError(t *testing.T) {
+	svc, store, accounts, _ := newActionService()
+	seedMessageLocation(t, store, accounts)
+	store.listFoldersErr = errBoom
+	if err := svc.MarkJunk(context.Background(), "m1"); !errors.Is(err, errBoom) {
+		t.Errorf("error = %v, want wrapped boom", err)
+	}
+}
+
+func TestMarkJunkServerError(t *testing.T) {
+	svc, store, accounts, remote := newActionService()
+	seedMessageLocation(t, store, accounts)
+	store.folders["a1"] = append(store.folders["a1"], junkFolder(t, "fj", "a1"))
+	remote.moveErr = errBoom
+	if err := svc.MarkJunk(context.Background(), "m1"); !errors.Is(err, errBoom) {
+		t.Errorf("error = %v, want wrapped boom", err)
+	}
+	if len(store.deletedMessages) != 0 {
+		t.Error("cache changed despite a server failure")
+	}
+}
+
+func TestMarkJunkCacheError(t *testing.T) {
+	svc, store, accounts, _ := newActionService()
+	seedMessageLocation(t, store, accounts)
+	store.folders["a1"] = append(store.folders["a1"], junkFolder(t, "fj", "a1"))
+	store.deleteMessageErr = errBoom
+	if err := svc.MarkJunk(context.Background(), "m1"); !errors.Is(err, errBoom) {
+		t.Errorf("error = %v, want wrapped boom", err)
+	}
+}

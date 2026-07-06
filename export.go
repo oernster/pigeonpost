@@ -39,6 +39,39 @@ func (a *App) SaveMessageAs(messageID, suggestedName string) error {
 	return nil
 }
 
+// SaveAttachment writes one of a received message's attachments to a file the user chooses through a
+// native save dialog. The attachment is identified by its index in the message body's attachment list;
+// its bytes come from the locally cached body, so the save works offline once the message has been
+// opened. A cancelled dialog (empty path) is a no-op that returns no error.
+func (a *App) SaveAttachment(messageID string, index int) error {
+	body, err := a.body.Body(a.ctx, messageID)
+	if err != nil {
+		return err
+	}
+	attachments := body.Attachments()
+	if index < 0 || index >= len(attachments) {
+		return fmt.Errorf("attachment index %d out of range for message %q", index, messageID)
+	}
+	attachment := attachments[index]
+	path, err := runtime.SaveFileDialog(a.ctx, runtime.SaveDialogOptions{
+		DefaultFilename: attachment.Filename(),
+		Title:           "Save attachment",
+		Filters: []runtime.FileFilter{
+			{DisplayName: "All files (*.*)", Pattern: "*.*"},
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("save attachment dialog: %w", err)
+	}
+	if path == "" {
+		return nil
+	}
+	if err := os.WriteFile(path, attachment.Content(), messageFileMode); err != nil {
+		return fmt.Errorf("write attachment file %q: %w", path, err)
+	}
+	return nil
+}
+
 // PickAttachments opens a native dialog for choosing one or more files to attach to a message and
 // returns their paths. A cancelled dialog returns an empty list and no error.
 func (a *App) PickAttachments() ([]string, error) {

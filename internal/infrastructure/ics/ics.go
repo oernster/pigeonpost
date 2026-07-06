@@ -102,7 +102,7 @@ func eventFromICS(e goical.Event) (domain.Event, bool) {
 		ID:           id,
 		UID:          uid,
 		Summary:      summary,
-		Description:  descriptionText(text(e.Props, goical.PropDescription)),
+		Description:  eventDescription(e.Props),
 		Location:     descriptionText(text(e.Props, goical.PropLocation)),
 		Start:        start,
 		End:          end,
@@ -167,6 +167,36 @@ func text(props goical.Props, name string) string {
 		return ""
 	}
 	return v
+}
+
+const (
+	// propTeamsMeetingURL is the Microsoft Teams join link, shipped as a non-standard property Outlook
+	// adds to a Teams meeting invite.
+	propTeamsMeetingURL = "X-MICROSOFT-SKYPETEAMSMEETINGURL"
+	// propAltDesc is the HTML alternative description Microsoft ships alongside (or instead of) the plain
+	// DESCRIPTION, carried as X-ALT-DESC with an FMTTYPE=text/html parameter.
+	propAltDesc = "X-ALT-DESC"
+)
+
+// eventDescription builds the readable description for an imported event, hardened for real-world Teams
+// and Outlook invites. It starts from the plain DESCRIPTION, falls back to the HTML X-ALT-DESC (which
+// Microsoft ships when DESCRIPTION is empty) converted to text, and appends the Teams join URL from
+// X-MICROSOFT-SKYPETEAMSMEETINGURL when the description does not already contain it, so the join link
+// survives import rather than being dropped with the properties PigeonPost did not model before.
+func eventDescription(props goical.Props) string {
+	desc := descriptionText(text(props, goical.PropDescription))
+	if strings.TrimSpace(desc) == "" {
+		desc = descriptionText(text(props, propAltDesc))
+	}
+	joinURL := strings.TrimSpace(text(props, propTeamsMeetingURL))
+	if joinURL != "" && !strings.Contains(desc, joinURL) {
+		if strings.TrimSpace(desc) == "" {
+			desc = joinURL
+		} else {
+			desc = desc + "\n\n" + joinURL
+		}
+	}
+	return desc
 }
 
 // Encode writes the events and preserved passthrough components as a single VCALENDAR. An empty set

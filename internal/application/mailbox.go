@@ -36,6 +36,17 @@ func (s *MailboxService) Messages(ctx context.Context, folderID string) ([]domai
 	return messages, nil
 }
 
+// Threads returns the cached messages of a folder grouped into conversations, newest conversation first.
+// Grouping is done in the domain from the same summaries Messages returns, so a threaded and a flat view
+// read the identical cache.
+func (s *MailboxService) Threads(ctx context.Context, folderID string) ([]domain.Thread, error) {
+	messages, err := s.mail.ListMessages(ctx, folderID)
+	if err != nil {
+		return nil, fmt.Errorf("list messages for folder %q: %w", folderID, err)
+	}
+	return domain.GroupThreads(messages), nil
+}
+
 // UnreadTotals carries the per-account unread message counts and their sum across all accounts.
 type UnreadTotals struct {
 	Total     int

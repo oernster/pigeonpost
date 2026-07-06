@@ -14,6 +14,7 @@ import {
     ListMessages,
     ListTags,
     MarkFlagged,
+    MarkJunk,
     MarkRead,
     MessageTags,
     MinimiseToTray,
@@ -65,6 +66,7 @@ import {
     ReplayOutbox,
     SaveDraft,
     SaveDraftRecovery,
+    SaveAttachment,
     SaveMessageAs,
     SaveTag,
     SearchMessages,
@@ -87,7 +89,10 @@ export type Message = Omit<main.MessageDTO, 'convertValues'>
 export type AboutInfo = main.AboutDTO
 export type Tag = main.TagDTO
 export type Rule = main.RuleDTO
-export type MessageBody = main.MessageBodyDTO
+// MessageBody drops the generated convertValues helper so an outbox message's body can be built as a
+// plain object literal; the nested AttachmentDTO array carries no helper of its own.
+export type MessageBody = Omit<main.MessageBodyDTO, 'convertValues'>
+export type Attachment = main.AttachmentDTO
 export type OutboxItem = main.OutboxItemDTO
 export type UnreadCountsResult = main.UnreadCountsDTO
 export type Contact = main.ContactDTO
@@ -273,7 +278,9 @@ export const api = {
     deleteMessagePermanent: (messageId: string): Promise<void> => DeleteMessagePermanent(messageId),
     saveMessageAs: (messageId: string, suggestedName: string): Promise<void> =>
         SaveMessageAs(messageId, suggestedName),
+    saveAttachment: (messageId: string, index: number): Promise<void> => SaveAttachment(messageId, index),
     moveMessage: (messageId: string, destFolderId: string): Promise<void> => MoveMessage(messageId, destFolderId),
+    markJunk: (messageId: string): Promise<void> => MarkJunk(messageId),
     copyMessage: (messageId: string, destFolderId: string): Promise<void> => CopyMessage(messageId, destFolderId),
     createFolder: (accountId: string, name: string): Promise<void> => CreateFolder(accountId, name),
     renameFolder: (folderId: string, newName: string): Promise<void> => RenameFolder(folderId, newName),

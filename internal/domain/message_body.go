@@ -7,10 +7,11 @@ import "strings"
 // as a meeting invite) when the message contained one, so a message reads offline after its first fetch
 // and the invite renders without a re-fetch. It is immutable once constructed.
 type MessageBody struct {
-	messageID string
-	plain     string
-	html      string
-	invite    []byte
+	messageID   string
+	plain       string
+	html        string
+	invite      []byte
+	attachments []Attachment
 }
 
 // NewMessageBody validates and constructs a message body. Only the message id is required; a message
@@ -45,5 +46,21 @@ func (b MessageBody) HasInvite() bool { return len(b.invite) > 0 }
 // unchanged.
 func (b MessageBody) WithInvite(invite []byte) MessageBody {
 	b.invite = append([]byte(nil), invite...)
+	return b
+}
+
+// Attachments returns a copy of the files the message carried, so the reader can list them and the user
+// can save them. The slice is copied so callers cannot mutate the body.
+func (b MessageBody) Attachments() []Attachment {
+	return append([]Attachment(nil), b.attachments...)
+}
+
+// HasAttachments reports whether the message carried any files.
+func (b MessageBody) HasAttachments() bool { return len(b.attachments) > 0 }
+
+// WithAttachments returns a copy of the body carrying the given attachments. The slice is copied so
+// neither the receiver nor the caller's slice is shared, keeping the body immutable.
+func (b MessageBody) WithAttachments(attachments []Attachment) MessageBody {
+	b.attachments = append([]Attachment(nil), attachments...)
 	return b
 }

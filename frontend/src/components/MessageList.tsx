@@ -1,4 +1,6 @@
+import {Fragment} from 'react'
 import {Message} from '../api'
+import {ConversationHead} from '../threads'
 
 // messageDragType is the dataTransfer MIME type carrying a dragged message's id to a folder drop target.
 // When several messages are selected, dropping any one of them moves the whole selection; the parent
@@ -14,6 +16,9 @@ export interface ClickMods {
 
 interface MessageListProps {
     messages: Message[]
+    // conversationHeads labels the first row of each multi-message conversation, keyed by that row's id.
+    // Empty when the conversation view is off, so the list renders flat.
+    conversationHeads: Map<string, ConversationHead>
     // selectedIds is every highlighted row; activeId is the one shown in the reader (the range anchor and
     // the roving-tabindex target). With a single selection the two coincide.
     selectedIds: Set<string>
@@ -58,9 +63,17 @@ export function MessageList(props: MessageListProps) {
         }
         return (
             <ul className="list">
-                {messages.map((message) => (
+                {messages.map((message) => {
+                    const head = props.conversationHeads.get(message.id)
+                    return (
+                    <Fragment key={message.id}>
+                    {head && (
+                        <li className="conversation-header" aria-hidden="true">
+                            <span className="conversation-subject">{head.subject || '(no subject)'}</span>
+                            <span className="conversation-count">{head.count} messages</span>
+                        </li>
+                    )}
                     <li
-                        key={message.id}
                         className={
                             'message-row' +
                             (message.read ? '' : ' unread') +
@@ -118,7 +131,9 @@ export function MessageList(props: MessageListProps) {
                         </div>
                         {message.snippet && <div className="message-snippet">{message.snippet}</div>}
                     </li>
-                ))}
+                    </Fragment>
+                    )
+                })}
             </ul>
         )
     }

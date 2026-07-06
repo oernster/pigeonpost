@@ -80,3 +80,44 @@ func TestMessageBodyWithInviteEmptyClears(t *testing.T) {
 		t.Errorf("WithInvite(nil) should leave the body with no invite")
 	}
 }
+
+func TestMessageBodyHasNoAttachmentsByDefault(t *testing.T) {
+	body, err := NewMessageBody("m1", "plain", "")
+	if err != nil {
+		t.Fatalf("NewMessageBody: %v", err)
+	}
+	if body.HasAttachments() {
+		t.Errorf("a fresh body should report HasAttachments false")
+	}
+	if body.Attachments() != nil {
+		t.Errorf("Attachments() = %v, want nil", body.Attachments())
+	}
+}
+
+func TestMessageBodyWithAttachments(t *testing.T) {
+	body, err := NewMessageBody("m1", "plain", "")
+	if err != nil {
+		t.Fatalf("NewMessageBody: %v", err)
+	}
+	att, err := NewAttachment("report.pdf", "application/pdf", []byte("PDF"))
+	if err != nil {
+		t.Fatalf("NewAttachment: %v", err)
+	}
+	list := []Attachment{att}
+	withAtt := body.WithAttachments(list)
+	if !withAtt.HasAttachments() {
+		t.Errorf("WithAttachments should mark the body as carrying files")
+	}
+	if len(withAtt.Attachments()) != 1 || withAtt.Attachments()[0].Filename() != "report.pdf" {
+		t.Errorf("Attachments() = %+v", withAtt.Attachments())
+	}
+	// The original body is unchanged: WithAttachments copies.
+	if body.HasAttachments() {
+		t.Errorf("WithAttachments mutated the receiver")
+	}
+	// The stored slice must not alias the caller's slice.
+	list[0], _ = NewAttachment("swapped.txt", "text/plain", nil)
+	if withAtt.Attachments()[0].Filename() != "report.pdf" {
+		t.Errorf("WithAttachments shares backing storage with the caller's slice")
+	}
+}

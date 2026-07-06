@@ -80,7 +80,11 @@ export function ListRules():Promise<Array<main.RuleDTO>>;
 
 export function ListTags():Promise<Array<main.TagDTO>>;
 
+export function ListThreads(arg1:string):Promise<Array<main.ThreadDTO>>;
+
 export function MarkFlagged(arg1:string,arg2:boolean):Promise<void>;
+
+export function MarkJunk(arg1:string):Promise<void>;
 
 export function MarkRead(arg1:string,arg2:boolean):Promise<void>;
 
@@ -109,6 +113,8 @@ export function ReplayOutbox():Promise<number>;
 export function RequestQuit():Promise<void>;
 
 export function RespondToInvitation(arg1:string,arg2:string):Promise<void>;
+
+export function SaveAttachment(arg1:string,arg2:number):Promise<void>;
 
 export function SaveCalendar(arg1:main.CalendarRequest):Promise<void>;
 

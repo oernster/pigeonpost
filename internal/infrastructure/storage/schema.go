@@ -3,7 +3,7 @@
 package storage
 
 // schemaVersion is the current on-disk schema version, tracked via SQLite's PRAGMA user_version.
-const schemaVersion = 25
+const schemaVersion = 26
 
 // schemaV1 is the initial schema. Statements are idempotent so re-running is safe.
 const schemaV1 = `
@@ -349,6 +349,21 @@ CREATE TABLE draft_recovery (
 );
 `
 
+// schemaV26 caches a message's attachment parts alongside its body, so received files can be listed and
+// saved offline after the first open. Content is the raw bytes; position keeps the sender's ordering. The
+// rows are keyed by message id so re-fetching a body replaces its attachment set.
+const schemaV26 = `
+CREATE TABLE message_attachment (
+    message_id   TEXT NOT NULL,
+    position     INTEGER NOT NULL,
+    filename     TEXT NOT NULL,
+    content_type TEXT NOT NULL,
+    content      BLOB NOT NULL,
+    PRIMARY KEY (message_id, position)
+);
+CREATE INDEX IF NOT EXISTS idx_message_attachment_message ON message_attachment(message_id);
+`
+
 // migrations is the ordered list of schema steps. Index i upgrades the database from version i to
 // version i+1, so a fresh database applies them all and an existing one applies only what it lacks.
-var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15, schemaV16, schemaV17, schemaV18, schemaV19, schemaV20, schemaV21, schemaV22, schemaV23, schemaV24, schemaV25}
+var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15, schemaV16, schemaV17, schemaV18, schemaV19, schemaV20, schemaV21, schemaV22, schemaV23, schemaV24, schemaV25, schemaV26}

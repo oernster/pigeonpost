@@ -15,7 +15,7 @@ import (
 type protocolSource interface {
 	FetchFolders(ctx context.Context, account domain.Account) ([]domain.Folder, error)
 	FetchMessages(ctx context.Context, account domain.Account, folder domain.Folder) ([]domain.MessageSummary, error)
-	FetchBody(ctx context.Context, account domain.Account, folder domain.Folder, uid string) (string, string, []byte, error)
+	FetchBody(ctx context.Context, account domain.Account, folder domain.Folder, uid string) (string, string, []byte, []domain.Attachment, error)
 	FetchRaw(ctx context.Context, account domain.Account, folder domain.Folder, uid string) ([]byte, error)
 	Verify(ctx context.Context, account domain.Account, password string) error
 	SetSeen(ctx context.Context, account domain.Account, folder domain.Folder, uid string, seen bool) error
@@ -57,7 +57,7 @@ func (r *Router) FetchMessages(ctx context.Context, account domain.Account, fold
 }
 
 // FetchBody delegates to the account's protocol adapter.
-func (r *Router) FetchBody(ctx context.Context, account domain.Account, folder domain.Folder, uid string) (string, string, []byte, error) {
+func (r *Router) FetchBody(ctx context.Context, account domain.Account, folder domain.Folder, uid string) (string, string, []byte, []domain.Attachment, error) {
 	return r.sourceFor(account).FetchBody(ctx, account, folder, uid)
 }
 

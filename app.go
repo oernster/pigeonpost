@@ -248,6 +248,16 @@ func (a *App) ListMessages(folderID string) ([]MessageDTO, error) {
 	return toMessageDTOs(messages), nil
 }
 
+// ListThreads returns the cached messages of a folder grouped into conversations, newest conversation
+// first, for the reading list's conversation view.
+func (a *App) ListThreads(folderID string) ([]ThreadDTO, error) {
+	threads, err := a.mailbox.Threads(a.ctx, folderID)
+	if err != nil {
+		return nil, err
+	}
+	return toThreadDTOs(threads), nil
+}
+
 // SearchMessages returns cached messages matching a free-text query, most relevant first.
 func (a *App) SearchMessages(query string) ([]MessageDTO, error) {
 	messages, err := a.mailbox.Search(a.ctx, query)
@@ -302,6 +312,12 @@ func (a *App) DeleteMessagePermanent(messageID string) error {
 // MoveMessage relocates a message to another folder in the same account.
 func (a *App) MoveMessage(messageID, destFolderID string) error {
 	return a.actions.Move(a.ctx, messageID, destFolderID)
+}
+
+// MarkJunk moves a message to the account's Junk folder, filing it out of the inbox as spam. It returns
+// an error when the account has no Junk folder or the message already lives there.
+func (a *App) MarkJunk(messageID string) error {
+	return a.actions.MarkJunk(a.ctx, messageID)
 }
 
 // CopyMessage duplicates a message into another folder in the same account, leaving the original.

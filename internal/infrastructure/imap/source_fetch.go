@@ -11,21 +11,21 @@ import (
 )
 
 // FetchBody fetches and parses the full body of one message by UID, returning its plain-text and HTML
-// forms plus any text/calendar scheduling payload. It satisfies application.MailSource.
-func (s *Source) FetchBody(ctx context.Context, account domain.Account, folder domain.Folder, uid string) (string, string, []byte, error) {
+// forms, any text/calendar scheduling payload, and its attachments. It satisfies application.MailSource.
+func (s *Source) FetchBody(ctx context.Context, account domain.Account, folder domain.Folder, uid string) (string, string, []byte, []domain.Attachment, error) {
 	client, err := s.connect(ctx, account)
 	if err != nil {
-		return "", "", nil, err
+		return "", "", nil, nil, err
 	}
 	defer func() { _ = client.Logout().Wait() }()
 
 	if _, err := client.Select(folder.Path(), &imap.SelectOptions{ReadOnly: true}).Wait(); err != nil {
-		return "", "", nil, fmt.Errorf("imap: select %q: %w", folder.Path(), err)
+		return "", "", nil, nil, fmt.Errorf("imap: select %q: %w", folder.Path(), err)
 	}
 
 	u, err := parseUID(uid)
 	if err != nil {
-		return "", "", nil, err
+		return "", "", nil, nil, err
 	}
 	uidSet := imap.UIDSet{}
 	uidSet.AddNum(u)
@@ -34,20 +34,24 @@ func (s *Source) FetchBody(ctx context.Context, account domain.Account, folder d
 
 	buffers, err := client.Fetch(uidSet, options).Collect()
 	if err != nil {
-		return "", "", nil, fmt.Errorf("imap: fetch body uid %q: %w", uid, err)
+		return "", "", nil, nil, fmt.Errorf("imap: fetch body uid %q: %w", uid, err)
 	}
 	if len(buffers) == 0 {
-		return "", "", nil, nil
+		return "", "", nil, nil, nil
 	}
 	raw := buffers[0].FindBodySection(section)
 	if raw == nil {
-		return "", "", nil, nil
+		return "", "", nil, nil, nil
 	}
 	parsed, err := mailparse.ParseBody(raw)
 	if err != nil {
-		return "", "", nil, err
+		return "", "", nil, nil, err
 	}
-	return parsed.Plain, parsed.HTML, parsed.Invite, nil
+	attachments, err := mailparse.DomainAttachments(parsed.Attachments)
+	if err != nil {
+		return "", "", nil, nil, err
+	}
+	return parsed.Plain, parsed.HTML, parsed.Invite, attachments, nil
 }
 
 // FetchRaw returns the full raw RFC822 bytes of a message by UID, for export (.eml) and for attaching

@@ -44,7 +44,7 @@ func (s *MessageBodyService) Body(ctx context.Context, messageID string) (domain
 	if err != nil {
 		return domain.MessageBody{}, fmt.Errorf("locate account %q: %w", folder.AccountID(), err)
 	}
-	plain, html, invite, err := s.source.FetchBody(ctx, account, folder, msg.UID())
+	plain, html, invite, attachments, err := s.source.FetchBody(ctx, account, folder, msg.UID())
 	if err != nil {
 		return domain.MessageBody{}, fmt.Errorf("fetch body %q: %w", messageID, err)
 	}
@@ -52,7 +52,7 @@ func (s *MessageBodyService) Body(ctx context.Context, messageID string) (domain
 	if err != nil {
 		return domain.MessageBody{}, fmt.Errorf("build body %q: %w", messageID, err)
 	}
-	body = body.WithInvite(invite)
+	body = body.WithInvite(invite).WithAttachments(attachments)
 	if err := s.messages.SaveMessageBody(ctx, body); err != nil {
 		return domain.MessageBody{}, fmt.Errorf("cache body %q: %w", messageID, err)
 	}

@@ -478,3 +478,51 @@ func TestICSExportNoVTimezoneForUTCEvent(t *testing.T) {
 		t.Errorf("a UTC event should produce no VTIMEZONE:\n%s", s)
 	}
 }
+
+func TestDecodeTeamsMeetingFallsBackToAltDesc(t *testing.T) {
+	// A Teams invite with an empty plain DESCRIPTION: the join link lives in the HTML X-ALT-DESC and the
+	// X-MICROSOFT-SKYPETEAMSMEETINGURL property. The imported description must surface the join URL.
+	const joinURL = "https://teams.microsoft.com/l/meetup-join/abc"
+	data := cal(
+		"BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Microsoft//Outlook//EN",
+		"BEGIN:VEVENT", "UID:teams-1", "DTSTAMP:20260706T090000Z", "DTSTART:20260706T100000Z",
+		"SUMMARY:Sync",
+		`X-ALT-DESC;FMTTYPE=text/html:<html><body><a href="`+joinURL+`">Join the meeting</a></body></html>`,
+		"X-MICROSOFT-SKYPETEAMSMEETINGURL:"+joinURL,
+		"END:VEVENT", "END:VCALENDAR",
+	)
+	events, _, err := New().Decode(data)
+	if err != nil || len(events) != 1 {
+		t.Fatalf("Decode: %v (n=%d)", err, len(events))
+	}
+	desc := events[0].Description()
+	if !strings.Contains(desc, joinURL) {
+		t.Errorf("description did not surface the Teams join URL: %q", desc)
+	}
+	if !strings.Contains(desc, "Join the meeting") {
+		t.Errorf("description lost the alt-desc label: %q", desc)
+	}
+}
+
+func TestDecodeTeamsMeetingAppendsJoinURLToDescription(t *testing.T) {
+	// A plain DESCRIPTION that does not mention the join link: the Teams URL is appended so it is not lost.
+	const joinURL = "https://teams.microsoft.com/l/meetup-join/xyz"
+	data := cal(
+		"BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Microsoft//Outlook//EN",
+		"BEGIN:VEVENT", "UID:teams-2", "DTSTAMP:20260706T090000Z", "DTSTART:20260706T100000Z",
+		"SUMMARY:Sync", "DESCRIPTION:Agenda: planning",
+		"X-MICROSOFT-SKYPETEAMSMEETINGURL:"+joinURL,
+		"END:VEVENT", "END:VCALENDAR",
+	)
+	events, _, err := New().Decode(data)
+	if err != nil || len(events) != 1 {
+		t.Fatalf("Decode: %v (n=%d)", err, len(events))
+	}
+	desc := events[0].Description()
+	if !strings.Contains(desc, "Agenda: planning") {
+		t.Errorf("description lost the plain text: %q", desc)
+	}
+	if !strings.Contains(desc, joinURL) {
+		t.Errorf("description did not gain the Teams join URL: %q", desc)
+	}
+}

@@ -11,6 +11,13 @@ var ErrBodyNotCached = errors.New("message body not cached")
 // ErrNoDraftsFolder is returned when a draft cannot be saved because the account has no Drafts mailbox.
 var ErrNoDraftsFolder = errors.New("account has no drafts folder")
 
+// ErrNoJunkFolder is returned when a message cannot be marked as junk because the account has no Junk
+// (spam) mailbox to file it in.
+var ErrNoJunkFolder = errors.New("account has no junk folder")
+
+// ErrAlreadyJunk is returned when a message that already lives in the Junk folder is marked as junk.
+var ErrAlreadyJunk = errors.New("message is already in the junk folder")
+
 // ErrEmptyFolderName is returned when a folder create or rename is given a blank name.
 var ErrEmptyFolderName = errors.New("folder name is empty")
 

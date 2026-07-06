@@ -173,6 +173,55 @@ func (s *MessageActionService) Copy(ctx context.Context, messageID, destFolderID
 	return nil
 }
 
+// MarkJunk moves a message to the account's Junk (spam) folder, filing unwanted mail out of the inbox.
+// It is moved on the server and removed from the local cache, the same mechanism as Move. It fails with
+// ErrAlreadyJunk when the message already lives in Junk, and ErrNoJunkFolder when the account has none.
+func (s *MessageActionService) MarkJunk(ctx context.Context, messageID string) error {
+	msg, err := s.store.GetMessage(ctx, messageID)
+	if err != nil {
+		return fmt.Errorf("locate message %q: %w", messageID, err)
+	}
+	source, err := s.store.GetFolder(ctx, msg.FolderID())
+	if err != nil {
+		return fmt.Errorf("locate folder %q: %w", msg.FolderID(), err)
+	}
+	if source.Kind() == domain.FolderJunk {
+		return ErrAlreadyJunk
+	}
+	account, err := s.accounts.GetAccount(ctx, source.AccountID())
+	if err != nil {
+		return fmt.Errorf("locate account %q: %w", source.AccountID(), err)
+	}
+	junkPath, err := s.junkPath(ctx, source)
+	if err != nil {
+		return fmt.Errorf("resolve junk for %q: %w", messageID, err)
+	}
+	if junkPath == "" {
+		return ErrNoJunkFolder
+	}
+	if err := s.remote.Move(ctx, account, source, msg.UID(), junkPath); err != nil {
+		return fmt.Errorf("move message %q to junk on server: %w", messageID, err)
+	}
+	if err := s.store.DeleteMessage(ctx, messageID); err != nil {
+		return fmt.Errorf("remove junked message %q from cache: %w", messageID, err)
+	}
+	return nil
+}
+
+// junkPath returns the path of the account's Junk folder, or an empty string when the account has none.
+func (s *MessageActionService) junkPath(ctx context.Context, current domain.Folder) (string, error) {
+	folders, err := s.store.ListFolders(ctx, current.AccountID())
+	if err != nil {
+		return "", err
+	}
+	for _, folder := range folders {
+		if folder.Kind() == domain.FolderJunk {
+			return folder.Path(), nil
+		}
+	}
+	return "", nil
+}
+
 // trashPath returns the destination mailbox for a delete: the account's Trash folder, or an empty
 // string (meaning permanent deletion) when the message is already in Trash or no Trash folder exists.
 func (s *MessageActionService) trashPath(ctx context.Context, current domain.Folder) (string, error) {

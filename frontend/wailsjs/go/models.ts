@@ -134,6 +134,24 @@ export namespace main {
 	        this.address = source["address"];
 	    }
 	}
+	export class AttachmentDTO {
+	    index: number;
+	    filename: string;
+	    contentType: string;
+	    size: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new AttachmentDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.index = source["index"];
+	        this.filename = source["filename"];
+	        this.contentType = source["contentType"];
+	        this.size = source["size"];
+	    }
+	}
 	export class AttendeeDTO {
 	    address: string;
 	    commonName: string;
@@ -655,6 +673,7 @@ export namespace main {
 	    plain: string;
 	    html: string;
 	    hasInvite: boolean;
+	    attachments: AttachmentDTO[];
 	
 	    static createFrom(source: any = {}) {
 	        return new MessageBodyDTO(source);
@@ -665,7 +684,26 @@ export namespace main {
 	        this.plain = source["plain"];
 	        this.html = source["html"];
 	        this.hasInvite = source["hasInvite"];
+	        this.attachments = this.convertValues(source["attachments"], AttachmentDTO);
 	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 	export class MessageDTO {
 	    id: string;
@@ -825,6 +863,42 @@ export namespace main {
 	        this.name = source["name"];
 	        this.colour = source["colour"];
 	    }
+	}
+	export class ThreadDTO {
+	    subject: string;
+	    count: number;
+	    unreadCount: number;
+	    messages: MessageDTO[];
+	
+	    static createFrom(source: any = {}) {
+	        return new ThreadDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.subject = source["subject"];
+	        this.count = source["count"];
+	        this.unreadCount = source["unreadCount"];
+	        this.messages = this.convertValues(source["messages"], MessageDTO);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 	export class UnreadCountsDTO {
 	    total: number;

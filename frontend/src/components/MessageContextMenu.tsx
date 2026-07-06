@@ -28,6 +28,9 @@ interface MessageContextMenuProps {
     onSaveAs: (message: Message) => void
     onPrint: (message: Message) => void
     onAttachToNew: (message: Message) => void
+    // onMarkJunk files a message into the account's Junk folder; offered only when the account has
+    // server-side folders (not POP3), like Move.
+    onMarkJunk: (message: Message) => void
     onDelete: (message: Message) => void
     onDeletePermanent: (message: Message) => void
     // onCancelSend discards a queued outbox item; the menu offers only this for an outbox row.
@@ -300,6 +303,14 @@ export function MessageContextMenu(props: MessageContextMenuProps) {
                                     </button>
                                 ))}
                             </SubMenu>
+                        </>
+                    )}
+                    {props.canMoveCopy && (
+                        <>
+                            <div className="context-sep"/>
+                            <button className="context-item" role="menuitem" onClick={act(() => props.onMarkJunk(message))}>
+                                Mark as junk
+                            </button>
                         </>
                     )}
                     <div className="context-sep"/>

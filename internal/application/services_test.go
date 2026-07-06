@@ -284,6 +284,29 @@ func TestMailboxServiceMessages(t *testing.T) {
 	}
 }
 
+func TestMailboxServiceThreads(t *testing.T) {
+	store := newFakeMailStore()
+	store.messages["f1"] = []domain.MessageSummary{
+		testMessage(t, "m1", "f1"),
+		testMessage(t, "m2", "f1"),
+	}
+	svc := NewMailboxService(store)
+
+	threads, err := svc.Threads(context.Background(), "f1")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// testMessage builds both summaries with the same (empty) subject, so they thread together.
+	if len(threads) != 1 || threads[0].Count() != 2 {
+		t.Fatalf("expected one thread of two messages, got %d threads", len(threads))
+	}
+
+	store.listMessagesErr = errBoom
+	if _, err := svc.Threads(context.Background(), "f1"); !errors.Is(err, errBoom) {
+		t.Errorf("Threads error = %v, want wrapped boom", err)
+	}
+}
+
 func TestMailboxServiceSearch(t *testing.T) {
 	store := newFakeMailStore()
 	store.searchResults = []domain.MessageSummary{testMessage(t, "m1", "f1")}

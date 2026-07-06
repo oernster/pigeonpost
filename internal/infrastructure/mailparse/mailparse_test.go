@@ -35,6 +35,89 @@ func TestParseBodyMultipartAlternative(t *testing.T) {
 	}
 }
 
+func TestParseBodyExtractsAttachments(t *testing.T) {
+	raw := "From: a@b.com\r\n" +
+		"To: c@d.com\r\n" +
+		"Subject: Test\r\n" +
+		"MIME-Version: 1.0\r\n" +
+		"Content-Type: multipart/mixed; boundary=\"bd\"\r\n" +
+		"\r\n" +
+		"--bd\r\n" +
+		"Content-Type: text/plain; charset=utf-8\r\n" +
+		"\r\n" +
+		"See the file\r\n" +
+		"--bd\r\n" +
+		"Content-Type: text/plain; charset=utf-8\r\n" +
+		"Content-Disposition: attachment; filename=\"notes.txt\"\r\n" +
+		"\r\n" +
+		"file bytes\r\n" +
+		"--bd\r\n" +
+		"Content-Type: application/octet-stream\r\n" +
+		"Content-Disposition: attachment\r\n" +
+		"\r\n" +
+		"nameless\r\n" +
+		"--bd--\r\n"
+
+	parsed, err := ParseBody([]byte(raw))
+	if err != nil {
+		t.Fatalf("ParseBody: %v", err)
+	}
+	if !strings.Contains(parsed.Plain, "See the file") {
+		t.Errorf("plain = %q, want the readable text", parsed.Plain)
+	}
+	if len(parsed.Attachments) != 2 {
+		t.Fatalf("got %d attachments, want 2", len(parsed.Attachments))
+	}
+	if parsed.Attachments[0].Filename != "notes.txt" || !strings.Contains(string(parsed.Attachments[0].Content), "file bytes") {
+		t.Errorf("first attachment = %+v", parsed.Attachments[0])
+	}
+	// A nameless attachment gets a fallback filename so it can still be saved.
+	if parsed.Attachments[1].Filename != fallbackAttachmentName {
+		t.Errorf("nameless attachment filename = %q, want fallback", parsed.Attachments[1].Filename)
+	}
+
+	converted, err := DomainAttachments(parsed.Attachments)
+	if err != nil {
+		t.Fatalf("DomainAttachments: %v", err)
+	}
+	if len(converted) != 2 || converted[0].Filename() != "notes.txt" {
+		t.Errorf("converted = %+v", converted)
+	}
+}
+
+func TestParseBodySkipsInlineNonTextParts(t *testing.T) {
+	// An inline image (a cid: embedded part) must not be written into the readable plain body as raw
+	// bytes, and it is not a saveable attachment either.
+	raw := "From: a@b.com\r\n" +
+		"To: c@d.com\r\n" +
+		"Subject: Test\r\n" +
+		"MIME-Version: 1.0\r\n" +
+		"Content-Type: multipart/related; boundary=\"bd\"\r\n" +
+		"\r\n" +
+		"--bd\r\n" +
+		"Content-Type: text/plain; charset=utf-8\r\n" +
+		"\r\n" +
+		"Body text\r\n" +
+		"--bd\r\n" +
+		"Content-Type: image/png\r\n" +
+		"Content-Disposition: inline\r\n" +
+		"Content-ID: <logo>\r\n" +
+		"\r\n" +
+		"PNGBYTES\r\n" +
+		"--bd--\r\n"
+
+	parsed, err := ParseBody([]byte(raw))
+	if err != nil {
+		t.Fatalf("ParseBody: %v", err)
+	}
+	if strings.Contains(parsed.Plain, "PNGBYTES") {
+		t.Errorf("inline image bytes leaked into the plain body: %q", parsed.Plain)
+	}
+	if len(parsed.Attachments) != 0 {
+		t.Errorf("inline image should not be a saveable attachment, got %d", len(parsed.Attachments))
+	}
+}
+
 func TestParseBodyHTMLOnlyDerivesPlain(t *testing.T) {
 	raw := "From: a@b.com\r\n" +
 		"To: c@d.com\r\n" +

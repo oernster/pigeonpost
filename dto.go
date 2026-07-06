@@ -63,16 +63,38 @@ type MessageDTO struct {
 	Snippet        string       `json:"snippet"`
 }
 
+// AttachmentDTO is the JSON-serialisable metadata of one received attachment. It carries no bytes: the
+// reader lists attachments by name and size, and SaveAttachment resolves the content by index from the
+// cached body when the user saves one.
+type AttachmentDTO struct {
+	Index       int    `json:"index"`
+	Filename    string `json:"filename"`
+	ContentType string `json:"contentType"`
+	Size        int    `json:"size"`
+}
+
 // MessageBodyDTO is the JSON-serialisable full body of a message. HasInvite is true when the message
-// carried a text/calendar scheduling payload, so the reader offers the meeting actions.
+// carried a text/calendar scheduling payload, so the reader offers the meeting actions. Attachments lists
+// the files the message carried, for the reader to show and the user to save.
 type MessageBodyDTO struct {
-	Plain     string `json:"plain"`
-	HTML      string `json:"html"`
-	HasInvite bool   `json:"hasInvite"`
+	Plain       string          `json:"plain"`
+	HTML        string          `json:"html"`
+	HasInvite   bool            `json:"hasInvite"`
+	Attachments []AttachmentDTO `json:"attachments"`
 }
 
 func toMessageBodyDTO(b domain.MessageBody) MessageBodyDTO {
-	return MessageBodyDTO{Plain: b.Plain(), HTML: b.HTML(), HasInvite: b.HasInvite()}
+	attachments := b.Attachments()
+	dtos := make([]AttachmentDTO, 0, len(attachments))
+	for index, attachment := range attachments {
+		dtos = append(dtos, AttachmentDTO{
+			Index:       index,
+			Filename:    attachment.Filename(),
+			ContentType: attachment.ContentType(),
+			Size:        attachment.Size(),
+		})
+	}
+	return MessageBodyDTO{Plain: b.Plain(), HTML: b.HTML(), HasInvite: b.HasInvite(), Attachments: dtos}
 }
 
 // TagDTO is the JSON-serialisable view of a coloured tag.
@@ -172,6 +194,29 @@ func toMessageDTOs(messages []domain.MessageSummary) []MessageDTO {
 	out := make([]MessageDTO, 0, len(messages))
 	for _, m := range messages {
 		out = append(out, toMessageDTO(m))
+	}
+	return out
+}
+
+// ThreadDTO is the JSON-serialisable view of a conversation: its display subject, message and unread
+// counts, and its messages oldest first. The front end shows the latest message as the collapsed row and
+// reveals the rest when the thread is expanded.
+type ThreadDTO struct {
+	Subject     string       `json:"subject"`
+	Count       int          `json:"count"`
+	UnreadCount int          `json:"unreadCount"`
+	Messages    []MessageDTO `json:"messages"`
+}
+
+func toThreadDTOs(threads []domain.Thread) []ThreadDTO {
+	out := make([]ThreadDTO, 0, len(threads))
+	for _, thread := range threads {
+		out = append(out, ThreadDTO{
+			Subject:     thread.Subject(),
+			Count:       thread.Count(),
+			UnreadCount: thread.UnreadCount(),
+			Messages:    toMessageDTOs(thread.Messages()),
+		})
 	}
 	return out
 }

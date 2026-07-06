@@ -18,6 +18,8 @@ import (
 	"github.com/emersion/go-message/mail"
 	"github.com/microcosm-cc/bluemonday"
 	"golang.org/x/net/html"
+
+	"github.com/oernster/pigeonpost/internal/domain"
 )
 
 // htmlSanitizer strips anything unsafe (scripts, event handlers, javascript: URLs, style/iframe/form
@@ -38,14 +40,33 @@ func buildSanitizer() *bluemonday.Policy {
 // blankLines collapses three or more consecutive newlines down to two.
 var blankLines = regexp.MustCompile(`\n{3,}`)
 
-// ParsedBody is the result of parsing a raw message: its plain-text and HTML bodies, and the raw
-// text/calendar payload when the message carried one (an iMIP scheduling object such as a meeting
-// invite). Invite is nil when the message carried no calendar part.
-type ParsedBody struct {
-	Plain  string
-	HTML   string
-	Invite []byte
+// ParsedAttachment is one file carried by a message: its display filename, MIME content type and raw
+// bytes. Filename and ContentType are always set (a missing name falls back to a generic one) so a caller
+// can build a domain Attachment without further validation.
+type ParsedAttachment struct {
+	Filename    string
+	ContentType string
+	Content     []byte
 }
+
+// ParsedBody is the result of parsing a raw message: its plain-text and HTML bodies, the raw
+// text/calendar payload when the message carried one (an iMIP scheduling object such as a meeting
+// invite), and any attachment parts. Invite is nil when the message carried no calendar part; Attachments
+// is empty when it carried no files.
+type ParsedBody struct {
+	Plain       string
+	HTML        string
+	Invite      []byte
+	Attachments []ParsedAttachment
+}
+
+// fallbackAttachmentName names an attachment part that carried no filename, so it can still be listed and
+// saved.
+const fallbackAttachmentName = "attachment"
+
+// fallbackAttachmentType is the generic MIME type used when an attachment part has no readable
+// Content-Type.
+const fallbackAttachmentType = "application/octet-stream"
 
 // ParseBody parses a raw RFC 5322 message into its plain-text and HTML bodies plus any text/calendar
 // scheduling payload. When the message has only an HTML body, a plain-text rendering is derived from it
@@ -58,6 +79,7 @@ func ParseBody(raw []byte) (ParsedBody, error) {
 	}
 	var plainBuf, htmlBuf strings.Builder
 	var invite []byte
+	var attachments []ParsedAttachment
 	for {
 		part, err := reader.NextPart()
 		if err == io.EOF {
@@ -77,17 +99,24 @@ func ParseBody(raw []byte) (ParsedBody, error) {
 			}
 			continue
 		}
-		if _, ok := part.Header.(*mail.InlineHeader); !ok {
-			continue // an attachment; not part of the readable body
-		}
 		content, err := io.ReadAll(part.Body)
 		if err != nil {
 			return ParsedBody{}, fmt.Errorf("mailparse: read part body: %w", err)
 		}
-		if mediaType == "text/html" {
-			htmlBuf.Write(content)
-		} else {
-			plainBuf.Write(content)
+		switch header := part.Header.(type) {
+		case *mail.AttachmentHeader:
+			attachments = append(attachments, attachmentPart(header, mediaType, content))
+		case *mail.InlineHeader:
+			switch {
+			case mediaType == "text/html":
+				htmlBuf.Write(content)
+			case mediaType == "text/plain" || mediaType == "":
+				plainBuf.Write(content)
+			default:
+				// An inline non-text part (a cid: embedded image, say) is not part of the readable text and
+				// is not a saveable attachment either, so it is skipped rather than written into the body as
+				// raw bytes.
+			}
 		}
 	}
 	plain := plainBuf.String()
@@ -98,7 +127,34 @@ func ParseBody(raw []byte) (ParsedBody, error) {
 	if strings.TrimSpace(plain) == "" && htmlBody != "" {
 		plain = htmlToText(htmlBody)
 	}
-	return ParsedBody{Plain: plain, HTML: htmlBody, Invite: invite}, nil
+	return ParsedBody{Plain: plain, HTML: htmlBody, Invite: invite, Attachments: attachments}, nil
+}
+
+// DomainAttachments converts parsed attachment parts into domain Attachments, applying the domain's own
+// validation and byte-copying. ParseBody guarantees a non-empty filename, so it does not fail on that.
+func DomainAttachments(parsed []ParsedAttachment) ([]domain.Attachment, error) {
+	out := make([]domain.Attachment, 0, len(parsed))
+	for _, p := range parsed {
+		att, err := domain.NewAttachment(p.Filename, p.ContentType, p.Content)
+		if err != nil {
+			return nil, fmt.Errorf("mailparse: build attachment %q: %w", p.Filename, err)
+		}
+		out = append(out, att)
+	}
+	return out, nil
+}
+
+// attachmentPart builds a ParsedAttachment from an attachment part, falling back to a generic name and
+// media type when the part supplies none, so every attachment is listable and saveable.
+func attachmentPart(header *mail.AttachmentHeader, mediaType string, content []byte) ParsedAttachment {
+	filename, err := header.Filename()
+	if err != nil || strings.TrimSpace(filename) == "" {
+		filename = fallbackAttachmentName
+	}
+	if mediaType == "" {
+		mediaType = fallbackAttachmentType
+	}
+	return ParsedAttachment{Filename: filename, ContentType: mediaType, Content: content}
 }
 
 // partMediaType returns a part's media type (lowercased, without parameters), or an empty string when

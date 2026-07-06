@@ -158,8 +158,16 @@ export function ListTags() {
   return window['go']['main']['App']['ListTags']();
 }
 
+export function ListThreads(arg1) {
+  return window['go']['main']['App']['ListThreads'](arg1);
+}
+
 export function MarkFlagged(arg1, arg2) {
   return window['go']['main']['App']['MarkFlagged'](arg1, arg2);
+}
+
+export function MarkJunk(arg1) {
+  return window['go']['main']['App']['MarkJunk'](arg1);
 }
 
 export function MarkRead(arg1, arg2) {
@@ -216,6 +224,10 @@ export function RequestQuit() {
 
 export function RespondToInvitation(arg1, arg2) {
   return window['go']['main']['App']['RespondToInvitation'](arg1, arg2);
+}
+
+export function SaveAttachment(arg1, arg2) {
+  return window['go']['main']['App']['SaveAttachment'](arg1, arg2);
 }
 
 export function SaveCalendar(arg1) {

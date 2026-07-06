@@ -107,6 +107,7 @@ func (s *Store) DeleteMessage(ctx context.Context, messageID string) error {
 	return s.inTx(ctx, func(tx *sql.Tx) error {
 		for _, stmt := range []string{
 			"DELETE FROM message_body WHERE message_id = ?;",
+			"DELETE FROM message_attachment WHERE message_id = ?;",
 			"DELETE FROM message_tag WHERE message_id = ?;",
 			"DELETE FROM message_fts WHERE message_id = ?;",
 			"DELETE FROM message WHERE id = ?;",
@@ -338,6 +339,9 @@ func (s *Store) DeleteAccountData(ctx context.Context, accountID string) error {
 		)`
 		if _, err := tx.ExecContext(ctx, "DELETE FROM message_body WHERE "+bodyOrTagFilter, accountID); err != nil {
 			return fmt.Errorf("clear cached message bodies: %w", err)
+		}
+		if _, err := tx.ExecContext(ctx, "DELETE FROM message_attachment WHERE "+bodyOrTagFilter, accountID); err != nil {
+			return fmt.Errorf("clear cached message attachments: %w", err)
 		}
 		if _, err := tx.ExecContext(ctx, "DELETE FROM message_tag WHERE "+bodyOrTagFilter, accountID); err != nil {
 			return fmt.Errorf("clear cached message tags: %w", err)
