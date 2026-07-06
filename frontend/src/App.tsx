@@ -195,6 +195,9 @@ function App() {
     const [managingContacts, setManagingContacts] = useState<boolean>(false)
     const [events, setEvents] = useState<CalendarEvent[]>([])
     const [managingCalendar, setManagingCalendar] = useState<boolean>(false)
+    // calendarInitialEvent is the event whose dialog the calendar opens with, set when a reminder toast is
+    // clicked so it lands on that event. Null for a normal calendar open from the menu.
+    const [calendarInitialEvent, setCalendarInitialEvent] = useState<string | null>(null)
     const [messageBody, setMessageBody] = useState<MessageBody | null>(null)
     const [bodyLoading, setBodyLoading] = useState<boolean>(false)
     const [searchQuery, setSearchQuery] = useState<string>('')
@@ -305,6 +308,14 @@ function App() {
             setError(String(e))
         }
     }, [])
+
+    // openReminderEvent opens the calendar with the reminder's event dialog on top, so a clicked reminder
+    // shows what it is about. Events are refreshed first so the calendar can find and jump to the event.
+    const openReminderEvent = useCallback((eventId: string) => {
+        setCalendarInitialEvent(eventId)
+        setManagingCalendar(true)
+        void loadEvents()
+    }, [loadEvents])
 
     useEffect(() => {
         void loadEvents()
@@ -1463,7 +1474,7 @@ function App() {
                 style={{position: 'absolute', width: 0, height: 0, overflow: 'hidden', outline: 'none'}}
             />
             {splashVisible && <Splash version={appVersion} author={appAuthor} fading={splashFading}/>}
-            <ReminderNotifications/>
+            <ReminderNotifications onOpen={openReminderEvent}/>
             <header className="titlebar">
                 <span className="brand">
                     PigeonPost
@@ -1624,8 +1635,12 @@ function App() {
                     accountId={selectedAccount}
                     accountEmail={activeAccount?.email ?? ''}
                     accountName={activeAccount?.displayName ?? ''}
+                    initialEventId={calendarInitialEvent ?? undefined}
                     onChanged={() => void loadEvents()}
-                    onClose={() => setManagingCalendar(false)}
+                    onClose={() => {
+                        setManagingCalendar(false)
+                        setCalendarInitialEvent(null)
+                    }}
                 />
             )}
             {managingRules && (

@@ -2167,6 +2167,20 @@
 .reminder-toast-body {
     flex: 1;
     min-width: 0;
+    display: block;
+    text-align: left;
+    background: transparent;
+    border: none;
+    padding: 0;
+    margin: 0;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+}
+
+.reminder-toast-body:hover .reminder-toast-summary,
+.reminder-toast-body:focus-visible .reminder-toast-summary {
+    text-decoration: underline;
 }
 
 .reminder-toast-title {
