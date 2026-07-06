@@ -129,18 +129,27 @@ func (s *SyncService) SyncInboxes(ctx context.Context) ([]domain.MessageSummary,
 }
 
 // refreshInbox fetches one inbox folder, applies the filter rules, saves the messages and returns the
-// ones that are newly arrived (an id not already cached) and still unread. A message into an empty folder
-// counts as new; the caller's baseline priming keeps an initial sync from being announced.
+// ones that are newly arrived (an id not already cached), excluding only those a filter rule marked read
+// on arrival. Read state otherwise does not gate the result, so a message another client already marked
+// read still counts. A message into an empty folder counts as new; the caller's baseline priming keeps an
+// initial sync from being announced.
 func (s *SyncService) refreshInbox(ctx context.Context, account domain.Account, folder domain.Folder, rules []domain.Rule) ([]domain.MessageSummary, error) {
 	existing, err := s.mail.ListMessages(ctx, folder.ID())
 	if err != nil {
 		return nil, err
 	}
-	messages, err := s.source.FetchMessages(ctx, account, folder)
+	fetched, err := s.source.FetchMessages(ctx, account, folder)
 	if err != nil {
 		return nil, err
 	}
-	messages = domain.ApplyRules(messages, rules)
+	// Record each message's read state as the server reports it, before local rules run. A message
+	// another client (Thunderbird, a phone) has already marked read is still a new arrival worth
+	// announcing; only a message a filter rule marks read on arrival should be silenced.
+	serverUnread := make(map[string]bool, len(fetched))
+	for _, m := range fetched {
+		serverUnread[m.ID()] = !m.IsRead()
+	}
+	messages := domain.ApplyRules(fetched, rules)
 	if account.Protocol() == domain.ProtocolPOP3 {
 		messages = carryOverFlags(existing, messages)
 	}
@@ -156,7 +165,9 @@ func (s *SyncService) refreshInbox(ctx context.Context, account domain.Account, 
 		if _, seen := known[m.ID()]; seen {
 			continue
 		}
-		if m.IsRead() {
+		// Skip only a message a filter rule silenced by marking it read on arrival (unread on the server,
+		// read after the rule); announce every other new message regardless of its read state.
+		if serverUnread[m.ID()] && m.IsRead() {
 			continue
 		}
 		fresh = append(fresh, m)

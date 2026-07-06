@@ -2,12 +2,14 @@ package main
 
 import (
 	"context"
+	"sync"
 	"sync/atomic"
 
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 
 	"github.com/oernster/pigeonpost/internal/application"
+	"github.com/oernster/pigeonpost/internal/domain"
 	"github.com/oernster/pigeonpost/internal/infrastructure/taskbar"
 )
 
@@ -29,6 +31,13 @@ type ReminderAlerter interface {
 	Flash()
 }
 
+// MailWatcher maintains a live server connection that invokes a callback the instant an account's inbox
+// changes, for push new-mail detection. It is injected so the facade stays decoupled from the IMAP
+// implementation; a nil watcher just leaves the poll as the only mechanism.
+type MailWatcher interface {
+	Watch(ctx context.Context, account domain.Account, onChange func())
+}
+
 // App is the Wails facade: the single boundary the React front end talks to. It holds no business
 // logic, delegating every call to an application use case and mapping domain results to DTOs.
 type App struct {
@@ -37,6 +46,8 @@ type App struct {
 	notifier   UnreadNotifier
 	alerter    ReminderAlerter
 	tray       *taskbar.Tray
+	watcher    MailWatcher
+	mailCheck  sync.Mutex  // serialises checkMail so the poll and IDLE pushes do not detect concurrently
 	quitting   atomic.Bool // set when an explicit Quit is under way, so the close prompt is skipped
 	accounts   *application.AccountService
 	setup      *application.AccountSetupService
@@ -59,6 +70,7 @@ func NewApp(
 	notifier UnreadNotifier,
 	alerter ReminderAlerter,
 	tray *taskbar.Tray,
+	watcher MailWatcher,
 	accounts *application.AccountService,
 	setup *application.AccountSetupService,
 	mailbox *application.MailboxService,
@@ -78,6 +90,7 @@ func NewApp(
 		notifier:   notifier,
 		alerter:    alerter,
 		tray:       tray,
+		watcher:    watcher,
 		accounts:   accounts,
 		setup:      setup,
 		mailbox:    mailbox,

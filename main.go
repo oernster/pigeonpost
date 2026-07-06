@@ -103,8 +103,11 @@ func run() error {
 	// to the Help dialogs, so the App facade supplies the callbacks at startup once the runtime exists.
 	// The embedded app icon is composited with the unread badge to form the tray icon.
 	tray := taskbar.NewTray(windowTitle, appName, appIconPNG)
+	// The IDLE watcher holds a live connection per IMAP account so the server pushes new mail instantly,
+	// rather than waiting for the poll; it authenticates through the same keychain vault as fetches.
+	watcher := imap.NewWatcher(vault)
 
-	app := NewApp(store.Close, overlay, flasher, tray, accountService, setupService, mailboxService, syncService, composeService, tagService, bodyService, actionService, folderService, ruleService, contactService, calendarService, schedulingService)
+	app := NewApp(store.Close, overlay, flasher, tray, watcher, accountService, setupService, mailboxService, syncService, composeService, tagService, bodyService, actionService, folderService, ruleService, contactService, calendarService, schedulingService)
 
 	err = wails.Run(&options.App{
 		Title:            windowTitle,

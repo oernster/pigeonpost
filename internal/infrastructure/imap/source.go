@@ -59,29 +59,36 @@ func (s *Source) connect(ctx context.Context, account domain.Account) (*imapclie
 
 // login dials the account's incoming server and authenticates with the given password.
 func (s *Source) login(account domain.Account, password string) (*imapclient.Client, error) {
-	incoming := account.Incoming()
-	address := fmt.Sprintf("%s:%d", incoming.Host(), incoming.Port())
+	client, err := dial(account.Incoming(), nil)
+	if err != nil {
+		return nil, err
+	}
+	if err := client.Login(account.Address().Address(), password).Wait(); err != nil {
+		_ = client.Logout().Wait()
+		return nil, fmt.Errorf("imap: login %q: %w", account.ID(), err)
+	}
+	return client, nil
+}
 
+// dial opens a connection to the incoming server with the account's transport security and the given
+// client options (nil for the one-shot fetch path; the IDLE watcher passes a unilateral-data handler). A
+// dial failure is wrapped with ErrOffline so a caller can treat the server as unreachable.
+func dial(incoming domain.ServerConfig, options *imapclient.Options) (*imapclient.Client, error) {
+	address := fmt.Sprintf("%s:%d", incoming.Host(), incoming.Port())
 	var (
 		client *imapclient.Client
 		err    error
 	)
 	switch incoming.Security() {
 	case domain.SecurityStartTLS:
-		client, err = imapclient.DialStartTLS(address, nil)
+		client, err = imapclient.DialStartTLS(address, options)
 	case domain.SecurityNone:
-		client, err = imapclient.DialInsecure(address, nil)
+		client, err = imapclient.DialInsecure(address, options)
 	default:
-		client, err = imapclient.DialTLS(address, nil)
+		client, err = imapclient.DialTLS(address, options)
 	}
 	if err != nil {
-		// A dial failure means the server is unreachable: mark it offline so the caller can queue.
 		return nil, fmt.Errorf("imap: dial %s: %w", address, errors.Join(err, domain.ErrOffline))
-	}
-
-	if err := client.Login(account.Address().Address(), password).Wait(); err != nil {
-		_ = client.Logout().Wait()
-		return nil, fmt.Errorf("imap: login %q: %w", account.ID(), err)
 	}
 	return client, nil
 }

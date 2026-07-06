@@ -9,10 +9,10 @@ import (
 	"github.com/oernster/pigeonpost/internal/infrastructure/taskbar"
 )
 
-// mailPollInterval is how often the background poller checks every account's inbox for new mail to notify
-// about, kept short so mail and its notification arrive promptly. It is independent of the front end's own
-// on-screen folder refresh. (A true push, IMAP IDLE, would make this instant; polling is the interim.)
-const mailPollInterval = 15 * time.Second
+// mailPollInterval is how often the backstop poll checks every account's inbox. IMAP accounts get instant
+// pushes from an IDLE watcher, so this poll is a safety net for a missed push and the only mechanism for
+// POP3, which has no IDLE. It is independent of the front end's own on-screen folder refresh.
+const mailPollInterval = 60 * time.Second
 
 // mailNewEventName is the Wails event the front end listens on to refresh its counts and message list
 // after the poller brings in new mail.
@@ -22,12 +22,13 @@ const mailNewEventName = "mail:new"
 // poller auto-applies an incoming meeting reply or cancellation.
 const calendarChangedEventName = "calendar:changed"
 
-// runMailNotifier polls every account's inbox on an interval and raises a desktop notification for newly
-// arrived unread mail, so the user is alerted even when the window is hidden to the tray and whatever
-// folder is on screen. Each folder's first population is silent (see SyncInboxes). It stops when the
-// runtime context is cancelled at shutdown.
+// runMailNotifier watches every account's inbox and raises a desktop notification for newly arrived mail,
+// so the user is alerted even when the window is hidden to the tray and whatever folder is on screen. IMAP
+// accounts are watched by an IDLE push for instant detection; a backstop poll covers POP3 and a missed
+// push. It primes a baseline first so an existing inbox is not announced, and stops when the runtime
+// context is cancelled at shutdown.
 func (a *App) runMailNotifier() {
-	runtime.LogInfof(a.ctx, "mail-notifier: starting, poll interval %s, tray=%t", mailPollInterval, a.tray != nil)
+	runtime.LogInfof(a.ctx, "mail-notifier: starting, poll backstop %s, tray=%t", mailPollInterval, a.tray != nil)
 	// Prime the baseline: this first pass caches the current inbox so an existing mailbox is not announced
 	// as new. Only mail arriving after it counts, yet a message into a previously empty inbox still does,
 	// because detection is by cached-id rather than by the folder being empty.
@@ -37,12 +38,7 @@ func (a *App) runMailNotifier() {
 	} else {
 		runtime.LogInfof(a.ctx, "mail-notifier: baseline primed, ignoring %d already-present message(s)", len(primed))
 	}
-	// Launch confirmation: prove the notification mechanism works now, independent of mail detection. If
-	// this toast does not appear, the problem is Windows notification settings (Focus Assist / Do Not
-	// Disturb, or notifications disabled for the app), not the mail detection below.
-	if a.tray != nil {
-		a.tray.Notify("PigeonPost", "New-mail notifications are on.", true)
-	}
+	a.startMailWatchers()
 	ticker := time.NewTicker(mailPollInterval)
 	defer ticker.Stop()
 	for {
@@ -50,26 +46,57 @@ func (a *App) runMailNotifier() {
 		case <-a.ctx.Done():
 			return
 		case <-ticker.C:
-			fresh, err := a.sync.SyncInboxes(a.ctx)
-			if err != nil {
-				runtime.LogErrorf(a.ctx, "mail-notifier: poll failed: %v", err)
-				continue
-			}
-			if len(fresh) == 0 {
-				continue
-			}
-			runtime.LogInfof(a.ctx, "mail-notifier: %d new message(s) detected", len(fresh))
-			a.applyIncomingScheduling(fresh)
-			runtime.EventsEmit(a.ctx, mailNewEventName)
-			if a.tray != nil {
-				title, body := taskbar.MailBalloonText(mailSummaries(fresh))
-				runtime.LogInfof(a.ctx, "mail-notifier: raising notification %q / %q", title, body)
-				// force: show the new-mail notification even when PigeonPost is focused, the way a mail
-				// client alerts regardless. A reminder suppresses when focused because its in-app banner
-				// covers it, but new mail has no such in-window cue.
-				a.tray.Notify(title, body, true)
-			}
+			a.checkMail("poll")
 		}
+	}
+}
+
+// startMailWatchers launches an IMAP IDLE watcher per IMAP account, each calling checkMail the instant the
+// server reports new mail. An account added after launch falls back to the poll until the next start, and
+// a POP3 account has no IDLE and relies on the poll.
+func (a *App) startMailWatchers() {
+	if a.watcher == nil {
+		return
+	}
+	accounts, err := a.accounts.List(a.ctx)
+	if err != nil {
+		runtime.LogErrorf(a.ctx, "mail-notifier: listing accounts for IDLE watchers failed: %v", err)
+		return
+	}
+	for _, account := range accounts {
+		if account.Protocol() != domain.ProtocolIMAP {
+			continue
+		}
+		acc := account
+		runtime.LogInfof(a.ctx, "mail-notifier: starting IDLE watcher for %q", acc.ID())
+		go a.watcher.Watch(a.ctx, acc, func() { a.checkMail("idle") })
+	}
+}
+
+// checkMail syncs every inbox and, for any newly arrived mail, applies its scheduling, refreshes the front
+// end and raises a notification. It is serialised so a backstop poll and an IDLE push cannot run
+// concurrently and double-notify; trigger names what invoked it, for the log.
+func (a *App) checkMail(trigger string) {
+	a.mailCheck.Lock()
+	defer a.mailCheck.Unlock()
+	fresh, err := a.sync.SyncInboxes(a.ctx)
+	if err != nil {
+		runtime.LogErrorf(a.ctx, "mail-notifier: %s check failed: %v", trigger, err)
+		return
+	}
+	if len(fresh) == 0 {
+		return
+	}
+	runtime.LogInfof(a.ctx, "mail-notifier: %s found %d new message(s)", trigger, len(fresh))
+	a.applyIncomingScheduling(fresh)
+	runtime.EventsEmit(a.ctx, mailNewEventName)
+	if a.tray != nil {
+		title, body := taskbar.MailBalloonText(mailSummaries(fresh))
+		runtime.LogInfof(a.ctx, "mail-notifier: raising notification %q / %q", title, body)
+		// force: show the new-mail notification even when PigeonPost is focused, the way a mail client
+		// alerts regardless. A reminder suppresses when focused because its in-app banner covers it, but
+		// new mail has no such in-window cue.
+		a.tray.Notify(title, body, true)
 	}
 }
 
