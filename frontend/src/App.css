@@ -238,6 +238,31 @@
     flex: none;
 }
 
+.list-sort-bar {
+    display: flex;
+    justify-content: flex-end;
+    padding: 4px 12px;
+    background-color: var(--bg-elev-2);
+    border-bottom: 1px solid var(--border);
+    flex: none;
+}
+
+.list-sort-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-dim);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: 4px;
+}
+
+.list-sort-btn:hover {
+    color: var(--text);
+    background-color: var(--bg-elev);
+}
+
 .selection-count {
     color: var(--text-dim);
 }

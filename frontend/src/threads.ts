@@ -73,9 +73,26 @@ function dateMs(m: Message): number {
     return isNaN(t) ? 0 : t
 }
 
+// sortByDate returns a copy of the messages ordered by date, newest first by default or oldest first
+// when ascending is set. It is stable for equal timestamps, keeping the input order.
+export function sortByDate(messages: Message[], ascending: boolean): Message[] {
+    return messages
+        .map((m, i) => [m, i] as const)
+        .sort(([a, ai], [b, bi]) => {
+            const diff = dateMs(a) - dateMs(b)
+            if (diff !== 0) {
+                return ascending ? diff : -diff
+            }
+            return ai - bi
+        })
+        .map(([m]) => m)
+}
+
 // arrangeByConversation groups messages into conversations by normalised subject and flattens them for
-// the list, alongside the header labels for multi-message conversations.
-export function arrangeByConversation(messages: Message[]): ConversationView {
+// the list, alongside the header labels for multi-message conversations. Within a conversation messages
+// stay oldest first so the thread reads top to bottom; the conversations themselves are ordered by their
+// most recent message, newest first by default, or oldest first when ascending is set.
+export function arrangeByConversation(messages: Message[], ascending = false): ConversationView {
     const order: string[] = []
     const groups = new Map<string, Message[]>()
     for (const m of messages) {
@@ -87,7 +104,10 @@ export function arrangeByConversation(messages: Message[]): ConversationView {
         groups.get(key)!.push(m)
     }
     const threads = order.map((key) => groups.get(key)!.slice().sort((a, b) => dateMs(a) - dateMs(b)))
-    threads.sort((a, b) => dateMs(b[b.length - 1]) - dateMs(a[a.length - 1]))
+    threads.sort((a, b) => {
+        const diff = dateMs(a[a.length - 1]) - dateMs(b[b.length - 1])
+        return ascending ? diff : -diff
+    })
 
     const ordered: Message[] = []
     const heads = new Map<string, ConversationHead>()

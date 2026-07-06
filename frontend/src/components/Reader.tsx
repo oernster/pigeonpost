@@ -19,6 +19,16 @@ function handleBodyClick(e: ReactMouseEvent<HTMLDivElement>) {
     }
 }
 
+// formatAddress renders one correspondent as "Name <address>", or just the address when it has no name.
+function formatAddress(a: {name: string; address: string}): string {
+    return a.name ? `${a.name} <${a.address}>` : a.address
+}
+
+// formatAddressList joins a recipient list for display, dropping any empty entries.
+function formatAddressList(list: {name: string; address: string}[]): string {
+    return list.map(formatAddress).filter(Boolean).join(', ')
+}
+
 interface ReaderProps {
     message: Message | null
     onToggleRead: (message: Message) => void
@@ -215,6 +225,18 @@ export function Reader({message, onToggleRead, onReply, onReplyAll, onForward, o
                     <span className="reader-label">{outbox ? 'To' : 'From'}</span>
                     <span>{outbox ? (recipients || '(no recipient)') : sender}</span>
                 </div>
+                {!outbox && message.to && message.to.length > 0 && (
+                    <div className="reader-meta">
+                        <span className="reader-label">To</span>
+                        <span>{formatAddressList(message.to)}</span>
+                    </div>
+                )}
+                {!outbox && message.cc && message.cc.length > 0 && (
+                    <div className="reader-meta">
+                        <span className="reader-label">Cc</span>
+                        <span>{formatAddressList(message.cc)}</span>
+                    </div>
+                )}
                 {message.date && (
                     <div className="reader-meta">
                         <span className="reader-label">Date</span>

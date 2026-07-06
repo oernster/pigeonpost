@@ -32,6 +32,9 @@ interface MessageListProps {
     onToggleFlag: (message: Message) => void
     onContextMenu: (message: Message, x: number, y: number) => void
     onOpenInNewTab: (message: Message) => void
+    // sortAscending is the current date order of the list (false is newest first); onToggleSort flips it.
+    sortAscending: boolean
+    onToggleSort: () => void
 }
 
 function formatDate(iso: string): string {
@@ -162,6 +165,18 @@ export function MessageList(props: MessageListProps) {
                 <div className="selection-bar" role="status">
                     <span className="selection-count">{selectionCount} selected</span>
                     <button className="selection-clear" onClick={props.onClearSelection}>Clear</button>
+                </div>
+            )}
+            {folderSelected && !searchActive && messages.length > 0 && (
+                <div className="list-sort-bar">
+                    <button
+                        className="list-sort-btn"
+                        onClick={props.onToggleSort}
+                        aria-label={`Sort by date, ${props.sortAscending ? 'oldest first' : 'newest first'}`}
+                        title={props.sortAscending ? 'Oldest first (click for newest first)' : 'Newest first (click for oldest first)'}
+                    >
+                        Date {props.sortAscending ? '▲' : '▼'}
+                    </button>
                 </div>
             )}
             <div className="message-list-scroll">{content()}</div>

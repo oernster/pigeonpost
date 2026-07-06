@@ -12,7 +12,7 @@ import {Reader} from './components/Reader'
 import {MenuBar} from './components/MenuBar'
 import {AboutModal} from './components/AboutModal'
 import {LicenceModal} from './components/LicenceModal'
-import {arrangeByConversation} from './threads'
+import {arrangeByConversation, sortByDate} from './threads'
 import {ComposeInitial, ComposeModal} from './components/ComposeModal'
 import {AccountSetupModal} from './components/AccountSetupModal'
 import {ConfirmDialog} from './components/ConfirmDialog'
@@ -258,11 +258,22 @@ function App() {
     // when the view is on, otherwise as loaded. conversationHeads labels the first row of each multi-message
     // conversation. Both selection and keyboard navigation read displayMessages, so ranges and arrow keys
     // follow exactly what the user sees.
+    // sortAscending flips the folder list between newest-first (default) and oldest-first, driven by the
+    // Date column header. The choice is remembered across launches. It also sets the order conversations
+    // are listed in when the conversation view is on.
+    const [sortAscending, setSortAscending] = useState<boolean>(() => localStorage.getItem('sortAscending') === '1')
+    const toggleSort = useCallback(() => {
+        setSortAscending((asc) => {
+            const next = !asc
+            localStorage.setItem('sortAscending', next ? '1' : '0')
+            return next
+        })
+    }, [])
     const {ordered: displayMessages, heads: conversationHeads} = useMemo(
         () => (conversationView && !searchActive
-            ? arrangeByConversation(messages)
-            : {ordered: messages, heads: new Map()}),
-        [conversationView, searchActive, messages],
+            ? arrangeByConversation(messages, sortAscending)
+            : {ordered: sortByDate(messages, sortAscending), heads: new Map()}),
+        [conversationView, searchActive, messages, sortAscending],
     )
     const [appVersion, setAppVersion] = useState<string>('')
     const [appAuthor, setAppAuthor] = useState<string>('')
@@ -1597,6 +1608,8 @@ function App() {
         <MessageList
             messages={visibleList}
             conversationHeads={conversationHeads}
+            sortAscending={sortAscending}
+            onToggleSort={toggleSort}
             selectedIds={selectionIds}
             activeId={selectedMessage?.id ?? null}
             folderSelected={Boolean(selectedFolder)}
