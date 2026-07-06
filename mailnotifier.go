@@ -10,8 +10,9 @@ import (
 )
 
 // mailPollInterval is how often the background poller checks every account's inbox for new mail to notify
-// about. It is independent of the front end's own on-screen folder refresh.
-const mailPollInterval = 2 * time.Minute
+// about, kept short so mail and its notification arrive promptly. It is independent of the front end's own
+// on-screen folder refresh. (A true push, IMAP IDLE, would make this instant; polling is the interim.)
+const mailPollInterval = 15 * time.Second
 
 // mailNewEventName is the Wails event the front end listens on to refresh its counts and message list
 // after the poller brings in new mail.
@@ -26,6 +27,10 @@ const calendarChangedEventName = "calendar:changed"
 // folder is on screen. Each folder's first population is silent (see SyncInboxes). It stops when the
 // runtime context is cancelled at shutdown.
 func (a *App) runMailNotifier() {
+	// Prime the baseline: this first pass caches the current inbox so an existing mailbox is not announced
+	// as new. Only mail arriving after it counts, yet a message into a previously empty inbox still does,
+	// because detection is by cached-id rather than by the folder being empty.
+	_, _ = a.sync.SyncInboxes(a.ctx)
 	ticker := time.NewTicker(mailPollInterval)
 	defer ticker.Stop()
 	for {
@@ -41,7 +46,10 @@ func (a *App) runMailNotifier() {
 			runtime.EventsEmit(a.ctx, mailNewEventName)
 			if a.tray != nil {
 				title, body := taskbar.MailBalloonText(mailSummaries(fresh))
-				a.tray.Notify(title, body)
+				// force: show the new-mail notification even when PigeonPost is focused, the way a mail
+				// client alerts regardless. A reminder suppresses when focused because its in-app banner
+				// covers it, but new mail has no such in-window cue.
+				a.tray.Notify(title, body, true)
 			}
 		}
 	}

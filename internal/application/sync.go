@@ -93,11 +93,12 @@ func (s *SyncService) SyncFolder(ctx context.Context, folderID string) error {
 	return nil
 }
 
-// SyncInboxes fetches every account's inbox folders, saves what it finds and returns the newly arrived
-// unread messages across all accounts, so the caller can raise a desktop notification. A folder's first
-// population (nothing cached for it yet) is silent, so an account's initial sync does not notify for its
-// whole backlog. A per-account or per-folder failure is skipped rather than failing the pass, so one
-// unreachable account does not silence notifications for the others.
+// SyncInboxes fetches every account's inbox folders, saves what it finds and returns the messages that
+// are newly arrived (a message id not already cached) and still unread across all accounts, so the caller
+// can raise a desktop notification. It does NOT suppress a first population: the caller establishes a
+// baseline with an initial priming call so it does not announce an existing inbox, which lets a genuinely
+// new message into a previously empty inbox still be reported. A per-account or per-folder failure is
+// skipped rather than failing the pass, so one unreachable account does not silence the others.
 func (s *SyncService) SyncInboxes(ctx context.Context) ([]domain.MessageSummary, error) {
 	accounts, err := s.accounts.ListAccounts(ctx)
 	if err != nil {
@@ -128,8 +129,8 @@ func (s *SyncService) SyncInboxes(ctx context.Context) ([]domain.MessageSummary,
 }
 
 // refreshInbox fetches one inbox folder, applies the filter rules, saves the messages and returns the
-// ones that are newly arrived (an id not seen before) and still unread. When nothing was cached for the
-// folder yet it returns none, so the first population is silent.
+// ones that are newly arrived (an id not already cached) and still unread. A message into an empty folder
+// counts as new; the caller's baseline priming keeps an initial sync from being announced.
 func (s *SyncService) refreshInbox(ctx context.Context, account domain.Account, folder domain.Folder, rules []domain.Rule) ([]domain.MessageSummary, error) {
 	existing, err := s.mail.ListMessages(ctx, folder.ID())
 	if err != nil {
@@ -145,9 +146,6 @@ func (s *SyncService) refreshInbox(ctx context.Context, account domain.Account, 
 	}
 	if err := s.mail.SaveMessages(ctx, folder.ID(), messages); err != nil {
 		return nil, err
-	}
-	if len(existing) == 0 {
-		return nil, nil
 	}
 	known := make(map[string]struct{}, len(existing))
 	for _, m := range existing {

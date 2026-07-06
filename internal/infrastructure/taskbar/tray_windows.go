@@ -86,15 +86,19 @@ func (t *Tray) Stop() {
 	}
 }
 
-// Notify raises a balloon for a due reminder, unless the main window is already in the foreground (the
-// in-app banner covers that case). It hands the text to the tray thread, which owns the icon.
-func (t *Tray) Notify(title, body string) {
+// Notify raises a balloon notification. Unless force is set it is suppressed while the main window is in
+// the foreground (a reminder's in-app banner covers that case); new mail sets force so it shows even when
+// the window is focused, the way a mail client alerts regardless. It hands the text to the tray thread,
+// which owns the icon.
+func (t *Tray) Notify(title, body string, force bool) {
 	if title == "" && body == "" {
 		return
 	}
-	if hwnd := findMainWindow(t.title); hwnd != 0 {
-		if fg, _, _ := procGetForegroundWindow.Call(); windows.HWND(fg) == hwnd {
-			return
+	if !force {
+		if hwnd := findMainWindow(t.title); hwnd != 0 {
+			if fg, _, _ := procGetForegroundWindow.Call(); windows.HWND(fg) == hwnd {
+				return
+			}
 		}
 	}
 	h := t.hwnd.Load()

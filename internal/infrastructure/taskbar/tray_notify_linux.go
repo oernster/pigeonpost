@@ -15,7 +15,7 @@ const (
 // mechanism on Linux desktops. Any failure to reach the bus is ignored: a missing notification must
 // never disturb the reminder scheduler. The session bus connection is shared and cached by the library,
 // so it is not closed here.
-func (t *Tray) Notify(title, body string) {
+func (t *Tray) Notify(title, body string, _ bool) {
 	if title == "" && body == "" {
 		return
 	}

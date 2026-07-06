@@ -61,18 +61,20 @@ func TestSyncInboxesReturnsNewUnreadMail(t *testing.T) {
 	}
 }
 
-func TestSyncInboxesFirstPopulationIsSilent(t *testing.T) {
+func TestSyncInboxesReportsMailIntoEmptyFolder(t *testing.T) {
+	// A message arriving into a folder with nothing cached is still reported: the poller establishes the
+	// baseline with a priming call, so an empty inbox does not silence its first real arrival.
 	_, mail, source, _, svc := inboxFixture(t)
 	source.messagesByFolder["f1"] = []domain.MessageSummary{testMessage(t, "m1", "f1")}
 	fresh, err := svc.SyncInboxes(context.Background())
 	if err != nil {
 		t.Fatalf("SyncInboxes: %v", err)
 	}
-	if len(fresh) != 0 {
-		t.Errorf("fresh = %v, want none on first population", inboxIDs(fresh))
+	if got := inboxIDs(fresh); len(got) != 1 || got[0] != "m1" {
+		t.Errorf("fresh = %v, want [m1]", got)
 	}
 	if len(mail.messages["f1"]) != 1 {
-		t.Errorf("first population should still persist, got %d", len(mail.messages["f1"]))
+		t.Errorf("the message should be persisted, got %d", len(mail.messages["f1"]))
 	}
 }
 

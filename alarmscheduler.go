@@ -73,6 +73,7 @@ func (a *App) emitReminders(reminders []application.DueReminder) {
 			summaries[i] = r.Summary
 		}
 		title, body := taskbar.BalloonText(summaries)
-		a.tray.Notify(title, body)
+		// A reminder suppresses when the window is focused: its in-app banner covers that case.
+		a.tray.Notify(title, body, false)
 	}
 }

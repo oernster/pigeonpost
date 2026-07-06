@@ -11,7 +11,7 @@ import (
 // UserNotifications framework. The strings are escaped as AppleScript string literals and the command
 // runs without a shell, so the reminder text cannot break out of the script. Any failure is ignored so
 // a missing notification never disturbs the reminder scheduler.
-func (t *Tray) Notify(title, body string) {
+func (t *Tray) Notify(title, body string, _ bool) {
 	if title == "" && body == "" {
 		return
 	}
