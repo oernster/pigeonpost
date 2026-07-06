@@ -59,9 +59,14 @@ func (a *App) applyIncomingScheduling(messages []domain.MessageSummary) {
 			continue
 		}
 		applied, err := a.scheduling.ApplyIncoming(a.ctx, m.ID())
-		if err == nil && applied {
-			changed = true
+		if err != nil || !applied {
+			continue
 		}
+		changed = true
+		// The reply or cancellation needed no action from the user, so mark it read (kept, not deleted)
+		// once applied, so it does not linger as unread. Best-effort: a mark-read failure must not undo
+		// the apply that already happened.
+		_ = a.actions.MarkRead(a.ctx, m.ID(), true)
 	}
 	if changed {
 		runtime.EventsEmit(a.ctx, calendarChangedEventName)
