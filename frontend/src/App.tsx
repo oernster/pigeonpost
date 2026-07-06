@@ -1309,6 +1309,14 @@ function App() {
                 return
             }
 
+            // F8 toggles the reading pane on and off from anywhere in the main window, matching the toolbar
+            // button. It is a function key, so it acts even while a text field (the search box) has focus.
+            if (e.key === 'F8') {
+                e.preventDefault()
+                togglePreview()
+                return
+            }
+
             if (isText) {
                 return
             }
@@ -1440,7 +1448,7 @@ function App() {
         searchActive, searchResults, messages, selectedMessage, requestDelete, markedIds, anchorId,
         splashVisible, composing, settingUp, accountToEdit, managingRules, managingContacts, managingCalendar, about,
         licence, folderPrompt, messageToDelete, accountToDelete, folderToDelete, messageToPurge,
-        contextMenu, messageToCancelSend, bulkToDelete, bulkToPurge,
+        contextMenu, messageToCancelSend, bulkToDelete, bulkToPurge, togglePreview,
     ])
 
     // A POP3 account has a single downloaded inbox with no server-side folders, message moves or draft
@@ -1560,7 +1568,7 @@ function App() {
                     </button>
                     <button
                         className="icon-btn"
-                        data-tip={previewEnabled ? 'Hide the reading pane' : 'Show the reading pane'}
+                        data-tip={previewEnabled ? 'Hide the reading pane (F8)' : 'Show the reading pane (F8)'}
                         aria-label={previewEnabled ? 'Hide the reading pane' : 'Show the reading pane'}
                         aria-pressed={previewEnabled}
                         onClick={togglePreview}
