@@ -118,8 +118,15 @@ Read a message body:
 2. The `MessageBodyService` serves the cached body when present; on a miss it resolves the message,
    its folder and account through the stores, fetches the full body from the `MailSource`, caches it
    (schema v3 `message_body` table) and returns it. The message therefore reads offline after its
-   first open. The shared `mailparse` package (used by both the IMAP and POP3 read paths) parses the MIME
-   into plain-text and HTML parts; the HTML is sanitised there (bluemonday) so only safe markup ever
+   first open. The parser also extracts attachment parts, cached alongside the body (schema v26
+   `message_attachment` table) so a received attachment can be saved offline from the reader; the list
+   shows a paperclip for a message whose fetched IMAP body structure (BODYSTRUCTURE) has an
+   attachment-disposition part. Schema v27 clears the cached bodies once so each re-fetches with the
+   attachment-aware parser. Subjects and display names are RFC 2047 decoded (through a charset reader, so
+   windows-1252 and the like decode) and HTML-entity unescaped in the mail-source mapping via
+   `mailparse.DecodeHeader`, shared by the IMAP envelope path and POP3, so encoded-word and
+   template-built headers read as text. The shared `mailparse` package (used by both the IMAP and POP3
+   read paths) parses the MIME into plain-text and HTML parts; the HTML is sanitised there (bluemonday) so only safe markup ever
    enters the cache, and an HTML-only message also gets a plain-text rendering derived from the HTML.
    The same pre-sanitise pass drops nodes the sender hid with inline CSS (a preheader / preview-text
    block): the sanitiser strips the style that hid them, so left in place they would surface and
@@ -153,6 +160,12 @@ mailbox from the cached folders and, through the `DraftSaver` port, renders the 
 Unlike a send, a draft may be incomplete (no recipients, empty body), so it is built with the lenient
 `NewDraftMessage`.
 
+Draft recovery: separately from the server-side Save draft, the compose window autosaves its in-progress
+content (debounced, once the user has edited it) to a single-row local slot through the
+`DraftRecoveryStore` port (schema v25 `draft_recovery` table). It is local only and never sent to the
+server; on the next launch the UI offers to restore it; sending, saving a server draft or discarding
+it clears the slot.
+
 Offline outbox: the SMTP and IMAP adapters wrap a failed dial with the `ErrOffline` sentinel. When the
 compose use case sees `ErrOffline` from a send or a draft append, instead of failing it queues the
 operation through the `OutboxStore` port (schema v5 `outbox` table, extended with Bcc in v8 and
@@ -162,6 +175,14 @@ next successful sync the UI calls replay, which drains the queue oldest-first: e
 re-appended, removed on success, left in place if still offline, and dropped (with its error reported)
 if it can never succeed. The queue covers outgoing mail only; message flag/delete/move actions remain
 online-only by design.
+
+Junk, conversations and list order: marking a message as junk moves it to the account's Junk folder
+through the same online path as Move (`MessageActionService.MarkJunk`, resolving the Junk folder by kind).
+Conversation grouping and list order are read-side concerns over the same cached summaries the flat list
+uses: the domain `GroupThreads` groups a folder's summaries into conversations by normalised subject
+(reply/forward prefixes stripped), exposed through `MailboxService.Threads`; the UI sorts the list by
+date in either direction. The desktop list mirrors the grouping client-side so it updates instantly with
+optimistic changes, keeping the domain function as the single tested definition.
 
 Delete a message: after a confirmation modal, the UI calls the facade, routed through the
 `MessageActionService`. It resolves the message's folder and account, then via the `MailActions` port

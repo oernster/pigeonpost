@@ -3,8 +3,8 @@
 Cross-platform desktop email, calendar and address book client. Go core, React front end,
 local-first. Delivered as a signed download at https://www.pigeonpost.ink.
 
-Status: design locked; 0.9.0 in progress on main (VERSION 0.9.0, schema v24; per-account signatures so
-far); 0.8.0 released (tagged v0.8.0, schema v23); 0.7.0 cut at schema v15;
+Status: design locked; 0.9.0 complete on main (VERSION 0.9.0, schema v27); 0.8.0 released
+(tagged v0.8.0, schema v23); 0.7.0 cut at schema v15;
 0.6.0 released
 (tagged v0.6.0). The 0.5.0 release
 (folder create/rename/delete, message move/copy, on-arrival mark/flag rules, a right-click context
@@ -27,6 +27,14 @@ with a 60-second poll backstop, a clickable Windows tray icon with a minimise-to
 native notifications off Windows), message multi-select by mouse and keyboard with bulk delete, mark,
 star and move, an F8 reading-pane toggle, a clickable reminder banner that opens its event and clickable
 meeting join links (Teams, Meet, Zoom and Webex) in the event editor.
+0.9.0 adds per-account rich-text signatures, local draft-recovery autosave (the in-progress compose is
+saved locally and offered back after a crash, never touching the server), received attachments (a
+paperclip in the list plus view and save from the reader, cached for offline saving), conversation
+grouping by subject with a toggle, junk marking to the Junk folder, a Date-sortable list and To/Cc
+correspondents in the reader. It also lands an interop pass: subjects, display names and attachment
+filenames are RFC 2047 encoded-word and HTML-entity decoded; the Teams
+`X-MICROSOFT-SKYPETEAMSMEETINGURL` join link is parsed into the event on import; and imported ICS
+descriptions that arrive as HTML are converted to readable text.
 This document is the target design; the actual per-release delivery record lives in NOTES.md.
 Author: Oliver Ernster. Licence: GPL-3.0.
 

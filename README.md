@@ -31,16 +31,23 @@ Shipped:
   star marks kept locally, and their folder, move/copy and draft actions are hidden.
 - **Sync and read**: folders and message summaries pulled into a local SQLite cache and read offline;
   full message bodies fetched on open and cached. HTML mail is sanitised, and remote images are blocked
-  by default with a per-message "Load images" toggle.
+  by default with a per-message "Load images" toggle. A message that carries attachments shows a paperclip
+  in the list; opening it lists each attachment with its size and saves it to a location you choose (the
+  bytes are cached with the body, so saving works offline after the first open). Opening a message also
+  shows its From, To and Cc correspondents.
 - **Compose**: TipTap rich-text composer (bold, italic, lists, quote, links), sent as
   `multipart/alternative`. To, Cc and Bcc. Reply, reply-all and forward. Attach files from disk or an
   existing email (as a `message/rfc822` part), up to a 25 MB total. Save a draft to the server's Drafts
-  mailbox.
+  mailbox. Each account can carry its own rich-text signature, inserted into a new message and above the
+  quoted text on a reply or forward. The message you are writing is also autosaved locally as you type and
+  offered back for recovery after an accidental close or a crash; this recovery copy is local only and
+  never sent to the server.
 - **Offline**: sends and drafts made while disconnected are queued and delivered automatically on the
   next sync (attachments included). The outbox is a per-account folder: select it to review what is
   waiting and cancel any queued message before it sends.
 - **Organise**: mark read/unread (unread shows bold), star/flag, delete (to Trash) or delete
-  permanently, move and copy between folders (by menu or by dragging a message onto a folder) and
+  permanently, mark as junk (moves the message to the account's Junk folder), move and copy between
+  folders (by menu or by dragging a message onto a folder) and
   colour-coded tags. Create, rename and delete folders
   (rename is correct on non-`/` delimiter servers). Well-known folders sort to the top of a nested,
   collapsible tree, with unread-count badges per folder, account and total. Filter rules mark-read or
@@ -53,7 +60,9 @@ Shipped:
   with Shift+Arrow to extend a range and Ctrl+Arrow then Ctrl+Space to pick individual rows; a selection
   can then be deleted, marked, starred or moved in one action, with a bulk delete confirming the count.
   Full keyboard control: arrows move within the message and folder lists, an explicit focus ring steps
-  the whole window with Tab or Left/Right, Delete sends to Trash and Shift+Delete purges.
+  the whole window with Tab or Left/Right, Delete sends to Trash and Shift+Delete purges. A Date header
+  sorts the folder list newest-first or oldest-first (remembered across launches); an optional
+  conversation view groups a folder's messages into threads by subject.
 - **Notifications**: newly arrived mail raises a native desktop notification (a Windows toast, or the
   platform equivalent) naming the subject and sender, so you are alerted even when the window is hidden
   to the tray. Each IMAP account is watched by a persistent IDLE connection that pushes the instant mail
@@ -70,7 +79,8 @@ Shipped:
   Events carry reminders (a lead time before the start) that fire an on-screen banner while the app runs;
   clicking the banner opens the calendar on that event. Reminders round-trip as ICS alarms. ICS (.ics)
   import and export (RFC 5545, including RRULE, RDATE, EXDATE and RECURRENCE-ID) round-trips with Outlook
-  and Thunderbird; an event keeps its ICS UID so an export re-imports cleanly.
+  and Thunderbird; an event keeps its ICS UID so an export re-imports cleanly. A description that arrives
+  as HTML (as many Teams and Outlook invites send) is converted to readable text on import.
 - **Meeting invites**: an event with attendees is a meeting. Sending an invitation emails an iTIP
   REQUEST (RFC 5546 over RFC 6047 iMIP) as a `text/calendar` part; a recipient opens the message and
   can Accept, Tentatively accept or Decline, which saves the meeting to their calendar and emails a
@@ -98,8 +108,9 @@ Planned (see [DESIGN_PLAN.md](DESIGN_PLAN.md) for the full roadmap):
   organizer's alarm, so an attendee may not see the lead time you chose.
 - POP3 accounts have no IMAP IDLE, so their new mail is found by the 60-second backstop poll rather than
   pushed the instant it arrives.
-- The Join button reads the event location and description; a provider that carries the join URL only in
-  a non-standard property (such as the Teams `X-MICROSOFT-SKYPETEAMSMEETINGURL` header) shows no button.
+- The Join button reads the event location and description; the Teams `X-MICROSOFT-SKYPETEAMSMEETINGURL`
+  property is folded into the description on import so it surfaces too. A provider that carries the
+  join URL only in some other non-standard property PigeonPost does not parse yet shows no button.
 - Opening a reminder for a recurring event opens the series, not the single occurrence.
 
 ## Stack

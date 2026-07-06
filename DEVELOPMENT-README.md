@@ -44,11 +44,11 @@ Passwords are never stored there; they live in the OS keychain.
 ## Project layout
 
 ```
-main.go + app.go + the feature bindings (send, export, outbox, rulesapi, tagsapi, calendarapi, contactsapi, schedulingapi) + mailnotifier.go + alarmscheduler.go + dto.go + clock.go   composition root + Wails facade (package main)
+main.go + app.go + the feature bindings (send, draftrecovery, export, outbox, rulesapi, tagsapi, calendarapi, contactsapi, schedulingapi) + mailnotifier.go + alarmscheduler.go + dto.go + clock.go   composition root + Wails facade (package main)
 internal/domain/            pure value objects, no IO (100% test gate)
 internal/application/        use cases + port interfaces (100% test gate)
 internal/infrastructure/
-    storage/                SQLite store (schema v23, migrations, outbox, rules, contacts, calendar, reminders, meeting scheduling)
+    storage/                SQLite store (schema v27, migrations, outbox, rules, contacts, calendar, reminders, meeting scheduling, draft recovery, cached message attachments)
     imap/                   emersion go-imap source adapter (sync, bodies, draft append, IDLE watcher)
     pop3/                   hand-rolled POP3 client (download-to-inbox, local flags)
     smtp/                   emersion go-smtp transport
