@@ -20,3 +20,37 @@ func BalloonText(summaries []string) (title, body string) {
 			fmt.Sprintf("%s and %d more", summaries[0], len(summaries)-1)
 	}
 }
+
+// MailSummary is one newly arrived message reduced to the fields a notification shows.
+type MailSummary struct {
+	Subject string
+	Sender  string
+}
+
+// MailBalloonText builds the title and body for a new-mail notification from a batch of newly arrived
+// messages. An empty batch yields empty strings, meaning no notification. A single message shows its
+// subject and sender; several show a count and the most recent, so the balloon stays compact.
+func MailBalloonText(messages []MailSummary) (title, body string) {
+	switch len(messages) {
+	case 0:
+		return "", ""
+	case 1:
+		return "New message", mailLine(messages[0])
+	default:
+		return fmt.Sprintf("%d new messages", len(messages)),
+			fmt.Sprintf("%s and %d more", mailLine(messages[0]), len(messages)-1)
+	}
+}
+
+// mailLine renders one message as "subject from sender", filling in placeholders for empty fields.
+func mailLine(m MailSummary) string {
+	subject := m.Subject
+	if subject == "" {
+		subject = "(no subject)"
+	}
+	sender := m.Sender
+	if sender == "" {
+		sender = "unknown sender"
+	}
+	return fmt.Sprintf("%s from %s", subject, sender)
+}

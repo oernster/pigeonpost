@@ -1014,6 +1014,19 @@ function App() {
         return () => off.forEach((unsubscribe) => unsubscribe())
     }, [showAbout, showLicence, checkUpdates])
 
+    // The background mail poller emits mail:new when it brings in newly arrived messages (the same event
+    // that raises the desktop notification), so refresh the unread counts and the folder on screen to show
+    // the arrivals without waiting for the next on-screen sync.
+    useEffect(() => {
+        const off = EventsOn('mail:new', () => {
+            void loadUnread()
+            if (selectedFolder) {
+                void api.listMessages(selectedFolder).then(setMessages).catch(() => undefined)
+            }
+        })
+        return () => off()
+    }, [selectedFolder, loadUnread])
+
     // setReadState sets a message's read flag on the server and optimistically in the on-screen lists,
     // so it bolds or un-bolds at once. Used by the Mark submenu (explicit read/unread) and on view.
     const setReadState = useCallback(async (message: Message, read: boolean) => {

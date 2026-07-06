@@ -96,7 +96,7 @@ func NewApp(
 
 // startup captures the Wails runtime context, starts the tray (its menu items emit Wails events the
 // front end turns into the matching dialogs, so this layer owns the callbacks and the taskbar package
-// stays free of Wails), and starts the reminder scheduler.
+// stays free of Wails), and starts the reminder scheduler and the new-mail notifier.
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
 	if a.tray != nil {
@@ -111,6 +111,7 @@ func (a *App) startup(ctx context.Context) {
 		})
 	}
 	go a.runReminderScheduler()
+	go a.runMailNotifier()
 }
 
 // beforeClose runs when the user clicks the window's close button. Rather than quit, it asks the front

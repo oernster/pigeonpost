@@ -93,6 +93,79 @@ func (s *SyncService) SyncFolder(ctx context.Context, folderID string) error {
 	return nil
 }
 
+// SyncInboxes fetches every account's inbox folders, saves what it finds and returns the newly arrived
+// unread messages across all accounts, so the caller can raise a desktop notification. A folder's first
+// population (nothing cached for it yet) is silent, so an account's initial sync does not notify for its
+// whole backlog. A per-account or per-folder failure is skipped rather than failing the pass, so one
+// unreachable account does not silence notifications for the others.
+func (s *SyncService) SyncInboxes(ctx context.Context) ([]domain.MessageSummary, error) {
+	accounts, err := s.accounts.ListAccounts(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("sync: list accounts: %w", err)
+	}
+	rules, err := s.rules.ListRules(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("sync: load rules: %w", err)
+	}
+	var arrived []domain.MessageSummary
+	for _, account := range accounts {
+		folders, err := s.mail.ListFolders(ctx, account.ID())
+		if err != nil {
+			continue
+		}
+		for _, folder := range folders {
+			if folder.Kind() != domain.FolderInbox {
+				continue
+			}
+			fresh, err := s.refreshInbox(ctx, account, folder, rules)
+			if err != nil {
+				continue
+			}
+			arrived = append(arrived, fresh...)
+		}
+	}
+	return arrived, nil
+}
+
+// refreshInbox fetches one inbox folder, applies the filter rules, saves the messages and returns the
+// ones that are newly arrived (an id not seen before) and still unread. When nothing was cached for the
+// folder yet it returns none, so the first population is silent.
+func (s *SyncService) refreshInbox(ctx context.Context, account domain.Account, folder domain.Folder, rules []domain.Rule) ([]domain.MessageSummary, error) {
+	existing, err := s.mail.ListMessages(ctx, folder.ID())
+	if err != nil {
+		return nil, err
+	}
+	messages, err := s.source.FetchMessages(ctx, account, folder)
+	if err != nil {
+		return nil, err
+	}
+	messages = domain.ApplyRules(messages, rules)
+	if account.Protocol() == domain.ProtocolPOP3 {
+		messages = carryOverFlags(existing, messages)
+	}
+	if err := s.mail.SaveMessages(ctx, folder.ID(), messages); err != nil {
+		return nil, err
+	}
+	if len(existing) == 0 {
+		return nil, nil
+	}
+	known := make(map[string]struct{}, len(existing))
+	for _, m := range existing {
+		known[m.ID()] = struct{}{}
+	}
+	var fresh []domain.MessageSummary
+	for _, m := range messages {
+		if _, seen := known[m.ID()]; seen {
+			continue
+		}
+		if m.IsRead() {
+			continue
+		}
+		fresh = append(fresh, m)
+	}
+	return fresh, nil
+}
+
 // preserveFlags carries a POP3 message's local read and starred state across a sync. POP3 has no
 // server-side flags, so a fetch always reports every message as unread; without this, marking a message
 // read would be undone on the next sync. Flags are matched by the stable message id, so messages still
@@ -106,17 +179,24 @@ func (s *SyncService) preserveFlags(ctx context.Context, account domain.Account,
 	if err != nil {
 		return nil, err
 	}
+	return carryOverFlags(existing, incoming), nil
+}
+
+// carryOverFlags copies each still-present message's stored flags onto its freshly fetched summary,
+// matched by the stable message id, so a local read or star mark survives a sync that reports no
+// server-side flags. A newly arrived message (an id not among the existing) keeps its fetched flags.
+func carryOverFlags(existing, incoming []domain.MessageSummary) []domain.MessageSummary {
 	flagsByID := make(map[string]domain.Flags, len(existing))
 	for _, m := range existing {
 		flagsByID[m.ID()] = m.Flags()
 	}
-	preserved := make([]domain.MessageSummary, len(incoming))
+	out := make([]domain.MessageSummary, len(incoming))
 	for i, m := range incoming {
 		if flags, ok := flagsByID[m.ID()]; ok {
-			preserved[i] = m.WithFlags(flags)
+			out[i] = m.WithFlags(flags)
 		} else {
-			preserved[i] = m
+			out[i] = m
 		}
 	}
-	return preserved, nil
+	return out
 }

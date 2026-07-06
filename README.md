@@ -51,6 +51,10 @@ Shipped:
   message, a Mark submenu for read/unread/star/tag, move, copy, delete), and in-app reader tabs. Full
   keyboard control: arrows move within the message and folder lists, an explicit focus ring steps the
   whole window with Tab or Left/Right, Delete sends to Trash and Shift+Delete purges.
+- **Notifications**: a background poller checks every account's inbox and raises a native desktop
+  notification (a Windows toast, or the platform equivalent) for newly arrived unread mail, naming the
+  subject and sender, so you are alerted even when the window is hidden to the tray. An account's first
+  sync is silent, so it never notifies for an existing backlog.
 - **Trust**: dark theme by default with a light mode toggle; passwords held in the OS keychain, never
   in the database; external links open in your browser, not the app's webview; the unread total shows
   as a taskbar overlay badge on Windows.
