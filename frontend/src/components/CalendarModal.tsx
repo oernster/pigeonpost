@@ -173,6 +173,9 @@ export function CalendarModal({events, accountId, accountEmail, accountName, onC
     // confirm dialog for emailing a meeting cancellation, a destructive outward action.
     const [attendeeDraft, setAttendeeDraft] = useState('')
     const [cancelMeeting, setCancelMeeting] = useState(false)
+    // cancelledSent is true once a cancellation has been emailed for the open meeting, so the cancel and
+    // resend actions are disabled: a withdrawn meeting must not be cancelled again or re-invited.
+    const [cancelledSent, setCancelledSent] = useState(false)
     const [pendingDelete, setPendingDelete] = useState<{id: string; summary: string} | null>(null)
     const [editScope, setEditScope] = useState<CalendarEventInstance | null>(null)
     const [deleteScope, setDeleteScope] = useState<{seriesId: string; occurrence: string; summary: string} | null>(null)
@@ -274,6 +277,7 @@ export function CalendarModal({events, accountId, accountEmail, accountName, onC
     const openNew = (day: Date) => {
         setError('')
         setStatus('')
+        setCancelledSent(false)
         const start = new Date(day)
         start.setHours(9, 0, 0, 0)
         const end = new Date(start)
@@ -290,6 +294,7 @@ export function CalendarModal({events, accountId, accountEmail, accountName, onC
     const openAt = (start: Date) => {
         setError('')
         setStatus('')
+        setCancelledSent(false)
         const end = new Date(start)
         end.setHours(start.getHours() + HOURS_PER_EVENT)
         setForm({
@@ -333,6 +338,7 @@ export function CalendarModal({events, accountId, accountEmail, accountName, onC
         setAttendeeDraft('')
         setError('')
         setStatus('')
+        setCancelledSent(false)
         setEditScope(null)
     }
 
@@ -386,7 +392,7 @@ export function CalendarModal({events, accountId, accountEmail, accountName, onC
     // invitation to the attendees, so the label says so rather than a plain Save.
     const primaryActionLabel = (): string => {
         if (!form) return ''
-        if (form.attendees.length > 0 && accountId !== '') {
+        if (form.attendees.length > 0 && accountId !== '' && !cancelledSent) {
             return form.id ? 'Save and send update' : 'Send invitation'
         }
         return form.id ? 'Save changes' : 'Add event'
@@ -432,7 +438,7 @@ export function CalendarModal({events, accountId, accountEmail, accountName, onC
             onChanged()
             // Saving a meeting sends its invitation: adding attendees and saving is what invites them, the
             // same way a calendar app's meeting Send both saves and notifies. Re-saving sends an update.
-            if (hasAttendees) {
+            if (hasAttendees && !cancelledSent) {
                 if (accountId === '') {
                     console.warn('meeting invite: not sending, no account selected', {savedId})
                     setStatus('Meeting saved. Select an account to send the invitation to the attendees.')
@@ -529,8 +535,17 @@ export function CalendarModal({events, accountId, accountEmail, accountName, onC
         setStatus('')
         try {
             await api.sendMeetingCancel(accountId, form.id)
+            // Mark it cancelled before the delete, so if the delete fails the attendees are known to have
+            // been notified and the meeting cannot be cancelled again.
+            setCancelledSent(true)
+            // A cancelled meeting is withdrawn: after notifying the attendees, remove it from the
+            // organizer's own calendar too, the way a calendar app deletes a meeting you cancel.
+            await api.deleteEvent(form.id)
             setCancelMeeting(false)
-            setStatus('Cancellation sent to the attendees.')
+            setForm(null)
+            bumpReload()
+            onChanged()
+            setStatus('Meeting cancelled: the attendees were notified and it was removed from your calendar.')
         } catch (e) {
             setError(String(e))
         } finally {
@@ -775,14 +790,18 @@ export function CalendarModal({events, accountId, accountEmail, accountName, onC
                                     ) : (
                                         <>
                                             <p className="setup-hint">
-                                                Saving {form.id === '' ? 'this meeting' : ''} sends an invitation to the attendees by email.
+                                                {cancelledSent
+                                                    ? 'This meeting has been cancelled. The attendees have been notified.'
+                                                    : `Saving ${form.id === '' ? 'this meeting' : ''} sends an invitation to the attendees by email.`}
                                             </p>
                                             {form.id !== '' && (
                                                 <div className="invite-card-actions">
-                                                    <button type="button" className="btn" disabled={busy}
+                                                    <button type="button" className="btn" disabled={busy || cancelledSent}
                                                             onClick={() => void sendInvitations()}>Resend invitation</button>
-                                                    <button type="button" className="btn danger-outline" disabled={busy}
-                                                            onClick={() => setCancelMeeting(true)}>Cancel meeting</button>
+                                                    <button type="button" className="btn danger-outline" disabled={busy || cancelledSent}
+                                                            onClick={() => setCancelMeeting(true)}>
+                                                        {cancelledSent ? 'Meeting cancelled' : 'Cancel meeting'}
+                                                    </button>
                                                 </div>
                                             )}
                                         </>
