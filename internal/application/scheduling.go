@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -160,6 +161,46 @@ func (s *SchedulingService) ApplyReply(ctx context.Context, messageID string) er
 		return nil
 	}
 	return ErrMeetingNotFound
+}
+
+// ApplyIncoming folds a message's meeting scheduling into the calendar automatically, so the user does
+// not have to open each reply or cancellation. A REPLY updates the responding attendee's status; a CANCEL
+// removes the withdrawn meeting; a REQUEST or PUBLISH (which the user answers deliberately) and a message
+// with no invite are left untouched. It reports whether the calendar changed. A reply for a meeting not
+// held locally, or naming no attendee, is a harmless no-op rather than an error, since the poller applies
+// replies blind across every arriving message.
+func (s *SchedulingService) ApplyIncoming(ctx context.Context, messageID string) (bool, error) {
+	sched, err := s.decodeInvite(ctx, messageID)
+	if errors.Is(err, ErrNoInvite) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	switch sched.Method() {
+	case domain.MethodReply:
+		return appliedReply(s.ApplyReply(ctx, messageID))
+	case domain.MethodCancel:
+		if err := s.ApplyCancellation(ctx, messageID); err != nil {
+			return false, err
+		}
+		return true, nil
+	default:
+		return false, nil
+	}
+}
+
+// appliedReply maps an ApplyReply result to whether the calendar changed, treating a reply for a meeting
+// not held locally or naming no attendee as a no-op rather than an error.
+func appliedReply(err error) (bool, error) {
+	switch {
+	case err == nil:
+		return true, nil
+	case errors.Is(err, ErrMeetingNotFound), errors.Is(err, ErrNoReplyAttendee):
+		return false, nil
+	default:
+		return false, err
+	}
 }
 
 // SendRequest emails a meeting REQUEST to the attendees of the given events (the series master plus any

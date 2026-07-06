@@ -17,6 +17,10 @@ const mailPollInterval = 2 * time.Minute
 // after the poller brings in new mail.
 const mailNewEventName = "mail:new"
 
+// calendarChangedEventName is the Wails event the front end listens on to reload the calendar after the
+// poller auto-applies an incoming meeting reply or cancellation.
+const calendarChangedEventName = "calendar:changed"
+
 // runMailNotifier polls every account's inbox on an interval and raises a desktop notification for newly
 // arrived unread mail, so the user is alerted even when the window is hidden to the tray and whatever
 // folder is on screen. Each folder's first population is silent (see SyncInboxes). It stops when the
@@ -33,12 +37,34 @@ func (a *App) runMailNotifier() {
 			if err != nil || len(fresh) == 0 {
 				continue
 			}
+			a.applyIncomingScheduling(fresh)
 			runtime.EventsEmit(a.ctx, mailNewEventName)
 			if a.tray != nil {
 				title, body := taskbar.MailBalloonText(mailSummaries(fresh))
 				a.tray.Notify(title, body)
 			}
 		}
+	}
+}
+
+// applyIncomingScheduling folds any meeting replies and cancellations the newly arrived messages carry
+// into the calendar, so an attendee's reply updates the organizer's meeting and a cancellation removes the
+// withdrawn one without the user opening each message. It fetches each body first so the scheduling decode
+// can read its calendar part, and asks the front end to reload the calendar when anything changed. A
+// message that is not a meeting, or whose body cannot be fetched, contributes nothing.
+func (a *App) applyIncomingScheduling(messages []domain.MessageSummary) {
+	changed := false
+	for _, m := range messages {
+		if _, err := a.body.Body(a.ctx, m.ID()); err != nil {
+			continue
+		}
+		applied, err := a.scheduling.ApplyIncoming(a.ctx, m.ID())
+		if err == nil && applied {
+			changed = true
+		}
+	}
+	if changed {
+		runtime.EventsEmit(a.ctx, calendarChangedEventName)
 	}
 }
 

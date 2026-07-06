@@ -1027,6 +1027,13 @@ function App() {
         return () => off()
     }, [selectedFolder, loadUnread])
 
+    // The poller emits calendar:changed after auto-applying an incoming meeting reply or cancellation, so
+    // reload the events for the calendar view to reflect the updated attendee status or removed meeting.
+    useEffect(() => {
+        const off = EventsOn('calendar:changed', () => void loadEvents())
+        return () => off()
+    }, [loadEvents])
+
     // setReadState sets a message's read flag on the server and optimistically in the on-screen lists,
     // so it bolds or un-bolds at once. Used by the Mark submenu (explicit read/unread) and on view.
     const setReadState = useCallback(async (message: Message, read: boolean) => {
