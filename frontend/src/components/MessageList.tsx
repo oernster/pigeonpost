@@ -120,13 +120,17 @@ export function MessageList(props: MessageListProps) {
                             >
                                 {message.flagged ? '★' : '☆'}
                             </button>
+                            {message.hasAttachments && (
+                                <span className="attach" title="Has attachments" aria-label="Has attachments">
+                                    {'\u{1F4CE}'}
+                                </span>
+                            )}
                             <span className="message-from">
                                 {message.fromName || message.fromAddress || '(unknown sender)'}
                             </span>
                             <span className="message-date">{formatDate(message.date)}</span>
                         </div>
                         <div className="message-subject">
-                            {message.hasAttachments && <span className="attach">{'\u{1F4CE}'}</span>}
                             {message.subject || '(no subject)'}
                         </div>
                         {message.snippet && <div className="message-snippet">{message.snippet}</div>}
