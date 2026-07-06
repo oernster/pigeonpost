@@ -9,6 +9,10 @@ interface MessageContextMenuProps {
     y: number
     folders: Folder[]
     tags: Tag[]
+    // selection is every message the menu acts on. With more than one selected the menu shows the bulk
+    // actions that apply to a whole set (mark, star, move, delete) and calls the onBulk* handlers; with one
+    // it is the full single-message menu below, acting on `message`.
+    selection: Message[]
     onClose: () => void
     onReply: (message: Message) => void
     onReplyAll: (message: Message) => void
@@ -28,6 +32,11 @@ interface MessageContextMenuProps {
     onDeletePermanent: (message: Message) => void
     // onCancelSend discards a queued outbox item; the menu offers only this for an outbox row.
     onCancelSend: (message: Message) => void
+    onBulkSetRead: (messages: Message[], read: boolean) => void
+    onBulkSetFlag: (messages: Message[], flagged: boolean) => void
+    onBulkMove: (messages: Message[], destFolderId: string) => void
+    onBulkDelete: (messages: Message[]) => void
+    onBulkDeletePermanent: (messages: Message[]) => void
 }
 
 // Keep the menu at least this far inside the viewport edges when clamping its position.
@@ -125,6 +134,10 @@ export function MessageContextMenu(props: MessageContextMenuProps) {
     const movable = folders.filter((f) => f.id !== message.folderId)
     const repliesAll = ((message.to?.length ?? 0) + (message.cc?.length ?? 0)) > 0
     const flipX = pos.x > window.innerWidth - SUBMENU_REACH
+    // With more than one message selected the menu offers only the actions that apply to a whole set. A
+    // multi-selection can span folders, so every folder is a valid move target here.
+    const selection = props.selection
+    const multi = selection.length > 1
 
     const colourRow = (
         <div className="context-colour-row" role="group" aria-label="Tag colour">
@@ -167,7 +180,44 @@ export function MessageContextMenu(props: MessageContextMenuProps) {
             style={{left: pos.x, top: pos.y}}
             onClick={(e) => e.stopPropagation()}
         >
-            {isOutboxMessage(message) ? (
+            {multi ? (
+                <>
+                    <div className="context-header">{selection.length} messages</div>
+                    <div className="context-sep"/>
+                    <button className="context-item" role="menuitem" onClick={act(() => props.onBulkSetRead(selection, true))}>
+                        Mark as read
+                    </button>
+                    <button className="context-item" role="menuitem" onClick={act(() => props.onBulkSetRead(selection, false))}>
+                        Mark as unread
+                    </button>
+                    <button className="context-item" role="menuitem" onClick={act(() => props.onBulkSetFlag(selection, true))}>
+                        Add star
+                    </button>
+                    <button className="context-item" role="menuitem" onClick={act(() => props.onBulkSetFlag(selection, false))}>
+                        Remove star
+                    </button>
+                    {props.canMoveCopy && folders.length > 0 && (
+                        <>
+                            <div className="context-sep"/>
+                            <SubMenu label="Move to" scroll>
+                                {folders.map((f) => (
+                                    <button key={f.id} className="context-item" role="menuitem"
+                                            onClick={act(() => props.onBulkMove(selection, f.id))}>
+                                        {f.name}
+                                    </button>
+                                ))}
+                            </SubMenu>
+                        </>
+                    )}
+                    <div className="context-sep"/>
+                    <button className="context-item danger" role="menuitem" onClick={act(() => props.onBulkDelete(selection))}>
+                        Delete
+                    </button>
+                    <button className="context-item danger" role="menuitem" onClick={act(() => props.onBulkDeletePermanent(selection))}>
+                        Delete permanently
+                    </button>
+                </>
+            ) : isOutboxMessage(message) ? (
                 <button
                     className="context-item danger"
                     role="menuitem"

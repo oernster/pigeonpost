@@ -1,16 +1,29 @@
 import {Message} from '../api'
 
 // messageDragType is the dataTransfer MIME type carrying a dragged message's id to a folder drop target.
+// When several messages are selected, dropping any one of them moves the whole selection; the parent
+// expands the dragged id to the full selection, so a single id on the drag is enough.
 export const messageDragType = 'application/x-pigeonpost-message'
+
+// ClickMods carries the modifier keys of a row click so the parent can apply the standard selection
+// gestures: plain click selects one, Ctrl (or Cmd) toggles a row in or out, Shift selects a range.
+export interface ClickMods {
+    ctrl: boolean
+    shift: boolean
+}
 
 interface MessageListProps {
     messages: Message[]
-    selectedMessage: Message | null
+    // selectedIds is every highlighted row; activeId is the one shown in the reader (the range anchor and
+    // the roving-tabindex target). With a single selection the two coincide.
+    selectedIds: Set<string>
+    activeId: string | null
     folderSelected: boolean
     searchQuery: string
     searchActive: boolean
     onSearchChange: (query: string) => void
-    onSelectMessage: (message: Message) => void
+    onActivate: (message: Message, mods: ClickMods) => void
+    onClearSelection: () => void
     onToggleFlag: (message: Message) => void
     onContextMenu: (message: Message, x: number, y: number) => void
     onOpenInNewTab: (message: Message) => void
@@ -30,7 +43,8 @@ function formatDate(iso: string): string {
 }
 
 export function MessageList(props: MessageListProps) {
-    const {messages, selectedMessage, folderSelected, searchQuery, searchActive} = props
+    const {messages, selectedIds, activeId, folderSelected, searchQuery, searchActive} = props
+    const selectionCount = selectedIds.size
 
     const content = () => {
         if (searchActive) {
@@ -50,10 +64,18 @@ export function MessageList(props: MessageListProps) {
                         className={
                             'message-row' +
                             (message.read ? '' : ' unread') +
-                            (selectedMessage?.id === message.id ? ' selected' : '')
+                            (selectedIds.has(message.id) ? ' selected' : '')
                         }
-                        tabIndex={selectedMessage?.id === message.id ? 0 : -1}
-                        onClick={() => props.onSelectMessage(message)}
+                        tabIndex={activeId === message.id ? 0 : -1}
+                        aria-selected={selectedIds.has(message.id)}
+                        // Shift-click would otherwise select the page text across the rows it spans; suppress
+                        // that here so a range selection stays a message selection.
+                        onMouseDown={(e) => {
+                            if (e.shiftKey) {
+                                e.preventDefault()
+                            }
+                        }}
+                        onClick={(e) => props.onActivate(message, {ctrl: e.ctrlKey || e.metaKey, shift: e.shiftKey})}
                         onDoubleClick={() => props.onOpenInNewTab(message)}
                         onKeyDown={(e) => {
                             if (e.key === 'Enter') {
@@ -116,6 +138,12 @@ export function MessageList(props: MessageListProps) {
                     </button>
                 )}
             </div>
+            {selectionCount > 1 && (
+                <div className="selection-bar" role="status">
+                    <span className="selection-count">{selectionCount} selected</span>
+                    <button className="selection-clear" onClick={props.onClearSelection}>Clear</button>
+                </div>
+            )}
             <div className="message-list-scroll">{content()}</div>
         </section>
     )

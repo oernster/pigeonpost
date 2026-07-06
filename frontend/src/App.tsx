@@ -204,6 +204,14 @@ function App() {
     const [messageToPurge, setMessageToPurge] = useState<Message | null>(null)
     const [purgingMessage, setPurgingMessage] = useState<boolean>(false)
     const [contextMenu, setContextMenu] = useState<{message: Message; x: number; y: number} | null>(null)
+    // markedIds is the multi-selection built by Ctrl and Shift clicking. Empty means single-select mode,
+    // where selectedMessage alone is the selection. anchorId is the pivot a Shift-click ranges from.
+    const [markedIds, setMarkedIds] = useState<Set<string>>(new Set())
+    const [anchorId, setAnchorId] = useState<string | null>(null)
+    const [bulkToDelete, setBulkToDelete] = useState<Message[] | null>(null)
+    const [bulkDeleting, setBulkDeleting] = useState<boolean>(false)
+    const [bulkToPurge, setBulkToPurge] = useState<Message[] | null>(null)
+    const [bulkPurging, setBulkPurging] = useState<boolean>(false)
     const [tabs, setTabs] = useState<Message[]>([])
     // previewEnabled controls the right-hand reading pane. When off, the message list is full-width and
     // a message is read by double-clicking it, which opens it full-width (readingFull) with a Back button.
@@ -445,6 +453,8 @@ function App() {
     const selectAccount = useCallback(async (id: string) => {
         setSelectedAccount(id)
         setSelectedMessage(null)
+        setMarkedIds(new Set())
+        setAnchorId(null)
         setReadingFull(false)
         try {
             const fetched = await api.listFolders(id)
@@ -470,6 +480,8 @@ function App() {
         selectedFolderRef.current = id
         setSelectedFolder(id)
         setSelectedMessage(null)
+        setMarkedIds(new Set())
+        setAnchorId(null)
         setReadingFull(false)
         // The Outbox is a synthetic folder: it lists the account's queued items from local state rather
         // than syncing a server mailbox.
@@ -712,6 +724,52 @@ function App() {
         setReadingFull(false)
     }, [])
 
+    // clearSelection drops the multi-selection back to single-select mode. The active message (shown in
+    // the reader) is left as it is, so clearing a selection does not close the message on screen.
+    const clearSelection = useCallback(() => {
+        setMarkedIds(new Set())
+        setAnchorId(null)
+    }, [])
+
+    // activateRow applies the standard list-selection gestures to a row click. A plain click selects the
+    // one row and opens it; Ctrl (or Cmd) click toggles the row in or out of the selection; Shift click
+    // selects the contiguous range from the anchor. The clicked row always becomes the active one shown in
+    // the reader, and a Shift range keeps the existing anchor so successive Shift clicks re-range from it.
+    const activateRow = useCallback((message: Message, mods: {ctrl: boolean; shift: boolean}) => {
+        const list = searchActive ? searchResults : messages
+        if (mods.shift && anchorId) {
+            const from = list.findIndex((m) => m.id === anchorId)
+            const to = list.findIndex((m) => m.id === message.id)
+            if (from !== -1 && to !== -1) {
+                const [lo, hi] = from <= to ? [from, to] : [to, from]
+                setMarkedIds(new Set(list.slice(lo, hi + 1).map((m) => m.id)))
+            } else {
+                setMarkedIds(new Set([message.id]))
+            }
+            setSelectedMessage(message)
+            setReadingFull(false)
+            return
+        }
+        if (mods.ctrl) {
+            setMarkedIds((prev) => {
+                const base = prev.size ? new Set(prev) : new Set<string>(selectedMessage ? [selectedMessage.id] : [])
+                if (base.has(message.id)) {
+                    base.delete(message.id)
+                } else {
+                    base.add(message.id)
+                }
+                return base
+            })
+            setAnchorId(message.id)
+            setSelectedMessage(message)
+            setReadingFull(false)
+            return
+        }
+        setMarkedIds(new Set())
+        setAnchorId(message.id)
+        selectMessage(message)
+    }, [searchActive, searchResults, messages, anchorId, selectedMessage, selectMessage])
+
     // openInNewTab pins a message as a reader tab (if not already open) and shows it. With the reading
     // pane off this opens the message full-width (readingFull); with it on the tab appears in the pane.
     const openInNewTab = useCallback((message: Message) => {
@@ -743,6 +801,10 @@ function App() {
     // otherwise leave the menu's read/unread state (and the message) wrong. Every menu action receives
     // the message directly, so it does not need to be the selected one.
     const openContextMenu = useCallback((message: Message, x: number, y: number) => {
+        // Right-clicking a row that is not part of a multi-selection collapses the selection to that row, so
+        // the menu acts on what was clicked rather than on an unrelated set. Right-clicking within the
+        // selection keeps it, so its bulk actions apply to the whole set.
+        setMarkedIds((prev) => (prev.size > 1 && !prev.has(message.id) ? new Set() : prev))
         setContextMenu({message, x, y})
     }, [])
 
@@ -835,19 +897,25 @@ function App() {
         [moveMessageById],
     )
 
-    // dropMessageOnFolder is the drag-and-drop target handler: it moves the dragged message into the
-    // folder it was dropped on, unless that is already its folder.
+    // dropMessageOnFolder is the drag-and-drop target handler. Dragging a row that is part of the
+    // multi-selection moves the whole selection; dragging any other row moves just that one. A message is
+    // skipped when it already lives in the target folder. The Outbox is synthetic: nothing can be moved
+    // into it, and a queued item cannot be moved out.
     const dropMessageOnFolder = useCallback((messageId: string, folderId: string) => {
-        const source = messages.find((m) => m.id === messageId) ?? searchResults.find((m) => m.id === messageId)
-        if (source && source.folderId === folderId) {
+        if (folderId === OUTBOX_FOLDER_ID) {
             return
         }
-        // The Outbox is synthetic: nothing can be moved into it, and a queued item cannot be moved out.
-        if (folderId === OUTBOX_FOLDER_ID || (source && isOutboxMessage(source))) {
-            return
+        const ids = markedIds.has(messageId) && markedIds.size > 1 ? [...markedIds] : [messageId]
+        for (const id of ids) {
+            const source = messages.find((m) => m.id === id) ?? searchResults.find((m) => m.id === id)
+            if (!source || source.folderId === folderId || isOutboxMessage(source)) {
+                continue
+            }
+            void moveMessageById(id, folderId)
         }
-        void moveMessageById(messageId, folderId)
-    }, [messages, searchResults, moveMessageById])
+        setMarkedIds(new Set())
+        setAnchorId(null)
+    }, [markedIds, messages, searchResults, moveMessageById])
 
     // Copy leaves the original in place; the duplicate appears in the destination folder on next sync,
     // so there is no local list change to make here.
@@ -1050,6 +1118,108 @@ function App() {
         }
     }, [loadUnread])
 
+    // removeIdsFromLists drops a set of message ids from every on-screen list and the selection after a
+    // bulk delete or move, and clears the active message if it was among them. All the setters are stable,
+    // so it needs no dependencies.
+    const removeIdsFromLists = useCallback((ids: Set<string>) => {
+        setMessages((prev) => prev.filter((m) => !ids.has(m.id)))
+        setSearchResults((prev) => prev.filter((m) => !ids.has(m.id)))
+        setTabs((prev) => prev.filter((m) => !ids.has(m.id)))
+        setSelectedMessage((prev) => (prev && ids.has(prev.id) ? null : prev))
+        setMarkedIds(new Set())
+        setAnchorId(null)
+    }, [])
+
+    // runBulkDelete carries out a confirmed bulk delete or permanent delete over the selected messages,
+    // one server call each (there is no batch endpoint), then removes whichever succeeded. A failure part
+    // way through still clears the ones already deleted rather than leaving the list inconsistent.
+    const runBulkDelete = useCallback(async (targets: Message[], permanent: boolean) => {
+        if (targets.length === 0) {
+            return
+        }
+        const setBusy = permanent ? setBulkPurging : setBulkDeleting
+        setBusy(true)
+        setError('')
+        const done = new Set<string>()
+        try {
+            for (const m of targets) {
+                if (permanent) {
+                    await api.deleteMessagePermanent(m.id)
+                } else {
+                    await api.deleteMessage(m.id)
+                }
+                done.add(m.id)
+            }
+        } catch (e) {
+            setError(String(e))
+        }
+        removeIdsFromLists(done)
+        if (permanent) {
+            setBulkToPurge(null)
+        } else {
+            setBulkToDelete(null)
+        }
+        setBusy(false)
+        await loadUnread()
+    }, [removeIdsFromLists, loadUnread])
+
+    // bulkSetRead sets the read flag on every selected message, updating the lists at once and then
+    // persisting each. bulkSetFlag does the same for the star. Both take an explicit value rather than
+    // toggling, so a mixed selection ends up uniform.
+    const bulkSetRead = useCallback(async (targets: Message[], read: boolean) => {
+        const ids = new Set(targets.map((t) => t.id))
+        const apply = (m: Message): Message => (ids.has(m.id) ? {...m, read} : m)
+        setMessages((prev) => prev.map(apply))
+        setSearchResults((prev) => prev.map(apply))
+        setTabs((prev) => prev.map(apply))
+        setSelectedMessage((prev) => (prev && ids.has(prev.id) ? {...prev, read} : prev))
+        try {
+            for (const t of targets) {
+                await api.markRead(t.id, read)
+            }
+            await loadUnread()
+        } catch (e) {
+            setError(String(e))
+        }
+    }, [loadUnread])
+
+    const bulkSetFlag = useCallback(async (targets: Message[], flagged: boolean) => {
+        const ids = new Set(targets.map((t) => t.id))
+        const apply = (m: Message): Message => (ids.has(m.id) ? {...m, flagged} : m)
+        setMessages((prev) => prev.map(apply))
+        setSearchResults((prev) => prev.map(apply))
+        setSelectedMessage((prev) => (prev && ids.has(prev.id) ? {...prev, flagged} : prev))
+        try {
+            for (const t of targets) {
+                await api.markFlagged(t.id, flagged)
+            }
+        } catch (e) {
+            setError(String(e))
+        }
+    }, [])
+
+    // bulkMove moves every selected message into the destination folder, skipping any already there and
+    // any synthetic outbox item, then removes whichever moved from the list.
+    const bulkMove = useCallback(async (targets: Message[], destFolderId: string) => {
+        if (destFolderId === OUTBOX_FOLDER_ID) {
+            return
+        }
+        setError('')
+        const moved = new Set<string>()
+        try {
+            for (const t of targets) {
+                if (t.folderId === destFolderId || isOutboxMessage(t)) {
+                    continue
+                }
+                await api.moveMessage(t.id, destFolderId)
+                moved.add(t.id)
+            }
+        } catch (e) {
+            setError(String(e))
+        }
+        removeIdsFromLists(moved)
+    }, [removeIdsFromLists])
+
     // markReadOnView marks a message read when it is displayed, unless it already is.
     const markReadOnView = useCallback((message: Message) => {
         if (!message.read) {
@@ -1108,7 +1278,7 @@ function App() {
             managingRules || managingContacts || managingCalendar || Boolean(about) || Boolean(licence) || Boolean(folderPrompt) ||
             Boolean(messageToCancelSend) ||
             Boolean(messageToDelete) || Boolean(accountToDelete) || Boolean(folderToDelete) ||
-            Boolean(messageToPurge) || Boolean(contextMenu)
+            Boolean(messageToPurge) || Boolean(contextMenu) || Boolean(bulkToDelete) || Boolean(bulkToPurge)
         const list = searchActive ? searchResults : messages
         const onKeyDown = (e: KeyboardEvent) => {
             const target = e.target as HTMLElement | null
@@ -1170,29 +1340,44 @@ function App() {
                 }
                 e.preventDefault()
                 const idx = selectedMessage ? list.findIndex((m) => m.id === selectedMessage.id) : -1
-                if (e.key === 'ArrowDown') {
-                    setSelectedMessage(idx === -1 ? list[0] : list[Math.min(idx + 1, list.length - 1)])
-                } else {
-                    setSelectedMessage(idx === -1 ? list[list.length - 1] : list[Math.max(idx - 1, 0)])
-                }
+                const next = e.key === 'ArrowDown'
+                    ? (idx === -1 ? list[0] : list[Math.min(idx + 1, list.length - 1)])
+                    : (idx === -1 ? list[list.length - 1] : list[Math.max(idx - 1, 0)])
+                // Arrow navigation is single-select: it drops any Ctrl/Shift selection and re-anchors here.
+                setSelectedMessage(next)
+                setMarkedIds(new Set())
+                setAnchorId(next ? next.id : null)
                 return
             }
-            if (e.key === 'Delete' && selectedMessage) {
+            if (e.key === 'Delete') {
+                // Delete acts on the whole selection: the Ctrl/Shift set if there is one, else the active
+                // message. One target uses the single confirm; several use the count confirm.
+                const selIds = markedIds.size ? markedIds : (selectedMessage ? new Set([selectedMessage.id]) : new Set<string>())
+                const targets = list.filter((m) => selIds.has(m.id))
+                if (targets.length === 0) {
+                    return
+                }
                 e.preventDefault()
-                if (e.shiftKey) {
-                    setMessageToPurge(selectedMessage)
+                if (targets.length === 1) {
+                    if (e.shiftKey) {
+                        setMessageToPurge(targets[0])
+                    } else {
+                        requestDelete(targets[0])
+                    }
+                } else if (e.shiftKey) {
+                    setBulkToPurge(targets)
                 } else {
-                    requestDelete(selectedMessage)
+                    setBulkToDelete(targets)
                 }
             }
         }
         window.addEventListener('keydown', onKeyDown)
         return () => window.removeEventListener('keydown', onKeyDown)
     }, [
-        searchActive, searchResults, messages, selectedMessage, requestDelete,
+        searchActive, searchResults, messages, selectedMessage, requestDelete, markedIds,
         splashVisible, composing, settingUp, accountToEdit, managingRules, managingContacts, managingCalendar, about,
         licence, folderPrompt, messageToDelete, accountToDelete, folderToDelete, messageToPurge,
-        contextMenu, messageToCancelSend,
+        contextMenu, messageToCancelSend, bulkToDelete, bulkToPurge,
     ])
 
     // A POP3 account has a single downloaded inbox with no server-side folders, message moves or draft
@@ -1200,23 +1385,51 @@ function App() {
     const activeAccount = accounts.find((a) => a.id === selectedAccount)
     const isPop3 = activeAccount?.protocol === 'pop3'
 
+    // Derived selection: the visible list, the set of highlighted rows (the Ctrl/Shift selection, or just
+    // the active message when there is none), the messages any bulk action operates on, and whether more
+    // than one is selected. menuSelection is what a right-click menu acts on: the whole set when the
+    // clicked row is within a multi-selection, otherwise just that row.
+    const visibleList = searchActive ? searchResults : messages
+    const selectionIds = markedIds.size
+        ? markedIds
+        : (selectedMessage ? new Set<string>([selectedMessage.id]) : new Set<string>())
+    const selectedMessages = visibleList.filter((m) => selectionIds.has(m.id))
+    const multiSelected = markedIds.size > 1
+    const menuSelection = contextMenu
+        ? (markedIds.size > 1 && markedIds.has(contextMenu.message.id) ? selectedMessages : [contextMenu.message])
+        : []
+
     // The message list and reader are extracted so the reading-pane layout can place them side by side
     // (pane on) or swap between them (pane off: list, or the full-width reader when a message is opened).
     const messageListEl = (
         <MessageList
-            messages={searchActive ? searchResults : messages}
-            selectedMessage={selectedMessage}
+            messages={visibleList}
+            selectedIds={selectionIds}
+            activeId={selectedMessage?.id ?? null}
             folderSelected={Boolean(selectedFolder)}
             searchQuery={searchQuery}
             searchActive={searchActive}
             onSearchChange={setSearchQuery}
-            onSelectMessage={selectMessage}
+            onActivate={activateRow}
+            onClearSelection={clearSelection}
             onToggleFlag={(m) => void toggleFlag(m)}
             onContextMenu={openContextMenu}
             onOpenInNewTab={openInNewTab}
         />
     )
-    const readerEl = (
+    const readerEl = multiSelected ? (
+        <section className="pane reader">
+            <div className="empty-state selection-summary">
+                <p className="empty-body">{markedIds.size} messages selected</p>
+                <div className="selection-actions">
+                    <button className="btn danger" onClick={() => setBulkToDelete(selectedMessages)}>Delete</button>
+                    <button className="btn" onClick={() => void bulkSetRead(selectedMessages, true)}>Mark read</button>
+                    <button className="btn" onClick={() => void bulkSetRead(selectedMessages, false)}>Mark unread</button>
+                    <button className="btn" onClick={clearSelection}>Clear selection</button>
+                </div>
+            </div>
+        </section>
+    ) : (
         <Reader
             message={selectedMessage}
             onToggleRead={(m) => void toggleRead(m)}
@@ -1452,6 +1665,30 @@ function App() {
                     onCancel={() => setMessageToPurge(null)}
                 />
             )}
+            {bulkToDelete && (
+                <ConfirmDialog
+                    title="Delete messages"
+                    message={isPop3
+                        ? `Delete ${bulkToDelete.length} messages? POP3 has no Trash, so they are permanently removed from the server and cannot be recovered.`
+                        : `Delete ${bulkToDelete.length} messages? They are moved to Trash, or deleted permanently where the account has no Trash folder.`}
+                    confirmLabel={`Delete ${bulkToDelete.length}`}
+                    busy={bulkDeleting}
+                    defaultConfirm
+                    onConfirm={() => void runBulkDelete(bulkToDelete, false)}
+                    onCancel={() => setBulkToDelete(null)}
+                />
+            )}
+            {bulkToPurge && (
+                <ConfirmDialog
+                    title="Delete permanently"
+                    message={`Permanently delete ${bulkToPurge.length} messages? They are removed from the server and cannot be recovered.`}
+                    confirmLabel={`Delete ${bulkToPurge.length} permanently`}
+                    busy={bulkPurging}
+                    defaultConfirm
+                    onConfirm={() => void runBulkDelete(bulkToPurge, true)}
+                    onCancel={() => setBulkToPurge(null)}
+                />
+            )}
             {contextMenu && (
                 <MessageContextMenu
                     message={contextMenu.message}
@@ -1459,6 +1696,7 @@ function App() {
                     y={contextMenu.y}
                     folders={folders}
                     tags={tags}
+                    selection={menuSelection}
                     onClose={closeContextMenu}
                     onReply={openReply}
                     onReplyAll={openReplyAll}
@@ -1476,6 +1714,11 @@ function App() {
                     onDelete={requestDelete}
                     onDeletePermanent={(m) => setMessageToPurge(m)}
                     onCancelSend={(m) => setMessageToCancelSend(m)}
+                    onBulkSetRead={(msgs, read) => void bulkSetRead(msgs, read)}
+                    onBulkSetFlag={(msgs, flagged) => void bulkSetFlag(msgs, flagged)}
+                    onBulkMove={(msgs, dest) => void bulkMove(msgs, dest)}
+                    onBulkDelete={(msgs) => setBulkToDelete(msgs)}
+                    onBulkDeletePermanent={(msgs) => setBulkToPurge(msgs)}
                 />
             )}
             {accountToDelete && (
