@@ -224,6 +224,77 @@ func TestEventAlarmsRoundTrip(t *testing.T) {
 	}
 }
 
+func TestEventSchedulingRoundTrip(t *testing.T) {
+	store := openTestStore(t)
+	ctx := context.Background()
+	organizerAddr, err := domain.NewEmailAddress("", "chair@example.com")
+	if err != nil {
+		t.Fatalf("organizer address: %v", err)
+	}
+	organizer, err := domain.NewOrganizer(organizerAddr, "The Chair")
+	if err != nil {
+		t.Fatalf("organizer: %v", err)
+	}
+	guestAddr, err := domain.NewEmailAddress("", "guest@example.com")
+	if err != nil {
+		t.Fatalf("guest address: %v", err)
+	}
+	guest, err := domain.NewAttendee(domain.AttendeeInput{
+		Address: guestAddr, CommonName: "A Guest", Role: domain.RoleOptional,
+		Status: domain.PartStatAccepted, RSVP: true,
+	})
+	if err != nil {
+		t.Fatalf("attendee: %v", err)
+	}
+	ev, err := domain.NewEvent(domain.EventInput{
+		ID: "e1", Summary: "Sync", Start: baseStart(),
+		Organizer: organizer, Attendees: []domain.Attendee{guest},
+	})
+	if err != nil {
+		t.Fatalf("event: %v", err)
+	}
+	if err := store.SaveEvent(ctx, ev); err != nil {
+		t.Fatalf("SaveEvent: %v", err)
+	}
+	got, err := store.GetEvent(ctx, "e1")
+	if err != nil {
+		t.Fatalf("GetEvent: %v", err)
+	}
+	if !got.HasOrganizer() || got.Organizer().Address().Address() != "chair@example.com" ||
+		got.Organizer().CommonName() != "The Chair" {
+		t.Errorf("organizer not persisted: %+v", got.Organizer())
+	}
+	attendees := got.Attendees()
+	if len(attendees) != 1 || attendees[0].Address().Address() != "guest@example.com" ||
+		attendees[0].Role() != domain.RoleOptional || attendees[0].Status() != domain.PartStatAccepted ||
+		!attendees[0].RSVP() {
+		t.Errorf("attendees not persisted: %+v", attendees)
+	}
+}
+
+func TestEncodeDecodeSchedulingEmpty(t *testing.T) {
+	if s := encodeOrganizer(domain.Organizer{}); s != "" {
+		t.Errorf("empty organizer encode = %q, want empty", s)
+	}
+	if s := encodeAttendees(nil); s != "" {
+		t.Errorf("empty attendees encode = %q, want empty", s)
+	}
+	org, err := decodeOrganizer("")
+	if err != nil || !org.IsZero() {
+		t.Errorf("empty organizer decode = %+v, %v", org, err)
+	}
+	atts, err := decodeAttendees("")
+	if err != nil || atts != nil {
+		t.Errorf("empty attendees decode = %v, %v", atts, err)
+	}
+	if _, err := decodeOrganizer("{bad json"); err == nil {
+		t.Errorf("expected an error decoding malformed organizer json")
+	}
+	if _, err := decodeAttendees("{bad json"); err == nil {
+		t.Errorf("expected an error decoding malformed attendees json")
+	}
+}
+
 func TestEncodeDecodeAlarms(t *testing.T) {
 	if s := encodeAlarms(nil); s != "" {
 		t.Errorf("empty encode = %q, want empty", s)

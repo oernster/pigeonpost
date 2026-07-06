@@ -61,7 +61,7 @@ func (s *Store) DeleteCalendar(ctx context.Context, id string) error {
 	})
 }
 
-const eventColumns = "id, uid, calendar_id, summary, description, location, start_ms, end_ms, all_day, recurrence, extra, rdate, exdate, recurrence_id, time_zone, alarms"
+const eventColumns = "id, uid, calendar_id, summary, description, location, start_ms, end_ms, all_day, recurrence, extra, rdate, exdate, recurrence_id, time_zone, alarms, organizer, attendees"
 
 // ListEvents returns every event, ordered by start time.
 func (s *Store) ListEvents(ctx context.Context) ([]domain.Event, error) {
@@ -105,16 +105,17 @@ func (s *Store) SaveEvent(ctx context.Context, e domain.Event) error {
 		recurrenceIDMs = e.RecurrenceID().UnixMilli()
 	}
 	_, err := s.db.ExecContext(ctx,
-		`INSERT INTO event (`+eventColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		`INSERT INTO event (`+eventColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		 ON CONFLICT(id) DO UPDATE SET uid = excluded.uid, calendar_id = excluded.calendar_id,
 		     summary = excluded.summary, description = excluded.description, location = excluded.location,
 		     start_ms = excluded.start_ms, end_ms = excluded.end_ms, all_day = excluded.all_day,
 		     recurrence = excluded.recurrence, extra = excluded.extra, rdate = excluded.rdate,
 		     exdate = excluded.exdate, recurrence_id = excluded.recurrence_id, time_zone = excluded.time_zone,
-		     alarms = excluded.alarms;`,
+		     alarms = excluded.alarms, organizer = excluded.organizer, attendees = excluded.attendees;`,
 		e.ID(), e.UID(), e.CalendarID(), e.Summary(), e.Description(), e.Location(),
 		e.Start().UnixMilli(), endMs, boolToInt(e.AllDay()), e.Recurrence(), e.Extra(),
-		encodeTimes(e.RDates()), encodeTimes(e.ExDates()), recurrenceIDMs, e.TimeZone(), encodeAlarms(e.Alarms()))
+		encodeTimes(e.RDates()), encodeTimes(e.ExDates()), recurrenceIDMs, e.TimeZone(), encodeAlarms(e.Alarms()),
+		encodeOrganizer(e.Organizer()), encodeAttendees(e.Attendees()))
 	if err != nil {
 		return fmt.Errorf("save event %q: %w", e.ID(), err)
 	}
@@ -134,14 +135,24 @@ func (s *Store) DeleteEvent(ctx context.Context, id string) error {
 func scanEvent(row interface{ Scan(...any) error }) (domain.Event, error) {
 	var (
 		id, uid, calendarID, summary, description, location, recurrence, extra, rdate, exdate, timeZone, alarms string
+		organizer, attendees                                                                                    string
 		startMs, endMs, recurrenceIDMs                                                                          int64
 		allDay                                                                                                  int
 	)
 	if err := row.Scan(&id, &uid, &calendarID, &summary, &description, &location,
-		&startMs, &endMs, &allDay, &recurrence, &extra, &rdate, &exdate, &recurrenceIDMs, &timeZone, &alarms); err != nil {
+		&startMs, &endMs, &allDay, &recurrence, &extra, &rdate, &exdate, &recurrenceIDMs, &timeZone, &alarms,
+		&organizer, &attendees); err != nil {
 		return domain.Event{}, fmt.Errorf("scan event: %w", err)
 	}
 	alarmList, err := decodeAlarms(alarms)
+	if err != nil {
+		return domain.Event{}, fmt.Errorf("rebuild event %q: %w", id, err)
+	}
+	organizerValue, err := decodeOrganizer(organizer)
+	if err != nil {
+		return domain.Event{}, fmt.Errorf("rebuild event %q: %w", id, err)
+	}
+	attendeeList, err := decodeAttendees(attendees)
 	if err != nil {
 		return domain.Event{}, fmt.Errorf("rebuild event %q: %w", id, err)
 	}
@@ -178,6 +189,8 @@ func scanEvent(row interface{ Scan(...any) error }) (domain.Event, error) {
 		TimeZone:     timeZone,
 		Alarms:       alarmList,
 		Extra:        extra,
+		Organizer:    organizerValue,
+		Attendees:    attendeeList,
 	})
 	if err != nil {
 		return domain.Event{}, fmt.Errorf("rebuild event %q: %w", id, err)

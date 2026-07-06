@@ -304,6 +304,57 @@ func TestCalendarServiceSaveEvent(t *testing.T) {
 	}
 }
 
+func TestCalendarServiceSaveEventWithScheduling(t *testing.T) {
+	store := &fakeCalendarStore{}
+	svc := NewCalendarService(store, fixedID("m1"), &fakeRecurrence{})
+	start := time.Date(2026, 7, 6, 9, 0, 0, 0, time.UTC)
+
+	err := svc.SaveEvent(context.Background(), EventInput{
+		Summary: "Sync", Start: start,
+		OrganizerAddress: "chair@example.com", OrganizerName: "The Chair",
+		Attendees: []AttendeeInput{
+			{Address: "guest@example.com", CommonName: "A Guest", Role: "OPT-PARTICIPANT", Status: "ACCEPTED", RSVP: true},
+		},
+	})
+	if err != nil {
+		t.Fatalf("SaveEvent: %v", err)
+	}
+	saved := store.savedEvt[0]
+	if !saved.HasOrganizer() || saved.Organizer().Address().Address() != "chair@example.com" {
+		t.Errorf("organizer not built: %+v", saved.Organizer())
+	}
+	if got := saved.Attendees(); len(got) != 1 || got[0].Status() != domain.PartStatAccepted || !got[0].RSVP() {
+		t.Errorf("attendees not built: %+v", got)
+	}
+}
+
+func TestCalendarServiceSaveEventSchedulingValidation(t *testing.T) {
+	svc := NewCalendarService(&fakeCalendarStore{}, fixedID("x"), &fakeRecurrence{})
+	start := time.Date(2026, 7, 6, 9, 0, 0, 0, time.UTC)
+
+	badOrganizer := EventInput{Summary: "Sync", Start: start, OrganizerAddress: "not-an-address"}
+	if err := svc.SaveEvent(context.Background(), badOrganizer); err == nil {
+		t.Errorf("a malformed organizer address should be rejected")
+	}
+	badAttendee := EventInput{Summary: "Sync", Start: start,
+		Attendees: []AttendeeInput{{Address: "not-an-address"}}}
+	if err := svc.SaveEvent(context.Background(), badAttendee); err == nil {
+		t.Errorf("a malformed attendee address should be rejected")
+	}
+}
+
+func TestBuildAttendeeValidation(t *testing.T) {
+	if _, err := buildAttendee(AttendeeInput{Address: "guest@example.com", Role: "MODERATOR"}); !errors.Is(err, domain.ErrInvalidRole) {
+		t.Errorf("bad role err = %v, want ErrInvalidRole", err)
+	}
+	if _, err := buildAttendee(AttendeeInput{Address: "guest@example.com", Status: "MAYBE"}); !errors.Is(err, domain.ErrInvalidParticipationStatus) {
+		t.Errorf("bad status err = %v, want ErrInvalidParticipationStatus", err)
+	}
+	if _, err := buildAttendee(AttendeeInput{Address: "guest@example.com", Role: "CHAIR", Status: "ACCEPTED"}); err != nil {
+		t.Errorf("a valid attendee should build, got %v", err)
+	}
+}
+
 func TestCalendarServiceDeleteEvent(t *testing.T) {
 	store := &fakeCalendarStore{}
 	svc := NewCalendarService(store, fixedID("x"), &fakeRecurrence{})

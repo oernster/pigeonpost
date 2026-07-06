@@ -36,6 +36,22 @@ type EventInput struct {
 	// Extra carries the preserved original ICS opaquely so an in-app edit does not strip the
 	// properties PigeonPost does not model. The UI round-trips it unchanged.
 	Extra string
+	// OrganizerAddress and OrganizerName describe the meeting organizer. OrganizerAddress is empty for an
+	// event that is not a scheduled meeting.
+	OrganizerAddress string
+	OrganizerName    string
+	// Attendees are the meeting's invited parties. It is empty for an event that is not a meeting.
+	Attendees []AttendeeInput
+}
+
+// AttendeeInput carries the fields to build one meeting attendee. Address is required; Role and Status
+// are ICS values (empty falls back to REQ-PARTICIPANT and NEEDS-ACTION).
+type AttendeeInput struct {
+	Address    string
+	CommonName string
+	Role       string
+	Status     string
+	RSVP       bool
 }
 
 // CalendarService is the use-case boundary for managing calendars and their events.
@@ -108,6 +124,14 @@ func (s *CalendarService) SaveEvent(ctx context.Context, in EventInput) error {
 	if id == "" {
 		id = s.newID()
 	}
+	organizer, err := buildOrganizer(in.OrganizerAddress, in.OrganizerName)
+	if err != nil {
+		return fmt.Errorf("calendar: build organizer: %w", err)
+	}
+	attendees, err := buildAttendees(in.Attendees)
+	if err != nil {
+		return fmt.Errorf("calendar: build attendees: %w", err)
+	}
 	event, err := domain.NewEvent(domain.EventInput{
 		ID:          id,
 		UID:         in.UID,
@@ -122,6 +146,8 @@ func (s *CalendarService) SaveEvent(ctx context.Context, in EventInput) error {
 		TimeZone:    in.TimeZone,
 		Alarms:      in.Alarms,
 		Extra:       in.Extra,
+		Organizer:   organizer,
+		Attendees:   attendees,
 	})
 	if err != nil {
 		return fmt.Errorf("calendar: build event: %w", err)
@@ -130,6 +156,54 @@ func (s *CalendarService) SaveEvent(ctx context.Context, in EventInput) error {
 		return fmt.Errorf("calendar: save event: %w", err)
 	}
 	return nil
+}
+
+// buildOrganizer builds a meeting organizer from an address and optional name, or the zero organizer
+// when the address is empty (the event is not a meeting).
+func buildOrganizer(address, name string) (domain.Organizer, error) {
+	if strings.TrimSpace(address) == "" {
+		return domain.Organizer{}, nil
+	}
+	addr, err := domain.NewEmailAddress("", address)
+	if err != nil {
+		return domain.Organizer{}, err
+	}
+	return domain.NewOrganizer(addr, name)
+}
+
+// buildAttendees builds the meeting attendees from their inputs, failing on the first invalid one.
+func buildAttendees(inputs []AttendeeInput) ([]domain.Attendee, error) {
+	if len(inputs) == 0 {
+		return nil, nil
+	}
+	out := make([]domain.Attendee, 0, len(inputs))
+	for _, in := range inputs {
+		attendee, err := buildAttendee(in)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, attendee)
+	}
+	return out, nil
+}
+
+// buildAttendee builds one meeting attendee, validating its address, role and status.
+func buildAttendee(in AttendeeInput) (domain.Attendee, error) {
+	addr, err := domain.NewEmailAddress("", in.Address)
+	if err != nil {
+		return domain.Attendee{}, err
+	}
+	role, err := domain.ParseRole(in.Role)
+	if err != nil {
+		return domain.Attendee{}, err
+	}
+	status, err := domain.ParseParticipationStatus(in.Status)
+	if err != nil {
+		return domain.Attendee{}, err
+	}
+	return domain.NewAttendee(domain.AttendeeInput{
+		Address: addr, CommonName: in.CommonName, Role: role, Status: status, RSVP: in.RSVP,
+	})
 }
 
 // DeleteEvent removes an event by id.

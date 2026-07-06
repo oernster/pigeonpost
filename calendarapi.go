@@ -31,38 +31,43 @@ type CalendarRequest struct {
 // EventDTO is the JSON-serialisable view of an event. Times are RFC 3339 strings; end is empty when the
 // event has no end.
 type EventDTO struct {
-	ID          string `json:"id"`
-	UID         string `json:"uid"`
-	CalendarID  string `json:"calendarId"`
-	Summary     string `json:"summary"`
-	Description string `json:"description"`
-	Location    string `json:"location"`
-	Start       string `json:"start"`
-	End         string `json:"end"`
-	AllDay      bool   `json:"allDay"`
-	Recurrence  string `json:"recurrence"`
-	TimeZone    string `json:"timeZone"`
-	Reminders   []int  `json:"reminders"`
-	Extra       string `json:"extra"`
+	ID          string        `json:"id"`
+	UID         string        `json:"uid"`
+	CalendarID  string        `json:"calendarId"`
+	Summary     string        `json:"summary"`
+	Description string        `json:"description"`
+	Location    string        `json:"location"`
+	Start       string        `json:"start"`
+	End         string        `json:"end"`
+	AllDay      bool          `json:"allDay"`
+	Recurrence  string        `json:"recurrence"`
+	TimeZone    string        `json:"timeZone"`
+	Reminders   []int         `json:"reminders"`
+	Extra       string        `json:"extra"`
+	Organizer   OrganizerDTO  `json:"organizer"`
+	Attendees   []AttendeeDTO `json:"attendees"`
 }
 
 // EventRequest is the front-end payload for creating or updating an event. An empty id means a new
 // event; Start is required and End may be empty. Extra is the opaque preserved ICS, round-tripped
-// unchanged so an edit does not strip unmodelled properties.
+// unchanged so an edit does not strip unmodelled properties. Organizer and Attendees carry the meeting
+// scheduling data; both are empty for an ordinary calendar entry.
 type EventRequest struct {
-	ID          string `json:"id"`
-	UID         string `json:"uid"`
-	CalendarID  string `json:"calendarId"`
-	Summary     string `json:"summary"`
-	Description string `json:"description"`
-	Location    string `json:"location"`
-	Start       string `json:"start"`
-	End         string `json:"end"`
-	AllDay      bool   `json:"allDay"`
-	Recurrence  string `json:"recurrence"`
-	TimeZone    string `json:"timeZone"`
-	Reminders   []int  `json:"reminders"`
-	Extra       string `json:"extra"`
+	ID          string        `json:"id"`
+	UID         string        `json:"uid"`
+	CalendarID  string        `json:"calendarId"`
+	Summary     string        `json:"summary"`
+	Description string        `json:"description"`
+	Location    string        `json:"location"`
+	Start       string        `json:"start"`
+	End         string        `json:"end"`
+	AllDay      bool          `json:"allDay"`
+	Recurrence  string        `json:"recurrence"`
+	TimeZone    string        `json:"timeZone"`
+	Reminders   []int         `json:"reminders"`
+	Extra       string        `json:"extra"`
+	Organizer   OrganizerDTO  `json:"organizer"`
+	Attendees   []AttendeeDTO `json:"attendees"`
 }
 
 // EventInstanceDTO is one concrete occurrence of an event within a queried window. Event is the source
@@ -145,6 +150,10 @@ func (a *App) SaveEvent(req EventRequest) error {
 		TimeZone:    req.TimeZone,
 		Alarms:      remindersToAlarms(req.Reminders),
 		Extra:       req.Extra,
+
+		OrganizerAddress: req.Organizer.Address,
+		OrganizerName:    req.Organizer.CommonName,
+		Attendees:        attendeeInputs(req.Attendees),
 	})
 }
 
@@ -205,6 +214,10 @@ func (a *App) SaveEventScoped(req EventRequest, scope int, occurrence string) er
 		TimeZone:    req.TimeZone,
 		Alarms:      remindersToAlarms(req.Reminders),
 		Extra:       req.Extra,
+
+		OrganizerAddress: req.Organizer.Address,
+		OrganizerName:    req.Organizer.CommonName,
+		Attendees:        attendeeInputs(req.Attendees),
 	}, occurrenceTime)
 }
 
@@ -283,7 +296,20 @@ func toEventDTO(e domain.Event) EventDTO {
 		TimeZone:    e.TimeZone(),
 		Reminders:   alarmsToReminders(e.Alarms()),
 		Extra:       e.Extra(),
+		Organizer:   OrganizerDTO{Address: e.Organizer().Address().Address(), CommonName: e.Organizer().CommonName()},
+		Attendees:   toAttendeeDTOs(e.Attendees()),
 	}
+}
+
+// attendeeInputs maps the front-end attendee DTOs to the application attendee inputs.
+func attendeeInputs(dtos []AttendeeDTO) []application.AttendeeInput {
+	out := make([]application.AttendeeInput, 0, len(dtos))
+	for _, a := range dtos {
+		out = append(out, application.AttendeeInput{
+			Address: a.Address, CommonName: a.CommonName, Role: a.Role, Status: a.Status, RSVP: a.Rsvp,
+		})
+	}
+	return out
 }
 
 // alarmsToReminders renders alarms as whole minutes before the event start (a negative offset before the
