@@ -173,7 +173,7 @@ export function CalendarModal({events, accountId, accountEmail, accountName, onC
     // confirm dialog for emailing a meeting cancellation, a destructive outward action.
     const [attendeeDraft, setAttendeeDraft] = useState('')
     const [cancelMeeting, setCancelMeeting] = useState(false)
-    const [pendingDelete, setPendingDelete] = useState<CalendarEvent | null>(null)
+    const [pendingDelete, setPendingDelete] = useState<{id: string; summary: string} | null>(null)
     const [editScope, setEditScope] = useState<CalendarEventInstance | null>(null)
     const [deleteScope, setDeleteScope] = useState<{seriesId: string; occurrence: string; summary: string} | null>(null)
     const [error, setError] = useState('')
@@ -462,8 +462,10 @@ export function CalendarModal({events, accountId, accountEmail, accountName, onC
             setDeleteScope({seriesId: form.id, occurrence: form.occurrence, summary: form.summary})
             return
         }
-        const ev = events.find((x) => x.id === form.id)
-        if (ev) setPendingDelete(ev)
+        // Confirm straight from the open form. A previous version looked the event up in the events prop
+        // first and silently did nothing when the lookup missed (a just-saved event not yet in that stale
+        // list), which made delete impossible; the form already holds the id and summary the confirm needs.
+        setPendingDelete({id: form.id, summary: form.summary})
     }
 
     const confirmDelete = async () => {
