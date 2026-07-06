@@ -13,3 +13,24 @@ var ErrNoDraftsFolder = errors.New("account has no drafts folder")
 
 // ErrEmptyFolderName is returned when a folder create or rename is given a blank name.
 var ErrEmptyFolderName = errors.New("folder name is empty")
+
+// ErrNoInvite is returned when a message carries no text/calendar scheduling payload to act on.
+var ErrNoInvite = errors.New("message carries no meeting invitation")
+
+// ErrNotInvitable is returned when a response is asked for a message that is not a meeting REQUEST.
+var ErrNotInvitable = errors.New("scheduling message is not a meeting request")
+
+// ErrNotCancellation is returned when a cancellation is applied to a message that is not a CANCEL.
+var ErrNotCancellation = errors.New("scheduling message is not a cancellation")
+
+// ErrNotReply is returned when a reply is applied to a message that is not a REPLY.
+var ErrNotReply = errors.New("scheduling message is not a reply")
+
+// ErrNoOrganizer is returned when a meeting names no organizer to send a reply to.
+var ErrNoOrganizer = errors.New("meeting has no organizer to reply to")
+
+// ErrNoReplyAttendee is returned when a REPLY carries no attendee whose status could be applied.
+var ErrNoReplyAttendee = errors.New("reply carries no attendee")
+
+// ErrMeetingNotFound is returned when no stored meeting matches an incoming reply.
+var ErrMeetingNotFound = errors.New("no matching meeting to update")
