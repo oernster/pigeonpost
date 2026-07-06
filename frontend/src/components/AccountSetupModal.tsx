@@ -62,12 +62,6 @@ interface Provider {
 
 const PROVIDERS: readonly Provider[] = [
     {
-        id: 'outlook', name: 'Outlook · Hotmail · Office 365',
-        inHost: 'outlook.office365.com', inPort: 993, inSecurity: 'tls',
-        outHost: 'smtp.office365.com', outPort: 587, outSecurity: 'starttls',
-        note: 'Microsoft accounts may need an app password. Full Microsoft sign-in is coming in a later version.',
-    },
-    {
         id: 'icloud', name: 'iCloud Mail',
         inHost: 'imap.mail.me.com', inPort: 993, inSecurity: 'tls',
         outHost: 'smtp.mail.me.com', outPort: 587, outSecurity: 'starttls',

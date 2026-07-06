@@ -35,7 +35,7 @@ enforced by a test in `tests/structural/boundary_test.go`, not by convention.
   protocol), the reminder and unread surfaces (`taskbar`: the Windows taskbar unread-overlay badge and
   reminder flash, no-ops off Windows, plus the notification tray, a Windows tray icon that also carries
   the unread badge, or a native desktop notification elsewhere) and the OS keychain (`keychain`); later
-  ICS, vCard and OAuth. Never imported by Domain or Application. The
+  ICS and vCard. Never imported by Domain or Application. The
   `installer` package holds the setup program's install logic and is consumed by the `installer/` Wails
   setup app.
 - **UI**: the React front end plus the thin Wails facade in package `main` (`app.go` with its

@@ -9,13 +9,13 @@ local-first. Built as a calmer, more predictable alternative to Thunderbird.
 
 - People who run standard IMAP/POP3 mailboxes (self-hosted, ISP, Fastmail, corporate) and want a
   fast, native, local-first desktop client.
-- Outlook.com / Hotmail users, through an app password over IMAP (the Outlook preset fills in the
-  servers). One-click Microsoft sign-in is deferred, and Office 365 work/school accounts are not yet
-  supported.
 
 ## Who it is not for
 
 - Webmail-only users who never want a desktop install.
+- Microsoft users (Outlook.com, Hotmail, Live, Office 365): not supported. Microsoft disabled basic
+  auth for personal accounts so only OAuth connects them; OAuth in turn needs an app registration that
+  Microsoft gates behind a paid Azure sign-up, so PigeonPost does not offer a Microsoft option.
 - Gmail-first users: Gmail is out of scope for v1 (Google's restricted-scope verification is too much
   friction). A Gmail app password will connect through the generic IMAP path, but Gmail is not tested
   or supported.
@@ -25,7 +25,7 @@ local-first. Built as a calmer, more predictable alternative to Thunderbird.
 Shipped:
 
 - **Accounts**: add, edit and remove IMAP and POP3 accounts from a two-step setup wizard (provider
-  presets for Outlook, iCloud, Yahoo, Fastmail and StartMail, plus manual host/port/security).
+  presets for iCloud, Yahoo, Fastmail and StartMail, plus manual host/port/security).
   Credentials are verified against the server before anything is saved. Each account keeps its own
   separate inbox; there is no unified inbox. POP3 accounts download into a single mailbox with read and
   star marks kept locally, and their folder, move/copy and draft actions are hidden.
@@ -96,8 +96,6 @@ Shipped:
 Planned (see [DESIGN_PLAN.md](DESIGN_PLAN.md) for the full roadmap):
 
 - Tags round-tripped onto IMAP keywords, move/delete filter rules.
-- Microsoft one-click sign-in (deferred: it needs an Azure/Entra tenant). Multiple accounts already
-  work, each with its own inbox.
 - Calendar alarms delivered as OS notifications (on-screen reminder banners already ship).
 - Cross-platform delivery (macOS and Linux) and two-way CalDAV / CardDAV.
 

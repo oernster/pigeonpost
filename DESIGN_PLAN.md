@@ -16,7 +16,7 @@ separate inbox) plus a UI, keyboard and rules pass: filter-rule match operators 
 starts/ends with, does not contain) and To/Cc fields, a reading pane with mark-on-view, a Mark submenu,
 per-folder/account/total unread badges, an explicit keyboard focus ring, the outbox surfaced as a
 per-account folder, a red taskbar overlay badge, a regrouped title tray and a reader fix for HTML mail
-that showed its text duplicated and oversized. Microsoft OAuth is deferred
+that showed its text duplicated and oversized. Microsoft is unsupported
 (see section 7). 0.7.0 adds the address book (vCard and CSV) and the calendar (ICS, with month, week and
 day views), both round-tripping with Outlook and Thunderbird; cross-platform delivery remains ahead for
 1.0.0. 0.8.0 carries the calendar to full RFC 5545: recurring events (daily, weekly, monthly and yearly)
@@ -92,14 +92,13 @@ learning async Rust under load on a protocol-heavy app. All chosen dependencies 
 | POP3 | small client (hand-rolled or minimal dep) | POP3 is a small protocol. |
 | SMTP send | emersion/go-smtp | Pairs with the suite. |
 | MIME parse/build | emersion/go-message | Production-tested in real clients. |
-| SASL / XOAUTH2 | emersion/go-sasl | OAuth auth mechanism. |
+| SASL | emersion/go-sasl | SASL PLAIN for SMTP AUTH. |
 | Calendar ICS | emersion/go-ical | RFC 5545 round-trip (Thunderbird and Outlook). |
 | Contacts vCard | emersion/go-vcard | vCard 3/4 round-trip. |
 | Contacts CSV | stdlib encoding/csv | Outlook bulk contact import/export (Outlook exports CSV, not vCard). |
 | CalDAV / CardDAV (v2) | emersion/go-webdav | Two-way sync affordable in Go. |
 | Storage | modernc.org/sqlite (pure Go, no CGO) + FTS5 | Local-first, single-writer/multi-reader. |
 | Credentials | zalando/go-keyring | OS keychain; never in the DB. |
-| OAuth2 | golang.org/x/oauth2 | XOAUTH2 for Microsoft/Google. |
 | Front end | React 18 + TypeScript (Vite) | Existing React/TS + Wails lineage. |
 | List virtualization | @tanstack/react-virtual | 100k-message folders scroll smoothly. |
 | Drag/drop | dnd-kit | Message-to-folder, folder reorder. |
@@ -255,16 +254,16 @@ per-sender allow. This is the single most important security decision and is in 
 
 ## 7. Authentication decision (locked)
 
-Auth method is a strategy behind an Authenticator interface from day one (password and XOAUTH2 both
-implemented against it). v1 provider matrix:
+Auth method is a strategy behind an auth-method seam from day one (password is implemented; the
+XOAUTH2 path is left as an unused seam). v1 provider matrix:
 
-- Microsoft (Outlook365 / Outlook.com): one-click OAuth is DEFERRED. It requires a Microsoft Entra
-  directory, which now means a paid-tier-gated Azure sign-up (a card for identity verification, even
-  though app registration itself is free), and that friction is not worth taking on for v1, mirroring
-  the Gmail decision. Personal Outlook.com/Hotmail accounts connect through the generic IMAP path with
-  an app password (the Outlook provider preset covers the servers). Office 365 work/school accounts,
-  where Microsoft has disabled basic auth, are unsupported until OAuth ships. The Authenticator/XOAUTH2
-  seam stays in place so OAuth can be added later without restructuring.
+- Microsoft (Outlook.com / Hotmail / Live / Office 365): NOT SUPPORTED. Its provider preset has
+  been removed. Microsoft disabled basic auth for personal accounts (from Sept 2024) so a password or
+  app password over IMAP now fails with `NO AUTHENTICATE failed`; only OAuth (XOAUTH2) connects them.
+  OAuth needs a Microsoft Entra app registration, which Microsoft gates behind a paid Azure sign-up (a
+  credit card for identity verification, even though the registration itself is free). That billing
+  requirement is a hard no, so Microsoft is dropped rather than deferred. The generic XOAUTH2 seam
+  stays in the domain so any future OAuth provider can slot in; no Microsoft path ships.
 - Generic IMAP/POP3 + SMTP (Fastmail, self-hosted, ISP, corporate): password auth, the core path,
   from phase 1.
 - Gmail: OUT OF SCOPE for v1. Google's IMAP/SMTP scope is restricted, triggering app verification
@@ -275,7 +274,7 @@ implemented against it). v1 provider matrix:
   unsupported. Revisit embedded-credential Gmail OAuth (with CASA) only if the app reaches
   mainstream traction; bring-your-own client ID remains a possible future power-user option.
 
-With Microsoft OAuth deferred, v1 has no external auth dependency at all: every supported account
+With Microsoft dropped, v1 has no external auth dependency at all: every supported account
 signs in with a password (or an app password) over the generic IMAP/POP3 + SMTP path.
 
 ---
@@ -321,7 +320,7 @@ hardest-to-reverse parts) first.
 3. Move/copy/drag + folders + offline outbox. Full folder ops, dnd-kit drag, outbox replay,
    filters/rules.
 4. Account wizard + POP3. Autoconfig wizard, POP3, multiple accounts each with a separate inbox.
-   (Microsoft XOAUTH2 deferred, see section 7.)
+   (Microsoft is unsupported, see section 7.)
 5. Search + address book. FTS5 search, contacts, vCard import/export.
 6. Calendar. Month/week/day, events, reminders, ICS import/export, remote ICS subscription.
 7. Packaging + polish. Signed installers for all three platforms, keyboard navigation as an explicit
@@ -334,10 +333,10 @@ hardest-to-reverse parts) first.
 
 - Licence: GPL-3.0, whole app.
 - Stack: Go + Wails + React/TS, Emersion mail suite, pure-Go SQLite + FTS5, OS keychain.
-- Auth: password auth (generic IMAP/POP3) in v1; OAuth abstraction in place but Microsoft OAuth is
-  deferred (it needs an Azure/Entra tenant). Personal Outlook.com connects via an app password; Office
-  365 work/school accounts are unsupported until OAuth ships. Gmail out of scope for v1 (generic IMAP
-  stays open but unsupported).
+- Auth: password auth (generic IMAP/POP3) in v1; a generic OAuth seam is in place but no provider uses
+  it. Microsoft is unsupported and dropped: only OAuth connects personal accounts now and its app
+  registration is gated behind a paid Azure sign-up. Gmail out of scope for v1 (generic IMAP stays open
+  but unsupported).
 - Calendar/contacts: file ICS/vCard import/export + read-only ICS subscription in v1; two-way
   CalDAV/CardDAV in v2.
 - Compose: light TipTap rich-text + plain-text toggle in v1; no full HTML-editor parity.
