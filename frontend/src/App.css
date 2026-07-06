@@ -2109,6 +2109,32 @@
     color: var(--text-dim);
 }
 
+.cal-links {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+}
+
+.cal-join {
+    align-self: flex-start;
+}
+
+.cal-link {
+    color: var(--accent);
+    font-size: 13px;
+    text-decoration: none;
+    cursor: pointer;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.cal-link:hover {
+    text-decoration: underline;
+}
+
 .cal-viewswitch {
     display: flex;
     gap: 4px;

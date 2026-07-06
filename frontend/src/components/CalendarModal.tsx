@@ -11,6 +11,41 @@ import {useBackdropDismiss} from './useBackdropDismiss'
 
 const DAYS_IN_WEEK = 7
 const HOURS_PER_EVENT = 1
+
+// Meeting-link detection for the event dialog. A received invite carries its join link in the event's
+// location or description as a plain URL, so these turn it into a click that opens the default browser.
+const MEETING_URL_RE = /https?:\/\/[^\s<>"')\]]+/g
+
+const MEETING_HOSTS: {matches: (host: string) => boolean; label: string}[] = [
+    {matches: (h) => h === 'teams.microsoft.com' || h === 'teams.live.com', label: 'Microsoft Teams'},
+    {matches: (h) => h === 'meet.google.com', label: 'Google Meet'},
+    {matches: (h) => h === 'zoom.us' || h.endsWith('.zoom.us'), label: 'Zoom'},
+    {matches: (h) => h.endsWith('webex.com'), label: 'Webex'},
+]
+
+// extractUrls pulls the http(s) URLs out of a text field, trimming the trailing punctuation a sentence
+// often leaves on the end of a pasted link.
+function extractUrls(text: string): string[] {
+    const found = text.match(MEETING_URL_RE) ?? []
+    return found.map((u) => u.replace(/[.,;:)\]]+$/, ''))
+}
+
+// meetingProvider names the video provider for a known host, so a join button can read "Join Microsoft
+// Teams" rather than a bare URL; it returns null for an unrecognised or unparseable URL.
+function meetingProvider(url: string): string | null {
+    let host = ''
+    try {
+        host = new URL(url).hostname.toLowerCase()
+    } catch {
+        return null
+    }
+    for (const provider of MEETING_HOSTS) {
+        if (provider.matches(host)) {
+            return provider.label
+        }
+    }
+    return null
+}
 // DEFAULT_EVENT_COLOUR marks events not assigned to a calendar (or whose calendar has no colour).
 const DEFAULT_EVENT_COLOUR = '#7fb0ff'
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
@@ -648,6 +683,15 @@ export function CalendarModal({events, accountId, accountEmail, accountName, ini
         setViewMode('day')
     }
 
+    // Meeting links for the open event: the join URL is the first known-provider link across the location
+    // and description, falling back to the first location URL (often the venue or meeting link). The
+    // remaining description links are offered separately so every link in the event is clickable.
+    const locationUrls = form ? extractUrls(form.location) : []
+    const descriptionUrls = form ? extractUrls(form.description) : []
+    const joinUrl = [...locationUrls, ...descriptionUrls].find((u) => meetingProvider(u)) ?? locationUrls[0] ?? null
+    const joinLabel = joinUrl ? (meetingProvider(joinUrl) ?? 'meeting') : ''
+    const otherLinks = [...new Set(descriptionUrls)].filter((u) => u !== joinUrl)
+
     return (
         <div className="modal-backdrop" {...dismiss}>
             <div className="modal calendar-modal" role="dialog" aria-label="Calendar" onClick={(e) => e.stopPropagation()}>
@@ -769,6 +813,25 @@ export function CalendarModal({events, accountId, accountEmail, accountName, ini
                                    onChange={(e) => set('location', e.target.value)}/>
                             <textarea className="tag-name-input" placeholder="Description" rows={2} value={form.description}
                                       onChange={(e) => set('description', e.target.value)}/>
+                            {(joinUrl || otherLinks.length > 0) && (
+                                <div className="cal-links">
+                                    {joinUrl && (
+                                        <button type="button" className="btn primary cal-join"
+                                                onClick={() => void api.openExternal(joinUrl)}>
+                                            {`Join ${joinLabel}`}
+                                        </button>
+                                    )}
+                                    {otherLinks.map((u) => (
+                                        <a key={u} className="cal-link" href={u} title={u}
+                                           onClick={(e) => {
+                                               e.preventDefault()
+                                               void api.openExternal(u)
+                                           }}>
+                                            {u}
+                                        </a>
+                                    ))}
+                                </div>
+                            )}
                             {form.scope === EventScope.This ? (
                                 <p className="setup-hint">This change applies to this event only.</p>
                             ) : (
