@@ -44,19 +44,23 @@ Passwords are never stored there; they live in the OS keychain.
 ## Project layout
 
 ```
-main.go, app.go, about.go, accountsetup.go, send.go, export.go, outbox.go, rulesapi.go, tagsapi.go, dto.go, clock.go   composition root + Wails facade (package main)
+main.go + app.go + the feature bindings (send, export, outbox, rulesapi, tagsapi, calendarapi, contactsapi, schedulingapi) + mailnotifier.go + alarmscheduler.go + dto.go + clock.go   composition root + Wails facade (package main)
 internal/domain/            pure value objects, no IO (100% test gate)
 internal/application/        use cases + port interfaces (100% test gate)
 internal/infrastructure/
-    storage/                SQLite store (schema v16, migrations, outbox, rules, contacts, calendar)
-    imap/                   emersion go-imap source adapter (sync, bodies, draft append)
+    storage/                SQLite store (schema v23, migrations, outbox, rules, contacts, calendar, reminders, meeting scheduling)
+    imap/                   emersion go-imap source adapter (sync, bodies, draft append, IDLE watcher)
     pop3/                   hand-rolled POP3 client (download-to-inbox, local flags)
     smtp/                   emersion go-smtp transport
     mailrouter/             dispatches reads, verification and actions by account protocol
-    mailparse/              shared message-body parsing (MIME to plain-text and HTML)
+    mailparse/              shared message-body parsing (MIME to plain-text and HTML, invite extraction)
     message/                shared RFC 5322 MIME builder (used by smtp and imap)
+    ics/                    emersion go-ical calendar codec (RFC 5545 round-trip, recurrence, iTIP scheduling)
+    recurrence/             RRULE expansion over teambition/rrule-go
+    vcard/                  emersion go-vcard contacts codec
+    csv/                    Outlook CSV contacts codec
     keychain/               OS keychain vault
-    taskbar/                Windows taskbar unread-overlay badge (no-op stub elsewhere)
+    taskbar/                Windows taskbar unread badge, tray icon and desktop notifications (no-op stub elsewhere)
     installer/              install logic used by the setup program
 installer/                  bespoke per-user setup program (Wails app: install/repair/upgrade/uninstall)
 tools/genicons/             icon generator (master PNG -> ico + png set)

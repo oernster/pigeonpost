@@ -46,14 +46,18 @@ Shipped:
   collapsible tree, with unread-count badges per folder, account and total. Filter rules mark-read or
   flag messages on arrival, matching From, To, Cc or Subject with contains, is, starts-with, ends-with
   or does-not-contain. Instant local full-text search.
-- **Read**: an optional reading pane (opening a message marks it read on view), a right-click context
-  menu on every message (open in new tab, reply, forward, save as `.eml`, print, attach to a new
-  message, a Mark submenu for read/unread/star/tag, move, copy, delete), and in-app reader tabs. Full
-  keyboard control: arrows move within the message and folder lists, an explicit focus ring steps the
-  whole window with Tab or Left/Right, Delete sends to Trash and Shift+Delete purges.
-- **Notifications**: a background poller checks every account's inbox and raises a native desktop
-  notification (a Windows toast, or the platform equivalent) for newly arrived unread mail, naming the
-  subject and sender, so you are alerted even when the window is hidden to the tray. An account's first
+- **Read**: an optional reading pane (opening a message marks it read on view, and F8 toggles the pane),
+  a right-click context menu on every message (open in new tab, reply, forward, save as `.eml`, print,
+  attach to a new message, a Mark submenu for read/unread/star/tag, move, copy, delete), and in-app
+  reader tabs. Messages multi-select the standard way, by Ctrl or Shift clicking or from the keyboard
+  with Shift+Arrow to extend a range and Ctrl+Arrow then Ctrl+Space to pick individual rows; a selection
+  can then be deleted, marked, starred or moved in one action, with a bulk delete confirming the count.
+  Full keyboard control: arrows move within the message and folder lists, an explicit focus ring steps
+  the whole window with Tab or Left/Right, Delete sends to Trash and Shift+Delete purges.
+- **Notifications**: newly arrived mail raises a native desktop notification (a Windows toast, or the
+  platform equivalent) naming the subject and sender, so you are alerted even when the window is hidden
+  to the tray. Each IMAP account is watched by a persistent IDLE connection that pushes the instant mail
+  arrives; a 60-second backstop poll covers a missed push and POP3, which has no IDLE. An account's first
   sync is silent, so it never notifies for an existing backlog.
 - **Trust**: dark theme by default with a light mode toggle; passwords held in the OS keychain, never
   in the database; external links open in your browser, not the app's webview; the unread total shows
@@ -63,8 +67,8 @@ Shipped:
   or yearly, with an interval and an optional end) expand across every view, and an edit or delete of a
   recurring event asks whether it applies to this occurrence, this and following, or all. Each event
   carries its own time zone, so a recurring event keeps its local time across daylight-saving changes.
-  Events carry reminders (a lead time before the start) that fire an on-screen banner while the app runs
-  and round-trip as ICS alarms. ICS (.ics)
+  Events carry reminders (a lead time before the start) that fire an on-screen banner while the app runs;
+  clicking the banner opens the calendar on that event. Reminders round-trip as ICS alarms. ICS (.ics)
   import and export (RFC 5545, including RRULE, RDATE, EXDATE and RECURRENCE-ID) round-trips with Outlook
   and Thunderbird; an event keeps its ICS UID so an export re-imports cleanly.
 - **Meeting invites**: an event with attendees is a meeting. Sending an invitation emails an iTIP
@@ -72,7 +76,9 @@ Shipped:
   can Accept, Tentatively accept or Decline, which saves the meeting to their calendar and emails a
   REPLY back to the organizer. The organizer can send a cancellation (a CANCEL the recipient removes
   with one click), and an incoming reply folds each attendee's response into the stored meeting.
-  Recurring meetings are carried as the series master plus its overrides.
+  Recurring meetings are carried as the series master plus its overrides. A join link in an invite
+  (Microsoft Teams, Google Meet, Zoom or Webex) shows as a Join button in the event that opens your
+  browser, and any other link in the description is clickable.
 - **Contacts**: an address book with a list and an editor. vCard (.vcf) and CSV import and export, so
   contacts round-trip with Outlook (whose bulk export is CSV) and Thunderbird.
 - **Help menu**: About (with credits), Licence and Check for Updates.
@@ -84,6 +90,17 @@ Planned (see [DESIGN_PLAN.md](DESIGN_PLAN.md) for the full roadmap):
   work, each with its own inbox.
 - Calendar alarms delivered as OS notifications (on-screen reminder banners already ship).
 - Cross-platform delivery (macOS and Linux) and two-way CalDAV / CardDAV.
+
+## Known limitations
+
+- A reminder you set as the organizer of a meeting is advisory to attendees. Under iTIP (RFC 5546) a
+  receiving client such as Thunderbird applies the recipient's own default reminder and ignores the
+  organizer's alarm, so an attendee may not see the lead time you chose.
+- POP3 accounts have no IMAP IDLE, so their new mail is found by the 60-second backstop poll rather than
+  pushed the instant it arrives.
+- The Join button reads the event location and description; a provider that carries the join URL only in
+  a non-standard property (such as the Teams `X-MICROSOFT-SKYPETEAMSMEETINGURL` header) shows no button.
+- Opening a reminder for a recurring event opens the series, not the single occurrence.
 
 ## Stack
 

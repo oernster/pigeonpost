@@ -369,7 +369,34 @@ organizer and attendees so a meeting round-trips through the calendar editor. As
 facade, these binding files are build-verified (they hold no logic beyond DTO mapping) rather than
 unit-tested; the correctness lives in the domain and application layers behind them. In the UI the reader
 shows an invite card (Accept, Tentative or Decline a request, remove a cancellation, apply a reply) and
-the calendar event editor edits a meeting's attendee list and sends its invitations and cancellations.
+the calendar event editor edits a meeting's attendee list and sends its invitations and cancellations. A
+join link an invite carries in its location or description (Microsoft Teams, Google Meet, Zoom or Webex,
+matched by host) surfaces as a Join button in the event editor, and any other link in the description is
+clickable; both open in the external browser through the existing `OpenExternal` facade method, so this
+adds no new port.
+
+**New-mail notifications and IMAP IDLE (0.8.0).** New mail is surfaced the moment it arrives. A
+`runMailNotifier` goroutine in the composition root owns the flow: it primes a baseline first (an existing
+inbox is cached, not announced), then feeds two detection paths through one serialised `checkMail`, so a
+push and the backstop poll can never double-notify. `SyncInboxes` (application) refreshes every account's
+inbox and returns the messages whose id is not already cached, keyed on arrival rather than read state, so
+a message another client already marked read still counts while only a filter-rule read-on-arrival is
+silenced. A new message raises a desktop notification through the same `taskbar` `Tray` the reminders use,
+forced to show even when the window is focused because new mail has no in-window cue.
+
+Instant delivery is an IMAP IDLE watcher. `infrastructure/imap`'s `Watcher` holds a persistent,
+authenticated IDLE connection per IMAP account and invokes a callback the moment the server reports the
+mailbox changed, reconnecting with capped exponential backoff and reissuing the IDLE inside the server's
+timeout window; a server without the IDLE capability stops cleanly and is left to the poll. The watcher is
+injected into the facade behind a `MailWatcher` port, so the application layer keeps no IMAP dependency. A
+60-second poll is the backstop for a missed push and for POP3, which has no IDLE.
+
+The watcher set is kept in step with the accounts, so an account added after launch gets instant push
+without a restart. Each account's watcher runs under its own cancellable child of the app context, tracked
+by id: `AddAccount` starts one, `UpdateAccount` restarts it so changed server settings take effect (and a
+switch to POP3 drops the IMAP watcher), and `RemoveAccount` stops it so no stale connection is left.
+Shutdown cancels the app context and stops them all. A fired reminder banner is clickable, opening the
+calendar on that event through the existing calendar binding.
 
 Only one PigeonPost runs per user, enforced by Wails' `SingleInstanceLock` (a named mutex on Windows).
 A second launch does not open a new window: the running instance's `OnSecondInstanceLaunch` reveals its

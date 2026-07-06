@@ -3,7 +3,7 @@
 Cross-platform desktop email, calendar and address book client. Go core, React front end,
 local-first. Delivered as a signed download at https://www.pigeonpost.ink.
 
-Status: design locked; 0.8.0 in progress on main (VERSION 0.8.0, schema v16); 0.7.0 cut at schema v15;
+Status: design locked; 0.8.0 on main (VERSION 0.8.0, schema v23); 0.7.0 cut at schema v15;
 0.6.0 released
 (tagged v0.6.0). The 0.5.0 release
 (folder create/rename/delete, message move/copy, on-arrival mark/flag rules, a right-click context
@@ -18,7 +18,11 @@ per-account folder, a red taskbar overlay badge, a regrouped title tray and a re
 that showed its text duplicated and oversized. Microsoft OAuth is deferred
 (see section 7). 0.7.0 adds the address book (vCard and CSV) and the calendar (ICS, with month, week and
 day views), both round-tripping with Outlook and Thunderbird; cross-platform delivery remains ahead for
-1.0.0. This document is the target design; the actual per-release delivery record lives in NOTES.md.
+1.0.0. 0.8.0 adds two-way meeting scheduling (iTIP/iMIP over RFC 5546/6047), instant new-mail
+notifications over IMAP IDLE with a 60-second poll backstop, message multi-select by mouse and keyboard
+with bulk delete, mark, star and move, an F8 reading-pane toggle, a clickable reminder banner that opens
+its event and clickable meeting join links (Teams, Meet, Zoom and Webex) in the event editor.
+This document is the target design; the actual per-release delivery record lives in NOTES.md.
 Author: Oliver Ernster. Licence: GPL-3.0.
 
 ---
@@ -47,8 +51,8 @@ it stops scope re-litigation mid-build.
 - Address book: contacts with groups, vCard (.vcf) import/export, plus CSV import/export for Outlook
   (whose bulk contact export is CSV, not vCard). Import/export must round-trip with Outlook and
   Thunderbird.
-- Calendar: month/week/day views, events with reminders, ICS (.ics) import/export, read-only remote
-  ICS subscription.
+- Calendar: month/week/day views, events with reminders, meeting invites (iTIP/iMIP), ICS (.ics)
+  import/export, read-only remote ICS subscription.
 - Offline: cached mail readable offline; actions queued and replayed on reconnect.
 
 ### Out of scope for v1 (named so they do not creep)

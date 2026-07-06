@@ -63,14 +63,15 @@ documented here.
 | internal/infrastructure/storage | ~75% | logic and error paths covered; see exclusions |
 | internal/infrastructure/pop3 | ~44% | response and UIDL parsing covered; the live dial and download excluded |
 | internal/infrastructure/taskbar | ~22% | the pure label formatting and no-op stub covered; the Windows-only Win32 overlay excluded |
-| internal/infrastructure/imap | ~17% | the source adapter's pure helpers; the wire-to-domain and HTML logic now lives in `mailparse`, and live fetch/append is excluded |
+| internal/infrastructure/imap | ~17% | the source adapter's pure helpers; the wire-to-domain and HTML logic now lives in `mailparse`, and live fetch/append plus the IDLE watcher are excluded |
 | internal/infrastructure/smtp | 0% | transport is live `Send` only; MIME building lives in `message` |
 | internal/installer | ~38% | extract and paths covered; Win32 side effects excluded |
 | main package, installer app, tools/genicons | 0% | composition root, GUI and tooling, excluded |
 
 ## Documented exclusions (and why)
 
-- **Live IMAP fetch/append** (`imap/source.go`), **live POP3 download** (`pop3/`) and **live SMTP send**
+- **Live IMAP fetch/append and the IDLE watcher** (`imap/source.go`, `imap/idle.go`), **live POP3
+  download** (`pop3/`) and **live SMTP send**
   (`smtp/transport.go`): these dial a real server, authenticate and stream data. They cannot be
   unit-tested without a network, so the IMAP path sits behind a skippable integration test (below). The
   pure logic is separated out and covered independently: MIME body parsing plus HTML sanitising and
@@ -84,10 +85,11 @@ documented here.
   tests.
 - **Installer GUI** (`installer/`, a Wails app) and its facade: driven by the WebView, verified by
   running the setup program, not by unit tests.
-- **Composition root and startup** (the whole `main` package: `main.go` plus the Wails facade files
-  `app.go`, `about.go`, `accountsetup.go`, `send.go`, `export.go`, `outbox.go`, `rulesapi.go`,
-  `tagsapi.go`, `dto.go` and `clock.go`) and the **icon tool** (`tools/genicons`): wiring and one-shot
-  programs, verified by the app and the build succeeding.
+- **Composition root and startup** (the whole `main` package: `main.go` plus the Wails facade files,
+  namely `app.go`, the per-feature `*api.go` bindings (send, export, outbox, rules, tags, calendar,
+  contacts and scheduling), the background new-mail notifier and reminder scheduler, and the DTO mappers
+  and clock) and the **icon tool** (`tools/genicons`): wiring and one-shot programs, verified by the app
+  and the build succeeding.
 - **A few defensive branches in storage** (a commit failing after a successful transaction, a driver
   read error mid-iteration): not reachably triggerable with a real SQLite file.
 
