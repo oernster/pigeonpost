@@ -2,13 +2,20 @@ package imap
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"log"
 	"time"
 
+	"github.com/emersion/go-imap/v2"
 	"github.com/emersion/go-imap/v2/imapclient"
 
 	"github.com/oernster/pigeonpost/internal/domain"
 )
+
+// errIdleUnsupported marks a server that does not advertise the IDLE capability, so the watcher stops for
+// that account rather than reconnecting in a loop; the backstop poll then covers it.
+var errIdleUnsupported = errors.New("imap idle: server does not support IDLE")
 
 const (
 	// idleRefresh is how often the IDLE is torn down and reissued. Servers drop an IDLE after roughly 30
@@ -44,10 +51,15 @@ func (w *Watcher) Watch(ctx context.Context, account domain.Account, onChange fu
 		if ctx.Err() != nil {
 			return
 		}
+		if errors.Is(err, errIdleUnsupported) {
+			log.Printf("imap idle: %s does not support IDLE, leaving it to the poll", account.ID())
+			return
+		}
 		if err == nil {
 			backoff = initialBackoff
 			continue
 		}
+		log.Printf("imap idle: %s session ended: %v (retry in %s)", account.ID(), err, backoff)
 		select {
 		case <-ctx.Done():
 			return
@@ -78,6 +90,7 @@ func (w *Watcher) session(ctx context.Context, account domain.Account, onChange 
 		UnilateralDataHandler: &imapclient.UnilateralDataHandler{
 			Mailbox: func(data *imapclient.UnilateralDataMailbox) {
 				if data.NumMessages != nil {
+					log.Printf("imap idle: %s server pushed a mailbox change (now %d)", account.ID(), *data.NumMessages)
 					signal()
 				}
 			},
@@ -91,9 +104,13 @@ func (w *Watcher) session(ctx context.Context, account domain.Account, onChange 
 	if err := client.Login(account.Address().Address(), password).Wait(); err != nil {
 		return fmt.Errorf("imap idle: login %q: %w", account.ID(), err)
 	}
+	if !client.Caps().Has(imap.CapIdle) {
+		return errIdleUnsupported
+	}
 	if _, err := client.Select("INBOX", nil).Wait(); err != nil {
 		return fmt.Errorf("imap idle: select inbox: %w", err)
 	}
+	log.Printf("imap idle: %s watching INBOX for new mail", account.ID())
 	// Catch anything that arrived while the connection was down.
 	onChange()
 	return w.idleLoop(ctx, client, changed, onChange)
