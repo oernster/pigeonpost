@@ -108,7 +108,15 @@ func (s *Source) FetchMessages(ctx context.Context, account domain.Account, fold
 
 	seqSet := imap.SeqSet{}
 	seqSet.AddRange(1, selected.NumMessages)
-	options := &imap.FetchOptions{Envelope: true, Flags: true, RFC822Size: true, UID: true}
+	// The extended body structure carries each part's content disposition, which is what tells the list
+	// whether a message has a saveable attachment (for the paperclip), without fetching any bodies.
+	options := &imap.FetchOptions{
+		Envelope:      true,
+		Flags:         true,
+		RFC822Size:    true,
+		UID:           true,
+		BodyStructure: &imap.FetchItemBodyStructure{Extended: true},
+	}
 
 	buffers, err := client.Fetch(seqSet, options).Collect()
 	if err != nil {

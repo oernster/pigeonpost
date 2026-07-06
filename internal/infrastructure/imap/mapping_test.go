@@ -151,6 +151,62 @@ func TestBuildMessageDecodesEncodedWordSubjectAndName(t *testing.T) {
 	}
 }
 
+func attachmentPartFixture(mediaType string, value string) *imap.BodyStructureSinglePart {
+	slash := strings.IndexByte(mediaType, '/')
+	part := &imap.BodyStructureSinglePart{Type: mediaType[:slash], Subtype: mediaType[slash+1:]}
+	if value != "" {
+		part.Extended = &imap.BodyStructureSinglePartExt{
+			Disposition: &imap.BodyStructureDisposition{Value: value, Params: map[string]string{"filename": "file"}},
+		}
+	}
+	return part
+}
+
+func TestHasAttachment(t *testing.T) {
+	textPart := attachmentPartFixture("text/plain", "")
+	pdfPart := attachmentPartFixture("application/pdf", "attachment")
+	inlineImage := attachmentPartFixture("image/png", "inline")
+	calendarPart := attachmentPartFixture("text/calendar", "attachment")
+
+	cases := map[string]struct {
+		bs   imap.BodyStructure
+		want bool
+	}{
+		"nil structure":         {nil, false},
+		"plain single part":     {textPart, false},
+		"attachment in mixed":   {&imap.BodyStructureMultiPart{Subtype: "mixed", Children: []imap.BodyStructure{textPart, pdfPart}}, true},
+		"text only alternative": {&imap.BodyStructureMultiPart{Subtype: "alternative", Children: []imap.BodyStructure{textPart}}, false},
+		"inline image only":     {&imap.BodyStructureMultiPart{Subtype: "related", Children: []imap.BodyStructure{textPart, inlineImage}}, false},
+		"calendar not counted":  {&imap.BodyStructureMultiPart{Subtype: "mixed", Children: []imap.BodyStructure{textPart, calendarPart}}, false},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			if got := hasAttachment(tc.bs); got != tc.want {
+				t.Errorf("hasAttachment = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestBuildMessageSetsHasAttachments(t *testing.T) {
+	buf := &imapclient.FetchMessageBuffer{
+		UID:        imap.UID(3),
+		RFC822Size: 100,
+		Envelope:   &imap.Envelope{Subject: "With file"},
+		BodyStructure: &imap.BodyStructureMultiPart{Subtype: "mixed", Children: []imap.BodyStructure{
+			attachmentPartFixture("text/plain", ""),
+			attachmentPartFixture("application/pdf", "attachment"),
+		}},
+	}
+	msg, err := buildMessage("f1", buf)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !msg.HasAttachments() {
+		t.Error("a message with an attachment part should report HasAttachments")
+	}
+}
+
 func TestBuildMessageUnescapesSubjectEntities(t *testing.T) {
 	// A sender that builds the subject from an HTML template leaves entities in it; they must show as the
 	// real characters rather than "&amp;" in the list.

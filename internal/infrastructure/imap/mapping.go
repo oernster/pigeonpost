@@ -154,6 +154,7 @@ func buildMessage(folderID string, buf *imapclient.FetchMessageBuffer) (domain.M
 		Size:     int(buf.RFC822Size),
 		Flags:    mapFlags(buf.Flags),
 	}
+	in.HasAttachments = hasAttachment(buf.BodyStructure)
 	if buf.Envelope != nil {
 		in.Subject = mailparse.DecodeHeader(buf.Envelope.Subject)
 		in.Date = buf.Envelope.Date
@@ -163,6 +164,35 @@ func buildMessage(folderID string, buf *imapclient.FetchMessageBuffer) (domain.M
 		in.Cc = allAddresses(buf.Envelope.Cc)
 	}
 	return domain.NewMessageSummary(in)
+}
+
+// hasAttachment reports whether a message's body structure carries a saveable attachment, so the list can
+// show the paperclip. A part counts when its content disposition is "attachment", matching what the body
+// parser later extracts as a saveable file. A text/calendar part is excluded because the reader surfaces
+// it as a meeting invite rather than an attachment. A nil structure (not fetched, or a bodyless message)
+// yields false.
+func hasAttachment(bs imap.BodyStructure) bool {
+	if bs == nil {
+		return false
+	}
+	found := false
+	bs.Walk(func(_ []int, part imap.BodyStructure) bool {
+		if found {
+			return false
+		}
+		single, ok := part.(*imap.BodyStructureSinglePart)
+		if !ok {
+			return true // a multipart container: descend into its children
+		}
+		if strings.EqualFold(single.MediaType(), "text/calendar") {
+			return false
+		}
+		if disp := single.Disposition(); disp != nil && strings.EqualFold(disp.Value, "attachment") {
+			found = true
+		}
+		return false
+	})
+	return found
 }
 
 func hasAttr(attrs []imap.MailboxAttr, want imap.MailboxAttr) bool {
