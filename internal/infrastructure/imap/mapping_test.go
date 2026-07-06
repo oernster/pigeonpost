@@ -151,14 +151,22 @@ func TestBuildMessageDecodesEncodedWordSubjectAndName(t *testing.T) {
 	}
 }
 
-func TestDecodeHeaderPassThrough(t *testing.T) {
-	// A plain subject is unchanged, and a malformed encoded-word is returned as-is rather than dropped.
-	if got := decodeHeader("Plain subject"); got != "Plain subject" {
-		t.Errorf("plain subject changed: %q", got)
+func TestBuildMessageUnescapesSubjectEntities(t *testing.T) {
+	// A sender that builds the subject from an HTML template leaves entities in it; they must show as the
+	// real characters rather than "&amp;" in the list.
+	buf := &imapclient.FetchMessageBuffer{
+		UID:        imap.UID(2),
+		RFC822Size: 100,
+		Envelope: &imap.Envelope{
+			Subject: "We've sent your application to Harnham - Data &amp; Analytics Recruitment",
+		},
 	}
-	malformed := "=?utf-8?Q?broken"
-	if got := decodeHeader(malformed); got != malformed {
-		t.Errorf("malformed encoded-word not passed through: %q", got)
+	msg, err := buildMessage("f1", buf)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if msg.Subject() != "We've sent your application to Harnham - Data & Analytics Recruitment" {
+		t.Errorf("subject entity not unescaped: %q", msg.Subject())
 	}
 }
 

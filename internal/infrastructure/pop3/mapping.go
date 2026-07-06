@@ -10,6 +10,7 @@ import (
 	"github.com/emersion/go-message/mail"
 
 	"github.com/oernster/pigeonpost/internal/domain"
+	"github.com/oernster/pigeonpost/internal/infrastructure/mailparse"
 )
 
 // idSeparator joins an account, the synthetic mailbox and a message UIDL into stable local
@@ -50,6 +51,9 @@ func buildSummary(folderID, uid string, header []byte, size int) (domain.Message
 	}
 	h := mail.Header{Header: entity.Header}
 	subject, _ := h.Subject()
+	// Subject() decodes RFC 2047 encoded-words; DecodeHeader adds the HTML-entity unescape (so a
+	// template-built "Data &amp; X" reads as "Data & X"), matching the IMAP path.
+	subject = mailparse.DecodeHeader(subject)
 	date, _ := h.Date()
 	messageID, _ := h.MessageID()
 	return domain.NewMessageSummary(domain.MessageSummaryInput{
@@ -97,7 +101,7 @@ func toDomainAddress(a *mail.Address) domain.EmailAddress {
 	if a == nil {
 		return domain.EmailAddress{}
 	}
-	email, err := domain.NewEmailAddress(a.Name, a.Address)
+	email, err := domain.NewEmailAddress(mailparse.DecodeHeader(a.Name), a.Address)
 	if err != nil {
 		return domain.EmailAddress{}
 	}

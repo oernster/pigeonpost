@@ -7,14 +7,16 @@ package mailparse
 import (
 	"bytes"
 	"fmt"
+	stdhtml "html"
 	"io"
 	"mime"
 	"regexp"
 	"strings"
 
-	// Registers a CharsetReader on go-message so bodies in legacy charsets (iso-8859-1, windows-1252,
-	// and the rest) decode instead of failing with "unhandled charset".
-	_ "github.com/emersion/go-message/charset"
+	// Its init registers a CharsetReader on go-message so bodies in legacy charsets (iso-8859-1,
+	// windows-1252, and the rest) decode instead of failing with "unhandled charset"; charset.Reader is
+	// also used directly by the header-word decoder below.
+	"github.com/emersion/go-message/charset"
 	"github.com/emersion/go-message/mail"
 	"github.com/microcosm-cc/bluemonday"
 	"golang.org/x/net/html"
@@ -130,6 +132,26 @@ func ParseBody(raw []byte) (ParsedBody, error) {
 	return ParsedBody{Plain: plain, HTML: htmlBody, Invite: invite, Attachments: attachments}, nil
 }
 
+// headerWordDecoder decodes RFC 2047 encoded-words in header text (subjects, display names, attachment
+// filenames). The go-message charset reader lets it handle the non-UTF-8 charsets real senders use, such
+// as windows-1252 and iso-8859-1, which the standard library's decoder rejects on its own.
+var headerWordDecoder = mime.WordDecoder{CharsetReader: charset.Reader}
+
+// DecodeHeader prepares a header value (a subject, display name or attachment filename) for display. It
+// turns any RFC 2047 encoded-words into plain UTF-8, so "=?Windows-1252?Q?Re:_...?=" reads as text, and
+// then unescapes HTML entities, so a subject a sender built from an HTML template ("Data &amp; Analytics")
+// shows the real character. A value that carries neither is returned unchanged, and one whose
+// encoded-words fail to decode is unescaped as-is, so a header quirk never drops a message.
+func DecodeHeader(value string) string {
+	decoded := value
+	if strings.Contains(value, "=?") {
+		if d, err := headerWordDecoder.DecodeHeader(value); err == nil {
+			decoded = d
+		}
+	}
+	return stdhtml.UnescapeString(decoded)
+}
+
 // DomainAttachments converts parsed attachment parts into domain Attachments, applying the domain's own
 // validation and byte-copying. ParseBody guarantees a non-empty filename, so it does not fail on that.
 func DomainAttachments(parsed []ParsedAttachment) ([]domain.Attachment, error) {
@@ -148,6 +170,9 @@ func DomainAttachments(parsed []ParsedAttachment) ([]domain.Attachment, error) {
 // media type when the part supplies none, so every attachment is listable and saveable.
 func attachmentPart(header *mail.AttachmentHeader, mediaType string, content []byte) ParsedAttachment {
 	filename, err := header.Filename()
+	// Some senders (Outlook) wrap the filename in an RFC 2047 encoded-word, which the media-type parser
+	// leaves raw, so decode it here as well as the header-level subjects and names.
+	filename = DecodeHeader(filename)
 	if err != nil || strings.TrimSpace(filename) == "" {
 		filename = fallbackAttachmentName
 	}

@@ -319,3 +319,23 @@ func TestParseBodyBlocksRemoteImages(t *testing.T) {
 		t.Errorf("expected alt and content preserved, got: %s", html)
 	}
 }
+
+func TestDecodeHeader(t *testing.T) {
+	cases := map[string]string{
+		// RFC 2047 encoded-word in a non-UTF-8 charset (the =A3 is a pound sign).
+		"=?Windows-1252?Q?circa_=A390k?=": "circa £90k",
+		// HTML entities from a template-built subject are unescaped.
+		"Data &amp; Analytics":      "Data & Analytics",
+		"a &lt;b&gt; c &#39;d&#39;": "a <b> c 'd'",
+		// A plain value is unchanged, and bare ampersands are left alone.
+		"Fish & Chips at AT&T": "Fish & Chips at AT&T",
+		"Plain subject":        "Plain subject",
+		// A malformed encoded-word is not dropped; it is returned (unescaped) as-is.
+		"=?utf-8?Q?broken": "=?utf-8?Q?broken",
+	}
+	for in, want := range cases {
+		if got := DecodeHeader(in); got != want {
+			t.Errorf("DecodeHeader(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
