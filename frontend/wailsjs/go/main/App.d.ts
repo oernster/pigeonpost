@@ -44,6 +44,18 @@ export function GetEvent(arg1:string):Promise<main.EventDTO>;
 
 export function GetMessageBody(arg1:string):Promise<main.MessageBodyDTO>;
 
+export function GetInvitation(arg1:string):Promise<main.InvitationDTO>;
+
+export function RespondToInvitation(arg1:string,arg2:string):Promise<void>;
+
+export function RemoveCancelledMeeting(arg1:string):Promise<void>;
+
+export function ApplyMeetingReply(arg1:string):Promise<void>;
+
+export function SendMeetingRequest(arg1:string,arg2:string):Promise<void>;
+
+export function SendMeetingCancel(arg1:string,arg2:string):Promise<void>;
+
 export function ImportContactsFromFile():Promise<number>;
 
 export function ImportEventsFromFile():Promise<number>;

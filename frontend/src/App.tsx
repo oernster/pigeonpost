@@ -366,7 +366,7 @@ function App() {
         // An outbox message is not in the store; show the queued body directly (no fetch).
         if (isOutboxMessage(selectedMessage)) {
             const item = outbox.find((o) => o.id === selectedMessage.id)
-            setMessageBody({plain: item?.body ?? '', html: ''})
+            setMessageBody({plain: item?.body ?? '', html: '', hasInvite: false})
             setBodyLoading(false)
             return
         }

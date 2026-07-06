@@ -30,6 +30,12 @@ import {
     ExportEventsToFile,
     GetContact,
     GetEvent,
+    GetInvitation,
+    RespondToInvitation,
+    RemoveCancelledMeeting,
+    ApplyMeetingReply,
+    SendMeetingRequest,
+    SendMeetingCancel,
     ImportContactsFromFile,
     ImportEventsFromFile,
     ListCalendars,
@@ -116,6 +122,11 @@ export interface ContactGroupInput {
 export type Calendar = main.CalendarDTO
 export type CalendarEvent = main.EventDTO
 export type CalendarEventInstance = main.EventInstanceDTO
+export type Invitation = main.InvitationDTO
+export type MeetingAttendee = main.AttendeeDTO
+
+// PartStat is the ICS PARTSTAT reply value the reader sends when answering a meeting request.
+export type PartStat = 'ACCEPTED' | 'DECLINED' | 'TENTATIVE'
 
 // EventScope mirrors the Go application.EventScope: how far an edit or delete of a recurring occurrence
 // reaches. The integer values must match the Go constants.
@@ -260,4 +271,13 @@ export const api = {
         DeleteEventScoped(scope, seriesId, occurrence),
     importEventsFromFile: (): Promise<number> => ImportEventsFromFile(),
     exportEventsToFile: (): Promise<boolean> => ExportEventsToFile(),
+    getInvitation: (messageId: string): Promise<Invitation> => GetInvitation(messageId),
+    respondToInvitation: (messageId: string, status: PartStat): Promise<void> =>
+        RespondToInvitation(messageId, status),
+    removeCancelledMeeting: (messageId: string): Promise<void> => RemoveCancelledMeeting(messageId),
+    applyMeetingReply: (messageId: string): Promise<void> => ApplyMeetingReply(messageId),
+    sendMeetingRequest: (accountId: string, eventId: string): Promise<void> =>
+        SendMeetingRequest(accountId, eventId),
+    sendMeetingCancel: (accountId: string, eventId: string): Promise<void> =>
+        SendMeetingCancel(accountId, eventId),
 }

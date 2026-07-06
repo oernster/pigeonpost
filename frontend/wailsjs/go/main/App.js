@@ -86,6 +86,30 @@ export function GetMessageBody(arg1) {
   return window['go']['main']['App']['GetMessageBody'](arg1);
 }
 
+export function GetInvitation(arg1) {
+  return window['go']['main']['App']['GetInvitation'](arg1);
+}
+
+export function RespondToInvitation(arg1, arg2) {
+  return window['go']['main']['App']['RespondToInvitation'](arg1, arg2);
+}
+
+export function RemoveCancelledMeeting(arg1) {
+  return window['go']['main']['App']['RemoveCancelledMeeting'](arg1);
+}
+
+export function ApplyMeetingReply(arg1) {
+  return window['go']['main']['App']['ApplyMeetingReply'](arg1);
+}
+
+export function SendMeetingRequest(arg1, arg2) {
+  return window['go']['main']['App']['SendMeetingRequest'](arg1, arg2);
+}
+
+export function SendMeetingCancel(arg1, arg2) {
+  return window['go']['main']['App']['SendMeetingCancel'](arg1, arg2);
+}
+
 export function ImportContactsFromFile() {
   return window['go']['main']['App']['ImportContactsFromFile']();
 }

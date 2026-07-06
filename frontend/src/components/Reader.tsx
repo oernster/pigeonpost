@@ -4,6 +4,7 @@ import {api, Folder, Message, MessageBody, Tag} from '../api'
 import {TAG_PALETTE, colourTagId} from '../tagColours'
 import {isOutboxMessage} from '../outbox'
 import {ReaderTabs} from './ReaderTabs'
+import {InviteCard} from './InviteCard'
 
 // handleBodyClick opens links from rendered message HTML in the external browser rather than letting
 // them navigate the app's own webview. The HTML is sanitised server-side, so anchors are safe.
@@ -208,6 +209,7 @@ export function Reader({message, onToggleRead, onReply, onReplyAll, onForward, o
                 )}
             </div>
             <div className="reader-body">
+                {!bodyLoading && body?.hasInvite && <InviteCard messageId={message.id}/>}
                 {bodyLoading ? (
                     <p className="empty-body">Loading message…</p>
                 ) : body && body.html.trim() !== '' ? (
