@@ -5,14 +5,36 @@ package imap
 
 import (
 	"fmt"
+	"mime"
 	"strconv"
 	"strings"
 
 	"github.com/emersion/go-imap/v2"
 	"github.com/emersion/go-imap/v2/imapclient"
+	"github.com/emersion/go-message/charset"
 
 	"github.com/oernster/pigeonpost/internal/domain"
 )
+
+// headerDecoder decodes RFC 2047 encoded-words in header text (subjects and display names). The charset
+// reader from go-message lets it handle the non-UTF-8 charsets real senders use, such as windows-1252
+// and iso-8859-1, which the standard library's decoder rejects on its own.
+var headerDecoder = mime.WordDecoder{CharsetReader: charset.Reader}
+
+// decodeHeader turns any RFC 2047 encoded-words in a header value into plain UTF-8, so a subject like
+// "=?Windows-1252?Q?Re:_Systems...?=" reads as text rather than showing its raw encoding. A value with
+// no encoded-words is returned unchanged, and a value that fails to decode is returned as-is so a header
+// quirk never drops a message from the list.
+func decodeHeader(value string) string {
+	if !strings.Contains(value, "=?") {
+		return value
+	}
+	decoded, err := headerDecoder.DecodeHeader(value)
+	if err != nil {
+		return value
+	}
+	return decoded
+}
 
 // folderIDSeparator joins account, mailbox and uid into stable local identifiers. It is a control
 // character that does not appear in mailbox names or email addresses.
@@ -122,7 +144,7 @@ func firstAddress(addrs []imap.Address) domain.EmailAddress {
 		return domain.EmailAddress{}
 	}
 	a := addrs[0]
-	email, err := domain.NewEmailAddress(a.Name, a.Mailbox+"@"+a.Host)
+	email, err := domain.NewEmailAddress(decodeHeader(a.Name), a.Mailbox+"@"+a.Host)
 	if err != nil {
 		return domain.EmailAddress{}
 	}
@@ -134,7 +156,7 @@ func firstAddress(addrs []imap.Address) domain.EmailAddress {
 func allAddresses(addrs []imap.Address) []domain.EmailAddress {
 	out := make([]domain.EmailAddress, 0, len(addrs))
 	for _, a := range addrs {
-		email, err := domain.NewEmailAddress(a.Name, a.Mailbox+"@"+a.Host)
+		email, err := domain.NewEmailAddress(decodeHeader(a.Name), a.Mailbox+"@"+a.Host)
 		if err != nil {
 			continue
 		}
@@ -154,7 +176,7 @@ func buildMessage(folderID string, buf *imapclient.FetchMessageBuffer) (domain.M
 		Flags:    mapFlags(buf.Flags),
 	}
 	if buf.Envelope != nil {
-		in.Subject = buf.Envelope.Subject
+		in.Subject = decodeHeader(buf.Envelope.Subject)
 		in.Date = buf.Envelope.Date
 		in.MessageID = buf.Envelope.MessageID
 		in.From = firstAddress(buf.Envelope.From)

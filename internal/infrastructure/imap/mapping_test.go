@@ -125,6 +125,43 @@ func TestBuildMessageWithEnvelope(t *testing.T) {
 	}
 }
 
+func TestBuildMessageDecodesEncodedWordSubjectAndName(t *testing.T) {
+	// A real Windows-1252 Q-encoded subject and sender name (the =A3 is a pound sign) must decode to
+	// readable text rather than show their raw =?...?= encoding in the list.
+	buf := &imapclient.FetchMessageBuffer{
+		UID:        imap.UID(1),
+		RFC822Size: 100,
+		Envelope: &imap.Envelope{
+			Subject: "=?Windows-1252?Q?Re:_Systems_Developer_opportunity_-_circa_=A390k_-_Hybrid?=",
+			From: []imap.Address{{
+				Name:    "=?utf-8?Q?Andr=C3=A9_Mercer?=",
+				Mailbox: "andre", Host: "example.com",
+			}},
+		},
+	}
+	msg, err := buildMessage("f1", buf)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if msg.Subject() != "Re: Systems Developer opportunity - circa £90k - Hybrid" {
+		t.Errorf("subject not decoded: %q", msg.Subject())
+	}
+	if msg.From().Display() != "André Mercer" {
+		t.Errorf("sender name not decoded: %q", msg.From().Display())
+	}
+}
+
+func TestDecodeHeaderPassThrough(t *testing.T) {
+	// A plain subject is unchanged, and a malformed encoded-word is returned as-is rather than dropped.
+	if got := decodeHeader("Plain subject"); got != "Plain subject" {
+		t.Errorf("plain subject changed: %q", got)
+	}
+	malformed := "=?utf-8?Q?broken"
+	if got := decodeHeader(malformed); got != malformed {
+		t.Errorf("malformed encoded-word not passed through: %q", got)
+	}
+}
+
 func TestBuildMessageWithoutEnvelope(t *testing.T) {
 	buf := &imapclient.FetchMessageBuffer{UID: imap.UID(5), RFC822Size: 10}
 	msg, err := buildMessage("f1", buf)
