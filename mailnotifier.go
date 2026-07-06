@@ -28,7 +28,7 @@ const calendarChangedEventName = "calendar:changed"
 // push. It primes a baseline first so an existing inbox is not announced, and stops when the runtime
 // context is cancelled at shutdown.
 func (a *App) runMailNotifier() {
-	runtime.LogInfof(a.ctx, "mail-notifier: starting, poll backstop %s, tray=%t", mailPollInterval, a.tray != nil)
+	runtime.LogDebugf(a.ctx, "mail-notifier: starting, poll backstop %s, tray=%t", mailPollInterval, a.tray != nil)
 	// Prime the baseline: this first pass caches the current inbox so an existing mailbox is not announced
 	// as new. Only mail arriving after it counts, yet a message into a previously empty inbox still does,
 	// because detection is by cached-id rather than by the folder being empty.
@@ -36,7 +36,7 @@ func (a *App) runMailNotifier() {
 	if err != nil {
 		runtime.LogErrorf(a.ctx, "mail-notifier: baseline prime failed: %v", err)
 	} else {
-		runtime.LogInfof(a.ctx, "mail-notifier: baseline primed, ignoring %d already-present message(s)", len(primed))
+		runtime.LogDebugf(a.ctx, "mail-notifier: baseline primed, ignoring %d already-present message(s)", len(primed))
 	}
 	a.startMailWatchers()
 	ticker := time.NewTicker(mailPollInterval)
@@ -68,7 +68,7 @@ func (a *App) startMailWatchers() {
 			continue
 		}
 		acc := account
-		runtime.LogInfof(a.ctx, "mail-notifier: starting IDLE watcher for %q", acc.ID())
+		runtime.LogDebugf(a.ctx, "mail-notifier: starting IDLE watcher for %q", acc.ID())
 		go a.watcher.Watch(a.ctx, acc, func() { a.checkMail("idle") })
 	}
 }
@@ -87,12 +87,10 @@ func (a *App) checkMail(trigger string) {
 	if len(fresh) == 0 {
 		return
 	}
-	runtime.LogInfof(a.ctx, "mail-notifier: %s found %d new message(s)", trigger, len(fresh))
 	a.applyIncomingScheduling(fresh)
 	runtime.EventsEmit(a.ctx, mailNewEventName)
 	if a.tray != nil {
 		title, body := taskbar.MailBalloonText(mailSummaries(fresh))
-		runtime.LogInfof(a.ctx, "mail-notifier: raising notification %q / %q", title, body)
 		// force: show the new-mail notification even when PigeonPost is focused, the way a mail client
 		// alerts regardless. A reminder suppresses when focused because its in-app banner covers it, but
 		// new mail has no such in-window cue.

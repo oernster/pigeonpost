@@ -90,7 +90,6 @@ func (w *Watcher) session(ctx context.Context, account domain.Account, onChange 
 		UnilateralDataHandler: &imapclient.UnilateralDataHandler{
 			Mailbox: func(data *imapclient.UnilateralDataMailbox) {
 				if data.NumMessages != nil {
-					log.Printf("imap idle: %s server pushed a mailbox change (now %d)", account.ID(), *data.NumMessages)
 					signal()
 				}
 			},
