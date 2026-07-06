@@ -27,10 +27,22 @@ const calendarChangedEventName = "calendar:changed"
 // folder is on screen. Each folder's first population is silent (see SyncInboxes). It stops when the
 // runtime context is cancelled at shutdown.
 func (a *App) runMailNotifier() {
+	runtime.LogInfof(a.ctx, "mail-notifier: starting, poll interval %s, tray=%t", mailPollInterval, a.tray != nil)
 	// Prime the baseline: this first pass caches the current inbox so an existing mailbox is not announced
 	// as new. Only mail arriving after it counts, yet a message into a previously empty inbox still does,
 	// because detection is by cached-id rather than by the folder being empty.
-	_, _ = a.sync.SyncInboxes(a.ctx)
+	primed, err := a.sync.SyncInboxes(a.ctx)
+	if err != nil {
+		runtime.LogErrorf(a.ctx, "mail-notifier: baseline prime failed: %v", err)
+	} else {
+		runtime.LogInfof(a.ctx, "mail-notifier: baseline primed, ignoring %d already-present message(s)", len(primed))
+	}
+	// Launch confirmation: prove the notification mechanism works now, independent of mail detection. If
+	// this toast does not appear, the problem is Windows notification settings (Focus Assist / Do Not
+	// Disturb, or notifications disabled for the app), not the mail detection below.
+	if a.tray != nil {
+		a.tray.Notify("PigeonPost", "New-mail notifications are on.", true)
+	}
 	ticker := time.NewTicker(mailPollInterval)
 	defer ticker.Stop()
 	for {
@@ -39,13 +51,19 @@ func (a *App) runMailNotifier() {
 			return
 		case <-ticker.C:
 			fresh, err := a.sync.SyncInboxes(a.ctx)
-			if err != nil || len(fresh) == 0 {
+			if err != nil {
+				runtime.LogErrorf(a.ctx, "mail-notifier: poll failed: %v", err)
 				continue
 			}
+			if len(fresh) == 0 {
+				continue
+			}
+			runtime.LogInfof(a.ctx, "mail-notifier: %d new message(s) detected", len(fresh))
 			a.applyIncomingScheduling(fresh)
 			runtime.EventsEmit(a.ctx, mailNewEventName)
 			if a.tray != nil {
 				title, body := taskbar.MailBalloonText(mailSummaries(fresh))
+				runtime.LogInfof(a.ctx, "mail-notifier: raising notification %q / %q", title, body)
 				// force: show the new-mail notification even when PigeonPost is focused, the way a mail
 				// client alerts regardless. A reminder suppresses when focused because its in-app banner
 				// covers it, but new mail has no such in-window cue.

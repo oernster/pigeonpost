@@ -4,6 +4,7 @@ package taskbar
 
 import (
 	"image"
+	"log"
 	"runtime"
 	"sync/atomic"
 	"syscall"
@@ -285,14 +286,17 @@ func (t *Tray) addIcon() {
 	}
 }
 
-// showBalloon raises a balloon notification on the existing tray icon.
+// showBalloon raises a balloon notification on the existing tray icon. It logs the Shell_NotifyIcon
+// result (non-zero is success) so a toast that does not appear can be told apart from an OS call that the
+// shell rejected, visible in the wails dev console.
 func (t *Tray) showBalloon(title, body string) {
 	n := t.baseNID()
 	n.uFlags = nifInfo
 	n.dwInfoFlags = niifInfo
 	copyUTF16(n.szInfo[:], body)
 	copyUTF16(n.szInfoTitle[:], title)
-	procShellNotifyIcon.Call(nimModify, uintptr(unsafe.Pointer(&n)))
+	r, _, callErr := procShellNotifyIcon.Call(nimModify, uintptr(unsafe.Pointer(&n)))
+	log.Printf("tray: showBalloon title=%q ok=%t (rc=%d, %v)", title, r != 0, r, callErr)
 }
 
 // deleteIcon removes the tray icon.
