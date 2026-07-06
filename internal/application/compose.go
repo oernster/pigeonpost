@@ -23,26 +23,30 @@ type Draft struct {
 // IDGenerator produces a unique identifier for a queued outbox item.
 type IDGenerator func() string
 
-// ComposeService is the use-case boundary for outgoing mail: sending messages, saving drafts, and the
-// offline outbox that holds those operations when the server is unreachable and replays them later.
+// ComposeService is the use-case boundary for outgoing mail: sending messages, saving drafts, the
+// offline outbox that holds those operations when the server is unreachable and replays them later, and
+// the local draft-recovery snapshot that guards an in-progress compose against an accidental close.
 type ComposeService struct {
 	accounts  AccountStore
 	store     MailStore
 	transport MailTransport
 	drafts    DraftSaver
 	outbox    OutboxStore
+	recovery  DraftRecoveryStore
 	clock     domain.Clock
 	newID     IDGenerator
 }
 
 // NewComposeService constructs the service with its injected dependencies. The clock and id generator
-// stamp queued outbox items; the outbox store persists them across restarts.
+// stamp queued outbox items; the outbox store persists them across restarts; the recovery store holds
+// the single local snapshot of the compose window.
 func NewComposeService(
 	accounts AccountStore,
 	store MailStore,
 	transport MailTransport,
 	drafts DraftSaver,
 	outbox OutboxStore,
+	recovery DraftRecoveryStore,
 	clock domain.Clock,
 	newID IDGenerator,
 ) *ComposeService {
@@ -52,9 +56,60 @@ func NewComposeService(
 		transport: transport,
 		drafts:    drafts,
 		outbox:    outbox,
+		recovery:  recovery,
 		clock:     clock,
 		newID:     newID,
 	}
+}
+
+// DraftSnapshot is the raw content of an in-progress compose window, captured for local recovery. Its
+// recipient fields are the text as typed, not parsed addresses, so an incomplete message is preserved.
+type DraftSnapshot struct {
+	AccountID string
+	To        string
+	Cc        string
+	Bcc       string
+	Subject   string
+	BodyHTML  string
+}
+
+// SaveDraftRecovery stores a local snapshot of the in-progress compose, replacing any previous one, so
+// the message survives an accidental close or a crash. It never touches the server.
+func (s *ComposeService) SaveDraftRecovery(ctx context.Context, snapshot DraftSnapshot) error {
+	recovery, err := domain.NewDraftRecovery(domain.DraftRecoveryInput{
+		AccountID: snapshot.AccountID,
+		To:        snapshot.To,
+		Cc:        snapshot.Cc,
+		Bcc:       snapshot.Bcc,
+		Subject:   snapshot.Subject,
+		BodyHTML:  snapshot.BodyHTML,
+	}, s.clock.Now())
+	if err != nil {
+		return fmt.Errorf("compose: build draft recovery: %w", err)
+	}
+	if err := s.recovery.SaveDraftRecovery(ctx, recovery); err != nil {
+		return fmt.Errorf("compose: save draft recovery: %w", err)
+	}
+	return nil
+}
+
+// DraftRecovery returns the locally held compose snapshot and whether one exists, so the front end can
+// offer to restore an unsent message after a restart or an accidental close.
+func (s *ComposeService) DraftRecovery(ctx context.Context) (domain.DraftRecovery, bool, error) {
+	recovery, ok, err := s.recovery.GetDraftRecovery(ctx)
+	if err != nil {
+		return domain.DraftRecovery{}, false, fmt.Errorf("compose: get draft recovery: %w", err)
+	}
+	return recovery, ok, nil
+}
+
+// ClearDraftRecovery discards the local compose snapshot, called once the message is sent, saved to the
+// server, or the user chooses not to restore it.
+func (s *ComposeService) ClearDraftRecovery(ctx context.Context) error {
+	if err := s.recovery.ClearDraftRecovery(ctx); err != nil {
+		return fmt.Errorf("compose: clear draft recovery: %w", err)
+	}
+	return nil
 }
 
 // Send builds a validated message from the draft, using the account's address as the sender, and

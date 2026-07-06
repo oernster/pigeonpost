@@ -1,4 +1,4 @@
-import {useRef, useState} from 'react'
+import {useEffect, useRef, useState} from 'react'
 import {useBackdropDismiss} from './useBackdropDismiss'
 import {EditorContent, useEditor} from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
@@ -6,6 +6,10 @@ import Link from '@tiptap/extension-link'
 import {api, ComposeInput} from '../api'
 import {ModalClose} from './ModalClose'
 import {ConfirmDialog} from './ConfirmDialog'
+
+// autosaveDelayMs debounces local draft-recovery autosaves, so a snapshot is written a short pause after
+// the user stops typing rather than on every keystroke.
+const autosaveDelayMs = 1500
 
 // normaliseUrl gives a bare host a scheme so the link is absolute rather than treated as relative.
 function normaliseUrl(url: string): string {
@@ -70,9 +74,23 @@ export function ComposeModal({accountId, initial, canSaveDraft, onClose}: Compos
     // editor: the editor is built once, but attemptSend closes over state that changes each render.
     const attemptSendRef = useRef<() => void>(() => {})
 
+    // bodyTick bumps on each editor edit so the autosave effect re-runs; dirtyRef gates it to real user
+    // edits so an untouched reply or forward template is never snapshotted; stopAutosaveRef halts it once
+    // the message has been sent or saved to the server, so a pending debounce cannot re-save a stale copy.
+    const [bodyTick, setBodyTick] = useState(0)
+    const dirtyRef = useRef(false)
+    const stopAutosaveRef = useRef(false)
+    const markDirty = () => {
+        dirtyRef.current = true
+    }
+
     const editor = useEditor({
         extensions: [StarterKit, Link.configure({openOnClick: false, autolink: true, linkOnPaste: true})],
         content: initial?.bodyHtml ?? '',
+        onUpdate: () => {
+            markDirty()
+            setBodyTick((tick) => tick + 1)
+        },
         editorProps: {
             // Ctrl+Enter (Cmd+Enter on macOS) sends. Returning true stops TipTap from also inserting its
             // default Mod-Enter hard break.
@@ -126,6 +144,33 @@ export function ComposeModal({accountId, initial, canSaveDraft, onClose}: Compos
         }
     }
 
+    // Autosave the in-progress compose to the local recovery slot, debounced, so an accidental close or a
+    // crash does not lose it. This is local only and never touches the server; sending or saving a server
+    // draft clears it. It runs only after a real edit (dirtyRef), so an untouched template is not stored,
+    // and clears the slot when the compose is emptied back out.
+    useEffect(() => {
+        if (!dirtyRef.current || stopAutosaveRef.current) return
+        const bodyText = editor?.getText() ?? ''
+        const hasContent = to.trim() !== '' || cc.trim() !== '' || bcc.trim() !== '' ||
+            subject.trim() !== '' || bodyText.trim() !== ''
+        const timer = window.setTimeout(() => {
+            if (stopAutosaveRef.current) return
+            if (!hasContent) {
+                void api.clearDraftRecovery()
+                return
+            }
+            void api.saveDraftRecovery({
+                accountId,
+                to,
+                cc,
+                bcc,
+                subject,
+                bodyHtml: editor?.getHTML() ?? '',
+            })
+        }, autosaveDelayMs)
+        return () => window.clearTimeout(timer)
+    }, [accountId, to, cc, bcc, subject, bodyTick, editor])
+
     const removeMessageAttachment = (id: string) => {
         setMessageAttachments((prev) => prev.filter((m) => m.id !== id))
     }
@@ -148,12 +193,15 @@ export function ComposeModal({accountId, initial, canSaveDraft, onClose}: Compos
     }
 
     const send = async () => {
+        stopAutosaveRef.current = true
         setSending(true)
         setError('')
         try {
             await api.send(buildRequest())
+            void api.clearDraftRecovery()
             onClose()
         } catch (e) {
+            stopAutosaveRef.current = false
             setError(String(e))
             setSending(false)
         }
@@ -181,12 +229,15 @@ export function ComposeModal({accountId, initial, canSaveDraft, onClose}: Compos
     attemptSendRef.current = attemptSend
 
     const saveDraft = async () => {
+        stopAutosaveRef.current = true
         setSavingDraft(true)
         setError('')
         try {
             await api.saveDraft(buildRequest())
+            void api.clearDraftRecovery()
             onClose()
         } catch (e) {
+            stopAutosaveRef.current = false
             setError(String(e))
             setSavingDraft(false)
         }
@@ -223,20 +274,32 @@ export function ComposeModal({accountId, initial, canSaveDraft, onClose}: Compos
                 {error && <div className="compose-error">{error}</div>}
                 <label className="field">
                     <span>To</span>
-                    <input value={to} onChange={(e) => setTo(e.target.value)} autoFocus
+                    <input value={to} onChange={(e) => {
+                        markDirty()
+                        setTo(e.target.value)
+                    }} autoFocus
                            placeholder="name@example.com, other@example.com"/>
                 </label>
                 <label className="field">
                     <span>Cc</span>
-                    <input value={cc} onChange={(e) => setCc(e.target.value)}/>
+                    <input value={cc} onChange={(e) => {
+                        markDirty()
+                        setCc(e.target.value)
+                    }}/>
                 </label>
                 <label className="field">
                     <span>Bcc</span>
-                    <input value={bcc} onChange={(e) => setBcc(e.target.value)}/>
+                    <input value={bcc} onChange={(e) => {
+                        markDirty()
+                        setBcc(e.target.value)
+                    }}/>
                 </label>
                 <label className="field">
                     <span>Subject</span>
-                    <input value={subject} onChange={(e) => setSubject(e.target.value)}/>
+                    <input value={subject} onChange={(e) => {
+                        markDirty()
+                        setSubject(e.target.value)
+                    }}/>
                 </label>
 
                 <div className="compose-toolbar">

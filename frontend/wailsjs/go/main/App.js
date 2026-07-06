@@ -22,6 +22,10 @@ export function CancelOutboxItem(arg1) {
   return window['go']['main']['App']['CancelOutboxItem'](arg1);
 }
 
+export function ClearDraftRecovery() {
+  return window['go']['main']['App']['ClearDraftRecovery']();
+}
+
 export function CopyMessage(arg1, arg2) {
   return window['go']['main']['App']['CopyMessage'](arg1, arg2);
 }
@@ -68,6 +72,10 @@ export function DeleteRule(arg1) {
 
 export function DeleteTag(arg1) {
   return window['go']['main']['App']['DeleteTag'](arg1);
+}
+
+export function DraftRecovery() {
+  return window['go']['main']['App']['DraftRecovery']();
 }
 
 export function ExportContactsToFile(arg1) {
@@ -224,6 +232,10 @@ export function SaveContactGroup(arg1) {
 
 export function SaveDraft(arg1) {
   return window['go']['main']['App']['SaveDraft'](arg1);
+}
+
+export function SaveDraftRecovery(arg1) {
+  return window['go']['main']['App']['SaveDraftRecovery'](arg1);
 }
 
 export function SaveEvent(arg1) {

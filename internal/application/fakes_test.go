@@ -602,6 +602,43 @@ func (f *fakeOutboxStore) MarkOutboxFailed(_ context.Context, id, reason string)
 	return nil
 }
 
+// fakeDraftRecoveryStore is a hand-written in-memory DraftRecoveryStore with error-injection fields. It
+// holds a single snapshot, present when saved reports true, mirroring the one-slot store contract.
+type fakeDraftRecoveryStore struct {
+	snapshot domain.DraftRecovery
+	present  bool
+	saveErr  error
+	getErr   error
+	clearErr error
+	cleared  bool
+}
+
+func (f *fakeDraftRecoveryStore) SaveDraftRecovery(_ context.Context, recovery domain.DraftRecovery) error {
+	if f.saveErr != nil {
+		return f.saveErr
+	}
+	f.snapshot = recovery
+	f.present = true
+	return nil
+}
+
+func (f *fakeDraftRecoveryStore) GetDraftRecovery(context.Context) (domain.DraftRecovery, bool, error) {
+	if f.getErr != nil {
+		return domain.DraftRecovery{}, false, f.getErr
+	}
+	return f.snapshot, f.present, nil
+}
+
+func (f *fakeDraftRecoveryStore) ClearDraftRecovery(context.Context) error {
+	if f.clearErr != nil {
+		return f.clearErr
+	}
+	f.cleared = true
+	f.present = false
+	f.snapshot = domain.DraftRecovery{}
+	return nil
+}
+
 // fakeRuleStore is a hand-written in-memory RuleStore with error-injection fields.
 type fakeRuleStore struct {
 	rules     []domain.Rule

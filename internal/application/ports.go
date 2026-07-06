@@ -116,6 +116,17 @@ type OutboxStore interface {
 	MarkOutboxFailed(ctx context.Context, id, reason string) error
 }
 
+// DraftRecoveryStore persists a single local snapshot of an in-progress compose window, so a message
+// still being written survives an accidental close or a crash. It never touches the server; it is the
+// local-recovery counterpart to the server-side draft that DraftSaver appends. Only the most recent
+// snapshot is kept: SaveDraftRecovery replaces any existing one, and GetDraftRecovery reports whether a
+// snapshot is present.
+type DraftRecoveryStore interface {
+	SaveDraftRecovery(ctx context.Context, recovery domain.DraftRecovery) error
+	GetDraftRecovery(ctx context.Context) (domain.DraftRecovery, bool, error)
+	ClearDraftRecovery(ctx context.Context) error
+}
+
 // RuleStore persists user-defined filter rules, applied to messages as they are synced.
 type RuleStore interface {
 	ListRules(ctx context.Context) ([]domain.Rule, error)

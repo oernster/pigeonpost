@@ -35,6 +35,7 @@ type composeDeps struct {
 	transport *fakeMailTransport
 	drafts    *fakeDraftSaver
 	outbox    *fakeOutboxStore
+	recovery  *fakeDraftRecoveryStore
 }
 
 func newComposeDeps() composeDeps {
@@ -44,11 +45,12 @@ func newComposeDeps() composeDeps {
 		transport: &fakeMailTransport{},
 		drafts:    &fakeDraftSaver{},
 		outbox:    &fakeOutboxStore{},
+		recovery:  &fakeDraftRecoveryStore{},
 	}
 }
 
 func (d composeDeps) service() *ComposeService {
-	return NewComposeService(d.accounts, d.store, d.transport, d.drafts, d.outbox,
+	return NewComposeService(d.accounts, d.store, d.transport, d.drafts, d.outbox, d.recovery,
 		fakeClock{now: time.Unix(0, 0).UTC()}, func() string { return "queued-id" })
 }
 
@@ -144,7 +146,7 @@ func TestComposeSendOfflineEnqueueErrors(t *testing.T) {
 	t.Run("bad item id", func(t *testing.T) {
 		d := newComposeDeps().withAccount(t)
 		d.transport.sendErr = domain.ErrOffline
-		svc := NewComposeService(d.accounts, d.store, d.transport, d.drafts, d.outbox,
+		svc := NewComposeService(d.accounts, d.store, d.transport, d.drafts, d.outbox, d.recovery,
 			fakeClock{now: time.Unix(0, 0).UTC()}, func() string { return "" })
 		if err := svc.Send(context.Background(), "a1", draftTo(t, "f@example.com")); !errors.Is(err, domain.ErrEmptyOutboxID) {
 			t.Errorf("error = %v, want ErrEmptyOutboxID", err)
@@ -400,6 +402,104 @@ func TestComposeReplayOutbox(t *testing.T) {
 		d.outbox.items = []domain.OutboxItem{outboxItem(t, "q1", "a1", domain.OutboxSend)}
 		d.outbox.deleteErr = errBoom
 		if _, err := d.service().ReplayOutbox(context.Background()); !errors.Is(err, errBoom) {
+			t.Errorf("error = %v, want wrapped boom", err)
+		}
+	})
+}
+
+func composeSnapshot() DraftSnapshot {
+	return DraftSnapshot{
+		AccountID: "a1",
+		To:        "friend@example.com, half@examp",
+		Cc:        "cc@example.com",
+		Subject:   "Half written",
+		BodyHTML:  "<p>still typing</p>",
+	}
+}
+
+func TestComposeSaveDraftRecovery(t *testing.T) {
+	t.Run("saves a stamped snapshot", func(t *testing.T) {
+		d := newComposeDeps()
+		if err := d.service().SaveDraftRecovery(context.Background(), composeSnapshot()); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !d.recovery.present {
+			t.Fatal("snapshot was not stored")
+		}
+		got := d.recovery.snapshot
+		if got.AccountID() != "a1" || got.To() != "friend@example.com, half@examp" ||
+			got.Subject() != "Half written" || got.BodyHTML() != "<p>still typing</p>" {
+			t.Errorf("stored snapshot mismatch: %+v", got)
+		}
+		if !got.SavedAt().Equal(time.Unix(0, 0).UTC()) {
+			t.Errorf("savedAt = %v, want the injected clock time", got.SavedAt())
+		}
+	})
+
+	t.Run("rejects a snapshot without an account", func(t *testing.T) {
+		d := newComposeDeps()
+		snap := composeSnapshot()
+		snap.AccountID = ""
+		if err := d.service().SaveDraftRecovery(context.Background(), snap); !errors.Is(err, domain.ErrEmptyAccountID) {
+			t.Errorf("error = %v, want ErrEmptyAccountID", err)
+		}
+	})
+
+	t.Run("wraps a store failure", func(t *testing.T) {
+		d := newComposeDeps()
+		d.recovery.saveErr = errBoom
+		if err := d.service().SaveDraftRecovery(context.Background(), composeSnapshot()); !errors.Is(err, errBoom) {
+			t.Errorf("error = %v, want wrapped boom", err)
+		}
+	})
+}
+
+func TestComposeDraftRecovery(t *testing.T) {
+	t.Run("returns the stored snapshot", func(t *testing.T) {
+		d := newComposeDeps()
+		if err := d.service().SaveDraftRecovery(context.Background(), composeSnapshot()); err != nil {
+			t.Fatalf("save: %v", err)
+		}
+		got, ok, err := d.service().DraftRecovery(context.Background())
+		if err != nil || !ok {
+			t.Fatalf("get: ok=%v err=%v", ok, err)
+		}
+		if got.Subject() != "Half written" {
+			t.Errorf("subject = %q", got.Subject())
+		}
+	})
+
+	t.Run("reports an empty slot", func(t *testing.T) {
+		d := newComposeDeps()
+		if _, ok, err := d.service().DraftRecovery(context.Background()); err != nil || ok {
+			t.Errorf("ok=%v err=%v, want ok=false err=nil", ok, err)
+		}
+	})
+
+	t.Run("wraps a store failure", func(t *testing.T) {
+		d := newComposeDeps()
+		d.recovery.getErr = errBoom
+		if _, _, err := d.service().DraftRecovery(context.Background()); !errors.Is(err, errBoom) {
+			t.Errorf("error = %v, want wrapped boom", err)
+		}
+	})
+}
+
+func TestComposeClearDraftRecovery(t *testing.T) {
+	t.Run("clears the slot", func(t *testing.T) {
+		d := newComposeDeps()
+		if err := d.service().ClearDraftRecovery(context.Background()); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !d.recovery.cleared {
+			t.Error("clear was not called on the store")
+		}
+	})
+
+	t.Run("wraps a store failure", func(t *testing.T) {
+		d := newComposeDeps()
+		d.recovery.clearErr = errBoom
+		if err := d.service().ClearDraftRecovery(context.Background()); !errors.Is(err, errBoom) {
 			t.Errorf("error = %v, want wrapped boom", err)
 		}
 	})

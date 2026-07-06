@@ -57,11 +57,14 @@ import {
     ListOutbox,
     OpenExternal,
     OpenReleasesPage,
+    ClearDraftRecovery,
+    DraftRecovery,
     OutboxCount,
     PickAttachments,
     RemoveAccount,
     ReplayOutbox,
     SaveDraft,
+    SaveDraftRecovery,
     SaveMessageAs,
     SaveTag,
     SearchMessages,
@@ -207,6 +210,30 @@ export interface ComposeInput {
     attachmentMessageIds: string[]
 }
 
+// DraftRecoveryInput is a local snapshot of the compose window, autosaved for crash and
+// accidental-close recovery. The recipient fields are the raw text as typed, not parsed lists.
+export interface DraftRecoveryInput {
+    accountId: string
+    to: string
+    cc: string
+    bcc: string
+    subject: string
+    bodyHtml: string
+}
+
+// DraftRecoveryResult is the stored compose snapshot. present is false when none is held, in which case
+// the other fields are empty and there is nothing to restore.
+export interface DraftRecoveryResult {
+    present: boolean
+    accountId: string
+    to: string
+    cc: string
+    bcc: string
+    subject: string
+    bodyHtml: string
+    savedMs: number
+}
+
 export interface AccountSetupInput {
     displayName: string
     email: string
@@ -263,6 +290,10 @@ export const api = {
     requestQuit: (): Promise<void> => RequestQuit(),
     send: (req: ComposeInput): Promise<void> => SendMessage(main.ComposeRequest.createFrom(req)),
     saveDraft: (req: ComposeInput): Promise<void> => SaveDraft(main.ComposeRequest.createFrom(req)),
+    saveDraftRecovery: (req: DraftRecoveryInput): Promise<void> =>
+        SaveDraftRecovery(main.DraftRecoveryRequest.createFrom(req)),
+    draftRecovery: (): Promise<DraftRecoveryResult> => DraftRecovery(),
+    clearDraftRecovery: (): Promise<void> => ClearDraftRecovery(),
     outboxCount: (): Promise<number> => OutboxCount(),
     listOutbox: (): Promise<OutboxItem[]> => ListOutbox(),
     cancelOutboxItem: (id: string): Promise<void> => CancelOutboxItem(id),

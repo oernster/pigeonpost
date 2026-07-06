@@ -12,6 +12,8 @@ export function Author():Promise<string>;
 
 export function CancelOutboxItem(arg1:string):Promise<void>;
 
+export function ClearDraftRecovery():Promise<void>;
+
 export function CopyMessage(arg1:string,arg2:string):Promise<void>;
 
 export function CreateFolder(arg1:string,arg2:string):Promise<void>;
@@ -35,6 +37,8 @@ export function DeleteMessagePermanent(arg1:string):Promise<void>;
 export function DeleteRule(arg1:string):Promise<void>;
 
 export function DeleteTag(arg1:string):Promise<void>;
+
+export function DraftRecovery():Promise<main.DraftRecoveryDTO>;
 
 export function ExportContactsToFile(arg1:string):Promise<boolean>;
 
@@ -113,6 +117,8 @@ export function SaveContact(arg1:main.ContactRequest):Promise<void>;
 export function SaveContactGroup(arg1:main.ContactGroupRequest):Promise<void>;
 
 export function SaveDraft(arg1:main.ComposeRequest):Promise<void>;
+
+export function SaveDraftRecovery(arg1:main.DraftRecoveryRequest):Promise<void>;
 
 export function SaveEvent(arg1:main.EventRequest):Promise<string>;
 

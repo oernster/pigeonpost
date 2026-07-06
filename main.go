@@ -79,7 +79,7 @@ func run() error {
 	setupService := application.NewAccountSetupService(store, vault, mailSource)
 	mailboxService := application.NewMailboxService(store)
 	syncService := application.NewSyncService(store, store, mailSource, store)
-	composeService := application.NewComposeService(store, store, transport, imapSource, store, clock, newOutboxID)
+	composeService := application.NewComposeService(store, store, transport, imapSource, store, store, clock, newOutboxID)
 	tagService := application.NewTagService(store)
 	bodyService := application.NewMessageBodyService(store, store, mailSource)
 	actionService := application.NewMessageActionService(store, store, mailSource)

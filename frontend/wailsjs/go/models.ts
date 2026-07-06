@@ -373,6 +373,54 @@ export namespace main {
 		}
 	}
 	
+	export class DraftRecoveryDTO {
+	    present: boolean;
+	    accountId: string;
+	    to: string;
+	    cc: string;
+	    bcc: string;
+	    subject: string;
+	    bodyHtml: string;
+	    savedMs: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new DraftRecoveryDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.present = source["present"];
+	        this.accountId = source["accountId"];
+	        this.to = source["to"];
+	        this.cc = source["cc"];
+	        this.bcc = source["bcc"];
+	        this.subject = source["subject"];
+	        this.bodyHtml = source["bodyHtml"];
+	        this.savedMs = source["savedMs"];
+	    }
+	}
+	export class DraftRecoveryRequest {
+	    accountId: string;
+	    to: string;
+	    cc: string;
+	    bcc: string;
+	    subject: string;
+	    bodyHtml: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new DraftRecoveryRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.accountId = source["accountId"];
+	        this.to = source["to"];
+	        this.cc = source["cc"];
+	        this.bcc = source["bcc"];
+	        this.subject = source["subject"];
+	        this.bodyHtml = source["bodyHtml"];
+	    }
+	}
 	export class OrganizerDTO {
 	    address: string;
 	    commonName: string;

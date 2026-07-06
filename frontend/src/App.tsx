@@ -1,7 +1,7 @@
 import {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from 'react'
 import './App.css'
 import brandIcon from './assets/pigeonpost.png'
-import {AboutInfo, Account, api, CalendarEvent, Contact, Folder, Message, MessageBody, OutboxItem, Rule, Tag, UnreadCountsResult} from './api'
+import {AboutInfo, Account, api, CalendarEvent, Contact, DraftRecoveryResult, Folder, Message, MessageBody, OutboxItem, Rule, Tag, UnreadCountsResult} from './api'
 import {OUTBOX_FOLDER_ID, isOutboxMessage, outboxItemToMessage} from './outbox'
 import {applyTheme, loadTheme, Theme} from './theme'
 import {TAG_PALETTE, colourTagId} from './tagColours'
@@ -180,6 +180,10 @@ function App() {
     const [closeChoice, setCloseChoice] = useState(false)
     const [composing, setComposing] = useState<boolean>(false)
     const [composeInitial, setComposeInitial] = useState<ComposeInitial | undefined>(undefined)
+    // recovery is a locally autosaved compose snapshot from a previous session, offered for restore once
+    // accounts have loaded; recoveryCheckedRef makes that offer happen once per launch.
+    const [recovery, setRecovery] = useState<DraftRecoveryResult | null>(null)
+    const recoveryCheckedRef = useRef<boolean>(false)
     const [settingUp, setSettingUp] = useState<boolean>(false)
     const [accountToEdit, setAccountToEdit] = useState<Account | null>(null)
     const [accountToDelete, setAccountToDelete] = useState<Account | null>(null)
@@ -276,6 +280,52 @@ function App() {
     useEffect(() => {
         void loadAccounts()
     }, [loadAccounts])
+
+    // Once accounts have loaded, check for a compose snapshot autosaved in a previous session and offer to
+    // restore it. This runs once per launch. A snapshot whose account has since been removed is stale, so
+    // it is cleared silently rather than offered against an account that no longer exists.
+    useEffect(() => {
+        if (recoveryCheckedRef.current || accounts.length === 0) return
+        recoveryCheckedRef.current = true
+        void (async () => {
+            try {
+                const snapshot = await api.draftRecovery()
+                if (!snapshot.present) return
+                if (accounts.some((account) => account.id === snapshot.accountId)) {
+                    setRecovery(snapshot)
+                } else {
+                    void api.clearDraftRecovery()
+                }
+            } catch {
+                // A recovery check failure is non-fatal; the composer still works without it.
+            }
+        })()
+    }, [accounts])
+
+    // restoreDraft reopens the composer pre-filled from the autosaved snapshot, switching to its account
+    // first so the message is sent from the identity it was written under. The composer's own autosave
+    // then keeps the snapshot current, so it is not cleared here.
+    const restoreDraft = () => {
+        if (!recovery) return
+        if (accounts.some((account) => account.id === recovery.accountId)) {
+            setSelectedAccount(recovery.accountId)
+        }
+        setComposeInitial({
+            to: recovery.to,
+            cc: recovery.cc,
+            bcc: recovery.bcc,
+            subject: recovery.subject,
+            bodyHtml: recovery.bodyHtml,
+        })
+        setComposing(true)
+        setRecovery(null)
+    }
+
+    // discardDraft drops the autosaved snapshot when the user chooses not to restore it.
+    const discardDraft = () => {
+        void api.clearDraftRecovery()
+        setRecovery(null)
+    }
 
     const loadRules = useCallback(async () => {
         try {
@@ -1703,6 +1753,22 @@ function App() {
                         void refreshOutbox()
                     }}
                 />
+            )}
+            {recovery && !composing && (
+                <div className="modal-backdrop" onClick={() => setRecovery(null)}>
+                    <div className="modal confirm" role="alertdialog" aria-label="Restore unsent message"
+                         onClick={(e) => e.stopPropagation()}>
+                        <h2 className="modal-title">Restore unsent message?</h2>
+                        <p className="confirm-message">
+                            An unsent message{recovery.subject.trim() ? ` "${recovery.subject.trim()}"` : ''} was
+                            left open when PigeonPost last closed. Restore it to keep writing, or discard it.
+                        </p>
+                        <div className="modal-actions spread">
+                            <button className="btn danger" onClick={discardDraft}>Discard</button>
+                            <button className="btn primary" onClick={restoreDraft} autoFocus>Restore</button>
+                        </div>
+                    </div>
+                </div>
             )}
             {settingUp && (
                 <AccountSetupModal onClose={() => setSettingUp(false)} onSaved={(email) => void onAccountSaved(email)}/>

@@ -3,7 +3,7 @@
 package storage
 
 // schemaVersion is the current on-disk schema version, tracked via SQLite's PRAGMA user_version.
-const schemaVersion = 24
+const schemaVersion = 25
 
 // schemaV1 is the initial schema. Statements are idempotent so re-running is safe.
 const schemaV1 = `
@@ -332,6 +332,23 @@ const schemaV24 = `
 ALTER TABLE account ADD COLUMN signature TEXT NOT NULL DEFAULT '';
 `
 
+// schemaV25 adds the local draft-recovery slot: a single-row snapshot of the compose window still being
+// written, kept so an accidental close or a crash does not lose it. It is local only and never synced;
+// the id is fixed so a save replaces the previous snapshot, and the recipient columns hold the raw text
+// as typed rather than validated addresses.
+const schemaV25 = `
+CREATE TABLE draft_recovery (
+    id         INTEGER PRIMARY KEY,
+    account_id TEXT NOT NULL,
+    to_addrs   TEXT NOT NULL,
+    cc_addrs   TEXT NOT NULL,
+    bcc_addrs  TEXT NOT NULL,
+    subject    TEXT NOT NULL,
+    body_html  TEXT NOT NULL,
+    saved_ms   INTEGER NOT NULL
+);
+`
+
 // migrations is the ordered list of schema steps. Index i upgrades the database from version i to
 // version i+1, so a fresh database applies them all and an existing one applies only what it lacks.
-var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15, schemaV16, schemaV17, schemaV18, schemaV19, schemaV20, schemaV21, schemaV22, schemaV23, schemaV24}
+var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15, schemaV16, schemaV17, schemaV18, schemaV19, schemaV20, schemaV21, schemaV22, schemaV23, schemaV24, schemaV25}
