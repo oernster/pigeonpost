@@ -130,6 +130,26 @@ export namespace main {
 	        this.address = source["address"];
 	    }
 	}
+	export class AttendeeDTO {
+	    address: string;
+	    commonName: string;
+	    role: string;
+	    status: string;
+	    rsvp: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new AttendeeDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.address = source["address"];
+	        this.commonName = source["commonName"];
+	        this.role = source["role"];
+	        this.status = source["status"];
+	        this.rsvp = source["rsvp"];
+	    }
+	}
 	export class CalendarDTO {
 	    id: string;
 	    name: string;
@@ -349,6 +369,20 @@ export namespace main {
 		}
 	}
 	
+	export class OrganizerDTO {
+	    address: string;
+	    commonName: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new OrganizerDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.address = source["address"];
+	        this.commonName = source["commonName"];
+	    }
+	}
 	export class EventDTO {
 	    id: string;
 	    uid: string;
@@ -365,11 +399,11 @@ export namespace main {
 	    extra: string;
 	    organizer: OrganizerDTO;
 	    attendees: AttendeeDTO[];
-
+	
 	    static createFrom(source: any = {}) {
 	        return new EventDTO(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
@@ -388,7 +422,7 @@ export namespace main {
 	        this.organizer = this.convertValues(source["organizer"], OrganizerDTO);
 	        this.attendees = this.convertValues(source["attendees"], AttendeeDTO);
 	    }
-
+	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
 		    if (!a) {
 		        return a;
@@ -459,11 +493,11 @@ export namespace main {
 	    extra: string;
 	    organizer: OrganizerDTO;
 	    attendees: AttendeeDTO[];
-
+	
 	    static createFrom(source: any = {}) {
 	        return new EventRequest(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
@@ -482,7 +516,7 @@ export namespace main {
 	        this.organizer = this.convertValues(source["organizer"], OrganizerDTO);
 	        this.attendees = this.convertValues(source["attendees"], AttendeeDTO);
 	    }
-
+	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
 		    if (!a) {
 		        return a;
@@ -525,56 +559,6 @@ export namespace main {
 	        this.total = source["total"];
 	    }
 	}
-	export class MessageBodyDTO {
-	    plain: string;
-	    html: string;
-	    hasInvite: boolean;
-
-	    static createFrom(source: any = {}) {
-	        return new MessageBodyDTO(source);
-	    }
-
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.plain = source["plain"];
-	        this.html = source["html"];
-	        this.hasInvite = source["hasInvite"];
-	    }
-	}
-	export class OrganizerDTO {
-	    address: string;
-	    commonName: string;
-
-	    static createFrom(source: any = {}) {
-	        return new OrganizerDTO(source);
-	    }
-
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.address = source["address"];
-	        this.commonName = source["commonName"];
-	    }
-	}
-	export class AttendeeDTO {
-	    address: string;
-	    commonName: string;
-	    role: string;
-	    status: string;
-	    rsvp: boolean;
-
-	    static createFrom(source: any = {}) {
-	        return new AttendeeDTO(source);
-	    }
-
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.address = source["address"];
-	        this.commonName = source["commonName"];
-	        this.role = source["role"];
-	        this.status = source["status"];
-	        this.rsvp = source["rsvp"];
-	    }
-	}
 	export class InvitationDTO {
 	    method: string;
 	    event: EventDTO;
@@ -582,11 +566,11 @@ export namespace main {
 	    myStatus: string;
 	    organizer: OrganizerDTO;
 	    attendees: AttendeeDTO[];
-
+	
 	    static createFrom(source: any = {}) {
 	        return new InvitationDTO(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.method = source["method"];
@@ -596,7 +580,7 @@ export namespace main {
 	        this.organizer = this.convertValues(source["organizer"], OrganizerDTO);
 	        this.attendees = this.convertValues(source["attendees"], AttendeeDTO);
 	    }
-
+	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
 		    if (!a) {
 		        return a;
@@ -614,6 +598,22 @@ export namespace main {
 		    }
 		    return a;
 		}
+	}
+	export class MessageBodyDTO {
+	    plain: string;
+	    html: string;
+	    hasInvite: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new MessageBodyDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.plain = source["plain"];
+	        this.html = source["html"];
+	        this.hasInvite = source["hasInvite"];
+	    }
 	}
 	export class MessageDTO {
 	    id: string;
@@ -669,6 +669,7 @@ export namespace main {
 		    return a;
 		}
 	}
+	
 	export class OutboxItemDTO {
 	    id: string;
 	    accountId: string;

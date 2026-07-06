@@ -284,7 +284,9 @@ export const api = {
     listEventInstances: (from: string, to: string): Promise<CalendarEventInstance[]> =>
         ListEventInstances(from, to),
     getEvent: (id: string): Promise<CalendarEvent> => GetEvent(id),
-    saveEvent: (req: CalendarEventInput): Promise<void> => SaveEvent(main.EventRequest.createFrom(req)),
+    // saveEvent returns the saved event's id (freshly generated for a new event), so a newly created
+    // meeting can send its invitations without a reload.
+    saveEvent: (req: CalendarEventInput): Promise<string> => SaveEvent(main.EventRequest.createFrom(req)),
     saveEventScoped: (req: CalendarEventInput, scope: EventScope, occurrence: string): Promise<void> =>
         SaveEventScoped(main.EventRequest.createFrom(req), scope, occurrence),
     deleteEvent: (id: string): Promise<void> => DeleteEvent(id),

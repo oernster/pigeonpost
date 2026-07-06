@@ -283,23 +283,31 @@ func TestCalendarServiceSaveEvent(t *testing.T) {
 	svc := NewCalendarService(store, fixedID("generated"), &fakeRecurrence{})
 	start := time.Date(2026, 7, 4, 9, 0, 0, 0, time.UTC)
 
-	if err := svc.SaveEvent(context.Background(), EventInput{Summary: "Standup", Start: start}); err != nil {
+	id, err := svc.SaveEvent(context.Background(), EventInput{Summary: "Standup", Start: start})
+	if err != nil {
 		t.Fatalf("SaveEvent: %v", err)
+	}
+	if id != "generated" {
+		t.Errorf("returned id = %q, want generated", id)
 	}
 	if store.savedEvt[0].ID() != "generated" {
-		t.Errorf("id = %q, want generated", store.savedEvt[0].ID())
+		t.Errorf("stored id = %q, want generated", store.savedEvt[0].ID())
 	}
-	if err := svc.SaveEvent(context.Background(), EventInput{ID: " e2 ", Summary: "Review", Start: start}); err != nil {
+	id, err = svc.SaveEvent(context.Background(), EventInput{ID: " e2 ", Summary: "Review", Start: start})
+	if err != nil {
 		t.Fatalf("SaveEvent: %v", err)
 	}
-	if store.savedEvt[1].ID() != "e2" {
-		t.Errorf("id = %q, want e2", store.savedEvt[1].ID())
+	if id != "e2" {
+		t.Errorf("returned id = %q, want e2", id)
 	}
-	if err := svc.SaveEvent(context.Background(), EventInput{Summary: "  ", Start: start}); !errors.Is(err, domain.ErrEmptyEventSummary) {
+	if store.savedEvt[1].ID() != "e2" {
+		t.Errorf("stored id = %q, want e2", store.savedEvt[1].ID())
+	}
+	if _, err := svc.SaveEvent(context.Background(), EventInput{Summary: "  ", Start: start}); !errors.Is(err, domain.ErrEmptyEventSummary) {
 		t.Errorf("err = %v, want ErrEmptyEventSummary", err)
 	}
 	store.saveEvtErr = errBoom
-	if err := svc.SaveEvent(context.Background(), EventInput{Summary: "Standup", Start: start}); !errors.Is(err, errBoom) {
+	if _, err := svc.SaveEvent(context.Background(), EventInput{Summary: "Standup", Start: start}); !errors.Is(err, errBoom) {
 		t.Errorf("err = %v, want wrapped errBoom", err)
 	}
 }
@@ -309,7 +317,7 @@ func TestCalendarServiceSaveEventWithScheduling(t *testing.T) {
 	svc := NewCalendarService(store, fixedID("m1"), &fakeRecurrence{})
 	start := time.Date(2026, 7, 6, 9, 0, 0, 0, time.UTC)
 
-	err := svc.SaveEvent(context.Background(), EventInput{
+	_, err := svc.SaveEvent(context.Background(), EventInput{
 		Summary: "Sync", Start: start,
 		OrganizerAddress: "chair@example.com", OrganizerName: "The Chair",
 		Attendees: []AttendeeInput{
@@ -333,12 +341,12 @@ func TestCalendarServiceSaveEventSchedulingValidation(t *testing.T) {
 	start := time.Date(2026, 7, 6, 9, 0, 0, 0, time.UTC)
 
 	badOrganizer := EventInput{Summary: "Sync", Start: start, OrganizerAddress: "not-an-address"}
-	if err := svc.SaveEvent(context.Background(), badOrganizer); err == nil {
+	if _, err := svc.SaveEvent(context.Background(), badOrganizer); err == nil {
 		t.Errorf("a malformed organizer address should be rejected")
 	}
 	badAttendee := EventInput{Summary: "Sync", Start: start,
 		Attendees: []AttendeeInput{{Address: "not-an-address"}}}
-	if err := svc.SaveEvent(context.Background(), badAttendee); err == nil {
+	if _, err := svc.SaveEvent(context.Background(), badAttendee); err == nil {
 		t.Errorf("a malformed attendee address should be rejected")
 	}
 }

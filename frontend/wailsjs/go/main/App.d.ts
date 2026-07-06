@@ -6,6 +6,8 @@ export function About():Promise<main.AboutDTO>;
 
 export function AddAccount(arg1:main.AccountSetupRequest):Promise<void>;
 
+export function ApplyMeetingReply(arg1:string):Promise<void>;
+
 export function Author():Promise<string>;
 
 export function CancelOutboxItem(arg1:string):Promise<void>;
@@ -42,19 +44,9 @@ export function GetContact(arg1:string):Promise<main.ContactDTO>;
 
 export function GetEvent(arg1:string):Promise<main.EventDTO>;
 
-export function GetMessageBody(arg1:string):Promise<main.MessageBodyDTO>;
-
 export function GetInvitation(arg1:string):Promise<main.InvitationDTO>;
 
-export function RespondToInvitation(arg1:string,arg2:string):Promise<void>;
-
-export function RemoveCancelledMeeting(arg1:string):Promise<void>;
-
-export function ApplyMeetingReply(arg1:string):Promise<void>;
-
-export function SendMeetingRequest(arg1:string,arg2:string):Promise<void>;
-
-export function SendMeetingCancel(arg1:string,arg2:string):Promise<void>;
+export function GetMessageBody(arg1:string):Promise<main.MessageBodyDTO>;
 
 export function ImportContactsFromFile():Promise<number>;
 
@@ -104,11 +96,15 @@ export function PickAttachments():Promise<Array<string>>;
 
 export function RemoveAccount(arg1:string):Promise<void>;
 
+export function RemoveCancelledMeeting(arg1:string):Promise<void>;
+
 export function RenameFolder(arg1:string,arg2:string):Promise<void>;
 
 export function ReplayOutbox():Promise<number>;
 
 export function RequestQuit():Promise<void>;
+
+export function RespondToInvitation(arg1:string,arg2:string):Promise<void>;
 
 export function SaveCalendar(arg1:main.CalendarRequest):Promise<void>;
 
@@ -118,7 +114,7 @@ export function SaveContactGroup(arg1:main.ContactGroupRequest):Promise<void>;
 
 export function SaveDraft(arg1:main.ComposeRequest):Promise<void>;
 
-export function SaveEvent(arg1:main.EventRequest):Promise<void>;
+export function SaveEvent(arg1:main.EventRequest):Promise<string>;
 
 export function SaveEventScoped(arg1:main.EventRequest,arg2:number,arg3:string):Promise<void>;
 
@@ -129,6 +125,10 @@ export function SaveRule(arg1:main.RuleRequest):Promise<void>;
 export function SaveTag(arg1:main.TagRequest):Promise<void>;
 
 export function SearchMessages(arg1:string):Promise<Array<main.MessageDTO>>;
+
+export function SendMeetingCancel(arg1:string,arg2:string):Promise<void>;
+
+export function SendMeetingRequest(arg1:string,arg2:string):Promise<void>;
 
 export function SendMessage(arg1:main.ComposeRequest):Promise<void>;
 

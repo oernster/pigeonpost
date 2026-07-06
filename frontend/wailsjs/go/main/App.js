@@ -10,6 +10,10 @@ export function AddAccount(arg1) {
   return window['go']['main']['App']['AddAccount'](arg1);
 }
 
+export function ApplyMeetingReply(arg1) {
+  return window['go']['main']['App']['ApplyMeetingReply'](arg1);
+}
+
 export function Author() {
   return window['go']['main']['App']['Author']();
 }
@@ -82,32 +86,12 @@ export function GetEvent(arg1) {
   return window['go']['main']['App']['GetEvent'](arg1);
 }
 
-export function GetMessageBody(arg1) {
-  return window['go']['main']['App']['GetMessageBody'](arg1);
-}
-
 export function GetInvitation(arg1) {
   return window['go']['main']['App']['GetInvitation'](arg1);
 }
 
-export function RespondToInvitation(arg1, arg2) {
-  return window['go']['main']['App']['RespondToInvitation'](arg1, arg2);
-}
-
-export function RemoveCancelledMeeting(arg1) {
-  return window['go']['main']['App']['RemoveCancelledMeeting'](arg1);
-}
-
-export function ApplyMeetingReply(arg1) {
-  return window['go']['main']['App']['ApplyMeetingReply'](arg1);
-}
-
-export function SendMeetingRequest(arg1, arg2) {
-  return window['go']['main']['App']['SendMeetingRequest'](arg1, arg2);
-}
-
-export function SendMeetingCancel(arg1, arg2) {
-  return window['go']['main']['App']['SendMeetingCancel'](arg1, arg2);
+export function GetMessageBody(arg1) {
+  return window['go']['main']['App']['GetMessageBody'](arg1);
 }
 
 export function ImportContactsFromFile() {
@@ -206,6 +190,10 @@ export function RemoveAccount(arg1) {
   return window['go']['main']['App']['RemoveAccount'](arg1);
 }
 
+export function RemoveCancelledMeeting(arg1) {
+  return window['go']['main']['App']['RemoveCancelledMeeting'](arg1);
+}
+
 export function RenameFolder(arg1, arg2) {
   return window['go']['main']['App']['RenameFolder'](arg1, arg2);
 }
@@ -216,6 +204,10 @@ export function ReplayOutbox() {
 
 export function RequestQuit() {
   return window['go']['main']['App']['RequestQuit']();
+}
+
+export function RespondToInvitation(arg1, arg2) {
+  return window['go']['main']['App']['RespondToInvitation'](arg1, arg2);
 }
 
 export function SaveCalendar(arg1) {
@@ -256,6 +248,14 @@ export function SaveTag(arg1) {
 
 export function SearchMessages(arg1) {
   return window['go']['main']['App']['SearchMessages'](arg1);
+}
+
+export function SendMeetingCancel(arg1, arg2) {
+  return window['go']['main']['App']['SendMeetingCancel'](arg1, arg2);
+}
+
+export function SendMeetingRequest(arg1, arg2) {
+  return window['go']['main']['App']['SendMeetingRequest'](arg1, arg2);
 }
 
 export function SendMessage(arg1) {

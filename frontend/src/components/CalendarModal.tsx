@@ -409,9 +409,20 @@ export function CalendarModal({events, accountId, accountEmail, accountName, onC
                     address: a.address, commonName: a.commonName, role: a.role, status: a.status, rsvp: a.rsvp,
                 })),
             }
-            if (form.scope !== null) await api.saveEventScoped(req, form.scope, form.occurrence)
-            else await api.saveEvent(req)
-            setForm(null)
+            if (form.scope !== null) {
+                await api.saveEventScoped(req, form.scope, form.occurrence)
+                setForm(null)
+            } else {
+                const savedId = await api.saveEvent(req)
+                if (hasAttendees) {
+                    // Keep the saved meeting open with its now-known id (freshly generated for a new event),
+                    // so the organizer can send its invitations straight away rather than reopening it.
+                    setForm({...form, id: savedId, organizerAddress, organizerName})
+                    setStatus('Meeting saved. Use Send invitations to notify the attendees.')
+                } else {
+                    setForm(null)
+                }
+            }
             bumpReload()
             onChanged()
         } catch (e) {

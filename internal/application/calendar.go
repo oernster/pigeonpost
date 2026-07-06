@@ -118,19 +118,21 @@ func (s *CalendarService) GetEvent(ctx context.Context, id string) (domain.Event
 	return event, nil
 }
 
-// SaveEvent validates and persists an event, generating an id when one is not supplied.
-func (s *CalendarService) SaveEvent(ctx context.Context, in EventInput) error {
+// SaveEvent creates or updates an event and returns its id: the given id, or a freshly generated one for
+// a new event. The caller needs the id to act on a just-created event, such as sending a meeting's
+// invitations.
+func (s *CalendarService) SaveEvent(ctx context.Context, in EventInput) (string, error) {
 	id := strings.TrimSpace(in.ID)
 	if id == "" {
 		id = s.newID()
 	}
 	organizer, err := buildOrganizer(in.OrganizerAddress, in.OrganizerName)
 	if err != nil {
-		return fmt.Errorf("calendar: build organizer: %w", err)
+		return "", fmt.Errorf("calendar: build organizer: %w", err)
 	}
 	attendees, err := buildAttendees(in.Attendees)
 	if err != nil {
-		return fmt.Errorf("calendar: build attendees: %w", err)
+		return "", fmt.Errorf("calendar: build attendees: %w", err)
 	}
 	event, err := domain.NewEvent(domain.EventInput{
 		ID:          id,
@@ -150,12 +152,12 @@ func (s *CalendarService) SaveEvent(ctx context.Context, in EventInput) error {
 		Attendees:   attendees,
 	})
 	if err != nil {
-		return fmt.Errorf("calendar: build event: %w", err)
+		return "", fmt.Errorf("calendar: build event: %w", err)
 	}
 	if err := s.store.SaveEvent(ctx, event); err != nil {
-		return fmt.Errorf("calendar: save event: %w", err)
+		return "", fmt.Errorf("calendar: save event: %w", err)
 	}
-	return nil
+	return id, nil
 }
 
 // buildOrganizer builds a meeting organizer from an address and optional name, or the zero organizer

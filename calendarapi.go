@@ -126,15 +126,16 @@ func (a *App) GetEvent(id string) (EventDTO, error) {
 	return toEventDTO(e), nil
 }
 
-// SaveEvent creates or updates an event.
-func (a *App) SaveEvent(req EventRequest) error {
+// SaveEvent creates or updates an event and returns its id, so a newly created meeting can be acted on
+// (for example to send its invitations) without a reload.
+func (a *App) SaveEvent(req EventRequest) (string, error) {
 	start, err := parseEventTime(req.Start)
 	if err != nil {
-		return err
+		return "", err
 	}
 	end, err := parseOptionalEventTime(req.End)
 	if err != nil {
-		return err
+		return "", err
 	}
 	return a.calendar.SaveEvent(a.ctx, application.EventInput{
 		ID:          req.ID,
