@@ -13,6 +13,7 @@ type OutgoingMessage struct {
 	body        string
 	htmlBody    string
 	attachments []Attachment
+	calendar    CalendarPart
 }
 
 // OutgoingMessageInput carries the fields needed to build an OutgoingMessage. Body is the plain-text
@@ -26,6 +27,9 @@ type OutgoingMessageInput struct {
 	Body        string
 	HTMLBody    string
 	Attachments []Attachment
+	// Calendar is an optional iMIP scheduling object (a meeting REQUEST, REPLY or CANCEL) to carry as a
+	// text/calendar part. The zero value carries none.
+	Calendar CalendarPart
 }
 
 // NewOutgoingMessage validates and constructs a message. It requires a sender and at least one
@@ -58,6 +62,7 @@ func NewOutgoingMessage(in OutgoingMessageInput) (OutgoingMessage, error) {
 		body:        in.Body,
 		htmlBody:    in.HTMLBody,
 		attachments: append([]Attachment(nil), in.Attachments...),
+		calendar:    in.Calendar,
 	}, nil
 }
 
@@ -90,6 +95,7 @@ func NewDraftMessage(in OutgoingMessageInput) (OutgoingMessage, error) {
 		body:        in.Body,
 		htmlBody:    in.HTMLBody,
 		attachments: append([]Attachment(nil), in.Attachments...),
+		calendar:    in.Calendar,
 	}, nil
 }
 
@@ -121,6 +127,9 @@ func (m OutgoingMessage) Bcc() []EmailAddress { return append([]EmailAddress(nil
 func (m OutgoingMessage) Attachments() []Attachment {
 	return append([]Attachment(nil), m.attachments...)
 }
+
+// Calendar returns the message's iMIP scheduling part, or the zero CalendarPart when it carries none.
+func (m OutgoingMessage) Calendar() CalendarPart { return m.calendar }
 
 // Subject returns the subject line.
 func (m OutgoingMessage) Subject() string { return m.subject }

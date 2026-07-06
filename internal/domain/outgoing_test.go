@@ -23,6 +23,40 @@ func mustAttachment(t *testing.T, filename, contentType string, content []byte) 
 	return a
 }
 
+func TestNewOutgoingMessageCarriesCalendarPart(t *testing.T) {
+	part, err := NewCalendarPart(MethodReply, []byte("BEGIN:VCALENDAR\r\nMETHOD:REPLY\r\nEND:VCALENDAR\r\n"))
+	if err != nil {
+		t.Fatalf("NewCalendarPart: %v", err)
+	}
+	msg, err := NewOutgoingMessage(OutgoingMessageInput{
+		From:     mustAddr(t, "me@example.com"),
+		To:       []EmailAddress{mustAddr(t, "chair@example.com")},
+		Subject:  "Re: Sync",
+		Body:     "Accepted.",
+		Calendar: part,
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if msg.Calendar().IsZero() || msg.Calendar().Method() != MethodReply {
+		t.Errorf("calendar part not carried: %+v", msg.Calendar())
+	}
+}
+
+func TestNewOutgoingMessageHasNoCalendarPartByDefault(t *testing.T) {
+	msg, err := NewOutgoingMessage(OutgoingMessageInput{
+		From: mustAddr(t, "me@example.com"),
+		To:   []EmailAddress{mustAddr(t, "a@example.com")},
+		Body: "hi",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !msg.Calendar().IsZero() {
+		t.Errorf("a message with no calendar input should carry the zero part")
+	}
+}
+
 func TestNewOutgoingMessage(t *testing.T) {
 	msg, err := NewOutgoingMessage(OutgoingMessageInput{
 		From:     mustAddr(t, "me@example.com"),

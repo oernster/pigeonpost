@@ -32,8 +32,10 @@ func BuildMIME(msg domain.OutgoingMessage, date time.Time, messageID string) []b
 	b.WriteString("Message-ID: <" + messageID + ">\r\n")
 	b.WriteString("MIME-Version: 1.0\r\n")
 
-	if attachments := msg.Attachments(); len(attachments) > 0 {
-		writeMixedBody(&b, msg, messageID, attachments)
+	attachments := msg.Attachments()
+	calendar := msg.Calendar()
+	if len(attachments) > 0 || !calendar.IsZero() {
+		writeMixedBody(&b, msg, messageID, attachments, calendar)
 	} else {
 		writeContent(&b, msg, messageID)
 	}
@@ -53,19 +55,35 @@ func writeContent(b *strings.Builder, msg domain.OutgoingMessage, messageID stri
 	}
 }
 
-// writeMixedBody wraps the message content and its attachments in a multipart/mixed body: the content
-// (text or multipart/alternative) is the first part, followed by one part per attachment.
-func writeMixedBody(b *strings.Builder, msg domain.OutgoingMessage, messageID string, attachments []domain.Attachment) {
+// writeMixedBody wraps the message content, an optional scheduling part and any attachments in a
+// multipart/mixed body: the content (text or multipart/alternative) is the first part, followed by the
+// text/calendar part (when present) and then one part per attachment.
+func writeMixedBody(b *strings.Builder, msg domain.OutgoingMessage, messageID string, attachments []domain.Attachment, calendar domain.CalendarPart) {
 	boundary := "=_pigeonpost_mixed_" + messageID
 	b.WriteString("Content-Type: multipart/mixed; boundary=\"" + boundary + "\"\r\n")
 	b.WriteString("\r\n")
 	b.WriteString("--" + boundary + "\r\n")
 	writeContent(b, msg, messageID)
 	b.WriteString("\r\n")
+	if !calendar.IsZero() {
+		writeCalendarPart(b, boundary, calendar)
+	}
 	for _, attachment := range attachments {
 		writeAttachmentPart(b, boundary, attachment)
 	}
 	b.WriteString("--" + boundary + "--\r\n")
+}
+
+// writeCalendarPart writes the iMIP scheduling object as a text/calendar part carrying its iTIP method,
+// so a receiving client recognises the message as a meeting request, reply or cancellation. The payload
+// is already folded iCalendar text, so it is sent 8bit with its line endings normalised to CRLF.
+func writeCalendarPart(b *strings.Builder, boundary string, calendar domain.CalendarPart) {
+	b.WriteString("--" + boundary + "\r\n")
+	b.WriteString("Content-Type: text/calendar; method=" + string(calendar.Method()) + "; charset=utf-8\r\n")
+	b.WriteString("Content-Transfer-Encoding: 8bit\r\n")
+	b.WriteString("\r\n")
+	b.WriteString(normaliseBody(string(calendar.Content())))
+	b.WriteString("\r\n")
 }
 
 // writeAttachmentPart writes one base64-encoded attachment as a multipart/mixed part.

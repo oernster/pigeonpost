@@ -56,3 +56,33 @@ func (m SchedulingMessage) Events() []Event { return append([]Event(nil), m.even
 // PrimaryEvent returns the first event, the series master for a recurring invite and the sole event
 // otherwise. A message always has at least one event, so this is always valid.
 func (m SchedulingMessage) PrimaryEvent() Event { return m.events[0] }
+
+// CalendarPart is an iMIP scheduling object (RFC 6047) to carry on an outgoing message: an iTIP method
+// and the raw text/calendar payload it applies to. The zero value carries no scheduling object. It is
+// immutable once constructed.
+type CalendarPart struct {
+	method  Method
+	content []byte
+}
+
+// NewCalendarPart builds a calendar part, rejecting an unknown method and empty content. The bytes are
+// copied so the part does not share backing storage with the caller.
+func NewCalendarPart(method Method, content []byte) (CalendarPart, error) {
+	if _, err := ParseMethod(string(method)); err != nil {
+		return CalendarPart{}, err
+	}
+	if len(content) == 0 {
+		return CalendarPart{}, ErrEmptyCalendarPart
+	}
+	return CalendarPart{method: method, content: append([]byte(nil), content...)}, nil
+}
+
+// Method returns the iTIP method the part carries.
+func (c CalendarPart) Method() Method { return c.method }
+
+// Content returns a copy of the raw text/calendar payload so callers cannot mutate the part.
+func (c CalendarPart) Content() []byte { return append([]byte(nil), c.content...) }
+
+// IsZero reports whether this is the empty part, the value an outgoing message carries when it has no
+// scheduling object.
+func (c CalendarPart) IsZero() bool { return len(c.content) == 0 }

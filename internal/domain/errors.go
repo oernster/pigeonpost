@@ -51,6 +51,7 @@ var (
 	ErrInvalidRole                = errors.New("attendee role is not valid")
 	ErrInvalidMethod              = errors.New("scheduling method is not valid")
 	ErrNoSchedulingEvents         = errors.New("scheduling message has no events")
+	ErrEmptyCalendarPart          = errors.New("calendar part content is empty")
 )
 
 // ErrOffline marks a failure caused by the mail server being unreachable (a connection could not be

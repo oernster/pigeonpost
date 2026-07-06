@@ -75,3 +75,43 @@ func TestNewSchedulingMessageValidation(t *testing.T) {
 		t.Errorf("no-events err = %v, want ErrNoSchedulingEvents", err)
 	}
 }
+
+func TestNewCalendarPart(t *testing.T) {
+	content := []byte("BEGIN:VCALENDAR\r\nMETHOD:REPLY\r\nEND:VCALENDAR\r\n")
+	part, err := NewCalendarPart(MethodReply, content)
+	if err != nil {
+		t.Fatalf("NewCalendarPart: %v", err)
+	}
+	if part.Method() != MethodReply {
+		t.Errorf("Method() = %q, want REPLY", part.Method())
+	}
+	if string(part.Content()) != string(content) {
+		t.Errorf("Content() = %q, want the payload", part.Content())
+	}
+	if part.IsZero() {
+		t.Errorf("a part with content reported zero")
+	}
+	// The part must not share backing storage with the caller's slice.
+	content[0] = 'X'
+	if part.Content()[0] == 'X' {
+		t.Errorf("NewCalendarPart shares backing storage with the caller")
+	}
+	// A returned slice must not alias the part's storage.
+	got := part.Content()
+	got[0] = 'Y'
+	if part.Content()[0] == 'Y' {
+		t.Errorf("Content() returns a slice aliasing the part storage")
+	}
+}
+
+func TestNewCalendarPartValidation(t *testing.T) {
+	if _, err := NewCalendarPart("ADD", []byte("x")); !errors.Is(err, ErrInvalidMethod) {
+		t.Errorf("bad method err = %v, want ErrInvalidMethod", err)
+	}
+	if _, err := NewCalendarPart(MethodReply, nil); !errors.Is(err, ErrEmptyCalendarPart) {
+		t.Errorf("empty-content err = %v, want ErrEmptyCalendarPart", err)
+	}
+	if !(CalendarPart{}).IsZero() {
+		t.Errorf("the zero CalendarPart should report IsZero")
+	}
+}
