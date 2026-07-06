@@ -67,6 +67,7 @@ export namespace main {
 	    outHost: string;
 	    outPort: number;
 	    outSecurity: string;
+	    signature: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new AccountDTO(source);
@@ -84,6 +85,7 @@ export namespace main {
 	        this.outHost = source["outHost"];
 	        this.outPort = source["outPort"];
 	        this.outSecurity = source["outSecurity"];
+	        this.signature = source["signature"];
 	    }
 	}
 	export class AccountSetupRequest {
@@ -97,6 +99,7 @@ export namespace main {
 	    outHost: string;
 	    outPort: number;
 	    outSecurity: string;
+	    signature: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new AccountSetupRequest(source);
@@ -114,6 +117,7 @@ export namespace main {
 	        this.outHost = source["outHost"];
 	        this.outPort = source["outPort"];
 	        this.outSecurity = source["outSecurity"];
+	        this.signature = source["signature"];
 	    }
 	}
 	export class AddressDTO {

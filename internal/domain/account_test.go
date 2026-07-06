@@ -111,6 +111,26 @@ func TestNewAccount(t *testing.T) {
 	if a.Auth() != AuthPassword {
 		t.Errorf("Auth = %v", a.Auth())
 	}
+	if a.Signature() != "" {
+		t.Errorf("default Signature = %q, want empty", a.Signature())
+	}
+}
+
+func TestAccountWithSignature(t *testing.T) {
+	addr, _ := NewEmailAddress("Me", "me@example.com")
+	in := validServerConfig(t)
+	out := validServerConfig(t)
+	a, err := NewAccount("acc-1", "Personal", addr, ProtocolIMAP, in, out, AuthPassword)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	signed := a.WithSignature("<p>Best, Me</p>")
+	if signed.Signature() != "<p>Best, Me</p>" {
+		t.Errorf("Signature = %q", signed.Signature())
+	}
+	if a.Signature() != "" {
+		t.Errorf("original account mutated: Signature = %q", a.Signature())
+	}
 }
 
 func TestNewAccountInvalid(t *testing.T) {

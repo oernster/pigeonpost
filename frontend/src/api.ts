@@ -218,6 +218,7 @@ export interface AccountSetupInput {
     outHost: string
     outPort: number
     outSecurity: string
+    signature: string
 }
 
 export const api = {

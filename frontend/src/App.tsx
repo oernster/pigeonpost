@@ -998,6 +998,10 @@ function App() {
         return `<p>${escapeHtml(messageBody?.plain || message.snippet || '')}</p>`
     }
 
+    // signatureHtml is the selected account's signature as HTML, inserted into a new message and above the
+    // quoted text on a reply or forward. Empty when the account has no signature, so nothing is added.
+    const signatureHtml = (): string => accounts.find((a) => a.id === selectedAccount)?.signature ?? ''
+
     const openReply = (message: Message) => {
         const when = message.date ? new Date(message.date).toLocaleString() : ''
         const who = message.fromName || message.fromAddress || 'the sender'
@@ -1005,7 +1009,7 @@ function App() {
         setComposeInitial({
             to: message.fromAddress,
             subject: subjectWithPrefix('Re:', message.subject),
-            bodyHtml: `<p></p><p>${escapeHtml(header)}</p><blockquote>${quoteFor(message)}</blockquote>`,
+            bodyHtml: `<p></p>${signatureHtml()}<p>${escapeHtml(header)}</p><blockquote>${quoteFor(message)}</blockquote>`,
         })
         setComposing(true)
     }
@@ -1033,7 +1037,7 @@ function App() {
             to: toList.join(', '),
             cc: ccList.join(', '),
             subject: subjectWithPrefix('Re:', message.subject),
-            bodyHtml: `<p></p><p>${escapeHtml(header)}</p><blockquote>${quoteFor(message)}</blockquote>`,
+            bodyHtml: `<p></p>${signatureHtml()}<p>${escapeHtml(header)}</p><blockquote>${quoteFor(message)}</blockquote>`,
         })
         setComposing(true)
     }
@@ -1044,7 +1048,7 @@ function App() {
             to: '',
             subject: subjectWithPrefix('Fwd:', message.subject),
             bodyHtml:
-                '<p></p><p>---------- Forwarded message ----------</p>' +
+                `<p></p>${signatureHtml()}<p>---------- Forwarded message ----------</p>` +
                 `<p>From: ${escapeHtml(who)}<br>Subject: ${escapeHtml(message.subject || '(no subject)')}</p>` +
                 `<blockquote>${quoteFor(message)}</blockquote>`,
         })
@@ -1056,6 +1060,7 @@ function App() {
     const attachToNewMessage = (message: Message) => {
         setComposeInitial({
             messageAttachments: [{id: message.id, name: emlFilename(message.subject || '')}],
+            bodyHtml: signatureHtml() ? `<p></p>${signatureHtml()}` : undefined,
         })
         setComposing(true)
     }
@@ -1577,7 +1582,8 @@ function App() {
                         aria-label="Compose"
                         disabled={!selectedAccount}
                         onClick={() => {
-                            setComposeInitial(undefined)
+                            const sig = signatureHtml()
+                            setComposeInitial(sig ? {bodyHtml: `<p></p>${sig}`} : undefined)
                             setComposing(true)
                         }}
                     >

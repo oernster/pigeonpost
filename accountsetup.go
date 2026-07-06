@@ -24,6 +24,8 @@ type AccountSetupRequest struct {
 	OutHost     string `json:"outHost"`
 	OutPort     int    `json:"outPort"`
 	OutSecurity string `json:"outSecurity"`
+	// Signature is the account's compose signature as HTML, inserted into a new message. It may be empty.
+	Signature string `json:"signature"`
 }
 
 // AddAccount validates the wizard payload, builds a domain account and configures it: the incoming
@@ -101,7 +103,7 @@ func buildAccount(req AccountSetupRequest) (domain.Account, error) {
 	if err != nil {
 		return domain.Account{}, fmt.Errorf("build account: %w", err)
 	}
-	return account, nil
+	return account.WithSignature(req.Signature), nil
 }
 
 // parseSecurity maps a wire security identifier to the domain Security enum.

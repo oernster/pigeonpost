@@ -19,6 +19,7 @@ type AccountDTO struct {
 	OutHost     string `json:"outHost"`
 	OutPort     int    `json:"outPort"`
 	OutSecurity string `json:"outSecurity"`
+	Signature   string `json:"signature"`
 }
 
 // FolderDTO is the JSON-serialisable view of a folder.
@@ -105,6 +106,7 @@ func toAccountDTO(a domain.Account) AccountDTO {
 		OutHost:     a.Outgoing().Host(),
 		OutPort:     a.Outgoing().Port(),
 		OutSecurity: a.Outgoing().Security().String(),
+		Signature:   a.Signature(),
 	}
 }
 

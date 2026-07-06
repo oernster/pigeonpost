@@ -1153,6 +1153,13 @@
     line-height: 1.5;
 }
 
+/* The signature editor in the account wizard carries the compose-editor class too, so it inherits those
+   styles and only shrinks the height here. */
+.signature-editor .ProseMirror {
+    min-height: 80px;
+    max-height: 22vh;
+}
+
 .compose-editor .ProseMirror:focus {
     outline: none;
     border-color: var(--accent);

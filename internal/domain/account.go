@@ -108,6 +108,7 @@ type Account struct {
 	incoming    ServerConfig
 	outgoing    ServerConfig
 	auth        AuthMethod
+	signature   string
 }
 
 // NewAccount validates and constructs an account.
@@ -162,3 +163,12 @@ func (a Account) Outgoing() ServerConfig { return a.outgoing }
 
 // Auth returns the authentication method.
 func (a Account) Auth() AuthMethod { return a.auth }
+
+// Signature returns the account's compose signature as HTML, empty when none is set.
+func (a Account) Signature() string { return a.signature }
+
+// WithSignature returns a copy of the account carrying the given HTML signature.
+func (a Account) WithSignature(signature string) Account {
+	a.signature = signature
+	return a
+}

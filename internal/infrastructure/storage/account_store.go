@@ -11,7 +11,7 @@ import (
 )
 
 const accountColumns = `id, display_name, email, protocol,
-	in_host, in_port, in_security, out_host, out_port, out_security, auth`
+	in_host, in_port, in_security, out_host, out_port, out_security, auth, signature`
 
 // ListAccounts returns all accounts ordered by display name.
 func (s *Store) ListAccounts(ctx context.Context) ([]domain.Account, error) {
@@ -54,11 +54,11 @@ func (s *Store) GetAccount(ctx context.Context, id string) (domain.Account, erro
 func (s *Store) SaveAccount(ctx context.Context, a domain.Account) error {
 	_, err := s.db.ExecContext(ctx,
 		`INSERT OR REPLACE INTO account (`+accountColumns+`)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
 		a.ID(), a.DisplayName(), a.Address().Address(), int(a.Protocol()),
 		a.Incoming().Host(), a.Incoming().Port(), int(a.Incoming().Security()),
 		a.Outgoing().Host(), a.Outgoing().Port(), int(a.Outgoing().Security()),
-		int(a.Auth()),
+		int(a.Auth()), a.Signature(),
 	)
 	if err != nil {
 		return fmt.Errorf("save account %q: %w", a.ID(), err)
@@ -85,9 +85,10 @@ func scanAccount(row scanner) (domain.Account, error) {
 		protocol, auth                           int
 		inHost, outHost                          string
 		inPort, inSecurity, outPort, outSecurity int
+		signature                                string
 	)
 	if err := row.Scan(&id, &displayName, &email, &protocol,
-		&inHost, &inPort, &inSecurity, &outHost, &outPort, &outSecurity, &auth); err != nil {
+		&inHost, &inPort, &inSecurity, &outHost, &outPort, &outSecurity, &auth, &signature); err != nil {
 		return domain.Account{}, err
 	}
 
@@ -108,5 +109,5 @@ func scanAccount(row scanner) (domain.Account, error) {
 	if err != nil {
 		return domain.Account{}, fmt.Errorf("account %q: %w", id, err)
 	}
-	return account, nil
+	return account.WithSignature(signature), nil
 }
