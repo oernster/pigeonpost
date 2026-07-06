@@ -334,6 +334,43 @@ free of any UI-framework dependency, the tray's Open and menu items invoke callb
 `App` facade, which reopen the window (`WindowShow`), emit `menu:*` Wails events the front end turns into
 the same dialogs the in-window Help menu opens, or quit.
 
+**Meeting scheduling (iTIP / iMIP).** An event with attendees is a meeting, and PigeonPost sends and
+receives the RFC 5546 scheduling messages (REQUEST, REPLY, CANCEL) as RFC 6047 iMIP `text/calendar` mail
+parts. New pure domain value objects carry the data: `Organizer` (a validated address plus an optional
+common name) and `Attendee` (address, common name, a `Role` and a `ParticipationStatus` enum each parsed
+leniently, and an RSVP flag with a `WithStatus` copy method), with `Event` gaining an organizer and an
+attendee list (schema v23 stores them as an `event.organizer` column and a JSON `event.attendees`
+column). A `scheduling.go` domain file adds the `Method` enum, the `SchedulingMessage` (a method plus its
+events) and the `CalendarPart` (a method plus the encoded bytes) that an outgoing message carries. These
+value objects and their parse rules are held to the 100% domain gate.
+
+The codec seam gains a `SchedulingCodec` port (`DecodeScheduling` reads a VCALENDAR's METHOD and events;
+`EncodeRequest`, `EncodeReply` and `EncodeCancel` build the payloads), satisfied by the same `ics`
+adapter over go-ical. The `SchedulingService` use case (application layer, 100% gated) drives the flows:
+`Respond` saves an incoming REQUEST to the calendar with the chosen PARTSTAT and emails a REPLY to the
+organizer; `ApplyReply` folds an incoming REPLY into the organizer's stored meeting, updating the
+responding attendee's status; `ApplyCancellation` removes the meeting a CANCEL withdraws; and
+`SendRequest` / `SendCancel` email a REQUEST or CANCEL to a meeting's attendees from the organizing
+account. A recurring meeting is matched as its series master plus any overrides, keyed by UID and
+RECURRENCE-ID.
+
+Mail carries the invites both ways. Incoming: the shared `mailparse` parser diverts a `text/calendar`
+part into a `ParsedBody.Invite`, and the cached `MessageBody` gains an `invite` column (schema v22) with
+`HasInvite` / `Invite`, so a message reading offline still shows its invitation. The `MailSource.FetchBody`
+port and both the IMAP and POP3 adapters return the raw calendar bytes alongside the plain and HTML
+parts. Outgoing: an `OutgoingMessage` carries an optional `CalendarPart`, and the shared `message` MIME
+builder writes it as a `text/calendar; method=...; charset=utf-8` part inside the `multipart/mixed` body,
+so one sent message is both a readable email and a valid iMIP scheduling message.
+
+The Wails facade (`schedulingapi.go`) exposes the flow through `OrganizerDTO`, `AttendeeDTO` and
+`InvitationDTO` and the methods `GetInvitation`, `RespondToInvitation`, `RemoveCancelledMeeting`,
+`ApplyMeetingReply`, `SendMeetingRequest` and `SendMeetingCancel`; `EventDTO` and `EventRequest` carry the
+organizer and attendees so a meeting round-trips through the calendar editor. As with the rest of the
+facade, these binding files are build-verified (they hold no logic beyond DTO mapping) rather than
+unit-tested; the correctness lives in the domain and application layers behind them. In the UI the reader
+shows an invite card (Accept, Tentative or Decline a request, remove a cancellation, apply a reply) and
+the calendar event editor edits a meeting's attendee list and sends its invitations and cancellations.
+
 Only one PigeonPost runs per user, enforced by Wails' `SingleInstanceLock` (a named mutex on Windows).
 A second launch does not open a new window: the running instance's `OnSecondInstanceLaunch` reveals its
 window through the same `WindowShow`/`WindowUnminimise` path the tray uses, so relaunching an app hidden

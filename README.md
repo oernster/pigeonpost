@@ -63,6 +63,12 @@ Shipped:
   and round-trip as ICS alarms. ICS (.ics)
   import and export (RFC 5545, including RRULE, RDATE, EXDATE and RECURRENCE-ID) round-trips with Outlook
   and Thunderbird; an event keeps its ICS UID so an export re-imports cleanly.
+- **Meeting invites**: an event with attendees is a meeting. Sending an invitation emails an iTIP
+  REQUEST (RFC 5546 over RFC 6047 iMIP) as a `text/calendar` part; a recipient opens the message and
+  can Accept, Tentatively accept or Decline, which saves the meeting to their calendar and emails a
+  REPLY back to the organizer. The organizer can send a cancellation (a CANCEL the recipient removes
+  with one click), and an incoming reply folds each attendee's response into the stored meeting.
+  Recurring meetings are carried as the series master plus its overrides.
 - **Contacts**: an address book with a list and an editor. vCard (.vcf) and CSV import and export, so
   contacts round-trip with Outlook (whose bulk export is CSV) and Thunderbird.
 - **Help menu**: About (with credits), Licence and Check for Updates.
@@ -72,7 +78,7 @@ Planned (see [DESIGN_PLAN.md](DESIGN_PLAN.md) for the full roadmap):
 - Tags round-tripped onto IMAP keywords, move/delete filter rules.
 - Microsoft one-click sign-in (deferred: it needs an Azure/Entra tenant). Multiple accounts already
   work, each with its own inbox.
-- Calendar invites (iTIP) and alarms with OS notifications.
+- Calendar alarms delivered as OS notifications (on-screen reminder banners already ship).
 - Cross-platform delivery (macOS and Linux) and two-way CalDAV / CardDAV.
 
 ## Stack
