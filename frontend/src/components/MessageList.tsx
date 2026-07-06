@@ -64,7 +64,8 @@ export function MessageList(props: MessageListProps) {
                         className={
                             'message-row' +
                             (message.read ? '' : ' unread') +
-                            (selectedIds.has(message.id) ? ' selected' : '')
+                            (selectedIds.has(message.id) ? ' selected' : '') +
+                            (activeId === message.id ? ' active' : '')
                         }
                         tabIndex={activeId === message.id ? 0 : -1}
                         aria-selected={selectedIds.has(message.id)}

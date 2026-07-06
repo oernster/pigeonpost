@@ -1350,14 +1350,66 @@ function App() {
                     return
                 }
                 e.preventDefault()
-                const idx = selectedMessage ? list.findIndex((m) => m.id === selectedMessage.id) : -1
-                const next = e.key === 'ArrowDown'
-                    ? (idx === -1 ? list[0] : list[Math.min(idx + 1, list.length - 1)])
-                    : (idx === -1 ? list[list.length - 1] : list[Math.max(idx - 1, 0)])
-                // Arrow navigation is single-select: it drops any Ctrl/Shift selection and re-anchors here.
+                const down = e.key === 'ArrowDown'
+                const curIdx = selectedMessage ? list.findIndex((m) => m.id === selectedMessage.id) : -1
+                const nextIdx = curIdx === -1
+                    ? (down ? 0 : list.length - 1)
+                    : (down ? Math.min(curIdx + 1, list.length - 1) : Math.max(curIdx - 1, 0))
+                const next = list[nextIdx]
+                if (!next) {
+                    return
+                }
+                if (e.shiftKey) {
+                    // Shift extends the contiguous selection from the anchor to the new cursor, the way a
+                    // Shift click does, taking the current row as the anchor when there is not one yet.
+                    const anchor = anchorId ?? (selectedMessage ? selectedMessage.id : next.id)
+                    const aIdx = list.findIndex((m) => m.id === anchor)
+                    if (aIdx === -1) {
+                        setMarkedIds(new Set([next.id]))
+                    } else {
+                        const [lo, hi] = aIdx <= nextIdx ? [aIdx, nextIdx] : [nextIdx, aIdx]
+                        setMarkedIds(new Set(list.slice(lo, hi + 1).map((m) => m.id)))
+                    }
+                    if (!anchorId) {
+                        setAnchorId(anchor)
+                    }
+                    setSelectedMessage(next)
+                    setReadingFull(false)
+                    return
+                }
+                if (e.ctrlKey || e.metaKey) {
+                    // Ctrl moves the focus cursor without changing the selection, so a non-contiguous set can
+                    // be built with Ctrl+Space. Materialise the single selection first so moving the cursor
+                    // off it does not silently drop it.
+                    setMarkedIds((prev) => (prev.size ? prev : new Set<string>(selectedMessage ? [selectedMessage.id] : [])))
+                    setSelectedMessage(next)
+                    setAnchorId(next.id)
+                    setReadingFull(false)
+                    return
+                }
+                // Plain arrow is single-select: it drops any Ctrl/Shift selection and re-anchors here.
                 setSelectedMessage(next)
                 setMarkedIds(new Set())
-                setAnchorId(next ? next.id : null)
+                setAnchorId(next.id)
+                return
+            }
+            if ((e.key === ' ' || e.code === 'Space') && (e.ctrlKey || e.metaKey)) {
+                // Ctrl+Space toggles the focused row in or out of the selection, the keyboard equivalent of a
+                // Ctrl click, so a non-contiguous set can be built with Ctrl+Arrow then Ctrl+Space.
+                if (!selectedMessage) {
+                    return
+                }
+                e.preventDefault()
+                setMarkedIds((prev) => {
+                    const base = prev.size ? new Set(prev) : new Set<string>([selectedMessage.id])
+                    if (base.has(selectedMessage.id)) {
+                        base.delete(selectedMessage.id)
+                    } else {
+                        base.add(selectedMessage.id)
+                    }
+                    return base
+                })
+                setAnchorId(selectedMessage.id)
                 return
             }
             if (e.key === 'Delete') {
@@ -1385,7 +1437,7 @@ function App() {
         window.addEventListener('keydown', onKeyDown)
         return () => window.removeEventListener('keydown', onKeyDown)
     }, [
-        searchActive, searchResults, messages, selectedMessage, requestDelete, markedIds,
+        searchActive, searchResults, messages, selectedMessage, requestDelete, markedIds, anchorId,
         splashVisible, composing, settingUp, accountToEdit, managingRules, managingContacts, managingCalendar, about,
         licence, folderPrompt, messageToDelete, accountToDelete, folderToDelete, messageToPurge,
         contextMenu, messageToCancelSend, bulkToDelete, bulkToPurge,

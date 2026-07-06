@@ -404,6 +404,13 @@
     border-left-color: var(--accent);
 }
 
+/* The keyboard focus cursor: the row Ctrl arrow navigation is on while it is not itself selected, so
+   moving the cursor over unselected rows to build a selection is visible. A selected row already shows its
+   own fill, so the ring is only drawn where the cursor sits apart from the selection. */
+.message-row.active:not(.selected) {
+    box-shadow: inset 0 0 0 2px var(--accent);
+}
+
 .message-row.unread .message-subject,
 .message-row.unread .message-from {
     font-weight: 700;
