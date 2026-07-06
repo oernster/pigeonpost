@@ -32,24 +32,25 @@ type ReminderAlerter interface {
 // App is the Wails facade: the single boundary the React front end talks to. It holds no business
 // logic, delegating every call to an application use case and mapping domain results to DTOs.
 type App struct {
-	ctx      context.Context
-	closer   func() error
-	notifier UnreadNotifier
-	alerter  ReminderAlerter
-	tray     *taskbar.Tray
-	quitting atomic.Bool // set when an explicit Quit is under way, so the close prompt is skipped
-	accounts *application.AccountService
-	setup    *application.AccountSetupService
-	mailbox  *application.MailboxService
-	sync     *application.SyncService
-	compose  *application.ComposeService
-	tags     *application.TagService
-	body     *application.MessageBodyService
-	actions  *application.MessageActionService
-	folders  *application.FolderService
-	rules    *application.RuleService
-	contacts *application.ContactService
-	calendar *application.CalendarService
+	ctx        context.Context
+	closer     func() error
+	notifier   UnreadNotifier
+	alerter    ReminderAlerter
+	tray       *taskbar.Tray
+	quitting   atomic.Bool // set when an explicit Quit is under way, so the close prompt is skipped
+	accounts   *application.AccountService
+	setup      *application.AccountSetupService
+	mailbox    *application.MailboxService
+	sync       *application.SyncService
+	compose    *application.ComposeService
+	tags       *application.TagService
+	body       *application.MessageBodyService
+	actions    *application.MessageActionService
+	folders    *application.FolderService
+	rules      *application.RuleService
+	contacts   *application.ContactService
+	calendar   *application.CalendarService
+	scheduling *application.SchedulingService
 }
 
 // NewApp constructs the facade with its injected use-case services and a closer for shutdown.
@@ -70,24 +71,26 @@ func NewApp(
 	rules *application.RuleService,
 	contacts *application.ContactService,
 	calendar *application.CalendarService,
+	scheduling *application.SchedulingService,
 ) *App {
 	return &App{
-		closer:   closer,
-		notifier: notifier,
-		alerter:  alerter,
-		tray:     tray,
-		accounts: accounts,
-		setup:    setup,
-		mailbox:  mailbox,
-		sync:     sync,
-		compose:  compose,
-		tags:     tags,
-		body:     body,
-		actions:  actions,
-		folders:  folders,
-		rules:    rules,
-		contacts: contacts,
-		calendar: calendar,
+		closer:     closer,
+		notifier:   notifier,
+		alerter:    alerter,
+		tray:       tray,
+		accounts:   accounts,
+		setup:      setup,
+		mailbox:    mailbox,
+		sync:       sync,
+		compose:    compose,
+		tags:       tags,
+		body:       body,
+		actions:    actions,
+		folders:    folders,
+		rules:      rules,
+		contacts:   contacts,
+		calendar:   calendar,
+		scheduling: scheduling,
 	}
 }
 

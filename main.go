@@ -13,6 +13,7 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
 
 	"github.com/oernster/pigeonpost/internal/application"
+	"github.com/oernster/pigeonpost/internal/infrastructure/ics"
 	"github.com/oernster/pigeonpost/internal/infrastructure/imap"
 	"github.com/oernster/pigeonpost/internal/infrastructure/keychain"
 	"github.com/oernster/pigeonpost/internal/infrastructure/mailrouter"
@@ -86,6 +87,10 @@ func run() error {
 	ruleService := application.NewRuleService(store, newRuleID)
 	contactService := application.NewContactService(store, newContactID)
 	calendarService := application.NewCalendarService(store, newCalendarID, recurrence.New())
+	// The scheduling service reads incoming meeting invites and replies (the ICS codec also implements
+	// the iTIP SchedulingCodec), saves accepted meetings to the calendar store and sends replies,
+	// requests and cancellations through the same SMTP transport as ordinary mail.
+	schedulingService := application.NewSchedulingService(ics.New(), store, store, store, transport)
 
 	// The taskbar overlay badge reflects the total unread count, and the flasher flashes the taskbar
 	// button when a reminder fires while the window is in the background. Both locate the main window by
@@ -99,7 +104,7 @@ func run() error {
 	// The embedded app icon is composited with the unread badge to form the tray icon.
 	tray := taskbar.NewTray(windowTitle, appName, appIconPNG)
 
-	app := NewApp(store.Close, overlay, flasher, tray, accountService, setupService, mailboxService, syncService, composeService, tagService, bodyService, actionService, folderService, ruleService, contactService, calendarService)
+	app := NewApp(store.Close, overlay, flasher, tray, accountService, setupService, mailboxService, syncService, composeService, tagService, bodyService, actionService, folderService, ruleService, contactService, calendarService, schedulingService)
 
 	err = wails.Run(&options.App{
 		Title:            windowTitle,

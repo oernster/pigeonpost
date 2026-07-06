@@ -62,14 +62,16 @@ type MessageDTO struct {
 	Snippet        string       `json:"snippet"`
 }
 
-// MessageBodyDTO is the JSON-serialisable full body of a message.
+// MessageBodyDTO is the JSON-serialisable full body of a message. HasInvite is true when the message
+// carried a text/calendar scheduling payload, so the reader offers the meeting actions.
 type MessageBodyDTO struct {
-	Plain string `json:"plain"`
-	HTML  string `json:"html"`
+	Plain     string `json:"plain"`
+	HTML      string `json:"html"`
+	HasInvite bool   `json:"hasInvite"`
 }
 
 func toMessageBodyDTO(b domain.MessageBody) MessageBodyDTO {
-	return MessageBodyDTO{Plain: b.Plain(), HTML: b.HTML()}
+	return MessageBodyDTO{Plain: b.Plain(), HTML: b.HTML(), HasInvite: b.HasInvite()}
 }
 
 // TagDTO is the JSON-serialisable view of a coloured tag.
