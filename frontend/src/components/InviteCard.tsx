@@ -1,4 +1,4 @@
-import {useEffect, useState} from 'react'
+import {useEffect, useRef, useState} from 'react'
 import {api, Invitation, PartStat} from '../api'
 
 interface InviteCardProps {
@@ -41,7 +41,11 @@ export function InviteCard({messageId, onActed}: InviteCardProps) {
     const [invite, setInvite] = useState<Invitation | null>(null)
     const [myStatus, setMyStatus] = useState('')
     const [error, setError] = useState('')
+    const [status, setStatus] = useState('')
     const [busy, setBusy] = useState(false)
+    // autoAppliedFor records the message a reply has already been auto-applied for, so opening it does not
+    // re-apply on every render.
+    const autoAppliedFor = useRef('')
 
     useEffect(() => {
         let active = true
@@ -63,6 +67,23 @@ export function InviteCard({messageId, onActed}: InviteCardProps) {
             active = false
         }
     }, [messageId])
+
+    // A reply needs no decision from the organizer, so fold it into the meeting automatically when the
+    // message opens rather than making the user click Update meeting. It runs once per message.
+    useEffect(() => {
+        if (!invite || invite.method !== 'REPLY') return
+        if (autoAppliedFor.current === messageId) return
+        autoAppliedFor.current = messageId
+        setBusy(true)
+        setError('')
+        api.applyMeetingReply(messageId)
+            .then(() => {
+                setStatus('Meeting updated with the response.')
+                onActed?.()
+            })
+            .catch((e) => setError(String(e)))
+            .finally(() => setBusy(false))
+    }, [invite, messageId, onActed])
 
     if (error && !invite) {
         return (
@@ -172,15 +193,18 @@ export function InviteCard({messageId, onActed}: InviteCardProps) {
                             ? `${responder.commonName || responder.address} responded: ${statusLabel(responder.status)}`
                             : 'A reply to your meeting.'}
                     </p>
-                    <div className="invite-card-actions">
-                        <button
-                            className="btn primary"
-                            disabled={busy}
-                            onClick={() => runAction(() => api.applyMeetingReply(messageId))}
-                        >
-                            Update meeting
-                        </button>
-                    </div>
+                    {status && <p className="invite-card-note">{status}</p>}
+                    {error && (
+                        <div className="invite-card-actions">
+                            <button
+                                className="btn primary"
+                                disabled={busy}
+                                onClick={() => runAction(() => api.applyMeetingReply(messageId))}
+                            >
+                                Update meeting
+                            </button>
+                        </div>
+                    )}
                 </>
             )}
 

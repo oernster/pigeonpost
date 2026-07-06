@@ -312,6 +312,28 @@ func TestCalendarServiceSaveEvent(t *testing.T) {
 	}
 }
 
+func TestCalendarServiceSaveEventUID(t *testing.T) {
+	store := &fakeCalendarStore{}
+	svc := NewCalendarService(store, fixedID("gen"), &fakeRecurrence{})
+	start := time.Date(2026, 7, 4, 9, 0, 0, 0, time.UTC)
+
+	// A new event with no UID derives one from its id, so a meeting keeps a stable identity across the
+	// iTIP reply round-trip.
+	if _, err := svc.SaveEvent(context.Background(), EventInput{Summary: "Standup", Start: start}); err != nil {
+		t.Fatalf("SaveEvent: %v", err)
+	}
+	if store.savedEvt[0].UID() != "gen" {
+		t.Errorf("derived UID = %q, want the generated id", store.savedEvt[0].UID())
+	}
+	// A provided UID is kept, so an imported or edited event round-trips its own identity.
+	if _, err := svc.SaveEvent(context.Background(), EventInput{ID: "e2", UID: "uid-2", Summary: "Review", Start: start}); err != nil {
+		t.Fatalf("SaveEvent: %v", err)
+	}
+	if store.savedEvt[1].UID() != "uid-2" {
+		t.Errorf("UID = %q, want the provided uid-2", store.savedEvt[1].UID())
+	}
+}
+
 func TestCalendarServiceSaveEventWithScheduling(t *testing.T) {
 	store := &fakeCalendarStore{}
 	svc := NewCalendarService(store, fixedID("m1"), &fakeRecurrence{})

@@ -126,6 +126,13 @@ func (s *CalendarService) SaveEvent(ctx context.Context, in EventInput) (string,
 	if id == "" {
 		id = s.newID()
 	}
+	// Every event needs a stable UID: it is the identity a meeting keeps across the iTIP REQUEST, REPLY
+	// and CANCEL round-trip (replies are matched to a stored meeting by UID) and the key an ICS export
+	// re-imports on. An event created in-app arrives without one, so derive it from the id.
+	uid := strings.TrimSpace(in.UID)
+	if uid == "" {
+		uid = id
+	}
 	organizer, err := buildOrganizer(in.OrganizerAddress, in.OrganizerName)
 	if err != nil {
 		return "", fmt.Errorf("calendar: build organizer: %w", err)
@@ -136,7 +143,7 @@ func (s *CalendarService) SaveEvent(ctx context.Context, in EventInput) (string,
 	}
 	event, err := domain.NewEvent(domain.EventInput{
 		ID:          id,
-		UID:         in.UID,
+		UID:         uid,
 		CalendarID:  in.CalendarID,
 		Summary:     in.Summary,
 		Description: in.Description,
