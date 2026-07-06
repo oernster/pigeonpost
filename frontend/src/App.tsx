@@ -1142,8 +1142,9 @@ function App() {
     }, [])
 
     // runBulkDelete carries out a confirmed bulk delete or permanent delete over the selected messages,
-    // one server call each (there is no batch endpoint), then removes whichever succeeded. A failure part
-    // way through still clears the ones already deleted rather than leaving the list inconsistent.
+    // one server call each (there is no batch endpoint). Each is attempted independently, so a failure on
+    // one does not abort the rest; whichever succeeded are removed and any failures are reported with a
+    // count so a partial delete is never silent.
     const runBulkDelete = useCallback(async (targets: Message[], permanent: boolean) => {
         if (targets.length === 0) {
             return
@@ -1152,17 +1153,18 @@ function App() {
         setBusy(true)
         setError('')
         const done = new Set<string>()
-        try {
-            for (const m of targets) {
+        let lastError = ''
+        for (const m of targets) {
+            try {
                 if (permanent) {
                     await api.deleteMessagePermanent(m.id)
                 } else {
                     await api.deleteMessage(m.id)
                 }
                 done.add(m.id)
+            } catch (e) {
+                lastError = String(e)
             }
-        } catch (e) {
-            setError(String(e))
         }
         removeIdsFromLists(done)
         if (permanent) {
@@ -1171,6 +1173,10 @@ function App() {
             setBulkToDelete(null)
         }
         setBusy(false)
+        const failed = targets.length - done.size
+        if (failed > 0) {
+            setError(`${failed} of ${targets.length} messages could not be deleted: ${lastError}`)
+        }
         await loadUnread()
     }, [removeIdsFromLists, loadUnread])
 
@@ -1184,13 +1190,21 @@ function App() {
         setSearchResults((prev) => prev.map(apply))
         setTabs((prev) => prev.map(apply))
         setSelectedMessage((prev) => (prev && ids.has(prev.id) ? {...prev, read} : prev))
-        try {
-            for (const t of targets) {
+        let failed = 0
+        for (const t of targets) {
+            try {
                 await api.markRead(t.id, read)
+            } catch {
+                failed += 1
             }
+        }
+        try {
             await loadUnread()
-        } catch (e) {
-            setError(String(e))
+        } catch {
+            // A count refresh is best effort; the optimistic list update already reflects the change.
+        }
+        if (failed > 0) {
+            setError(`${failed} of ${targets.length} messages could not be updated on the server.`)
         }
     }, [loadUnread])
 
@@ -1200,35 +1214,47 @@ function App() {
         setMessages((prev) => prev.map(apply))
         setSearchResults((prev) => prev.map(apply))
         setSelectedMessage((prev) => (prev && ids.has(prev.id) ? {...prev, flagged} : prev))
-        try {
-            for (const t of targets) {
+        let failed = 0
+        for (const t of targets) {
+            try {
                 await api.markFlagged(t.id, flagged)
+            } catch {
+                failed += 1
             }
-        } catch (e) {
-            setError(String(e))
+        }
+        if (failed > 0) {
+            setError(`${failed} of ${targets.length} messages could not be updated on the server.`)
         }
     }, [])
 
     // bulkMove moves every selected message into the destination folder, skipping any already there and
-    // any synthetic outbox item, then removes whichever moved from the list.
+    // any synthetic outbox item. Each move is attempted independently, so a failure on one does not abort
+    // the rest; whichever moved are removed from the list and any failures are reported with a count.
     const bulkMove = useCallback(async (targets: Message[], destFolderId: string) => {
         if (destFolderId === OUTBOX_FOLDER_ID) {
             return
         }
         setError('')
         const moved = new Set<string>()
-        try {
-            for (const t of targets) {
-                if (t.folderId === destFolderId || isOutboxMessage(t)) {
-                    continue
-                }
+        let attempted = 0
+        let lastError = ''
+        for (const t of targets) {
+            if (t.folderId === destFolderId || isOutboxMessage(t)) {
+                continue
+            }
+            attempted += 1
+            try {
                 await api.moveMessage(t.id, destFolderId)
                 moved.add(t.id)
+            } catch (e) {
+                lastError = String(e)
             }
-        } catch (e) {
-            setError(String(e))
         }
         removeIdsFromLists(moved)
+        const failed = attempted - moved.size
+        if (failed > 0) {
+            setError(`${failed} of ${attempted} messages could not be moved: ${lastError}`)
+        }
     }, [removeIdsFromLists])
 
     // markReadOnView marks a message read when it is displayed, unless it already is.
