@@ -1416,6 +1416,7 @@ function App() {
                         : `Delete "${messageToDelete.subject || '(no subject)'}"? It is moved to Trash, or deleted permanently if it is already in Trash or the account has no Trash folder.`}
                     confirmLabel="Delete"
                     busy={deletingMessage}
+                    defaultConfirm
                     onConfirm={() => void deleteMessage()}
                     onCancel={() => setMessageToDelete(null)}
                 />
@@ -1426,6 +1427,7 @@ function App() {
                     message={`Permanently delete "${messageToPurge.subject || '(no subject)'}"? It is removed from the server and cannot be recovered.`}
                     confirmLabel="Delete permanently"
                     busy={purgingMessage}
+                    defaultConfirm
                     onConfirm={() => void deletePermanent()}
                     onCancel={() => setMessageToPurge(null)}
                 />
