@@ -18,10 +18,14 @@ per-account folder, a red taskbar overlay badge, a regrouped title tray and a re
 that showed its text duplicated and oversized. Microsoft OAuth is deferred
 (see section 7). 0.7.0 adds the address book (vCard and CSV) and the calendar (ICS, with month, week and
 day views), both round-tripping with Outlook and Thunderbird; cross-platform delivery remains ahead for
-1.0.0. 0.8.0 adds two-way meeting scheduling (iTIP/iMIP over RFC 5546/6047), instant new-mail
-notifications over IMAP IDLE with a 60-second poll backstop, message multi-select by mouse and keyboard
-with bulk delete, mark, star and move, an F8 reading-pane toggle, a clickable reminder banner that opens
-its event and clickable meeting join links (Teams, Meet, Zoom and Webex) in the event editor.
+1.0.0. 0.8.0 carries the calendar to full RFC 5545: recurring events (daily, weekly, monthly and yearly)
+that expand across every view with this / this-and-following / all editing, per-event IANA time zones
+with VTIMEZONE export, and reminders that fire on-screen banners and round-trip as ICS alarms. It adds
+two-way meeting scheduling (iTIP/iMIP over RFC 5546/6047), instant new-mail notifications over IMAP IDLE
+with a 60-second poll backstop, a clickable Windows tray icon with a minimise-to-tray close choice (and
+native notifications off Windows), message multi-select by mouse and keyboard with bulk delete, mark,
+star and move, an F8 reading-pane toggle, a clickable reminder banner that opens its event and clickable
+meeting join links (Teams, Meet, Zoom and Webex) in the event editor.
 This document is the target design; the actual per-release delivery record lives in NOTES.md.
 Author: Oliver Ernster. Licence: GPL-3.0.
 
