@@ -434,9 +434,12 @@ export function CalendarModal({events, accountId, accountEmail, accountName, onC
             // same way a calendar app's meeting Send both saves and notifies. Re-saving sends an update.
             if (hasAttendees) {
                 if (accountId === '') {
+                    console.warn('meeting invite: not sending, no account selected', {savedId})
                     setStatus('Meeting saved. Select an account to send the invitation to the attendees.')
                 } else {
+                    console.info('meeting invite: sending request', {accountId, savedId, attendees: form.attendees.length})
                     await api.sendMeetingRequest(accountId, savedId)
+                    console.info('meeting invite: request sent', {savedId})
                     const n = form.attendees.length
                     setStatus(`Invitation sent to ${n} attendee${n === 1 ? '' : 's'}.`)
                     setForm(null)

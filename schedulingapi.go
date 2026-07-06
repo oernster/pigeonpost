@@ -1,6 +1,10 @@
 package main
 
 import (
+	"fmt"
+
+	"github.com/wailsapp/wails/v2/pkg/runtime"
+
 	"github.com/oernster/pigeonpost/internal/application"
 	"github.com/oernster/pigeonpost/internal/domain"
 )
@@ -66,23 +70,43 @@ func (a *App) ApplyMeetingReply(messageID string) error {
 }
 
 // SendMeetingRequest emails a meeting REQUEST to the attendees of the event identified by id, inviting
-// them. The event must already carry its organizer and attendee list.
+// them. The event must already carry its organizer and attendee list. It logs each step so a send that
+// does not reach the recipients can be diagnosed from the app log rather than guessed at.
 func (a *App) SendMeetingRequest(accountID, eventID string) error {
+	runtime.LogInfof(a.ctx, "meeting invite: send REQUEST account=%q event=%q", accountID, eventID)
 	event, err := a.calendar.GetEvent(a.ctx, eventID)
 	if err != nil {
+		runtime.LogErrorf(a.ctx, "meeting invite: load event %q failed: %v", eventID, err)
 		return err
 	}
-	return a.scheduling.SendRequest(a.ctx, accountID, []domain.Event{event})
+	if len(event.Attendees()) == 0 {
+		runtime.LogErrorf(a.ctx, "meeting invite: event %q has no attendees to invite", eventID)
+		return fmt.Errorf("this meeting has no attendees to invite")
+	}
+	runtime.LogInfof(a.ctx, "meeting invite: event %q has %d attendee(s), sending", eventID, len(event.Attendees()))
+	if err := a.scheduling.SendRequest(a.ctx, accountID, []domain.Event{event}); err != nil {
+		runtime.LogErrorf(a.ctx, "meeting invite: send REQUEST failed: %v", err)
+		return err
+	}
+	runtime.LogInfof(a.ctx, "meeting invite: REQUEST for event %q sent", eventID)
+	return nil
 }
 
 // SendMeetingCancel emails a meeting CANCEL to the attendees of the event identified by id, withdrawing
 // the meeting.
 func (a *App) SendMeetingCancel(accountID, eventID string) error {
+	runtime.LogInfof(a.ctx, "meeting invite: send CANCEL account=%q event=%q", accountID, eventID)
 	event, err := a.calendar.GetEvent(a.ctx, eventID)
 	if err != nil {
+		runtime.LogErrorf(a.ctx, "meeting invite: load event %q failed: %v", eventID, err)
 		return err
 	}
-	return a.scheduling.SendCancel(a.ctx, accountID, []domain.Event{event})
+	if err := a.scheduling.SendCancel(a.ctx, accountID, []domain.Event{event}); err != nil {
+		runtime.LogErrorf(a.ctx, "meeting invite: send CANCEL failed: %v", err)
+		return err
+	}
+	runtime.LogInfof(a.ctx, "meeting invite: CANCEL for event %q sent", eventID)
+	return nil
 }
 
 // toInvitationDTO maps an application Invitation to its DTO.
