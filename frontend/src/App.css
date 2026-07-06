@@ -2165,6 +2165,43 @@
     flex: 1;
 }
 
+.meeting-section {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding-top: 8px;
+    border-top: 1px solid var(--border);
+}
+
+.attendee-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.attendee-email {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.attendee-status {
+    font-size: 12px;
+    color: var(--text-dim);
+    white-space: nowrap;
+}
+
+.attendee-add {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.attendee-add input {
+    flex: 1;
+}
+
 .cal-tz select {
     flex: 1;
 }

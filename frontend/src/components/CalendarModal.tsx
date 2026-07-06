@@ -43,6 +43,34 @@ const REMINDER_PRESETS: {minutes: number; label: string}[] = [
 ]
 const DEFAULT_REMINDER_MINUTES = 15
 
+// DEFAULT_ATTENDEE_ROLE and DEFAULT_ATTENDEE_STATUS are the ICS ROLE and PARTSTAT values a freshly added
+// attendee carries: a required participant who has not yet responded.
+const DEFAULT_ATTENDEE_ROLE = 'REQ-PARTICIPANT'
+const DEFAULT_ATTENDEE_STATUS = 'NEEDS-ACTION'
+
+// ATTENDEE_STATUS_LABELS maps an ICS PARTSTAT value to a human label shown against each attendee.
+const ATTENDEE_STATUS_LABELS: Record<string, string> = {
+    'NEEDS-ACTION': 'No response yet',
+    'ACCEPTED': 'Accepted',
+    'DECLINED': 'Declined',
+    'TENTATIVE': 'Tentative',
+    'DELEGATED': 'Delegated',
+}
+
+function attendeeStatusLabel(status: string): string {
+    return ATTENDEE_STATUS_LABELS[status] || status
+}
+
+// AttendeeRow is one invited party held in the edit form. It mirrors the fields the backend persists so a
+// loaded meeting round-trips its attendees' roles and reply statuses unchanged.
+interface AttendeeRow {
+    address: string
+    commonName: string
+    role: string
+    status: string
+    rsvp: boolean
+}
+
 interface EventForm {
     id: string
     uid: string
@@ -61,6 +89,12 @@ interface EventForm {
     recurrence: string
     // extra is the opaque preserved ICS, carried unchanged so an edit does not strip unmodelled data.
     extra: string
+    // organizerAddress and organizerName carry a loaded meeting's organizer. They are empty for a new
+    // event; on save with attendees the organizer defaults to the active account. attendees is the invited
+    // list: a non-empty list makes the event a meeting.
+    organizerAddress: string
+    organizerName: string
+    attendees: AttendeeRow[]
     // scope is set when editing a recurring occurrence: it says how far the save reaches. It is null for a
     // new event or a one-off edit, which save directly. occurrence is the RFC 3339 recurrence id of the
     // occurrence being edited; series marks the event as part of a recurring series.
@@ -115,19 +149,30 @@ function weekDays(viewDate: Date): Date[] {
 
 interface CalendarModalProps {
     events: CalendarEvent[]
+    // accountId, accountEmail and accountName identify the active account that organizes meetings: the
+    // organizer written onto a meeting and the sender of its invitations. accountId is empty when no
+    // account is selected, which disables sending.
+    accountId: string
+    accountEmail: string
+    accountName: string
     onChanged: () => void
     onClose: () => void
 }
 
 // CalendarModal shows a month view of events and edits them. It imports and exports iCalendar (.ics) so
-// events round-trip with Outlook and Thunderbird. Deletion is always confirmed.
-export function CalendarModal({events, onChanged, onClose}: CalendarModalProps) {
+// events round-trip with Outlook and Thunderbird. An event with attendees is a meeting: its invitations
+// and cancellations are emailed through the active account. Deletion is always confirmed.
+export function CalendarModal({events, accountId, accountEmail, accountName, onChanged, onClose}: CalendarModalProps) {
     const dismiss = useBackdropDismiss(onClose)
     const startRef = useRef<HTMLInputElement>(null)
     const endRef = useRef<HTMLInputElement>(null)
     const [viewDate, setViewDate] = useState(() => new Date())
     const [viewMode, setViewMode] = useState<ViewMode>('month')
     const [form, setForm] = useState<EventForm | null>(null)
+    // attendeeDraft holds the email being typed into the add-attendee field. cancelMeeting gates the
+    // confirm dialog for emailing a meeting cancellation, a destructive outward action.
+    const [attendeeDraft, setAttendeeDraft] = useState('')
+    const [cancelMeeting, setCancelMeeting] = useState(false)
     const [pendingDelete, setPendingDelete] = useState<CalendarEvent | null>(null)
     const [editScope, setEditScope] = useState<CalendarEventInstance | null>(null)
     const [deleteScope, setDeleteScope] = useState<{seriesId: string; occurrence: string; summary: string} | null>(null)
@@ -227,6 +272,8 @@ export function CalendarModal({events, onChanged, onClose}: CalendarModalProps) 
         setForm((f) => (f ? {...f, [key]: value} : f))
 
     const openNew = (day: Date) => {
+        setError('')
+        setStatus('')
         const start = new Date(day)
         start.setHours(9, 0, 0, 0)
         const end = new Date(start)
@@ -234,18 +281,22 @@ export function CalendarModal({events, onChanged, onClose}: CalendarModalProps) 
         setForm({
             id: '', uid: '', calendarId: defaultCalendarId(), summary: '', description: '', location: '',
             allDay: false, start: dateTimeInput(start), end: dateTimeInput(end), timeZone: browserZone(),
-            reminders: [], recurrence: '', extra: '', scope: null, occurrence: '', series: false,
+            reminders: [], recurrence: '', extra: '', organizerAddress: '', organizerName: '', attendees: [],
+            scope: null, occurrence: '', series: false,
         })
     }
 
     // openAt starts a new one-hour event at the clicked time in the week or day time-grid.
     const openAt = (start: Date) => {
+        setError('')
+        setStatus('')
         const end = new Date(start)
         end.setHours(start.getHours() + HOURS_PER_EVENT)
         setForm({
             id: '', uid: '', calendarId: defaultCalendarId(), summary: '', description: '', location: '',
             allDay: false, start: dateTimeInput(start), end: dateTimeInput(end), timeZone: browserZone(),
-            reminders: [], recurrence: '', extra: '', scope: null, occurrence: '', series: false,
+            reminders: [], recurrence: '', extra: '', organizerAddress: '', organizerName: '', attendees: [],
+            scope: null, occurrence: '', series: false,
         })
     }
 
@@ -273,8 +324,15 @@ export function CalendarModal({events, onChanged, onClose}: CalendarModalProps) 
             description: ev.description, location: ev.location, allDay: ev.allDay,
             start: startWall, end: endWall, timeZone: zone,
             reminders: [...ev.reminders], recurrence: ev.recurrence, extra: ev.extra,
+            organizerAddress: ev.organizer.address, organizerName: ev.organizer.commonName,
+            attendees: ev.attendees.map((a) => ({
+                address: a.address, commonName: a.commonName, role: a.role, status: a.status, rsvp: a.rsvp,
+            })),
             scope, occurrence: inst.recurrenceId, series: isSeries(inst),
         })
+        setAttendeeDraft('')
+        setError('')
+        setStatus('')
         setEditScope(null)
     }
 
@@ -289,6 +347,41 @@ export function CalendarModal({events, onChanged, onClose}: CalendarModalProps) 
     const removeReminder = (index: number) =>
         setForm((f) => (f ? {...f, reminders: f.reminders.filter((_, i) => i !== index)} : f))
 
+    // isAttendeeEmail is a light client-side check; the backend validates the address authoritatively.
+    const isAttendeeEmail = (value: string): boolean => {
+        const at = value.indexOf('@')
+        return at > 0 && at < value.length - 1
+    }
+
+    // addAttendee appends the drafted email as a required, not-yet-responded attendee, ignoring a blank or
+    // duplicate address.
+    const addAttendee = () => {
+        const address = attendeeDraft.trim()
+        if (!isAttendeeEmail(address)) return
+        setForm((f) => {
+            if (!f) return f
+            if (f.attendees.some((a) => a.address.toLowerCase() === address.toLowerCase())) return f
+            return {
+                ...f,
+                attendees: [...f.attendees, {
+                    address, commonName: '', role: DEFAULT_ATTENDEE_ROLE, status: DEFAULT_ATTENDEE_STATUS, rsvp: true,
+                }],
+            }
+        })
+        setAttendeeDraft('')
+    }
+
+    const removeAttendee = (index: number) =>
+        setForm((f) => (f ? {...f, attendees: f.attendees.filter((_, i) => i !== index)} : f))
+
+    // organizerLabel is the organizer shown in the meeting section: the loaded meeting's organizer, or the
+    // active account that will own a newly organized meeting.
+    const organizerLabel = (): string => {
+        if (!form) return ''
+        if (form.organizerAddress) return form.organizerName || form.organizerAddress
+        return accountName ? `${accountName} (${accountEmail})` : accountEmail
+    }
+
     const toISO = (value: string): string => (value ? new Date(value).toISOString() : '')
 
     const save = async () => {
@@ -300,11 +393,21 @@ export function CalendarModal({events, onChanged, onClose}: CalendarModalProps) 
             // carries no zone.
             const startISO = form.allDay ? toISO(form.start) : zonedWallToISO(form.start, form.timeZone)
             const endISO = form.allDay ? toISO(form.end) : (form.end ? zonedWallToISO(form.end, form.timeZone) : '')
+            // A meeting (any attendees) needs an organizer to be replied to: keep the loaded one, or adopt
+            // the active account when newly organizing. An event with no attendees stays a plain entry with
+            // an empty organizer.
+            const hasAttendees = form.attendees.length > 0
+            const organizerAddress = form.organizerAddress || (hasAttendees ? accountEmail : '')
+            const organizerName = form.organizerAddress ? form.organizerName : (hasAttendees ? accountName : '')
             const req: CalendarEventInput = {
                 id: form.id, uid: form.uid, calendarId: form.calendarId, summary: form.summary,
                 description: form.description, location: form.location, allDay: form.allDay,
                 start: startISO, end: endISO, timeZone: form.allDay ? '' : form.timeZone,
                 reminders: form.reminders, recurrence: form.recurrence, extra: form.extra,
+                organizer: {address: organizerAddress, commonName: organizerName},
+                attendees: form.attendees.map((a) => ({
+                    address: a.address, commonName: a.commonName, role: a.role, status: a.status, rsvp: a.rsvp,
+                })),
             }
             if (form.scope !== null) await api.saveEventScoped(req, form.scope, form.occurrence)
             else await api.saveEvent(req)
@@ -357,6 +460,42 @@ export function CalendarModal({events, onChanged, onClose}: CalendarModalProps) 
             setDeleteScope(null)
             bumpReload()
             onChanged()
+        } catch (e) {
+            setError(String(e))
+        } finally {
+            setBusy(false)
+        }
+    }
+
+    // sendInvitations emails a meeting REQUEST to the saved event's attendees from the active account. It
+    // is available only once the event exists (so it has an id to send) and an account is selected.
+    const sendInvitations = async () => {
+        if (!form || form.id === '' || accountId === '') return
+        setBusy(true)
+        setError('')
+        setStatus('')
+        try {
+            await api.sendMeetingRequest(accountId, form.id)
+            const n = form.attendees.length
+            setStatus(`Invitation sent to ${n} attendee${n === 1 ? '' : 's'}.`)
+        } catch (e) {
+            setError(String(e))
+        } finally {
+            setBusy(false)
+        }
+    }
+
+    // confirmCancelMeeting emails a meeting CANCEL to the attendees, withdrawing the meeting. It is
+    // confirmed first because it is an outward action that cannot be recalled.
+    const confirmCancelMeeting = async () => {
+        if (!form || form.id === '' || accountId === '') return
+        setBusy(true)
+        setError('')
+        setStatus('')
+        try {
+            await api.sendMeetingCancel(accountId, form.id)
+            setCancelMeeting(false)
+            setStatus('Cancellation sent to the attendees.')
         } catch (e) {
             setError(String(e))
         } finally {
@@ -565,6 +704,54 @@ export function CalendarModal({events, onChanged, onClose}: CalendarModalProps) 
                                     </div>
                                 ))}
                             </div>
+                            <div className="meeting-section">
+                                <div className="reminders-head">
+                                    <span>Attendees</span>
+                                </div>
+                                {form.attendees.length > 0 && (
+                                    <p className="setup-hint">Organizer: {organizerLabel()}</p>
+                                )}
+                                {form.attendees.map((a, i) => (
+                                    <div key={a.address} className="attendee-row">
+                                        <span className="attendee-email" title={a.address}>
+                                            {a.commonName || a.address}
+                                        </span>
+                                        <span className="attendee-status">{attendeeStatusLabel(a.status)}</span>
+                                        <button type="button" className="btn danger" aria-label="Remove attendee"
+                                                onClick={() => removeAttendee(i)}>×</button>
+                                    </div>
+                                ))}
+                                <div className="attendee-add">
+                                    <input className="tag-name-input" type="email" placeholder="Attendee email"
+                                           value={attendeeDraft}
+                                           onChange={(e) => setAttendeeDraft(e.target.value)}
+                                           onKeyDown={(e) => {
+                                               if (e.key === 'Enter') {
+                                                   e.preventDefault()
+                                                   addAttendee()
+                                               }
+                                           }}/>
+                                    <button type="button" className="btn" onClick={addAttendee}
+                                            disabled={!isAttendeeEmail(attendeeDraft.trim())}>+ Add attendee</button>
+                                </div>
+                                {form.attendees.length > 0 && (
+                                    accountId === '' ? (
+                                        <p className="setup-hint">Select an account to send invitations.</p>
+                                    ) : form.id === '' ? (
+                                        <p className="setup-hint">Save the event to invite its attendees.</p>
+                                    ) : (
+                                        <div className="invite-card-actions">
+                                            <button type="button" className="btn primary" disabled={busy}
+                                                    onClick={() => void sendInvitations()}>Send invitations</button>
+                                            <button type="button" className="btn danger-outline" disabled={busy}
+                                                    onClick={() => setCancelMeeting(true)}>Cancel meeting</button>
+                                        </div>
+                                    )
+                                )}
+                            </div>
+                            {(error || status) && (
+                                <div className={error ? 'compose-error' : 'setup-hint'}>{error || status}</div>
+                            )}
                             <div className="modal-actions spread">
                                 <span>
                                     {form.id && (
@@ -592,6 +779,18 @@ export function CalendarModal({events, onChanged, onClose}: CalendarModalProps) 
                     busy={busy}
                     onConfirm={() => void confirmDelete()}
                     onCancel={() => setPendingDelete(null)}
+                />
+            )}
+
+            {cancelMeeting && form && (
+                <ConfirmDialog
+                    title="Cancel meeting"
+                    message={`Email a cancellation for "${form.summary}" to its ${form.attendees.length} ` +
+                        `attendee${form.attendees.length === 1 ? '' : 's'}? This cannot be undone.`}
+                    confirmLabel="Send cancellation"
+                    busy={busy}
+                    onConfirm={() => void confirmCancelMeeting()}
+                    onCancel={() => setCancelMeeting(false)}
                 />
             )}
 

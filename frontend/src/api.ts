@@ -142,6 +142,23 @@ export interface CalendarInput {
     colour: string
 }
 
+// MeetingOrganizerInput is the organizer written onto an event when it is a meeting. An empty address
+// marks an ordinary (non-meeting) event.
+export interface MeetingOrganizerInput {
+    address: string
+    commonName: string
+}
+
+// MeetingAttendeeInput is one invited party written onto a meeting event. role and status accept the ICS
+// ROLE and PARTSTAT values; empty strings take the domain defaults (REQ-PARTICIPANT and NEEDS-ACTION).
+export interface MeetingAttendeeInput {
+    address: string
+    commonName: string
+    role: string
+    status: string
+    rsvp: boolean
+}
+
 export interface CalendarEventInput {
     id: string
     uid: string
@@ -157,6 +174,10 @@ export interface CalendarEventInput {
     // reminders are lead times in whole minutes before the event start (0 means at the start).
     reminders: number[]
     extra: string
+    // organizer and attendees carry the meeting scheduling data. organizer.address is empty and attendees
+    // is empty for an ordinary calendar entry.
+    organizer: MeetingOrganizerInput
+    attendees: MeetingAttendeeInput[]
 }
 
 export interface RuleInput {

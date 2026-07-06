@@ -1388,6 +1388,9 @@ function App() {
             {managingCalendar && (
                 <CalendarModal
                     events={events}
+                    accountId={selectedAccount}
+                    accountEmail={activeAccount?.email ?? ''}
+                    accountName={activeAccount?.displayName ?? ''}
                     onChanged={() => void loadEvents()}
                     onClose={() => setManagingCalendar(false)}
                 />
