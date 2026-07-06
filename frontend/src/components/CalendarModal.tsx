@@ -382,6 +382,16 @@ export function CalendarModal({events, accountId, accountEmail, accountName, onC
         return accountName ? `${accountName} (${accountEmail})` : accountEmail
     }
 
+    // primaryActionLabel names the save button. For a meeting with a usable account, saving also emails the
+    // invitation to the attendees, so the label says so rather than a plain Save.
+    const primaryActionLabel = (): string => {
+        if (!form) return ''
+        if (form.attendees.length > 0 && accountId !== '') {
+            return form.id ? 'Save and send update' : 'Send invitation'
+        }
+        return form.id ? 'Save changes' : 'Add event'
+    }
+
     const toISO = (value: string): string => (value ? new Date(value).toISOString() : '')
 
     const save = async () => {
@@ -409,22 +419,31 @@ export function CalendarModal({events, accountId, accountEmail, accountName, onC
                     address: a.address, commonName: a.commonName, role: a.role, status: a.status, rsvp: a.rsvp,
                 })),
             }
+            let savedId = form.id
             if (form.scope !== null) {
                 await api.saveEventScoped(req, form.scope, form.occurrence)
-                setForm(null)
             } else {
-                const savedId = await api.saveEvent(req)
-                if (hasAttendees) {
-                    // Keep the saved meeting open with its now-known id (freshly generated for a new event),
-                    // so the organizer can send its invitations straight away rather than reopening it.
-                    setForm({...form, id: savedId, organizerAddress, organizerName})
-                    setStatus('Meeting saved. Use Send invitations to notify the attendees.')
-                } else {
-                    setForm(null)
-                }
+                savedId = await api.saveEvent(req)
+                // Reflect the persisted id (freshly generated for a new event) back onto the form at once,
+                // so if the send below fails a retry reuses this id rather than creating a duplicate event.
+                setForm((f) => (f ? {...f, id: savedId, organizerAddress, organizerName} : f))
             }
             bumpReload()
             onChanged()
+            // Saving a meeting sends its invitation: adding attendees and saving is what invites them, the
+            // same way a calendar app's meeting Send both saves and notifies. Re-saving sends an update.
+            if (hasAttendees) {
+                if (accountId === '') {
+                    setStatus('Meeting saved. Select an account to send the invitation to the attendees.')
+                } else {
+                    await api.sendMeetingRequest(accountId, savedId)
+                    const n = form.attendees.length
+                    setStatus(`Invitation sent to ${n} attendee${n === 1 ? '' : 's'}.`)
+                    setForm(null)
+                }
+            } else {
+                setForm(null)
+            }
         } catch (e) {
             setError(String(e))
         } finally {
@@ -747,16 +766,21 @@ export function CalendarModal({events, accountId, accountEmail, accountName, onC
                                 </div>
                                 {form.attendees.length > 0 && (
                                     accountId === '' ? (
-                                        <p className="setup-hint">Select an account to send invitations.</p>
-                                    ) : form.id === '' ? (
-                                        <p className="setup-hint">Save the event to invite its attendees.</p>
+                                        <p className="setup-hint">Select an account to send the invitation to the attendees.</p>
                                     ) : (
-                                        <div className="invite-card-actions">
-                                            <button type="button" className="btn primary" disabled={busy}
-                                                    onClick={() => void sendInvitations()}>Send invitations</button>
-                                            <button type="button" className="btn danger-outline" disabled={busy}
-                                                    onClick={() => setCancelMeeting(true)}>Cancel meeting</button>
-                                        </div>
+                                        <>
+                                            <p className="setup-hint">
+                                                Saving {form.id === '' ? 'this meeting' : ''} sends an invitation to the attendees by email.
+                                            </p>
+                                            {form.id !== '' && (
+                                                <div className="invite-card-actions">
+                                                    <button type="button" className="btn" disabled={busy}
+                                                            onClick={() => void sendInvitations()}>Resend invitation</button>
+                                                    <button type="button" className="btn danger-outline" disabled={busy}
+                                                            onClick={() => setCancelMeeting(true)}>Cancel meeting</button>
+                                                </div>
+                                            )}
+                                        </>
                                     )
                                 )}
                             </div>
@@ -773,7 +797,7 @@ export function CalendarModal({events, accountId, accountEmail, accountName, onC
                                     <button className="btn" onClick={() => setForm(null)}>Cancel</button>
                                     <button className="btn primary" onClick={() => void save()}
                                             disabled={busy || form.summary.trim() === '' || form.start === ''}>
-                                        {busy ? 'Saving…' : (form.id ? 'Save changes' : 'Add event')}
+                                        {busy ? 'Saving…' : primaryActionLabel()}
                                     </button>
                                 </span>
                             </div>
