@@ -231,10 +231,16 @@ func (s *Source) Delete(ctx context.Context, account domain.Account, folder doma
 	return nil
 }
 
+// deleteBatchSize caps how many UIDs go into a single MOVE or STORE command. The whole delete still
+// runs over one connection; chunking only keeps each command's line length within server limits, since
+// a bulk delete can carry thousands of UIDs (Gmail "All Mail" selections in particular).
+const deleteBatchSize = 500
+
 // DeleteMany removes several messages in one folder over a single connection: it selects the folder
-// once, then moves the whole UID set to trashPath (one MOVE) or marks it all \Deleted and expunges
-// (one STORE plus one EXPUNGE) when trashPath is empty. This is the batched form of Delete, so a bulk
-// delete costs one login and one server round trip rather than one per message. It satisfies
+// once, then moves them to trashPath (MOVE) or marks them \Deleted and expunges (STORE then EXPUNGE)
+// when trashPath is empty, issued in UID chunks so one command never grows too long. This is the
+// batched form of Delete: a bulk delete costs one login for the whole selection rather than one per
+// message, which is what keeps it under Gmail's simultaneous-connection cap. It satisfies
 // application.MailActions.
 func (s *Source) DeleteMany(ctx context.Context, account domain.Account, folder domain.Folder, uids []string, trashPath string) error {
 	if len(uids) == 0 {
@@ -250,28 +256,41 @@ func (s *Source) DeleteMany(ctx context.Context, account domain.Account, folder 
 		return fmt.Errorf("imap: select %q: %w", folder.Path(), err)
 	}
 
-	uidSet := imap.UIDSet{}
+	nums := make([]imap.UID, 0, len(uids))
 	for _, uid := range uids {
 		u, err := parseUID(uid)
 		if err != nil {
 			return err
 		}
-		uidSet.AddNum(u)
-	}
-
-	if trashPath != "" {
-		if _, err := client.Move(uidSet, trashPath).Wait(); err != nil {
-			return fmt.Errorf("imap: move %d messages to %q: %w", len(uids), trashPath, err)
-		}
-		return nil
+		nums = append(nums, u)
 	}
 
 	store := &imap.StoreFlags{Op: imap.StoreFlagsAdd, Silent: true, Flags: []imap.Flag{imap.FlagDeleted}}
-	if err := client.Store(uidSet, store, nil).Close(); err != nil {
-		return fmt.Errorf("imap: mark %d messages \\Deleted: %w", len(uids), err)
+	for start := 0; start < len(nums); start += deleteBatchSize {
+		end := start + deleteBatchSize
+		if end > len(nums) {
+			end = len(nums)
+		}
+		set := imap.UIDSet{}
+		for _, u := range nums[start:end] {
+			set.AddNum(u)
+		}
+		if trashPath != "" {
+			if _, err := client.Move(set, trashPath).Wait(); err != nil {
+				return fmt.Errorf("imap: move %d messages to %q: %w", end-start, trashPath, err)
+			}
+			continue
+		}
+		if err := client.Store(set, store, nil).Close(); err != nil {
+			return fmt.Errorf("imap: mark %d messages \\Deleted: %w", end-start, err)
+		}
 	}
-	if err := client.Expunge().Close(); err != nil {
-		return fmt.Errorf("imap: expunge %d messages: %w", len(uids), err)
+
+	// A permanent delete expunges once at the end, after every chunk is flagged \Deleted.
+	if trashPath == "" {
+		if err := client.Expunge().Close(); err != nil {
+			return fmt.Errorf("imap: expunge %d messages: %w", len(nums), err)
+		}
 	}
 	return nil
 }
