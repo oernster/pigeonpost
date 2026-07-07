@@ -309,6 +309,30 @@ func (a *App) DeleteMessagePermanent(messageID string) error {
 	return a.actions.DeletePermanent(a.ctx, messageID)
 }
 
+// DeleteMessages removes several messages in one batched pass per folder, far faster than a call per
+// message: each is moved to Trash where the account has one, otherwise deleted permanently. It returns
+// which ids were removed (so the UI drops exactly those) plus any error text, rather than failing the
+// whole call, so a partial success still reports what went.
+func (a *App) DeleteMessages(ids []string) BulkDeleteResultDTO {
+	return a.bulkDelete(ids, false)
+}
+
+// DeleteMessagesPermanent removes several messages immediately and irreversibly, without moving them to
+// Trash. It is the batched counterpart to DeleteMessagePermanent.
+func (a *App) DeleteMessagesPermanent(ids []string) BulkDeleteResultDTO {
+	return a.bulkDelete(ids, true)
+}
+
+// bulkDelete runs the batched delete and packs its outcome into the DTO the front end reads.
+func (a *App) bulkDelete(ids []string, permanent bool) BulkDeleteResultDTO {
+	deleted, err := a.actions.DeleteMany(a.ctx, ids, permanent)
+	result := BulkDeleteResultDTO{Deleted: deleted, Failed: len(ids) - len(deleted)}
+	if err != nil {
+		result.Error = err.Error()
+	}
+	return result
+}
+
 // MoveMessage relocates a message to another folder in the same account.
 func (a *App) MoveMessage(messageID, destFolderID string) error {
 	return a.actions.Move(a.ctx, messageID, destFolderID)

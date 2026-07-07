@@ -66,6 +66,14 @@ export function DeleteMessagePermanent(arg1) {
   return window['go']['main']['App']['DeleteMessagePermanent'](arg1);
 }
 
+export function DeleteMessages(arg1) {
+  return window['go']['main']['App']['DeleteMessages'](arg1);
+}
+
+export function DeleteMessagesPermanent(arg1) {
+  return window['go']['main']['App']['DeleteMessagesPermanent'](arg1);
+}
+
 export function DeleteRule(arg1) {
   return window['go']['main']['App']['DeleteRule'](arg1);
 }

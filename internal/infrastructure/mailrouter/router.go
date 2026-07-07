@@ -21,6 +21,7 @@ type protocolSource interface {
 	SetSeen(ctx context.Context, account domain.Account, folder domain.Folder, uid string, seen bool) error
 	SetFlagged(ctx context.Context, account domain.Account, folder domain.Folder, uid string, flagged bool) error
 	Delete(ctx context.Context, account domain.Account, folder domain.Folder, uid string, trashPath string) error
+	DeleteMany(ctx context.Context, account domain.Account, folder domain.Folder, uids []string, trashPath string) error
 	Move(ctx context.Context, account domain.Account, folder domain.Folder, uid string, destPath string) error
 	Copy(ctx context.Context, account domain.Account, folder domain.Folder, uid string, destPath string) error
 }
@@ -84,6 +85,11 @@ func (r *Router) SetFlagged(ctx context.Context, account domain.Account, folder 
 // Delete delegates to the account's protocol adapter.
 func (r *Router) Delete(ctx context.Context, account domain.Account, folder domain.Folder, uid string, trashPath string) error {
 	return r.sourceFor(account).Delete(ctx, account, folder, uid, trashPath)
+}
+
+// DeleteMany delegates to the account's protocol adapter.
+func (r *Router) DeleteMany(ctx context.Context, account domain.Account, folder domain.Folder, uids []string, trashPath string) error {
+	return r.sourceFor(account).DeleteMany(ctx, account, folder, uids, trashPath)
 }
 
 // Move delegates to the account's protocol adapter.

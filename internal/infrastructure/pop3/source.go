@@ -186,6 +186,36 @@ func (s *Source) Delete(ctx context.Context, account domain.Account, _ domain.Fo
 	return client.Dele(number)
 }
 
+// DeleteMany permanently removes several messages over a single connection: it opens one session, reads
+// the UIDL map once, then issues a DELE for each message, all committed when the session quits. POP3 has
+// no Trash, so trashPath is ignored and every delete is permanent. This is the batched form of Delete,
+// so a bulk delete costs one login and one UIDL rather than one of each per message.
+func (s *Source) DeleteMany(ctx context.Context, account domain.Account, _ domain.Folder, uids []string, _ string) error {
+	if len(uids) == 0 {
+		return nil
+	}
+	client, err := s.connect(ctx, account)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = client.Quit() }()
+
+	items, err := client.UIDL()
+	if err != nil {
+		return err
+	}
+	for _, uid := range uids {
+		number, ok := numberForUID(items, uid)
+		if !ok {
+			return fmt.Errorf("pop3: message %q not found", uid)
+		}
+		if err := client.Dele(number); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // Move is unsupported: POP3 exposes a single mailbox, so there is nowhere to move a message to.
 func (s *Source) Move(context.Context, domain.Account, domain.Folder, string, string) error {
 	return fmt.Errorf("pop3: move message: %w", ErrUnsupported)

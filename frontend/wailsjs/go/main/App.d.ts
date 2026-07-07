@@ -34,6 +34,10 @@ export function DeleteMessage(arg1:string):Promise<void>;
 
 export function DeleteMessagePermanent(arg1:string):Promise<void>;
 
+export function DeleteMessages(arg1:Array<string>):Promise<main.BulkDeleteResultDTO>;
+
+export function DeleteMessagesPermanent(arg1:Array<string>):Promise<main.BulkDeleteResultDTO>;
+
 export function DeleteRule(arg1:string):Promise<void>;
 
 export function DeleteTag(arg1:string):Promise<void>;

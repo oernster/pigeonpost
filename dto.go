@@ -33,6 +33,15 @@ type FolderDTO struct {
 	Total     int    `json:"total"`
 }
 
+// BulkDeleteResultDTO is the outcome of a batched delete: the ids actually removed from the server (so
+// the UI drops exactly those), the count that could not be deleted and a human-readable error when any
+// failed. The facade returns this instead of an error so a partial success still reports what went.
+type BulkDeleteResultDTO struct {
+	Deleted []string `json:"deleted"`
+	Failed  int      `json:"failed"`
+	Error   string   `json:"error"`
+}
+
 // UnreadCountsDTO is the JSON-serialisable view of unread message counts: the total across every
 // account and the per-account breakdown keyed by account id.
 type UnreadCountsDTO struct {

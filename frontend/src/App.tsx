@@ -1247,10 +1247,10 @@ function App() {
         setAnchorId(null)
     }, [])
 
-    // runBulkDelete carries out a confirmed bulk delete or permanent delete over the selected messages,
-    // one server call each (there is no batch endpoint). Each is attempted independently, so a failure on
-    // one does not abort the rest; whichever succeeded are removed and any failures are reported with a
-    // count so a partial delete is never silent.
+    // runBulkDelete carries out a confirmed bulk delete or permanent delete over the selected messages in
+    // one batched backend call: the server groups them by folder and issues a single delete per folder,
+    // rather than a fresh connection per message. The result reports which ids were removed (dropped from
+    // the on-screen lists) and how many failed, so a partial delete is never silent.
     const runBulkDelete = useCallback(async (targets: Message[], permanent: boolean) => {
         if (targets.length === 0) {
             return
@@ -1258,30 +1258,24 @@ function App() {
         const setBusy = permanent ? setBulkPurging : setBulkDeleting
         setBusy(true)
         setError('')
-        const done = new Set<string>()
-        let lastError = ''
-        for (const m of targets) {
-            try {
-                if (permanent) {
-                    await api.deleteMessagePermanent(m.id)
-                } else {
-                    await api.deleteMessage(m.id)
-                }
-                done.add(m.id)
-            } catch (e) {
-                lastError = String(e)
+        const ids = targets.map((m) => m.id)
+        try {
+            const result = permanent
+                ? await api.deleteMessagesPermanent(ids)
+                : await api.deleteMessages(ids)
+            removeIdsFromLists(new Set(result.deleted))
+            if (result.error) {
+                setError(`${result.failed} of ${targets.length} messages could not be deleted: ${result.error}`)
             }
-        }
-        removeIdsFromLists(done)
-        if (permanent) {
-            setBulkToPurge(null)
-        } else {
-            setBulkToDelete(null)
-        }
-        setBusy(false)
-        const failed = targets.length - done.size
-        if (failed > 0) {
-            setError(`${failed} of ${targets.length} messages could not be deleted: ${lastError}`)
+        } catch (e) {
+            setError(`Bulk delete failed: ${String(e)}`)
+        } finally {
+            if (permanent) {
+                setBulkToPurge(null)
+            } else {
+                setBulkToDelete(null)
+            }
+            setBusy(false)
         }
         await loadUnread()
     }, [removeIdsFromLists, loadUnread])

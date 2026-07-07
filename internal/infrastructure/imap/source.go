@@ -231,6 +231,51 @@ func (s *Source) Delete(ctx context.Context, account domain.Account, folder doma
 	return nil
 }
 
+// DeleteMany removes several messages in one folder over a single connection: it selects the folder
+// once, then moves the whole UID set to trashPath (one MOVE) or marks it all \Deleted and expunges
+// (one STORE plus one EXPUNGE) when trashPath is empty. This is the batched form of Delete, so a bulk
+// delete costs one login and one server round trip rather than one per message. It satisfies
+// application.MailActions.
+func (s *Source) DeleteMany(ctx context.Context, account domain.Account, folder domain.Folder, uids []string, trashPath string) error {
+	if len(uids) == 0 {
+		return nil
+	}
+	client, err := s.connect(ctx, account)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = client.Logout().Wait() }()
+
+	if _, err := client.Select(folder.Path(), nil).Wait(); err != nil {
+		return fmt.Errorf("imap: select %q: %w", folder.Path(), err)
+	}
+
+	uidSet := imap.UIDSet{}
+	for _, uid := range uids {
+		u, err := parseUID(uid)
+		if err != nil {
+			return err
+		}
+		uidSet.AddNum(u)
+	}
+
+	if trashPath != "" {
+		if _, err := client.Move(uidSet, trashPath).Wait(); err != nil {
+			return fmt.Errorf("imap: move %d messages to %q: %w", len(uids), trashPath, err)
+		}
+		return nil
+	}
+
+	store := &imap.StoreFlags{Op: imap.StoreFlagsAdd, Silent: true, Flags: []imap.Flag{imap.FlagDeleted}}
+	if err := client.Store(uidSet, store, nil).Close(); err != nil {
+		return fmt.Errorf("imap: mark %d messages \\Deleted: %w", len(uids), err)
+	}
+	if err := client.Expunge().Close(); err != nil {
+		return fmt.Errorf("imap: expunge %d messages: %w", len(uids), err)
+	}
+	return nil
+}
+
 // Move relocates a message by UID from its folder to destPath on the server. It satisfies
 // application.MailActions.
 func (s *Source) Move(ctx context.Context, account domain.Account, folder domain.Folder, uid string, destPath string) error {

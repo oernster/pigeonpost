@@ -207,6 +207,159 @@ func TestDeletePermanentSkipsTrash(t *testing.T) {
 	}
 }
 
+func TestDeleteManyBatchesOneFolderToTrash(t *testing.T) {
+	svc, store, accounts, remote := newActionService()
+	accounts.accounts["a1"] = testAccount(t, "a1")
+	store.folders["a1"] = []domain.Folder{testFolder(t, "f1", "a1", "INBOX"), trashFolder(t, "ft", "a1")}
+	store.messages["f1"] = []domain.MessageSummary{testMessage(t, "m1", "f1"), testMessage(t, "m2", "f1")}
+
+	deleted, err := svc.DeleteMany(context.Background(), []string{"m1", "m2"}, false)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(deleted) != 2 {
+		t.Errorf("deleted = %v, want two ids", deleted)
+	}
+	// One batched server call for the whole folder, not one per message, carrying the Trash path.
+	if len(remote.deleteManyBatches) != 1 || len(remote.deleteManyBatches[0]) != 2 {
+		t.Errorf("expected one batch of two uids, got %v", remote.deleteManyBatches)
+	}
+	if len(remote.deleteManyTrash) != 1 || remote.deleteManyTrash[0] != "Trash" {
+		t.Errorf("expected batch move to Trash, got %v", remote.deleteManyTrash)
+	}
+	if len(store.deletedMessages) != 2 {
+		t.Errorf("expected both cached rows removed, got %v", store.deletedMessages)
+	}
+}
+
+func TestDeleteManyPermanentSkipsTrash(t *testing.T) {
+	svc, store, accounts, remote := newActionService()
+	accounts.accounts["a1"] = testAccount(t, "a1")
+	store.folders["a1"] = []domain.Folder{testFolder(t, "f1", "a1", "INBOX"), trashFolder(t, "ft", "a1")}
+	store.messages["f1"] = []domain.MessageSummary{testMessage(t, "m1", "f1")}
+
+	deleted, err := svc.DeleteMany(context.Background(), []string{"m1"}, true)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(deleted) != 1 {
+		t.Errorf("deleted = %v, want one id", deleted)
+	}
+	if len(remote.deleteManyTrash) != 1 || remote.deleteManyTrash[0] != "" {
+		t.Errorf("expected permanent batch (empty trash path), got %v", remote.deleteManyTrash)
+	}
+}
+
+func TestDeleteManyGroupsByFolder(t *testing.T) {
+	svc, store, accounts, remote := newActionService()
+	accounts.accounts["a1"] = testAccount(t, "a1")
+	store.folders["a1"] = []domain.Folder{
+		testFolder(t, "f1", "a1", "INBOX"),
+		testFolder(t, "f2", "a1", "Archive"),
+	}
+	store.messages["f1"] = []domain.MessageSummary{testMessage(t, "m1", "f1")}
+	store.messages["f2"] = []domain.MessageSummary{testMessage(t, "m2", "f2")}
+
+	deleted, err := svc.DeleteMany(context.Background(), []string{"m1", "m2"}, true)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(deleted) != 2 {
+		t.Errorf("deleted = %v, want two ids", deleted)
+	}
+	if len(remote.deleteManyBatches) != 2 {
+		t.Errorf("expected two batches, one per folder, got %v", remote.deleteManyBatches)
+	}
+}
+
+func TestDeleteManyGetMessageError(t *testing.T) {
+	svc, store, _, _ := newActionService()
+	store.getMessageErr = errBoom
+	deleted, err := svc.DeleteMany(context.Background(), []string{"m1"}, false)
+	if !errors.Is(err, errBoom) {
+		t.Errorf("error = %v, want wrapped boom", err)
+	}
+	if len(deleted) != 0 {
+		t.Errorf("deleted = %v, want none", deleted)
+	}
+}
+
+func TestDeleteManyGetFolderError(t *testing.T) {
+	svc, store, accounts, _ := newActionService()
+	seedMessageLocation(t, store, accounts)
+	store.getFolderErr = errBoom
+	deleted, err := svc.DeleteMany(context.Background(), []string{"m1"}, false)
+	if !errors.Is(err, errBoom) {
+		t.Errorf("error = %v, want wrapped boom", err)
+	}
+	if len(deleted) != 0 {
+		t.Errorf("deleted = %v, want none", deleted)
+	}
+}
+
+func TestDeleteManyGetAccountError(t *testing.T) {
+	svc, store, accounts, _ := newActionService()
+	seedMessageLocation(t, store, accounts)
+	accounts.getErr = errBoom
+	if _, err := svc.DeleteMany(context.Background(), []string{"m1"}, false); !errors.Is(err, errBoom) {
+		t.Errorf("error = %v, want wrapped boom", err)
+	}
+}
+
+func TestDeleteManyTrashError(t *testing.T) {
+	svc, store, accounts, _ := newActionService()
+	seedMessageLocation(t, store, accounts)
+	store.listFoldersErr = errBoom
+	if _, err := svc.DeleteMany(context.Background(), []string{"m1"}, false); !errors.Is(err, errBoom) {
+		t.Errorf("error = %v, want wrapped boom", err)
+	}
+}
+
+func TestDeleteManyServerError(t *testing.T) {
+	svc, store, accounts, remote := newActionService()
+	seedMessageLocation(t, store, accounts)
+	remote.deleteManyErr = errBoom
+	deleted, err := svc.DeleteMany(context.Background(), []string{"m1"}, false)
+	if !errors.Is(err, errBoom) {
+		t.Errorf("error = %v, want wrapped boom", err)
+	}
+	if len(deleted) != 0 {
+		t.Errorf("deleted = %v, want none when the server batch fails", deleted)
+	}
+	if len(store.deletedMessages) != 0 {
+		t.Errorf("cache must be untouched when the server batch fails, got %v", store.deletedMessages)
+	}
+}
+
+func TestDeleteManyCacheError(t *testing.T) {
+	svc, store, accounts, _ := newActionService()
+	seedMessageLocation(t, store, accounts)
+	store.deleteMessageErr = errBoom
+	deleted, err := svc.DeleteMany(context.Background(), []string{"m1"}, false)
+	if !errors.Is(err, errBoom) {
+		t.Errorf("error = %v, want wrapped boom", err)
+	}
+	// The server delete succeeded, so the id is still reported so the UI drops it; the cache reconciles
+	// on the next sync.
+	if len(deleted) != 1 || deleted[0] != "m1" {
+		t.Errorf("deleted = %v, want [m1] despite the cache error", deleted)
+	}
+}
+
+func TestDeleteManyEmpty(t *testing.T) {
+	svc, _, _, remote := newActionService()
+	deleted, err := svc.DeleteMany(context.Background(), nil, false)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(deleted) != 0 {
+		t.Errorf("deleted = %v, want none", deleted)
+	}
+	if len(remote.deleteManyBatches) != 0 {
+		t.Errorf("no server call expected for an empty set, got %v", remote.deleteManyBatches)
+	}
+}
+
 func TestDeleteGetMessageError(t *testing.T) {
 	svc, store, _, _ := newActionService()
 	store.getMessageErr = errBoom

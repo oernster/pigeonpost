@@ -429,16 +429,19 @@ func (f *fakeMailSource) FetchMessages(_ context.Context, _ domain.Account, fold
 
 // fakeMailActions is a hand-written MailActions that records the operations it was asked to perform.
 type fakeMailActions struct {
-	setSeenErr       error
-	flaggedErr       error
-	deleteErr        error
-	moveErr          error
-	copyErr          error
-	seenCalls        []bool
-	flaggedCalls     []bool
-	deleteTrashPaths []string
-	moveDestPaths    []string
-	copyDestPaths    []string
+	setSeenErr        error
+	flaggedErr        error
+	deleteErr         error
+	deleteManyErr     error
+	moveErr           error
+	copyErr           error
+	seenCalls         []bool
+	flaggedCalls      []bool
+	deleteTrashPaths  []string
+	deleteManyBatches [][]string
+	deleteManyTrash   []string
+	moveDestPaths     []string
+	copyDestPaths     []string
 }
 
 func (f *fakeMailActions) SetSeen(_ context.Context, _ domain.Account, _ domain.Folder, _ string, seen bool) error {
@@ -454,6 +457,15 @@ func (f *fakeMailActions) Delete(_ context.Context, _ domain.Account, _ domain.F
 		return f.deleteErr
 	}
 	f.deleteTrashPaths = append(f.deleteTrashPaths, trashPath)
+	return nil
+}
+
+func (f *fakeMailActions) DeleteMany(_ context.Context, _ domain.Account, _ domain.Folder, uids []string, trashPath string) error {
+	if f.deleteManyErr != nil {
+		return f.deleteManyErr
+	}
+	f.deleteManyBatches = append(f.deleteManyBatches, uids)
+	f.deleteManyTrash = append(f.deleteManyTrash, trashPath)
 	return nil
 }
 

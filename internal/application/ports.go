@@ -86,6 +86,10 @@ type MailActions interface {
 	Move(ctx context.Context, account domain.Account, folder domain.Folder, uid string, destPath string) error
 	// Copy duplicates a message by its opaque handle into the destination mailbox, leaving the original in place.
 	Copy(ctx context.Context, account domain.Account, folder domain.Folder, uid string, destPath string) error
+	// DeleteMany removes several messages that live in the same folder in one server round trip: it moves
+	// them to trashPath or deletes them permanently when trashPath is empty. It is the batched form of
+	// Delete, so a bulk delete opens one connection for the whole folder instead of one per message.
+	DeleteMany(ctx context.Context, account domain.Account, folder domain.Folder, uids []string, trashPath string) error
 }
 
 // MailTransport sends an outgoing message via an account's outgoing (SMTP) server.

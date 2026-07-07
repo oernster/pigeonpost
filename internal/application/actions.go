@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/oernster/pigeonpost/internal/domain"
@@ -110,6 +111,75 @@ func (s *MessageActionService) delete(ctx context.Context, messageID string, per
 		return fmt.Errorf("delete cached message %q: %w", messageID, err)
 	}
 	return nil
+}
+
+// DeleteMany removes several messages in as few server round trips as possible: it groups them by
+// folder and issues one batched server delete per folder (moving each folder's messages to Trash or
+// deleting them permanently when permanent is true or the folder has no Trash), rather than a fresh
+// connection per message. It returns the ids that were removed from the server so the caller can drop
+// exactly those from the UI; a folder whose batch fails leaves its messages in place and contributes
+// the returned error, so a partial failure is never silent.
+func (s *MessageActionService) DeleteMany(ctx context.Context, messageIDs []string, permanent bool) ([]string, error) {
+	type batch struct {
+		account   domain.Account
+		folder    domain.Folder
+		trashPath string
+		uids      []string
+		ids       []string
+	}
+	batches := map[string]*batch{}
+	order := make([]string, 0)
+	var errs []error
+	for _, id := range messageIDs {
+		msg, err := s.store.GetMessage(ctx, id)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("locate message %q: %w", id, err))
+			continue
+		}
+		b, ok := batches[msg.FolderID()]
+		if !ok {
+			folder, err := s.store.GetFolder(ctx, msg.FolderID())
+			if err != nil {
+				errs = append(errs, fmt.Errorf("locate folder %q: %w", msg.FolderID(), err))
+				continue
+			}
+			account, err := s.accounts.GetAccount(ctx, folder.AccountID())
+			if err != nil {
+				errs = append(errs, fmt.Errorf("locate account %q: %w", folder.AccountID(), err))
+				continue
+			}
+			trashPath := ""
+			if !permanent {
+				trashPath, err = s.trashPath(ctx, folder)
+				if err != nil {
+					errs = append(errs, fmt.Errorf("resolve trash for %q: %w", msg.FolderID(), err))
+					continue
+				}
+			}
+			b = &batch{account: account, folder: folder, trashPath: trashPath}
+			batches[msg.FolderID()] = b
+			order = append(order, msg.FolderID())
+		}
+		b.uids = append(b.uids, msg.UID())
+		b.ids = append(b.ids, id)
+	}
+	deleted := make([]string, 0, len(messageIDs))
+	for _, folderID := range order {
+		b := batches[folderID]
+		if err := s.remote.DeleteMany(ctx, b.account, b.folder, b.uids, b.trashPath); err != nil {
+			errs = append(errs, fmt.Errorf("delete %d messages in %q on server: %w", len(b.uids), folderID, err))
+			continue
+		}
+		// The server delete succeeded, so each message is gone remotely: drop it from the UI even if the
+		// cache row cannot be removed (the next sync reconciles the cache) and report the cache error.
+		for _, id := range b.ids {
+			if err := s.store.DeleteMessage(ctx, id); err != nil {
+				errs = append(errs, fmt.Errorf("delete cached message %q: %w", id, err))
+			}
+			deleted = append(deleted, id)
+		}
+	}
+	return deleted, errors.Join(errs...)
 }
 
 // Move relocates a message to another folder within the same account: it is moved on the server and
