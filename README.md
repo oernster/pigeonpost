@@ -9,6 +9,8 @@ local-first. Built as a calmer, more predictable alternative to Thunderbird.
 
 - People who run standard IMAP/POP3 mailboxes (self-hosted, ISP, Fastmail, corporate) and want a
   fast, native, local-first desktop client.
+- Gmail, iCloud, Yahoo, Fastmail and StartMail users who connect with an app password (the setup
+  wizard fills in the servers).
 
 ## Who it is not for
 
@@ -16,16 +18,16 @@ local-first. Built as a calmer, more predictable alternative to Thunderbird.
 - Microsoft users (Outlook.com, Hotmail, Live, Office 365): not supported. Microsoft disabled basic
   auth for personal accounts so only OAuth connects them; OAuth in turn needs an app registration that
   Microsoft gates behind a paid Azure sign-up, so PigeonPost does not offer a Microsoft option.
-- Gmail-first users: Gmail is out of scope for v1 (Google's restricted-scope verification is too much
-  friction). A Gmail app password will connect through the generic IMAP path, but Gmail is not tested
-  or supported.
+- Google Workspace (work/school) accounts: OAuth-only since March 2025, so an app password will not
+  work. Personal Gmail is supported (via an app password); only the one-click "Sign in with Google" is
+  declined, because Google's full-mail scope carries an annual paid security assessment.
 
 ## Capabilities
 
 Shipped:
 
 - **Accounts**: add, edit and remove IMAP and POP3 accounts from a two-step setup wizard (provider
-  presets for iCloud, Yahoo, Fastmail and StartMail, plus manual host/port/security).
+  presets for Gmail, iCloud, Yahoo, Fastmail and StartMail, plus manual host/port/security).
   Credentials are verified against the server before anything is saved. Each account keeps its own
   separate inbox; there is no unified inbox. POP3 accounts download into a single mailbox with read and
   star marks kept locally, and their folder, move/copy and draft actions are hidden.

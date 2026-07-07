@@ -62,6 +62,12 @@ interface Provider {
 
 const PROVIDERS: readonly Provider[] = [
     {
+        id: 'gmail', name: 'Gmail',
+        inHost: 'imap.gmail.com', inPort: 993, inSecurity: 'tls',
+        outHost: 'smtp.gmail.com', outPort: 587, outSecurity: 'starttls',
+        note: 'Personal Gmail only. Turn on 2-Step Verification, then generate an app password and use it here.',
+    },
+    {
         id: 'icloud', name: 'iCloud Mail',
         inHost: 'imap.mail.me.com', inPort: 993, inSecurity: 'tls',
         outHost: 'smtp.mail.me.com', outPort: 587, outSecurity: 'starttls',

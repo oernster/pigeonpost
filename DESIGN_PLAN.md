@@ -266,13 +266,13 @@ XOAUTH2 path is left as an unused seam). v1 provider matrix:
   stays in the domain so any future OAuth provider can slot in; no Microsoft path ships.
 - Generic IMAP/POP3 + SMTP (Fastmail, self-hosted, ISP, corporate): password auth, the core path,
   from phase 1.
-- Gmail: OUT OF SCOPE for v1. Google's IMAP/SMTP scope is restricted, triggering app verification
-  plus an annual CASA security assessment (real money, long lead time). The friction is not worth it
-  for v1. PigeonPost does nothing Gmail-specific (no Gmail OAuth, no autoconfig entry, no
-  app-password guidance, no testing, no support). The generic IMAP path stays open, so a user who
-  configures a Gmail app password manually can still connect, but Gmail is unadvertised and
-  unsupported. Revisit embedded-credential Gmail OAuth (with CASA) only if the app reaches
-  mainstream traction; bring-your-own client ID remains a possible future power-user option.
+- Gmail: SUPPORTED for personal accounts through an app password, added as a provider preset like
+  iCloud and Yahoo. Personal Gmail still issues app passwords in 2026 with 2-Step Verification on; a
+  plain IMAP preset costs the developer nothing, so it passes the provider-inclusion test. What stays
+  OUT is one-click "Sign in with Google" (XOAUTH2): the restricted mail.google.com scope triggers an
+  annual CASA security assessment that costs real money every year, which fails the test the same way
+  Microsoft's paid Azure registration does. Google Workspace (work/school) accounts are OAuth-only
+  since March 2025, so they are not covered by the personal-account preset.
 
 With Microsoft dropped, v1 has no external auth dependency at all: every supported account
 signs in with a password (or an app password) over the generic IMAP/POP3 + SMTP path.
@@ -335,8 +335,9 @@ hardest-to-reverse parts) first.
 - Stack: Go + Wails + React/TS, Emersion mail suite, pure-Go SQLite + FTS5, OS keychain.
 - Auth: password auth (generic IMAP/POP3) in v1; a generic OAuth seam is in place but no provider uses
   it. Microsoft is unsupported and dropped: only OAuth connects personal accounts now and its app
-  registration is gated behind a paid Azure sign-up. Gmail out of scope for v1 (generic IMAP stays open
-  but unsupported).
+  registration is gated behind a paid Azure sign-up. Gmail personal accounts are supported via an
+  app-password preset; one-click Google sign-in is declined (annual CASA fee) and Workspace accounts
+  are OAuth-only, so unsupported.
 - Calendar/contacts: file ICS/vCard import/export + read-only ICS subscription in v1; two-way
   CalDAV/CardDAV in v2.
 - Compose: light TipTap rich-text + plain-text toggle in v1; no full HTML-editor parity.
