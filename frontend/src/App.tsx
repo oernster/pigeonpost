@@ -1480,6 +1480,19 @@ function App() {
             if (overlayOpen) {
                 return
             }
+            if ((e.key === 'a' || e.key === 'A') && (e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey) {
+                // Ctrl/Cmd+A selects every message in the current view (the open folder, or the search
+                // results) so the whole lot can be deleted or moved at once. Delete then opens the
+                // count-named bulk confirm. Suppressed inside text fields above, so it never steals the
+                // native select-all while typing.
+                if (list.length === 0) {
+                    return
+                }
+                e.preventDefault()
+                setMarkedIds(new Set(list.map((m) => m.id)))
+                setAnchorId(list[0].id)
+                return
+            }
             if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
                 // The folder list owns its own Up/Down (it navigates folders); do not also move the
                 // message selection when focus is within it.
