@@ -17,6 +17,14 @@ func (s staticPassword) Password(context.Context, domain.Account) (string, error
 	return s.secret, nil
 }
 
+// staticToken is a TokenProvider returning a fixed access token, used to construct the source in tests.
+// The live test uses password auth, so its token is never requested.
+type staticToken struct{ token string }
+
+func (s staticToken) AccessToken(context.Context, domain.Account) (string, error) {
+	return s.token, nil
+}
+
 // fixedClock is a domain.Clock returning a constant time, used to construct the source in tests.
 type fixedClock struct{}
 
@@ -52,7 +60,7 @@ func TestSourceLive(t *testing.T) {
 		t.Fatalf("account: %v", err)
 	}
 
-	source := NewSource(staticPassword{secret: password}, fixedClock{}, func() string { return "test@pigeonpost" })
+	source := NewSource(staticPassword{secret: password}, staticToken{}, fixedClock{}, func() string { return "test@pigeonpost" })
 	if err := source.Verify(context.Background(), account, password); err != nil {
 		t.Fatalf("verify: %v", err)
 	}

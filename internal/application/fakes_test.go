@@ -115,6 +115,21 @@ func (f *fakeVerifier) Verify(_ context.Context, account domain.Account, passwor
 	return f.verifyErr
 }
 
+// fakeAuthorizer is a hand-written OAuthAuthorizer returning a fixed credential (or an injected error).
+type fakeAuthorizer struct {
+	cred       OAuthCredential
+	authorized bool
+	err        error
+}
+
+func (f *fakeAuthorizer) Authorize(context.Context) (OAuthCredential, error) {
+	f.authorized = true
+	if f.err != nil {
+		return OAuthCredential{}, f.err
+	}
+	return f.cred, nil
+}
+
 // fakeMailStore is a hand-written in-memory MailStore with error-injection fields.
 type fakeMailStore struct {
 	folders          map[string][]domain.Folder

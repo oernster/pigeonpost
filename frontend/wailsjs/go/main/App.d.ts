@@ -152,6 +152,8 @@ export function SendMessage(arg1:main.ComposeRequest):Promise<void>;
 
 export function SetMessageTag(arg1:string,arg2:string,arg3:boolean):Promise<void>;
 
+export function SignInMicrosoft(arg1:string):Promise<string>;
+
 export function SyncAccount(arg1:string):Promise<void>;
 
 export function SyncFolder(arg1:string):Promise<void>;

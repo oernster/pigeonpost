@@ -53,6 +53,7 @@ type App struct {
 	quitting   atomic.Bool                   // set when an explicit Quit is under way, so the close prompt is skipped
 	accounts   *application.AccountService
 	setup      *application.AccountSetupService
+	msSetup    *application.MicrosoftSetupService
 	mailbox    *application.MailboxService
 	sync       *application.SyncService
 	compose    *application.ComposeService
@@ -75,6 +76,7 @@ func NewApp(
 	watcher MailWatcher,
 	accounts *application.AccountService,
 	setup *application.AccountSetupService,
+	microsoftSetup *application.MicrosoftSetupService,
 	mailbox *application.MailboxService,
 	sync *application.SyncService,
 	compose *application.ComposeService,
@@ -96,6 +98,7 @@ func NewApp(
 		watchers:   make(map[string]context.CancelFunc),
 		accounts:   accounts,
 		setup:      setup,
+		msSetup:    microsoftSetup,
 		mailbox:    mailbox,
 		sync:       sync,
 		compose:    compose,

@@ -67,6 +67,7 @@ import {
     PickAttachments,
     RemoveAccount,
     ReplayOutbox,
+    SignInMicrosoft,
     SaveDraft,
     SaveDraftRecovery,
     SaveAttachment,
@@ -262,6 +263,9 @@ export const api = {
     addAccount: (req: AccountSetupInput): Promise<void> => AddAccount(main.AccountSetupRequest.createFrom(req)),
     removeAccount: (accountId: string): Promise<void> => RemoveAccount(accountId),
     updateAccount: (req: AccountSetupInput): Promise<void> => UpdateAccount(main.AccountSetupRequest.createFrom(req)),
+    // signInMicrosoft runs the interactive OAuth flow (opens the browser, waits for consent) and resolves
+    // with the signed-in address so the caller can select the new account.
+    signInMicrosoft: (displayName: string): Promise<string> => SignInMicrosoft(displayName),
     listTags: (): Promise<Tag[]> => ListTags(),
     saveTag: (req: TagInput): Promise<void> => SaveTag(main.TagRequest.createFrom(req)),
     deleteTag: (tagId: string): Promise<void> => DeleteTag(tagId),

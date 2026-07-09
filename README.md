@@ -11,13 +11,12 @@ local-first. Built as a calmer, more predictable alternative to Thunderbird.
   fast, native, local-first desktop client.
 - Gmail, iCloud, Yahoo, Fastmail and StartMail users who connect with an app password (the setup
   wizard fills in the servers).
+- Microsoft users (Outlook.com, Hotmail, Live, Microsoft 365): sign in through Microsoft's OAuth in
+  your browser (one click, no app password); PigeonPost keeps a refresh token in the OS keychain.
 
 ## Who it is not for
 
 - Webmail-only users who never want a desktop install.
-- Microsoft users (Outlook.com, Hotmail, Live, Office 365): not supported. Microsoft disabled basic
-  auth for personal accounts so only OAuth connects them; OAuth in turn needs an app registration that
-  Microsoft gates behind a paid Azure sign-up, so PigeonPost does not offer a Microsoft option.
 - Google Workspace (work/school) accounts: OAuth-only since March 2025, so an app password will not
   work. Personal Gmail is supported (via an app password); only the one-click "Sign in with Google" is
   declined, because Google's full-mail scope carries an annual paid security assessment.

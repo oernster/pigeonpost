@@ -32,11 +32,30 @@ const (
 // watcher holds one long-lived connection per account, where Source makes one-shot fetch connections.
 type Watcher struct {
 	passwords PasswordProvider
+	tokens    TokenProvider
 }
 
-// NewWatcher constructs the watcher with the password provider used to authenticate each IDLE connection.
-func NewWatcher(passwords PasswordProvider) *Watcher {
-	return &Watcher{passwords: passwords}
+// NewWatcher constructs the watcher with the password and OAuth token providers used to authenticate each
+// IDLE connection, one or the other depending on the account's auth method.
+func NewWatcher(passwords PasswordProvider, tokens TokenProvider) *Watcher {
+	return &Watcher{passwords: passwords, tokens: tokens}
+}
+
+// secret returns the credential to authenticate the IDLE connection with: a refreshed OAuth access token
+// for an OAuth account, otherwise the stored keychain password.
+func (w *Watcher) secret(ctx context.Context, account domain.Account) (string, error) {
+	if account.Auth() == domain.AuthOAuth2 {
+		token, err := w.tokens.AccessToken(ctx, account)
+		if err != nil {
+			return "", fmt.Errorf("imap idle: token for %q: %w", account.ID(), err)
+		}
+		return token, nil
+	}
+	password, err := w.passwords.Password(ctx, account)
+	if err != nil {
+		return "", fmt.Errorf("imap idle: password for %q: %w", account.ID(), err)
+	}
+	return password, nil
 }
 
 // Watch holds an IDLE connection to the account's inbox until ctx is cancelled, calling onChange whenever
@@ -75,9 +94,9 @@ func (w *Watcher) Watch(ctx context.Context, account domain.Account, onChange fu
 // mailbox change, on the refresh timer or on cancellation. It returns nil only when ctx is cancelled, and
 // an error otherwise so Watch reconnects.
 func (w *Watcher) session(ctx context.Context, account domain.Account, onChange func()) error {
-	password, err := w.passwords.Password(ctx, account)
+	secret, err := w.secret(ctx, account)
 	if err != nil {
-		return fmt.Errorf("imap idle: password for %q: %w", account.ID(), err)
+		return err
 	}
 	changed := make(chan struct{}, 1)
 	signal := func() {
@@ -100,8 +119,8 @@ func (w *Watcher) session(ctx context.Context, account domain.Account, onChange 
 		return err
 	}
 	defer client.Close()
-	if err := client.Login(account.Address().Address(), password).Wait(); err != nil {
-		return fmt.Errorf("imap idle: login %q: %w", account.ID(), err)
+	if err := authenticate(client, account, secret); err != nil {
+		return err
 	}
 	if !client.Caps().Has(imap.CapIdle) {
 		return errIdleUnsupported

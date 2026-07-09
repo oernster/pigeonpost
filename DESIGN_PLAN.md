@@ -254,28 +254,30 @@ per-sender allow. This is the single most important security decision and is in 
 
 ## 7. Authentication decision (locked)
 
-Auth method is a strategy behind an auth-method seam from day one (password is implemented; the
-XOAUTH2 path is left as an unused seam). v1 provider matrix:
+Auth method is a strategy behind an auth-method seam from day one (both password and the XOAUTH2 OAuth
+path are implemented). v1 provider matrix:
 
-- Microsoft (Outlook.com / Hotmail / Live / Office 365): NOT SUPPORTED. Its provider preset has
-  been removed. Microsoft disabled basic auth for personal accounts (from Sept 2024) so a password or
-  app password over IMAP now fails with `NO AUTHENTICATE failed`; only OAuth (XOAUTH2) connects them.
-  OAuth needs a Microsoft Entra app registration, which Microsoft gates behind a paid Azure sign-up (a
-  credit card for identity verification, even though the registration itself is free). That billing
-  requirement is a hard no, so Microsoft is dropped rather than deferred. The generic XOAUTH2 seam
-  stays in the domain so any future OAuth provider can slot in; no Microsoft path ships.
+- Microsoft (Outlook.com / Hotmail / Live / Microsoft 365): SUPPORTED through OAuth. Microsoft disabled
+  basic auth for personal accounts (from Sept 2024) so a password or app password over IMAP fails with
+  `NO AUTHENTICATE failed`; only OAuth (XOAUTH2) connects them. PigeonPost signs in with the
+  authorization-code-plus-PKCE flow over a loopback redirect: it opens the system browser for consent,
+  exchanges the code for tokens, verifies mailbox access with XOAUTH2 and keeps a refresh token in the
+  OS keychain, renewing it silently. The Entra app registration this needs turned out to be free (no
+  card charge on the free Azure tier), so it passes the provider-inclusion test. The public client id is
+  embedded; a public client holds no secret.
 - Generic IMAP/POP3 + SMTP (Fastmail, self-hosted, ISP, corporate): password auth, the core path,
   from phase 1.
 - Gmail: SUPPORTED for personal accounts through an app password, added as a provider preset like
   iCloud and Yahoo. Personal Gmail still issues app passwords in 2026 with 2-Step Verification on; a
   plain IMAP preset costs the developer nothing, so it passes the provider-inclusion test. What stays
   OUT is one-click "Sign in with Google" (XOAUTH2): the restricted mail.google.com scope triggers an
-  annual CASA security assessment that costs real money every year, which fails the test the same way
-  Microsoft's paid Azure registration does. Google Workspace (work/school) accounts are OAuth-only
-  since March 2025, so they are not covered by the personal-account preset.
+  annual CASA security assessment that costs real money every year, which fails the provider-inclusion
+  test. Google Workspace (work/school) accounts are OAuth-only since March 2025, so they are not covered
+  by the personal-account preset.
 
-With Microsoft dropped, v1 has no external auth dependency at all: every supported account
-signs in with a password (or an app password) over the generic IMAP/POP3 + SMTP path.
+Every supported account signs in either with a password (or app password) over the generic IMAP/POP3 +
+SMTP path or with Microsoft OAuth over the same servers. The free Entra registration is the only
+external dependency; it costs nothing to run.
 
 ---
 

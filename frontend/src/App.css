@@ -1319,6 +1319,12 @@
     margin-bottom: 4px;
 }
 
+.microsoft-btn {
+    width: 100%;
+    min-height: 44px;
+    margin-bottom: 4px;
+}
+
 .provider-note {
     margin: 0 0 12px;
     padding: 8px 10px;

@@ -118,6 +118,7 @@ export function AccountSetupModal({account, onClose, onSaved}: AccountSetupModal
     const [inHostTouched, setInHostTouched] = useState(editing)
     const [outHostTouched, setOutHostTouched] = useState(editing)
     const [saving, setSaving] = useState(false)
+    const [msSigningIn, setMsSigningIn] = useState(false)
     const [error, setError] = useState('')
     const [sigLinkOpen, setSigLinkOpen] = useState(false)
     const [sigLinkUrl, setSigLinkUrl] = useState('')
@@ -170,6 +171,21 @@ export function AccountSetupModal({account, onClose, onSaved}: AccountSetupModal
         setInHostTouched(true)
         setOutHostTouched(true)
         setStep('details')
+    }
+
+    // Microsoft accounts sign in through OAuth rather than an app password: this opens the system browser
+    // for consent and waits for the loopback redirect, so the modal shows a waiting state until the Go
+    // side returns the signed-in address (or an error). No server details or password are collected here.
+    const signInMicrosoft = async () => {
+        setMsSigningIn(true)
+        setError('')
+        try {
+            const signedInEmail = await api.signInMicrosoft('')
+            onSaved(signedInEmail)
+        } catch (e) {
+            setError(String(e))
+            setMsSigningIn(false)
+        }
     }
 
     const chooseManual = () => {
@@ -259,16 +275,21 @@ export function AccountSetupModal({account, onClose, onSaved}: AccountSetupModal
                     <ModalClose onClose={onClose}/>
                     <h2 className="modal-title">Add account</h2>
                     <p className="setup-hint">Choose your email provider, or set the servers up yourself.</p>
+                    {error && <div className="compose-error">{error}</div>}
+                    <button className="btn primary microsoft-btn" onClick={() => void signInMicrosoft()} disabled={msSigningIn}>
+                        {msSigningIn ? 'Waiting for your browser...' : 'Sign in with Microsoft'}
+                    </button>
+                    <p className="field-hint">Outlook.com, Hotmail, Live and Microsoft 365 accounts sign in through your browser. No password is stored.</p>
                     <div className="provider-grid">
                         {PROVIDERS.map((p) => (
-                            <button key={p.id} className="provider-btn" onClick={() => chooseProvider(p)}>
+                            <button key={p.id} className="provider-btn" onClick={() => chooseProvider(p)} disabled={msSigningIn}>
                                 {p.name}
                             </button>
                         ))}
                     </div>
-                    <button className="btn manual-btn" onClick={chooseManual}>Set up manually (other provider)</button>
+                    <button className="btn manual-btn" onClick={chooseManual} disabled={msSigningIn}>Set up manually (other provider)</button>
                     <div className="modal-actions">
-                        <button className="btn" onClick={onClose}>Cancel</button>
+                        <button className="btn" onClick={onClose} disabled={msSigningIn}>Cancel</button>
                     </div>
                 </div>
             </div>

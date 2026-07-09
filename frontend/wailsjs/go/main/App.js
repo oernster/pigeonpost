@@ -302,6 +302,10 @@ export function SetMessageTag(arg1, arg2, arg3) {
   return window['go']['main']['App']['SetMessageTag'](arg1, arg2, arg3);
 }
 
+export function SignInMicrosoft(arg1) {
+  return window['go']['main']['App']['SignInMicrosoft'](arg1);
+}
+
 export function SyncAccount(arg1) {
   return window['go']['main']['App']['SyncAccount'](arg1);
 }

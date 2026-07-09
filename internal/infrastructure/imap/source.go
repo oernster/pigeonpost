@@ -24,50 +24,22 @@ func parseUID(uid string) (imap.UID, error) {
 	return imap.UID(n), nil
 }
 
-// PasswordProvider yields the secret used to authenticate an account. It is backed by the OS
-// keychain so passwords never touch the local database.
-type PasswordProvider interface {
-	Password(ctx context.Context, account domain.Account) (string, error)
-}
-
 // IDGenerator produces the local part of a Message-ID for a drafted message.
 type IDGenerator func() string
 
 // Source is a MailSource backed by a live IMAP server.
 type Source struct {
 	passwords PasswordProvider
+	tokens    TokenProvider
 	clock     domain.Clock
 	newID     IDGenerator
 }
 
-// NewSource constructs the source with its injected password provider, clock and id generator. The
-// clock and id generator are used only when appending a draft, so its Date and Message-ID headers are
-// well-formed; the read paths do not use them.
-func NewSource(passwords PasswordProvider, clock domain.Clock, newID IDGenerator) *Source {
-	return &Source{passwords: passwords, clock: clock, newID: newID}
-}
-
-// connect dials and logs in using the account's stored keychain password. It is used by the fetch
-// operations, which run against a saved account.
-func (s *Source) connect(ctx context.Context, account domain.Account) (*imapclient.Client, error) {
-	password, err := s.passwords.Password(ctx, account)
-	if err != nil {
-		return nil, fmt.Errorf("imap: password for %q: %w", account.ID(), err)
-	}
-	return s.login(account, password)
-}
-
-// login dials the account's incoming server and authenticates with the given password.
-func (s *Source) login(account domain.Account, password string) (*imapclient.Client, error) {
-	client, err := dial(account.Incoming(), nil)
-	if err != nil {
-		return nil, err
-	}
-	if err := client.Login(account.Address().Address(), password).Wait(); err != nil {
-		_ = client.Logout().Wait()
-		return nil, fmt.Errorf("imap: login %q: %w", account.ID(), err)
-	}
-	return client, nil
+// NewSource constructs the source with its injected password provider, OAuth token provider, clock and id
+// generator. The clock and id generator are used only when appending a draft, so its Date and Message-ID
+// headers are well-formed; the read paths do not use them.
+func NewSource(passwords PasswordProvider, tokens TokenProvider, clock domain.Clock, newID IDGenerator) *Source {
+	return &Source{passwords: passwords, tokens: tokens, clock: clock, newID: newID}
 }
 
 // dial opens a connection to the incoming server with the account's transport security and the given
@@ -91,20 +63,6 @@ func dial(incoming domain.ServerConfig, options *imapclient.Options) (*imapclien
 		return nil, fmt.Errorf("imap: dial %s: %w", address, errors.Join(err, domain.ErrOffline))
 	}
 	return client, nil
-}
-
-// Verify proves a candidate password against the account's incoming server by logging in and out
-// again. It satisfies application.AccountVerifier and runs before an account is persisted, so the
-// keychain is never written with an unverified secret.
-func (s *Source) Verify(_ context.Context, account domain.Account, password string) error {
-	client, err := s.login(account, password)
-	if err != nil {
-		return err
-	}
-	if err := client.Logout().Wait(); err != nil {
-		return fmt.Errorf("imap: logout %q: %w", account.ID(), err)
-	}
-	return nil
 }
 
 // FetchFolders lists the selectable mailboxes on the server for an account.

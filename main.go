@@ -4,19 +4,23 @@ import (
 	"context"
 	"embed"
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
+	"github.com/wailsapp/wails/v2/pkg/runtime"
 
 	"github.com/oernster/pigeonpost/internal/application"
 	"github.com/oernster/pigeonpost/internal/infrastructure/ics"
 	"github.com/oernster/pigeonpost/internal/infrastructure/imap"
 	"github.com/oernster/pigeonpost/internal/infrastructure/keychain"
 	"github.com/oernster/pigeonpost/internal/infrastructure/mailrouter"
+	"github.com/oernster/pigeonpost/internal/infrastructure/oauth"
 	"github.com/oernster/pigeonpost/internal/infrastructure/pop3"
 	"github.com/oernster/pigeonpost/internal/infrastructure/recurrence"
 	"github.com/oernster/pigeonpost/internal/infrastructure/smtp"
@@ -42,6 +46,9 @@ const (
 	dbFileName  = "pigeonpost.db"
 	windowW     = 1200
 	windowH     = 800
+	// oauthHTTPTimeout bounds each OAuth token endpoint request so a stalled network never hangs a
+	// sign-in or a silent token refresh indefinitely.
+	oauthHTTPTimeout = 30 * time.Second
 )
 
 func main() {
@@ -67,16 +74,29 @@ func run() error {
 
 	vault := keychain.NewVault()
 	clock := systemClock{}
+	// OAuth accounts (Microsoft) present a bearer token rather than a password. The token manager reads
+	// the stored token from the keychain and refreshes it silently when it has expired, so the IMAP and
+	// SMTP adapters get a live access token without the read paths knowing about OAuth. The authorizer
+	// runs the interactive browser sign-in; app is assigned below, before any sign-in can be triggered.
+	var app *App
+	oauthClient := &http.Client{Timeout: oauthHTTPTimeout}
+	tokenManager := oauth.NewTokenManager(vault, oauth.MicrosoftConfig(), oauthClient, clock)
+	authorizer := oauth.NewAuthorizer(oauth.MicrosoftConfig(), oauthClient, func(url string) error {
+		runtime.BrowserOpenURL(app.ctx, url)
+		return nil
+	}, clock)
 	// The read paths (sync, body) and account verification are routed by protocol; the write paths
 	// (draft append, message and folder actions) remain IMAP-specific, as POP3 has no server-side
 	// mailbox actions.
-	imapSource := imap.NewSource(vault, clock, newMessageID)
+	imapSource := imap.NewSource(vault, tokenManager, clock, newMessageID)
 	pop3Source := pop3.NewSource(vault)
 	mailSource := mailrouter.NewRouter(imapSource, pop3Source)
-	transport := smtp.NewTransport(vault, clock, newMessageID)
+	transport := smtp.NewTransport(vault, tokenManager, clock, newMessageID)
 
 	accountService := application.NewAccountService(store, vault, store)
 	setupService := application.NewAccountSetupService(store, vault, mailSource)
+	// The Microsoft account is IMAP, so the router verifies it through the XOAUTH2-aware IMAP adapter.
+	microsoftSetupService := application.NewMicrosoftSetupService(store, vault, mailSource, authorizer, buildMicrosoftAccount)
 	mailboxService := application.NewMailboxService(store)
 	syncService := application.NewSyncService(store, store, mailSource, store)
 	composeService := application.NewComposeService(store, store, transport, imapSource, imapSource, store, store, clock, newOutboxID)
@@ -105,9 +125,9 @@ func run() error {
 	tray := taskbar.NewTray(windowTitle, appName, appIconPNG)
 	// The IDLE watcher holds a live connection per IMAP account so the server pushes new mail instantly,
 	// rather than waiting for the poll; it authenticates through the same keychain vault as fetches.
-	watcher := imap.NewWatcher(vault)
+	watcher := imap.NewWatcher(vault, tokenManager)
 
-	app := NewApp(store.Close, overlay, flasher, tray, watcher, accountService, setupService, mailboxService, syncService, composeService, tagService, bodyService, actionService, folderService, ruleService, contactService, calendarService, schedulingService)
+	app = NewApp(store.Close, overlay, flasher, tray, watcher, accountService, setupService, microsoftSetupService, mailboxService, syncService, composeService, tagService, bodyService, actionService, folderService, ruleService, contactService, calendarService, schedulingService)
 
 	err = wails.Run(&options.App{
 		Title:            windowTitle,

@@ -49,6 +49,20 @@ func (a *App) AddAccount(req AccountSetupRequest) error {
 	return nil
 }
 
+// SignInMicrosoft runs the interactive Microsoft OAuth sign-in: it opens the system browser for consent,
+// receives the redirect on a loopback listener, verifies mailbox access with the returned token, stores
+// the token in the keychain and persists the account. displayName may be blank, in which case the
+// signed-in address is used. It starts the account's IDLE watcher on success so new mail pushes straight
+// away; it also returns the signed-in address so the front end can select the new account.
+func (a *App) SignInMicrosoft(displayName string) (string, error) {
+	account, err := a.msSetup.Configure(a.ctx, strings.TrimSpace(displayName))
+	if err != nil {
+		return "", err
+	}
+	a.startMailWatcher(account)
+	return account.Address().Address(), nil
+}
+
 // UpdateAccount re-configures an existing account from the edit wizard. A blank password keeps the
 // current one; the identity (email address) is fixed, so the front end locks it in edit mode.
 func (a *App) UpdateAccount(req AccountSetupRequest) error {
@@ -63,6 +77,46 @@ func (a *App) UpdateAccount(req AccountSetupRequest) error {
 	// leaves no stale IMAP watcher running.
 	a.startMailWatcher(account)
 	return nil
+}
+
+// Microsoft's fixed IMAP and SMTP endpoints for personal and work/school accounts. They are constant for
+// every Microsoft account, so an OAuth sign-in needs no server entry from the user.
+const (
+	microsoftIMAPHost = "outlook.office365.com"
+	microsoftIMAPPort = 993
+	microsoftSMTPHost = "smtp.office365.com"
+	microsoftSMTPPort = 587
+)
+
+// buildMicrosoftAccount builds a validated OAuth IMAP account against Microsoft's fixed servers, for a
+// signed-in address. The display name falls back to the address when none is given. It is the
+// application.MicrosoftAccountBuilder wired into the setup service, kept here alongside buildAccount so
+// the provider server details live in one place.
+func buildMicrosoftAccount(email, displayName string) (domain.Account, error) {
+	address, err := domain.NewEmailAddress("", strings.TrimSpace(email))
+	if err != nil {
+		return domain.Account{}, fmt.Errorf("invalid microsoft address: %w", err)
+	}
+	name := strings.TrimSpace(displayName)
+	if name == "" {
+		name = address.Address()
+	}
+	incoming, err := domain.NewServerConfig(microsoftIMAPHost, microsoftIMAPPort, domain.SecurityTLS)
+	if err != nil {
+		return domain.Account{}, fmt.Errorf("microsoft incoming server: %w", err)
+	}
+	outgoing, err := domain.NewServerConfig(microsoftSMTPHost, microsoftSMTPPort, domain.SecurityStartTLS)
+	if err != nil {
+		return domain.Account{}, fmt.Errorf("microsoft outgoing server: %w", err)
+	}
+	account, err := domain.NewAccount(
+		address.Address(), name, address,
+		domain.ProtocolIMAP, incoming, outgoing, domain.AuthOAuth2,
+	)
+	if err != nil {
+		return domain.Account{}, fmt.Errorf("build microsoft account: %w", err)
+	}
+	return account, nil
 }
 
 // parseProtocol maps a wire protocol identifier to the domain Protocol, defaulting to IMAP when the
