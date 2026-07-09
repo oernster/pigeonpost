@@ -143,18 +143,20 @@ function SidebarContent(props: SidebarProps) {
                             }
                         }}
                     >
+                        <span className="account-badge-slot">
+                            {(unreadByAccount[account.id] ?? 0) > 0 && (
+                                <span
+                                    className="badge account-badge"
+                                    title={`${unreadByAccount[account.id]} unread`}
+                                >
+                                    {unreadByAccount[account.id]}
+                                </span>
+                            )}
+                        </span>
                         <span className="item-text">
                             <span className="item-title" title={account.displayName}>{account.displayName}</span>
                             <span className="item-sub" title={account.email}>{account.email}</span>
                         </span>
-                        {(unreadByAccount[account.id] ?? 0) > 0 && (
-                            <span
-                                className="badge account-badge"
-                                title={`${unreadByAccount[account.id]} unread`}
-                            >
-                                {unreadByAccount[account.id]}
-                            </span>
-                        )}
                         <span className="account-actions">
                             {canReorder && (
                                 <>

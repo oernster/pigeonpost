@@ -394,10 +394,9 @@
     font-weight: 700;
 }
 
-/* The per-account unread badge sits at the right of the account row, just left of the hover actions. */
+/* The per-account unread badge sits in the left gutter of the account row, centred in its slot. */
 .account-badge {
     flex-shrink: 0;
-    margin-left: auto;
 }
 
 /* The cross-account total unread badge, next to the PigeonPost wordmark in the titlebar. */
@@ -1459,8 +1458,23 @@
 .list-item.account {
     flex-direction: row;
     align-items: center;
-    justify-content: space-between;
     gap: 8px;
+}
+
+/* The account row lays out as [unread badge] [name and email] [row actions]. The badge sits in a
+   fixed-min gutter on the left so every account's name and email line up whether or not the account has
+   unread mail (an account with none has an empty gutter); the text column takes the rest of the
+   width, keeping the badge clear of the name's truncation. */
+.account-badge-slot {
+    flex-shrink: 0;
+    min-width: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.list-item.account .item-text {
+    flex: 1;
 }
 
 .item-text {
