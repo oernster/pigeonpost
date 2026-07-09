@@ -7,7 +7,7 @@ import {ScopeChooser} from './ScopeChooser'
 import {RecurrenceEditor} from './RecurrenceEditor'
 import {PickerButton} from './PickerButton'
 import {CalendarTimeGrid} from './CalendarTimeGrid'
-import {useBackdropDismiss} from './useBackdropDismiss'
+import {useBackdropDismiss, useEscapeToClose} from './useBackdropDismiss'
 
 const DAYS_IN_WEEK = 7
 const HOURS_PER_EVENT = 1
@@ -232,6 +232,12 @@ export function CalendarModal({events, accountId, accountEmail, accountName, ini
     // calendar is opened from a reminder. It is cleared once the dialog opens.
     const [pendingOpenId, setPendingOpenId] = useState<string | null>(initialEventId ?? null)
     const bumpReload = () => setReloadKey((k) => k + 1)
+
+    // The event form and the calendars manager are nested modals that are deliberately not dismissed by a
+    // backdrop click (so edits are not dropped), so give each its own Escape close. The active flags mean
+    // Escape closes whichever is open before falling through to close the calendar itself.
+    useEscapeToClose(() => setForm(null), form !== null)
+    useEscapeToClose(() => setManagingCals(false), managingCals)
 
     const reloadCalendars = () =>
         void api.listCalendars().then(setCalendars).catch((e) => setError(String(e)))

@@ -9,7 +9,7 @@ import {Sidebar} from './components/Sidebar'
 import {MessageList} from './components/MessageList'
 import {MessageContextMenu} from './components/MessageContextMenu'
 import {Reader} from './components/Reader'
-import {Menu} from './components/Menu'
+import {Menu, MenuItem} from './components/Menu'
 import {AboutModal} from './components/AboutModal'
 import {LicenceModal} from './components/LicenceModal'
 import {arrangeByConversation, sortByDate} from './threads'
@@ -23,6 +23,7 @@ import {CalendarModal} from './components/CalendarModal'
 import {ReminderNotifications} from './components/ReminderNotifications'
 import {CloseChoiceDialog} from './components/CloseChoiceDialog'
 import {Splash} from './components/Splash'
+import {useEscapeToClose} from './components/useBackdropDismiss'
 import {EventsOn} from '../wailsjs/runtime'
 
 // focusRingRoot is the container the ring is scoped to: the topmost open modal when one is showing (so
@@ -48,9 +49,9 @@ function focusRingElements(root: ParentNode): HTMLElement[] {
         if (el.getClientRects().length === 0 || getComputedStyle(el).visibility === 'hidden') {
             return false
         }
-        // Collapse the roving lists (messages, folders) to a single stop each: the row itself is the
-        // stop, so skip the action buttons nested inside a row (Up/Down move within the list instead).
-        const row = el.closest('.message-row, .list-item.folder')
+        // Collapse the roving lists (messages, folders, accounts) to a single stop each: the row itself
+        // is the stop, so skip the action buttons nested inside a row (Up/Down move within the list).
+        const row = el.closest('.message-row, .list-item.folder, .list-item.account')
         return !row || row === el
     })
 }
@@ -155,6 +156,17 @@ function neighbourAfterRemoval(list: Message[], removedId: string): Message | nu
     return null
 }
 
+// matchesShortcut reports whether a keyboard event is the accelerator named by a shortcut string such as
+// "Ctrl+N", "F9" or "Ctrl+Shift+K". Ctrl matches the Cmd key too, so the same strings work on macOS.
+function matchesShortcut(e: KeyboardEvent, shortcut: string): boolean {
+    const parts = shortcut.toLowerCase().split('+').map((part) => part.trim())
+    const key = parts[parts.length - 1]
+    return parts.includes('ctrl') === (e.ctrlKey || e.metaKey) &&
+        parts.includes('shift') === e.shiftKey &&
+        parts.includes('alt') === e.altKey &&
+        e.key.toLowerCase() === key
+}
+
 function App() {
     const READING_PANE_KEY = 'pigeonpost.readingPane'
     const [accounts, setAccounts] = useState<Account[]>([])
@@ -239,9 +251,16 @@ function App() {
     // the very first Tab has a starting point and moves to the first control in the title tray. Without
     // it the WebView starts with focus on no element and the first Tab does nothing.
     const neutralFocusRef = useRef<HTMLSpanElement>(null)
+    // menuShortcutsRef holds the current menu items so the global accelerator handler always sees the
+    // latest labels, enabled state and callbacks without re-binding its listener on every render.
+    const menuShortcutsRef = useRef<MenuItem[]>([])
     useEffect(() => {
         neutralFocusRef.current?.focus()
     }, [])
+
+    // Close the draft-recovery prompt on Escape, matching the other dialogs. It is a plain inline modal, so
+    // it does not use the shared backdrop hook; the active flag registers it only while it is showing.
+    useEscapeToClose(() => setRecovery(null), Boolean(recovery) && !composing)
 
     const searchActive = searchQuery.trim() !== ''
     // conversationView groups the folder's messages into conversations; it does not apply to search
@@ -1470,14 +1489,6 @@ function App() {
                 return
             }
 
-            // F8 toggles the reading pane on and off from anywhere in the main window, matching the toolbar
-            // button. It is a function key, so it acts even while a text field (the search box) has focus.
-            if (e.key === 'F8') {
-                e.preventDefault()
-                togglePreview()
-                return
-            }
-
             if (isText) {
                 return
             }
@@ -1523,9 +1534,9 @@ function App() {
                 return
             }
             if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-                // The folder list owns its own Up/Down (it navigates folders); do not also move the
-                // message selection when focus is within it.
-                if (target && target.closest('[data-folder-list]')) {
+                // The folder and account lists own their own Up/Down (they navigate folders and accounts);
+                // do not also move the message selection when focus is within either of them.
+                if (target && target.closest('[data-folder-list], [data-account-list]')) {
                     return
                 }
                 if (list.length === 0) {
@@ -1540,6 +1551,18 @@ function App() {
                 const next = list[nextIdx]
                 if (!next) {
                     return
+                }
+                // Keep DOM focus on the row the cursor moves to when navigating within the list, so the
+                // focus ring's current stop stays in step and a following Right/Left steps out correctly.
+                // Only when a message row already holds focus, so an arrow pressed elsewhere in the window
+                // still moves the selection without stealing focus.
+                const focusedRow = document.activeElement as HTMLElement | null
+                if (focusedRow && focusedRow.classList.contains('message-row')) {
+                    document.querySelectorAll<HTMLElement>('.message-list .message-row').forEach((row) => {
+                        if (row.getAttribute('data-mid') === next.id) {
+                            row.focus()
+                        }
+                    })
                 }
                 if (e.shiftKey) {
                     // Shift extends the contiguous selection from the anchor to the new cursor, the way a
@@ -1625,6 +1648,27 @@ function App() {
         contextMenu, messageToCancelSend, bulkToDelete, bulkToPurge, togglePreview,
     ])
 
+    // Menu accelerators (Compose, Sync, the reading pane and any others defined on the menus) fire from
+    // anywhere in the main window, driven by the same item definitions the menus render so an item's hint
+    // and its wired key never drift. They are suppressed while a dialog or the context menu is open, so a
+    // shortcut never acts behind one. A disabled item (Compose with no account selected, say) is skipped.
+    useEffect(() => {
+        const onKey = (e: KeyboardEvent) => {
+            if (document.querySelector('.modal, .context-menu') !== null) {
+                return
+            }
+            for (const item of menuShortcutsRef.current) {
+                if (item.shortcut && !item.disabled && matchesShortcut(e, item.shortcut)) {
+                    e.preventDefault()
+                    item.onClick()
+                    return
+                }
+            }
+        }
+        window.addEventListener('keydown', onKey)
+        return () => window.removeEventListener('keydown', onKey)
+    }, [])
+
     // A POP3 account has a single downloaded inbox with no server-side folders, message moves or draft
     // mailbox, so those actions are hidden and a delete is permanent rather than a move to Trash.
     const activeAccount = accounts.find((a) => a.id === selectedAccount)
@@ -1702,6 +1746,60 @@ function App() {
         />
     )
 
+    // The four title-bar menus are defined here so one item list drives both the dropdown and the global
+    // accelerator handler above, keeping each item's shortcut hint and its wired key in step.
+    const fileMenu: MenuItem[] = [
+        {
+            label: syncing ? 'Syncing…' : 'Sync',
+            icon: '\u{267B}\u{FE0F}',
+            shortcut: 'F9',
+            disabled: !selectedAccount || syncing,
+            onClick: () => void sync(),
+        },
+        {
+            label: 'Add account',
+            icon: '\u{2795}',
+            onClick: () => setSettingUp(true),
+        },
+    ]
+    const editMenu: MenuItem[] = [
+        {
+            label: 'Compose',
+            icon: '\u{1F58A}\u{FE0F}',
+            shortcut: 'Ctrl+N',
+            disabled: !selectedAccount,
+            onClick: () => {
+                const sig = signatureHtml()
+                setComposeInitial(sig ? {bodyHtml: `<p></p>${sig}`} : undefined)
+                setComposing(true)
+            },
+        },
+        {
+            label: 'Rules',
+            icon: '\u{1F4CF}',
+            onClick: () => setManagingRules(true),
+        },
+    ]
+    const viewMenu: MenuItem[] = [
+        {
+            label: 'Conversation view',
+            checked: conversationView,
+            onClick: toggleConversationView,
+        },
+        {
+            label: 'Reading pane',
+            shortcut: 'F8',
+            checked: previewEnabled,
+            onClick: togglePreview,
+        },
+    ]
+    const helpMenu: MenuItem[] = [
+        {label: 'About PigeonPost', onClick: () => void showAbout()},
+        {label: 'Licence', onClick: () => void showLicence()},
+        {label: 'Check for Updates', onClick: checkUpdates},
+    ]
+    menuShortcutsRef.current = [...fileMenu, ...editMenu, ...viewMenu, ...helpMenu]
+
     return (
         <div className="app">
             <span
@@ -1722,60 +1820,9 @@ function App() {
                     )}
                 </span>
                 <div className="titlebar-right">
-                    <Menu
-                        title="File"
-                        icon={'\u{1F4C1}'}
-                        items={[
-                            {
-                                label: syncing ? 'Syncing…' : 'Sync',
-                                icon: '\u{267B}\u{FE0F}',
-                                disabled: !selectedAccount || syncing,
-                                onClick: () => void sync(),
-                            },
-                            {
-                                label: 'Add account',
-                                icon: '\u{2795}',
-                                onClick: () => setSettingUp(true),
-                            },
-                        ]}
-                    />
-                    <Menu
-                        title="Edit"
-                        icon={'\u{270F}\u{FE0F}'}
-                        items={[
-                            {
-                                label: 'Compose',
-                                icon: '\u{1F58A}\u{FE0F}',
-                                disabled: !selectedAccount,
-                                onClick: () => {
-                                    const sig = signatureHtml()
-                                    setComposeInitial(sig ? {bodyHtml: `<p></p>${sig}`} : undefined)
-                                    setComposing(true)
-                                },
-                            },
-                            {
-                                label: 'Rules',
-                                icon: '\u{1F4CF}',
-                                onClick: () => setManagingRules(true),
-                            },
-                        ]}
-                    />
-                    <Menu
-                        title="View"
-                        icon={'\u{1F441}\u{FE0F}'}
-                        items={[
-                            {
-                                label: 'Conversation view',
-                                checked: conversationView,
-                                onClick: toggleConversationView,
-                            },
-                            {
-                                label: 'Reading pane',
-                                checked: previewEnabled,
-                                onClick: togglePreview,
-                            },
-                        ]}
-                    />
+                    <Menu title="File" icon={'\u{1F4C1}'} items={fileMenu}/>
+                    <Menu title="Edit" icon={'\u{270F}\u{FE0F}'} items={editMenu}/>
+                    <Menu title="View" icon={'\u{1F441}\u{FE0F}'} items={viewMenu}/>
                     <span className="titlebar-sep" aria-hidden="true"/>
                     <button className="sync-btn" onClick={() => setManagingContacts(true)}>
                         {'\u{1F4C7}'} Contacts
@@ -1792,15 +1839,7 @@ function App() {
                     >
                         {theme === 'dark' ? '☀️' : '\u{1F319}'}
                     </button>
-                    <Menu
-                        title="Help"
-                        icon={'\u{2139}\u{FE0F}'}
-                        items={[
-                            {label: 'About PigeonPost', onClick: () => void showAbout()},
-                            {label: 'Licence', onClick: () => void showLicence()},
-                            {label: 'Check for Updates', onClick: checkUpdates},
-                        ]}
-                    />
+                    <Menu title="Help" icon={'\u{2139}\u{FE0F}'} items={helpMenu}/>
                 </div>
             </header>
             {error && <div className="error-bar" role="alert">{error}</div>}

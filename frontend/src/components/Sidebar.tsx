@@ -101,13 +101,18 @@ function SidebarContent(props: SidebarProps) {
     // Reordering is only meaningful with more than one account, so the drag and the up/down buttons are
     // enabled only then.
     const canReorder = accounts.length > 1
+    // The account list is a single focus-ring stop: only one row is tabbable (the selected account,
+    // otherwise the first when none is selected). Up/Down move between accounts, wrapping at the ends.
+    const accountTabStopId = selectedAccount || (accounts.length > 0 ? accounts[0].id : '')
     return (
         <>
             <div className="section-label">Accounts</div>
-            <ul className="list">
+            <ul className="list" data-account-list="">
                 {accounts.map((account, index) => (
                     <li
                         key={account.id}
+                        data-account-id={account.id}
+                        tabIndex={account.id === accountTabStopId ? 0 : -1}
                         className={
                             'list-item account' +
                             (account.id === selectedAccount ? ' selected' : '') +
@@ -116,6 +121,37 @@ function SidebarContent(props: SidebarProps) {
                         }
                         draggable={canReorder}
                         onClick={() => props.onSelectAccount(account.id)}
+                        onKeyDown={(e) => {
+                            // Only the row itself drives selection and Up/Down; a key on a child action
+                            // button (edit, remove, reorder) is left to that button.
+                            if (e.target !== e.currentTarget) {
+                                return
+                            }
+                            if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar') {
+                                e.preventDefault()
+                                props.onSelectAccount(account.id)
+                                return
+                            }
+                            // Up/Down move between accounts within this one focus-ring stop, wrapping at the
+                            // ends. Left/Right bubble to the window handler, which steps the focus ring.
+                            if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                                e.preventDefault()
+                                e.stopPropagation()
+                                const li = e.currentTarget
+                                const parent = li.parentElement
+                                let sibling = e.key === 'ArrowDown' ? li.nextElementSibling : li.previousElementSibling
+                                if (!sibling && parent) {
+                                    sibling = e.key === 'ArrowDown' ? parent.firstElementChild : parent.lastElementChild
+                                }
+                                if (sibling instanceof HTMLElement) {
+                                    sibling.focus()
+                                    const id = sibling.getAttribute('data-account-id')
+                                    if (id) {
+                                        props.onSelectAccount(id)
+                                    }
+                                }
+                            }
+                        }}
                         onDragStart={(e) => {
                             setDragId(account.id)
                             e.dataTransfer.setData(accountDragType, account.id)
@@ -395,19 +431,28 @@ function FolderTree(props: FolderTreeProps) {
                         tabIndex={folder.id === tabStopId ? 0 : -1}
                         onClick={() => props.onSelectFolder(folder.id)}
                         onKeyDown={(e) => {
+                            // Only the row itself drives selection and Up/Down; a key on a child button
+                            // (the collapse toggle, rename or delete) is left to that button.
+                            if (e.target !== e.currentTarget) {
+                                return
+                            }
                             if (e.key === 'Enter') {
                                 e.preventDefault()
                                 props.onSelectFolder(folder.id)
                                 return
                             }
-                            // Up/Down move between folders within this one focus-ring stop. Left/Right are
-                            // left to bubble up to the window handler, which steps the focus ring.
+                            // Up/Down move between folders within this one focus-ring stop, wrapping at the
+                            // ends. Left/Right are left to bubble up to the window handler, which steps the
+                            // focus ring.
                             if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
                                 e.preventDefault()
                                 e.stopPropagation()
-                                const sibling = e.key === 'ArrowDown'
-                                    ? e.currentTarget.nextElementSibling
-                                    : e.currentTarget.previousElementSibling
+                                const li = e.currentTarget
+                                const parent = li.parentElement
+                                let sibling = e.key === 'ArrowDown' ? li.nextElementSibling : li.previousElementSibling
+                                if (!sibling && parent) {
+                                    sibling = e.key === 'ArrowDown' ? parent.firstElementChild : parent.lastElementChild
+                                }
                                 if (sibling instanceof HTMLElement) {
                                     sibling.focus()
                                     const id = sibling.getAttribute('data-folder-id')

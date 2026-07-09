@@ -83,6 +83,7 @@ export function MessageList(props: MessageListProps) {
                             (selectedIds.has(message.id) ? ' selected' : '') +
                             (activeId === message.id ? ' active' : '')
                         }
+                        data-mid={message.id}
                         tabIndex={activeId === message.id ? 0 : -1}
                         aria-selected={selectedIds.has(message.id)}
                         // Shift-click would otherwise select the page text across the rows it spans; suppress
@@ -95,7 +96,10 @@ export function MessageList(props: MessageListProps) {
                         onClick={(e) => props.onActivate(message, {ctrl: e.ctrlKey || e.metaKey, shift: e.shiftKey})}
                         onDoubleClick={() => props.onOpenInNewTab(message)}
                         onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
+                            // Enter or Space opens the message in a tab. Ctrl or Shift with Space are left to
+                            // the window handler, which uses them to build a multi-selection.
+                            if ((e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar') &&
+                                !e.ctrlKey && !e.metaKey && !e.shiftKey) {
                                 e.preventDefault()
                                 props.onOpenInNewTab(message)
                             }
