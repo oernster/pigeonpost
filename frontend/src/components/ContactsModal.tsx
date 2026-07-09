@@ -259,8 +259,11 @@ export function ContactsModal({contacts, onChanged, onClose}: ContactsModalProps
                         {shownContacts.map((c) => (
                             <li key={c.id} className="list-item">
                                 <span className="item-text" onClick={() => openContact(c)}>
-                                    <span className="item-title">{c.formattedName}</span>
-                                    <span className="item-sub">
+                                    <span className="item-title" title={c.formattedName}>{c.formattedName}</span>
+                                    <span
+                                        className="item-sub"
+                                        title={c.emails && c.emails.length > 0 ? c.emails[0].address : c.organization}
+                                    >
                                         {c.emails && c.emails.length > 0 ? c.emails[0].address : c.organization}
                                     </span>
                                 </span>

@@ -72,7 +72,7 @@ export function MessageList(props: MessageListProps) {
                     <Fragment key={message.id}>
                     {head && (
                         <li className="conversation-header" aria-hidden="true">
-                            <span className="conversation-subject">{head.subject || '(no subject)'}</span>
+                            <span className="conversation-subject" title={head.subject || '(no subject)'}>{head.subject || '(no subject)'}</span>
                             <span className="conversation-count">{head.count} messages</span>
                         </li>
                     )}
@@ -128,7 +128,7 @@ export function MessageList(props: MessageListProps) {
                                     {'\u{1F4CE}'}
                                 </span>
                             )}
-                            <span className="message-from">
+                            <span className="message-from" title={message.fromName || message.fromAddress || '(unknown sender)'}>
                                 {message.fromName || message.fromAddress || '(unknown sender)'}
                             </span>
                             <span className="message-date">{formatDate(message.date)}</span>
@@ -136,7 +136,7 @@ export function MessageList(props: MessageListProps) {
                         <div className="message-subject">
                             {message.subject || '(no subject)'}
                         </div>
-                        {message.snippet && <div className="message-snippet">{message.snippet}</div>}
+                        {message.snippet && <div className="message-snippet" title={message.snippet}>{message.snippet}</div>}
                     </li>
                     </Fragment>
                     )

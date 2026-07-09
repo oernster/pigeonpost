@@ -68,12 +68,16 @@ export function RuleManagerModal({rules, onChanged, onClose}: RuleManagerModalPr
                     <p className="empty-body">No rules yet.</p>
                 ) : (
                     <ul className="list">
-                        {rules.map((r) => (
+                        {rules.map((r) => {
+                            // summary is the human-readable rule description, shown as the row subtitle and as
+                            // its hover title so the full text is readable when the row truncates it.
+                            const summary = `If ${FIELD_LABELS[r.field] ?? r.field} ${OPERATOR_LABELS[r.operator] ?? r.operator} "${r.contains}", ${ACTION_LABELS[r.action] ?? r.action}`
+                            return (
                             <li key={r.id} className="list-item">
                                 <span className="item-text">
-                                    <span className="item-title">{r.name}</span>
-                                    <span className="item-sub">
-                                        If {FIELD_LABELS[r.field] ?? r.field} {OPERATOR_LABELS[r.operator] ?? r.operator} "{r.contains}", {ACTION_LABELS[r.action] ?? r.action}
+                                    <span className="item-title" title={r.name}>{r.name}</span>
+                                    <span className="item-sub" title={summary}>
+                                        {summary}
                                     </span>
                                 </span>
                                 <button
@@ -85,7 +89,8 @@ export function RuleManagerModal({rules, onChanged, onClose}: RuleManagerModalPr
                                     &times;
                                 </button>
                             </li>
-                        ))}
+                            )
+                        })}
                     </ul>
                 )}
                 <div className="rule-form">

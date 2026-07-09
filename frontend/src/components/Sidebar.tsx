@@ -144,8 +144,8 @@ function SidebarContent(props: SidebarProps) {
                         }}
                     >
                         <span className="item-text">
-                            <span className="item-title">{account.displayName}</span>
-                            <span className="item-sub">{account.email}</span>
+                            <span className="item-title" title={account.displayName}>{account.displayName}</span>
+                            <span className="item-sub" title={account.email}>{account.email}</span>
                         </span>
                         {(unreadByAccount[account.id] ?? 0) > 0 && (
                             <span
