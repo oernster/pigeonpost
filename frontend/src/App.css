@@ -1491,31 +1491,38 @@
     white-space: nowrap;
 }
 
-/* The row actions float over the right end of the row rather than taking a column in the flex flow, so
-   the name and email use the full width and truncate to an ellipsis only when the text genuinely does
-   not fit. They reveal on hover or focus (opacity, not visibility, so the buttons stay in the tab order
-   and remain reachable by keyboard). A gradient backing matched to the row fades the text out beneath
-   them so a long name does not show through. */
+/* The row actions appear as a small toolbar directly below the account on hover or keyboard focus, so it
+   is unambiguous which account they act on. They sit out of the flex flow (absolute) so the name and
+   email keep the full row width. Opacity (not visibility) keeps the buttons in the tab order for the
+   keyboard reorder. Pointer-events are off while hidden so the invisible toolbar cannot block the
+   row beneath it. */
 .account-actions {
     position: absolute;
-    top: 0;
-    bottom: 0;
-    right: 14px;
+    top: 100%;
+    left: 14px;
+    z-index: 2;
     display: flex;
     align-items: center;
     gap: 2px;
-    padding-left: 20px;
+    padding: 3px 5px;
+    border-radius: 6px;
+    background-color: var(--bg-elev-2);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.45);
     opacity: 0;
-    background: linear-gradient(to right, transparent, var(--bg-elev) 20px);
-}
-
-.list-item.account.selected .account-actions {
-    background: linear-gradient(to right, transparent, var(--bg-elev-2) 20px);
+    pointer-events: none;
 }
 
 .list-item.account:hover .account-actions,
 .list-item.account:focus-within .account-actions {
     opacity: 1;
+    pointer-events: auto;
+}
+
+/* Lift the hovered or focused account above its neighbours so its toolbar paints over the next row
+   instead of behind it. */
+.list-item.account:hover,
+.list-item.account:focus-within {
+    z-index: 1;
 }
 
 .account-action {
