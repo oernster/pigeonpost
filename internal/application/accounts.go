@@ -73,6 +73,16 @@ func (s *AccountService) UpdateProfile(
 	return nil
 }
 
+// Reorder sets the accounts' sidebar order from the given full list of ids, so the account at index i
+// takes position i. The caller passes the complete ordered id list (not a single move), which keeps the
+// stored positions distinct and free of collisions.
+func (s *AccountService) Reorder(ctx context.Context, orderedIDs []string) error {
+	if err := s.accounts.SetAccountPositions(ctx, orderedIDs); err != nil {
+		return fmt.Errorf("reorder accounts: %w", err)
+	}
+	return nil
+}
+
 // Remove deletes an account together with its cached mail and its keychain secret. The account row is
 // removed first so it disappears from the UI immediately; its cached folders/messages and its stored
 // password are then cleaned up.

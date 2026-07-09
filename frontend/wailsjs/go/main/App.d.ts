@@ -114,6 +114,8 @@ export function RemoveCancelledMeeting(arg1:string):Promise<void>;
 
 export function RenameFolder(arg1:string,arg2:string):Promise<void>;
 
+export function ReorderAccounts(arg1:Array<string>):Promise<void>;
+
 export function ReplayOutbox():Promise<number>;
 
 export function RequestQuit():Promise<void>;

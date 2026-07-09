@@ -199,6 +199,12 @@ func (a *App) ListAccounts() ([]AccountDTO, error) {
 	return toAccountDTOs(accounts), nil
 }
 
+// ReorderAccounts sets the sidebar order of accounts from the given full list of ids, most preferred
+// first. The front end sends the complete new order after a drag or an up/down move.
+func (a *App) ReorderAccounts(orderedIDs []string) error {
+	return a.accounts.Reorder(a.ctx, orderedIDs)
+}
+
 // RemoveAccount deletes an account together with its cached mail and its keychain secret, and stops its
 // IDLE watcher so a removed account leaves no stale server connection behind.
 func (a *App) RemoveAccount(accountID string) error {

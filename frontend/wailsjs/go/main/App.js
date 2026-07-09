@@ -226,6 +226,10 @@ export function RenameFolder(arg1, arg2) {
   return window['go']['main']['App']['RenameFolder'](arg1, arg2);
 }
 
+export function ReorderAccounts(arg1) {
+  return window['go']['main']['App']['ReorderAccounts'](arg1);
+}
+
 export function ReplayOutbox() {
   return window['go']['main']['App']['ReplayOutbox']();
 }

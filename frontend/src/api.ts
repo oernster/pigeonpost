@@ -66,6 +66,7 @@ import {
     OutboxCount,
     PickAttachments,
     RemoveAccount,
+    ReorderAccounts,
     ReplayOutbox,
     SignInMicrosoft,
     SaveDraft,
@@ -283,6 +284,9 @@ export const api = {
     listAccounts: (): Promise<Account[]> => ListAccounts(),
     addAccount: (req: AccountSetupInput): Promise<void> => AddAccount(main.AccountSetupRequest.createFrom(req)),
     removeAccount: (accountId: string): Promise<void> => RemoveAccount(accountId),
+    // reorderAccounts persists the sidebar order of accounts as the given full list of ids, most
+    // preferred first, after a drag or an up/down move.
+    reorderAccounts: (orderedIds: string[]): Promise<void> => ReorderAccounts(orderedIds),
     updateAccount: (req: AccountSetupInput): Promise<void> => UpdateAccount(main.AccountSetupRequest.createFrom(req)),
     // updateAccountProfile changes only the name, signature and send-as identities of an existing account,
     // without re-verifying its credentials. It is the edit path for an OAuth account.

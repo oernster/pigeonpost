@@ -313,6 +313,26 @@ function App() {
         void loadAccounts()
     }, [loadAccounts])
 
+    // reorderAccounts applies the new sidebar order optimistically (so the move is instant) and persists
+    // it. On failure it shows the error and reloads the canonical order from the store, so a rejected
+    // reorder does not leave the UI out of step with what is saved.
+    const reorderAccounts = useCallback(
+        async (orderedIds: string[]) => {
+            const byId = new Map(accounts.map((a) => [a.id, a]))
+            const next = orderedIds
+                .map((id) => byId.get(id))
+                .filter((a): a is Account => a !== undefined)
+            setAccounts(next)
+            try {
+                await api.reorderAccounts(orderedIds)
+            } catch (e) {
+                setError(String(e))
+                await loadAccounts()
+            }
+        },
+        [accounts, loadAccounts],
+    )
+
     // Once accounts have loaded, check for a compose snapshot autosaved in a previous session and offer to
     // restore it. This runs once per launch. A snapshot whose account has since been removed is stale, so
     // it is cleared silently rather than offered against an account that no longer exists.
@@ -1793,6 +1813,7 @@ function App() {
                     onSelectFolder={(id) => void selectFolder(id)}
                     onEditAccount={(account) => setAccountToEdit(account)}
                     onDeleteAccount={(account) => setAccountToDelete(account)}
+                    onReorderAccounts={(ids) => void reorderAccounts(ids)}
                     onNewFolder={() => setFolderPrompt({mode: 'create'})}
                     onRenameFolder={(folder) => setFolderPrompt({mode: 'rename', folder})}
                     onDeleteFolder={(folder) => setFolderToDelete(folder)}

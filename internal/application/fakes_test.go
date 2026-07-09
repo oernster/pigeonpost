@@ -11,13 +11,15 @@ import (
 
 // fakeAccountStore is a hand-written in-memory AccountStore with error-injection fields.
 type fakeAccountStore struct {
-	accounts  map[string]domain.Account
-	listErr   error
-	getErr    error
-	saveErr   error
-	deleteErr error
-	saved     []domain.Account
-	deleted   []string
+	accounts   map[string]domain.Account
+	listErr    error
+	getErr     error
+	saveErr    error
+	deleteErr  error
+	reorderErr error
+	saved      []domain.Account
+	deleted    []string
+	reordered  []string
 }
 
 func newFakeAccountStore() *fakeAccountStore {
@@ -61,6 +63,14 @@ func (f *fakeAccountStore) DeleteAccount(_ context.Context, id string) error {
 	}
 	delete(f.accounts, id)
 	f.deleted = append(f.deleted, id)
+	return nil
+}
+
+func (f *fakeAccountStore) SetAccountPositions(_ context.Context, orderedIDs []string) error {
+	if f.reorderErr != nil {
+		return f.reorderErr
+	}
+	f.reordered = append([]string(nil), orderedIDs...)
 	return nil
 }
 

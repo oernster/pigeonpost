@@ -97,6 +97,70 @@ func TestSaveAccountReplaces(t *testing.T) {
 	}
 }
 
+func accountIDs(t *testing.T, store *Store) []string {
+	t.Helper()
+	accounts, err := store.ListAccounts(context.Background())
+	if err != nil {
+		t.Fatalf("list accounts: %v", err)
+	}
+	ids := make([]string, len(accounts))
+	for i, a := range accounts {
+		ids[i] = a.ID()
+	}
+	return ids
+}
+
+func equalIDs(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func TestAccountOrdering(t *testing.T) {
+	store := openTestStore(t)
+	ctx := context.Background()
+
+	for _, id := range []string{"a1", "a2", "a3"} {
+		if err := store.SaveAccount(ctx, buildAccount(t, id)); err != nil {
+			t.Fatalf("save %s: %v", id, err)
+		}
+	}
+	// New accounts append in insertion order.
+	if got := accountIDs(t, store); !equalIDs(got, []string{"a1", "a2", "a3"}) {
+		t.Fatalf("initial order = %v, want [a1 a2 a3]", got)
+	}
+
+	// A manual reorder is persisted.
+	if err := store.SetAccountPositions(ctx, []string{"a3", "a1", "a2"}); err != nil {
+		t.Fatalf("reorder: %v", err)
+	}
+	if got := accountIDs(t, store); !equalIDs(got, []string{"a3", "a1", "a2"}) {
+		t.Fatalf("reordered = %v, want [a3 a1 a2]", got)
+	}
+
+	// Editing an account (a re-save of the same id) keeps its position.
+	if err := store.SaveAccount(ctx, buildAccount(t, "a1")); err != nil {
+		t.Fatalf("re-save a1: %v", err)
+	}
+	if got := accountIDs(t, store); !equalIDs(got, []string{"a3", "a1", "a2"}) {
+		t.Fatalf("order after re-save = %v, want [a3 a1 a2] (position kept)", got)
+	}
+
+	// A brand-new account appends at the end rather than jumping to the top.
+	if err := store.SaveAccount(ctx, buildAccount(t, "a4")); err != nil {
+		t.Fatalf("save a4: %v", err)
+	}
+	if got := accountIDs(t, store); !equalIDs(got, []string{"a3", "a1", "a2", "a4"}) {
+		t.Fatalf("order after append = %v, want [a3 a1 a2 a4]", got)
+	}
+}
+
 func TestDeleteAccountAndData(t *testing.T) {
 	store := openTestStore(t)
 	ctx := context.Background()

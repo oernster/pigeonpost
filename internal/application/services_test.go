@@ -51,6 +51,22 @@ func TestAccountServiceAdd(t *testing.T) {
 	}
 }
 
+func TestAccountServiceReorder(t *testing.T) {
+	svc, store, _, _ := newAccountService()
+
+	if err := svc.Reorder(context.Background(), []string{"b", "a", "c"}); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(store.reordered) != 3 || store.reordered[0] != "b" || store.reordered[2] != "c" {
+		t.Fatalf("reordered = %v, want [b a c]", store.reordered)
+	}
+
+	store.reorderErr = errBoom
+	if err := svc.Reorder(context.Background(), []string{"a"}); !errors.Is(err, errBoom) {
+		t.Errorf("Reorder error = %v, want wrapped boom", err)
+	}
+}
+
 func TestAccountServiceRemoveSuccess(t *testing.T) {
 	svc, store, creds, mail := newAccountService()
 	store.accounts["a1"] = testAccount(t, "a1")

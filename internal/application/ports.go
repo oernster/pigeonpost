@@ -14,6 +14,8 @@ type AccountStore interface {
 	GetAccount(ctx context.Context, id string) (domain.Account, error)
 	SaveAccount(ctx context.Context, account domain.Account) error
 	DeleteAccount(ctx context.Context, id string) error
+	// SetAccountPositions writes the sidebar order: the account at index i in orderedIDs gets position i.
+	SetAccountPositions(ctx context.Context, orderedIDs []string) error
 }
 
 // CredentialStore reads, persists and removes an account's secret in the OS keychain. It is kept

@@ -15,6 +15,9 @@ interface SidebarProps {
     onSelectFolder: (id: string) => void
     onEditAccount: (account: Account) => void
     onDeleteAccount: (account: Account) => void
+    // onReorderAccounts persists a new account order (the full list of account ids, top to bottom) after
+    // a drag or an up/down move.
+    onReorderAccounts: (orderedIds: string[]) => void
     onNewFolder: () => void
     onRenameFolder: (folder: Folder) => void
     onDeleteFolder: (folder: Folder) => void
@@ -44,6 +47,32 @@ function folderRank(kind: string): number {
     return idx === -1 ? specialFolderOrder.length : idx
 }
 
+// accountDragType identifies an account row being dragged to reorder. It is distinct from the message
+// drag type so a message dropped on an account row is ignored and vice versa.
+const accountDragType = 'application/x-pigeonpost-account'
+
+// moveId returns a copy of ids with fromId moved to the index toId currently sits at (a splice move),
+// which is the drag-and-drop reordering. The input is not mutated.
+function moveId(ids: string[], fromId: string, toId: string): string[] {
+    const from = ids.indexOf(fromId)
+    const to = ids.indexOf(toId)
+    if (from < 0 || to < 0 || from === to) {
+        return ids
+    }
+    const next = [...ids]
+    next.splice(from, 1)
+    next.splice(to, 0, fromId)
+    return next
+}
+
+// swapId returns a copy of ids with the entries at i and j exchanged, which is one step of an up or down
+// move. The input is not mutated.
+function swapId(ids: string[], i: number, j: number): string[] {
+    const next = [...ids]
+    ;[next[i], next[j]] = [next[j], next[i]]
+    return next
+}
+
 export function Sidebar(props: SidebarProps) {
     return (
         <aside className="pane sidebar">
@@ -64,15 +93,55 @@ export function Sidebar(props: SidebarProps) {
 
 function SidebarContent(props: SidebarProps) {
     const {accounts, selectedAccount, unreadByAccount, folders, selectedFolder} = props
+    // dragId is the account being dragged; dragOverId is the row it is currently over. Both drive the
+    // visual cue while a reorder drag is in flight.
+    const [dragId, setDragId] = useState('')
+    const [dragOverId, setDragOverId] = useState('')
+    const accountIds = accounts.map((a) => a.id)
+    // Reordering is only meaningful with more than one account, so the drag and the up/down buttons are
+    // enabled only then.
+    const canReorder = accounts.length > 1
     return (
         <>
             <div className="section-label">Accounts</div>
             <ul className="list">
-                {accounts.map((account) => (
+                {accounts.map((account, index) => (
                     <li
                         key={account.id}
-                        className={'list-item account' + (account.id === selectedAccount ? ' selected' : '')}
+                        className={
+                            'list-item account' +
+                            (account.id === selectedAccount ? ' selected' : '') +
+                            (account.id === dragOverId ? ' drag-over' : '') +
+                            (account.id === dragId ? ' dragging' : '')
+                        }
+                        draggable={canReorder}
                         onClick={() => props.onSelectAccount(account.id)}
+                        onDragStart={(e) => {
+                            setDragId(account.id)
+                            e.dataTransfer.setData(accountDragType, account.id)
+                            e.dataTransfer.effectAllowed = 'move'
+                        }}
+                        onDragEnd={() => {
+                            setDragId('')
+                            setDragOverId('')
+                        }}
+                        onDragOver={(e) => {
+                            if (e.dataTransfer.types.includes(accountDragType)) {
+                                e.preventDefault()
+                                e.dataTransfer.dropEffect = 'move'
+                                setDragOverId(account.id)
+                            }
+                        }}
+                        onDragLeave={() => setDragOverId((id) => (id === account.id ? '' : id))}
+                        onDrop={(e) => {
+                            e.preventDefault()
+                            const from = e.dataTransfer.getData(accountDragType)
+                            setDragId('')
+                            setDragOverId('')
+                            if (from && from !== account.id) {
+                                props.onReorderAccounts(moveId(accountIds, from, account.id))
+                            }
+                        }}
                     >
                         <span className="item-text">
                             <span className="item-title">{account.displayName}</span>
@@ -87,6 +156,34 @@ function SidebarContent(props: SidebarProps) {
                             </span>
                         )}
                         <span className="account-actions">
+                            {canReorder && (
+                                <>
+                                    <button
+                                        className="account-action"
+                                        aria-label={`Move ${account.email} up`}
+                                        title="Move up"
+                                        disabled={index === 0}
+                                        onClick={(e) => {
+                                            e.stopPropagation()
+                                            props.onReorderAccounts(swapId(accountIds, index, index - 1))
+                                        }}
+                                    >
+                                        &#8593;
+                                    </button>
+                                    <button
+                                        className="account-action"
+                                        aria-label={`Move ${account.email} down`}
+                                        title="Move down"
+                                        disabled={index === accounts.length - 1}
+                                        onClick={(e) => {
+                                            e.stopPropagation()
+                                            props.onReorderAccounts(swapId(accountIds, index, index + 1))
+                                        }}
+                                    >
+                                        &#8595;
+                                    </button>
+                                </>
+                            )}
                             <button
                                 className="account-action"
                                 aria-label={`Edit ${account.email}`}

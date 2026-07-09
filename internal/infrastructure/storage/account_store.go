@@ -20,10 +20,11 @@ type identityRow struct {
 	Address string `json:"address"`
 }
 
-// ListAccounts returns all accounts ordered by display name.
+// ListAccounts returns all accounts in the user's chosen sidebar order (the position column), falling
+// back to display name for accounts that share a position (all of them until the first manual reorder).
 func (s *Store) ListAccounts(ctx context.Context) ([]domain.Account, error) {
 	rows, err := s.db.QueryContext(ctx,
-		"SELECT "+accountColumns+" FROM account ORDER BY display_name;")
+		"SELECT "+accountColumns+" FROM account ORDER BY position, display_name;")
 	if err != nil {
 		return nil, fmt.Errorf("query accounts: %w", err)
 	}
@@ -63,18 +64,40 @@ func (s *Store) SaveAccount(ctx context.Context, a domain.Account) error {
 	if err != nil {
 		return fmt.Errorf("save account %q: %w", a.ID(), err)
 	}
+	// position is not a domain attribute, so it is set here rather than carried on the account. An
+	// existing row keeps its position (the subquery is evaluated against the table before the REPLACE
+	// removes the old row, so editing an account does not reset the sidebar order); a brand-new account
+	// is appended at the end: its position is the current maximum plus one (0 when it is the first).
 	_, err = s.db.ExecContext(ctx,
-		`INSERT OR REPLACE INTO account (`+accountColumns+`)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+		`INSERT OR REPLACE INTO account (`+accountColumns+`, position)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(
+		     (SELECT position FROM account WHERE id = ?),
+		     (SELECT COALESCE(MAX(position) + 1, 0) FROM account)));`,
 		a.ID(), a.DisplayName(), a.Address().Address(), int(a.Protocol()),
 		a.Incoming().Host(), a.Incoming().Port(), int(a.Incoming().Security()),
 		a.Outgoing().Host(), a.Outgoing().Port(), int(a.Outgoing().Security()),
-		int(a.Auth()), a.Signature(), identities,
+		int(a.Auth()), a.Signature(), identities, a.ID(),
 	)
 	if err != nil {
 		return fmt.Errorf("save account %q: %w", a.ID(), err)
 	}
 	return nil
+}
+
+// SetAccountPositions writes each account's sidebar position from the given order: the account at index
+// i in orderedIDs gets position i. It runs in one transaction so the reorder is atomic; it rewrites the
+// full list rather than swapping pairs so positions can never collide. Ids not present are left as they
+// are; an id in the list that no longer exists updates no row and is harmless.
+func (s *Store) SetAccountPositions(ctx context.Context, orderedIDs []string) error {
+	return s.inTx(ctx, func(tx *sql.Tx) error {
+		for i, id := range orderedIDs {
+			if _, err := tx.ExecContext(ctx,
+				"UPDATE account SET position = ? WHERE id = ?;", i, id); err != nil {
+				return fmt.Errorf("set account %q position: %w", id, err)
+			}
+		}
+		return nil
+	})
 }
 
 // encodeIdentities serialises an account's identities to the stored JSON array.
