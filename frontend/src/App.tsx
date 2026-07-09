@@ -9,7 +9,7 @@ import {Sidebar} from './components/Sidebar'
 import {MessageList} from './components/MessageList'
 import {MessageContextMenu} from './components/MessageContextMenu'
 import {Reader} from './components/Reader'
-import {MenuBar} from './components/MenuBar'
+import {Menu} from './components/Menu'
 import {AboutModal} from './components/AboutModal'
 import {LicenceModal} from './components/LicenceModal'
 import {arrangeByConversation, sortByDate} from './threads'
@@ -1722,53 +1722,61 @@ function App() {
                     )}
                 </span>
                 <div className="titlebar-right">
-                    <button
-                        className={'sync-btn' + (conversationView ? ' active' : '')}
-                        data-tip={conversationView ? 'Conversation view on' : 'Conversation view off'}
-                        aria-label="Toggle conversation view"
-                        aria-pressed={conversationView}
-                        onClick={toggleConversationView}
-                    >
-                        {'\u{1F4AC}'}
-                    </button>
-                    <button
-                        className="sync-btn"
-                        data-tip="Compose"
-                        aria-label="Compose"
-                        disabled={!selectedAccount}
-                        onClick={() => {
-                            const sig = signatureHtml()
-                            setComposeInitial(sig ? {bodyHtml: `<p></p>${sig}`} : undefined)
-                            setComposing(true)
-                        }}
-                    >
-                        {'\u{1F58A}\u{FE0F}'}
-                    </button>
-                    <button
-                        className="sync-btn"
-                        data-tip={syncing ? 'Syncing…' : 'Sync'}
-                        aria-label="Sync"
-                        disabled={!selectedAccount || syncing}
-                        onClick={() => void sync()}
-                    >
-                        {'\u{267B}\u{FE0F}'}
-                    </button>
-                    <button
-                        className="icon-btn"
-                        data-tip={previewEnabled ? 'Hide the reading pane (F8)' : 'Show the reading pane (F8)'}
-                        aria-label={previewEnabled ? 'Hide the reading pane' : 'Show the reading pane'}
-                        aria-pressed={previewEnabled}
-                        onClick={togglePreview}
-                    >
-                        {previewEnabled ? '◫\u{FE0E}' : '▯\u{FE0E}'}
-                    </button>
+                    <Menu
+                        title="File"
+                        icon={'\u{1F4C1}'}
+                        items={[
+                            {
+                                label: syncing ? 'Syncing…' : 'Sync',
+                                icon: '\u{267B}\u{FE0F}',
+                                disabled: !selectedAccount || syncing,
+                                onClick: () => void sync(),
+                            },
+                            {
+                                label: 'Add account',
+                                icon: '\u{2795}',
+                                onClick: () => setSettingUp(true),
+                            },
+                        ]}
+                    />
+                    <Menu
+                        title="Edit"
+                        icon={'\u{270F}\u{FE0F}'}
+                        items={[
+                            {
+                                label: 'Compose',
+                                icon: '\u{1F58A}\u{FE0F}',
+                                disabled: !selectedAccount,
+                                onClick: () => {
+                                    const sig = signatureHtml()
+                                    setComposeInitial(sig ? {bodyHtml: `<p></p>${sig}`} : undefined)
+                                    setComposing(true)
+                                },
+                            },
+                            {
+                                label: 'Rules',
+                                icon: '\u{1F4CF}',
+                                onClick: () => setManagingRules(true),
+                            },
+                        ]}
+                    />
+                    <Menu
+                        title="View"
+                        icon={'\u{1F441}\u{FE0F}'}
+                        items={[
+                            {
+                                label: 'Conversation view',
+                                checked: conversationView,
+                                onClick: toggleConversationView,
+                            },
+                            {
+                                label: 'Reading pane',
+                                checked: previewEnabled,
+                                onClick: togglePreview,
+                            },
+                        ]}
+                    />
                     <span className="titlebar-sep" aria-hidden="true"/>
-                    <button className="sync-btn" onClick={() => setSettingUp(true)}>
-                        {'\u{2795}'} Add account
-                    </button>
-                    <button className="sync-btn" onClick={() => setManagingRules(true)}>
-                        Rules
-                    </button>
                     <button className="sync-btn" onClick={() => setManagingContacts(true)}>
                         {'\u{1F4C7}'} Contacts
                     </button>
@@ -1784,10 +1792,14 @@ function App() {
                     >
                         {theme === 'dark' ? '☀️' : '\u{1F319}'}
                     </button>
-                    <MenuBar
-                        onShowAbout={() => void showAbout()}
-                        onShowLicence={() => void showLicence()}
-                        onCheckUpdates={checkUpdates}
+                    <Menu
+                        title="Help"
+                        icon={'\u{2139}\u{FE0F}'}
+                        items={[
+                            {label: 'About PigeonPost', onClick: () => void showAbout()},
+                            {label: 'Licence', onClick: () => void showLicence()},
+                            {label: 'Check for Updates', onClick: checkUpdates},
+                        ]}
                     />
                 </div>
             </header>

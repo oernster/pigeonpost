@@ -844,7 +844,9 @@
 }
 
 .menu-item {
-    display: block;
+    display: flex;
+    align-items: center;
+    gap: 8px;
     width: 100%;
     text-align: left;
     background: transparent;
@@ -855,8 +857,21 @@
     cursor: pointer;
 }
 
-.menu-item:hover {
+.menu-item:enabled:hover {
     background-color: var(--bg-elev-2);
+}
+
+.menu-item:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+
+/* Fixed-width leading columns so a toggle item's tick and an item's emoji line up down the menu. */
+.menu-item-check,
+.menu-item-icon {
+    flex-shrink: 0;
+    width: 1.15em;
+    text-align: center;
 }
 
 .btn {
