@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/oernster/pigeonpost/internal/domain"
 )
@@ -31,6 +32,7 @@ type ComposeService struct {
 	store     MailStore
 	transport MailTransport
 	drafts    DraftSaver
+	sent      SentSaver
 	outbox    OutboxStore
 	recovery  DraftRecoveryStore
 	clock     domain.Clock
@@ -45,6 +47,7 @@ func NewComposeService(
 	store MailStore,
 	transport MailTransport,
 	drafts DraftSaver,
+	sent SentSaver,
 	outbox OutboxStore,
 	recovery DraftRecoveryStore,
 	clock domain.Clock,
@@ -55,6 +58,7 @@ func NewComposeService(
 		store:     store,
 		transport: transport,
 		drafts:    drafts,
+		sent:      sent,
 		outbox:    outbox,
 		recovery:  recovery,
 		clock:     clock,
@@ -139,6 +143,7 @@ func (s *ComposeService) Send(ctx context.Context, accountID string, draft Draft
 		}
 		return fmt.Errorf("compose: send: %w", err)
 	}
+	s.saveToSent(ctx, account, msg)
 	return nil
 }
 
@@ -282,4 +287,44 @@ func (s *ComposeService) draftsPath(ctx context.Context, accountID string) (stri
 		}
 	}
 	return "", ErrNoDraftsFolder
+}
+
+// gmailSMTPHost is Gmail's outgoing server. Gmail saves sent mail to its Sent Mail folder server-side
+// automatically, so PigeonPost must not also append a copy or the message would appear in Sent twice.
+const gmailSMTPHost = "smtp.gmail.com"
+
+// autoSavesSent reports whether the account's provider saves sent mail server-side, so the client must
+// not append its own copy. Gmail is the provider PigeonPost offers that does this.
+func autoSavesSent(account domain.Account) bool {
+	return strings.EqualFold(account.Outgoing().Host(), gmailSMTPHost)
+}
+
+// saveToSent appends a copy of a just-sent message to the account's Sent mailbox, so the user keeps a
+// record of what they sent. It is best-effort: the message has already been delivered, so a provider
+// that saves sent mail itself (skipped), a missing Sent folder or an append failure must never turn a
+// successful send into a failure.
+func (s *ComposeService) saveToSent(ctx context.Context, account domain.Account, msg domain.OutgoingMessage) {
+	if autoSavesSent(account) {
+		return
+	}
+	sentPath := s.sentPath(ctx, account.ID())
+	if sentPath == "" {
+		return
+	}
+	_ = s.sent.SaveSent(ctx, account, sentPath, msg)
+}
+
+// sentPath returns the path of the account's Sent mailbox. It returns an empty string when the folder
+// list cannot be read or the account has no Sent folder (both meaning: skip the best-effort Sent copy).
+func (s *ComposeService) sentPath(ctx context.Context, accountID string) string {
+	folders, err := s.store.ListFolders(ctx, accountID)
+	if err != nil {
+		return ""
+	}
+	for _, folder := range folders {
+		if folder.Kind() == domain.FolderSent {
+			return folder.Path()
+		}
+	}
+	return ""
 }

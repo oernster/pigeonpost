@@ -322,9 +322,22 @@ func (s *Source) DeleteFolder(ctx context.Context, account domain.Account, path 
 }
 
 // SaveDraft appends a message to the account's Drafts mailbox, flagged \Draft and \Seen, so it is
-// available from any device. It satisfies application.DraftSaver. The message is rendered to RFC 5322
-// bytes with a generated Date and Message-ID so the draft is a well-formed message on the server.
+// available from any device. It satisfies application.DraftSaver.
 func (s *Source) SaveDraft(ctx context.Context, account domain.Account, draftsPath string, msg domain.OutgoingMessage) error {
+	return s.appendMessage(ctx, account, draftsPath, msg, []imap.Flag{imap.FlagDraft, imap.FlagSeen})
+}
+
+// SaveSent appends a copy of a sent message to the account's Sent mailbox, flagged \Seen, so the user
+// keeps a record of what they sent on providers that do not save sent mail server-side. It satisfies
+// application.SentSaver.
+func (s *Source) SaveSent(ctx context.Context, account domain.Account, sentPath string, msg domain.OutgoingMessage) error {
+	return s.appendMessage(ctx, account, sentPath, msg, []imap.Flag{imap.FlagSeen})
+}
+
+// appendMessage renders msg to RFC 5322 bytes (with a generated Date and Message-ID so it is a
+// well-formed message on the server) and appends them to the given mailbox with the given flags. It is
+// the shared body of SaveDraft and SaveSent.
+func (s *Source) appendMessage(ctx context.Context, account domain.Account, path string, msg domain.OutgoingMessage, flags []imap.Flag) error {
 	client, err := s.connect(ctx, account)
 	if err != nil {
 		return err
@@ -333,17 +346,17 @@ func (s *Source) SaveDraft(ctx context.Context, account domain.Account, draftsPa
 
 	now := s.clock.Now()
 	raw := message.BuildMIME(msg, now, s.newID())
-	options := &imap.AppendOptions{Flags: []imap.Flag{imap.FlagDraft, imap.FlagSeen}, Time: now}
-	cmd := client.Append(draftsPath, int64(len(raw)), options)
+	options := &imap.AppendOptions{Flags: flags, Time: now}
+	cmd := client.Append(path, int64(len(raw)), options)
 	if _, err := cmd.Write(raw); err != nil {
 		_ = cmd.Close()
-		return fmt.Errorf("imap: write draft to %q: %w", draftsPath, err)
+		return fmt.Errorf("imap: write message to %q: %w", path, err)
 	}
 	if err := cmd.Close(); err != nil {
-		return fmt.Errorf("imap: close draft append to %q: %w", draftsPath, err)
+		return fmt.Errorf("imap: close append to %q: %w", path, err)
 	}
 	if _, err := cmd.Wait(); err != nil {
-		return fmt.Errorf("imap: append draft to %q: %w", draftsPath, err)
+		return fmt.Errorf("imap: append message to %q: %w", path, err)
 	}
 	return nil
 }

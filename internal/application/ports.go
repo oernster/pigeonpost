@@ -116,6 +116,13 @@ type DraftSaver interface {
 	SaveDraft(ctx context.Context, account domain.Account, draftsPath string, msg domain.OutgoingMessage) error
 }
 
+// SentSaver appends a copy of a sent message to an account's Sent mailbox, so the user keeps a record of
+// what they sent on providers that do not save sent mail server-side. It is separate from DraftSaver
+// because a sent copy is flagged \Seen, not \Draft.
+type SentSaver interface {
+	SaveSent(ctx context.Context, account domain.Account, sentPath string, msg domain.OutgoingMessage) error
+}
+
 // OutboxStore persists outgoing operations that could not reach the server because it was offline, so
 // they survive a restart and can be replayed on reconnect. Items are listed oldest first.
 type OutboxStore interface {

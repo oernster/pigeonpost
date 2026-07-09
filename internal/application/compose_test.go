@@ -34,6 +34,7 @@ type composeDeps struct {
 	store     *fakeMailStore
 	transport *fakeMailTransport
 	drafts    *fakeDraftSaver
+	sent      *fakeSentSaver
 	outbox    *fakeOutboxStore
 	recovery  *fakeDraftRecoveryStore
 }
@@ -44,14 +45,55 @@ func newComposeDeps() composeDeps {
 		store:     newFakeMailStore(),
 		transport: &fakeMailTransport{},
 		drafts:    &fakeDraftSaver{},
+		sent:      &fakeSentSaver{},
 		outbox:    &fakeOutboxStore{},
 		recovery:  &fakeDraftRecoveryStore{},
 	}
 }
 
 func (d composeDeps) service() *ComposeService {
-	return NewComposeService(d.accounts, d.store, d.transport, d.drafts, d.outbox, d.recovery,
+	return NewComposeService(d.accounts, d.store, d.transport, d.drafts, d.sent, d.outbox, d.recovery,
 		fakeClock{now: time.Unix(0, 0).UTC()}, func() string { return "queued-id" })
+}
+
+// sentFolder builds a Sent-kind folder for an account, used by the save-to-Sent tests.
+func sentFolder(t *testing.T, accountID, path string) domain.Folder {
+	t.Helper()
+	folder, err := domain.NewFolder(accountID+":sent", accountID, path, domain.FolderSent, 0, 0)
+	if err != nil {
+		t.Fatalf("build sent folder: %v", err)
+	}
+	return folder
+}
+
+// withSent gives a1 a Sent folder.
+func (d composeDeps) withSent(t *testing.T) composeDeps {
+	d.store.folders["a1"] = append(d.store.folders["a1"], sentFolder(t, "a1", "Sent"))
+	return d
+}
+
+// gmailAccount registers a1 as a Gmail account (outgoing smtp.gmail.com), which saves sent mail
+// server-side. It returns the deps for chaining.
+func (d composeDeps) gmailAccount(t *testing.T) composeDeps {
+	t.Helper()
+	addr, err := domain.NewEmailAddress("", "user@gmail.com")
+	if err != nil {
+		t.Fatalf("address: %v", err)
+	}
+	in, err := domain.NewServerConfig("imap.gmail.com", 993, domain.SecurityTLS)
+	if err != nil {
+		t.Fatalf("incoming: %v", err)
+	}
+	out, err := domain.NewServerConfig("smtp.gmail.com", 587, domain.SecurityStartTLS)
+	if err != nil {
+		t.Fatalf("outgoing: %v", err)
+	}
+	account, err := domain.NewAccount("a1", "Gmail", addr, domain.ProtocolIMAP, in, out, domain.AuthPassword)
+	if err != nil {
+		t.Fatalf("account: %v", err)
+	}
+	d.accounts.accounts["a1"] = account
+	return d
 }
 
 // withAccount registers a1 and returns the deps for chaining.
@@ -64,6 +106,61 @@ func (d composeDeps) withAccount(t *testing.T) composeDeps {
 func (d composeDeps) withDrafts(t *testing.T) composeDeps {
 	d.store.folders["a1"] = []domain.Folder{draftsFolder(t, "a1", "Drafts")}
 	return d
+}
+
+func TestComposeSendSavesToSent(t *testing.T) {
+	d := newComposeDeps().withAccount(t).withSent(t)
+	if err := d.service().Send(context.Background(), "a1", draftTo(t, "f@example.com")); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(d.transport.sent) != 1 {
+		t.Errorf("expected the message to be sent, got %d", len(d.transport.sent))
+	}
+	if len(d.sent.saved) != 1 || d.sent.paths[0] != "Sent" {
+		t.Errorf("expected a copy saved to Sent, got %v paths %v", d.sent.saved, d.sent.paths)
+	}
+}
+
+func TestComposeSendSkipsSentForGmail(t *testing.T) {
+	// Gmail saves sent mail server-side, so the client must not append its own copy.
+	d := newComposeDeps().gmailAccount(t).withSent(t)
+	if err := d.service().Send(context.Background(), "a1", draftTo(t, "f@example.com")); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(d.sent.saved) != 0 {
+		t.Errorf("Gmail send must not append to Sent, got %v", d.sent.saved)
+	}
+}
+
+func TestComposeSendNoSentFolderSkips(t *testing.T) {
+	d := newComposeDeps().withAccount(t) // no Sent folder configured
+	if err := d.service().Send(context.Background(), "a1", draftTo(t, "f@example.com")); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(d.sent.saved) != 0 {
+		t.Errorf("no Sent folder means no copy, got %v", d.sent.saved)
+	}
+}
+
+func TestComposeSendSentListErrorSkips(t *testing.T) {
+	d := newComposeDeps().withAccount(t).withSent(t)
+	d.store.listFoldersErr = errBoom
+	// A folder-list error must not fail the send: the message is already delivered.
+	if err := d.service().Send(context.Background(), "a1", draftTo(t, "f@example.com")); err != nil {
+		t.Fatalf("send must succeed despite a folder-list error: %v", err)
+	}
+	if len(d.sent.saved) != 0 {
+		t.Errorf("no Sent copy when the folder list cannot be read, got %v", d.sent.saved)
+	}
+}
+
+func TestComposeSendSentAppendErrorSwallowed(t *testing.T) {
+	d := newComposeDeps().withAccount(t).withSent(t)
+	d.sent.saveErr = errBoom
+	// The append to Sent failed; the message was already delivered, so Send still succeeds.
+	if err := d.service().Send(context.Background(), "a1", draftTo(t, "f@example.com")); err != nil {
+		t.Fatalf("send must succeed despite a Sent-append error: %v", err)
+	}
 }
 
 func outboxItem(t *testing.T, id, accountID string, kind domain.OutboxKind) domain.OutboxItem {
@@ -146,7 +243,7 @@ func TestComposeSendOfflineEnqueueErrors(t *testing.T) {
 	t.Run("bad item id", func(t *testing.T) {
 		d := newComposeDeps().withAccount(t)
 		d.transport.sendErr = domain.ErrOffline
-		svc := NewComposeService(d.accounts, d.store, d.transport, d.drafts, d.outbox, d.recovery,
+		svc := NewComposeService(d.accounts, d.store, d.transport, d.drafts, d.sent, d.outbox, d.recovery,
 			fakeClock{now: time.Unix(0, 0).UTC()}, func() string { return "" })
 		if err := svc.Send(context.Background(), "a1", draftTo(t, "f@example.com")); !errors.Is(err, domain.ErrEmptyOutboxID) {
 			t.Errorf("error = %v, want ErrEmptyOutboxID", err)

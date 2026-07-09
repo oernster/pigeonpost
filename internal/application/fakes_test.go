@@ -570,6 +570,23 @@ func (f *fakeDraftSaver) SaveDraft(_ context.Context, _ domain.Account, draftsPa
 	return nil
 }
 
+// fakeSentSaver is a hand-written SentSaver that records the sent copies it was asked to append and the
+// mailbox path each went to.
+type fakeSentSaver struct {
+	saveErr error
+	saved   []domain.OutgoingMessage
+	paths   []string
+}
+
+func (f *fakeSentSaver) SaveSent(_ context.Context, _ domain.Account, sentPath string, msg domain.OutgoingMessage) error {
+	if f.saveErr != nil {
+		return f.saveErr
+	}
+	f.saved = append(f.saved, msg)
+	f.paths = append(f.paths, sentPath)
+	return nil
+}
+
 // fakeOutboxStore is a hand-written in-memory OutboxStore with error-injection fields.
 type fakeOutboxStore struct {
 	items      []domain.OutboxItem
