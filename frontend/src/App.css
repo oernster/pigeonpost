@@ -1456,6 +1456,7 @@
 }
 
 .list-item.account {
+    position: relative;
     flex-direction: row;
     align-items: center;
     gap: 8px;
@@ -1490,14 +1491,26 @@
     white-space: nowrap;
 }
 
+/* The row actions float over the right end of the row rather than taking a column in the flex flow, so
+   the name and email use the full width and truncate to an ellipsis only when the text genuinely does
+   not fit. They reveal on hover or focus (opacity, not visibility, so the buttons stay in the tab order
+   and remain reachable by keyboard). A gradient backing matched to the row fades the text out beneath
+   them so a long name does not show through. */
 .account-actions {
-    flex-shrink: 0;
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    right: 14px;
     display: flex;
+    align-items: center;
     gap: 2px;
-    /* Hidden until the row is hovered or one of its buttons is focused. opacity, not visibility, is used
-       so the buttons stay in the tab order: that keeps the up/down move buttons reachable by keyboard,
-       and focus-within then reveals the group as a button gains focus. */
+    padding-left: 20px;
     opacity: 0;
+    background: linear-gradient(to right, transparent, var(--bg-elev) 20px);
+}
+
+.list-item.account.selected .account-actions {
+    background: linear-gradient(to right, transparent, var(--bg-elev-2) 20px);
 }
 
 .list-item.account:hover .account-actions,
