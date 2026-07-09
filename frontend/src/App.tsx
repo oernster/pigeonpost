@@ -1245,7 +1245,8 @@ function App() {
             setError(`Move failed: ${String(e)}`)
         }
         await loadUnread()
-    }, [removeIdsFromLists, loadUnread])
+        await refreshFolders()
+    }, [removeIdsFromLists, loadUnread, refreshFolders])
 
     // dropMessageOnFolder is the drag-and-drop target handler. Dropping a row that is part of the
     // multi-selection moves the whole selection; dropping any other row moves just that one. Messages
@@ -1296,7 +1297,8 @@ function App() {
             setBusy(false)
         }
         await loadUnread()
-    }, [removeIdsFromLists, loadUnread])
+        await refreshFolders()
+    }, [removeIdsFromLists, loadUnread, refreshFolders])
 
     // bulkSetRead sets the read flag on every selected message, updating the lists at once and then
     // persisting each. bulkSetFlag does the same for the star. Both take an explicit value rather than
