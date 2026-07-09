@@ -1492,12 +1492,13 @@ function App() {
             if (isText) {
                 return
             }
-            // On launch focus rests on the offscreen neutral anchor, which is outside the tab ring, so the
-            // browser has no in-ring starting point and native Tab stalls. When focus is outside the ring,
-            // route Tab into it so the first Tab reaches the first tray control (Shift+Tab the last). Once
-            // focus is on a real control, native Tab is left to move between elements as usual.
+            // The neutral start sink owns the very first Tab (its onKeyDown enters the ring). This is the
+            // fallback for when focus is instead on the body: route Tab into the ring when focus is outside
+            // it. A context menu owns its own keys, so it is the only overlay that blocks this; the splash
+            // does not, so the first Tab on launch still enters the ring. Once focus is on a real control,
+            // native Tab moves between elements as usual.
             if (e.key === 'Tab') {
-                if (overlayOpen) {
+                if (contextMenu) {
                     return
                 }
                 const ring = focusRingElements(focusRingRoot())
@@ -1507,10 +1508,11 @@ function App() {
                 }
                 return
             }
-            // Right/Left step the focus ring, mirroring Tab/Shift+Tab across the main window. Non-dialog
-            // overlays (context menu, splash) have nothing to navigate, so it stays disabled for them.
+            // Right/Left step the focus ring, mirroring Tab/Shift+Tab across the main window. A context
+            // menu owns its own keys, so the ring stays disabled while one is open; the splash does not
+            // block it, so the very first Right on launch enters the ring.
             if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
-                if (overlayOpen) {
+                if (contextMenu) {
                     return
                 }
                 e.preventDefault()
@@ -1658,7 +1660,7 @@ function App() {
                 return
             }
             for (const item of menuShortcutsRef.current) {
-                if (item.shortcut && !item.disabled && matchesShortcut(e, item.shortcut)) {
+                if (item.shortcut && !item.disabled && item.onClick && matchesShortcut(e, item.shortcut)) {
                     e.preventDefault()
                     item.onClick()
                     return
@@ -1746,8 +1748,19 @@ function App() {
         />
     )
 
-    // The four title-bar menus are defined here so one item list drives both the dropdown and the global
-    // accelerator handler above, keeping each item's shortcut hint and its wired key in step.
+    // The title-bar menus are defined here so one item list drives both the dropdown and the global
+    // accelerator handler above, keeping each item's shortcut hint and its wired key in step. The Mail menu
+    // mirrors the right-click actions; both act on the active message.
+    const activeMessage = selectedMessage
+    const activeOutbox = activeMessage ? isOutboxMessage(activeMessage) : false
+    // canMailAct gates the actions that need a real, non-outbox message on screen (reply, mark, move and
+    // the rest). A queued outbox item only supports Cancel send.
+    const canMailAct = Boolean(activeMessage) && !activeOutbox
+    const canReplyAll = canMailAct && activeMessage
+        ? ((activeMessage.to?.length ?? 0) + (activeMessage.cc?.length ?? 0)) > 0
+        : false
+    const mailMoveTargets = activeMessage ? folders.filter((f) => f.id !== activeMessage.folderId) : []
+    const appliedTagIds = new Set(messageTags.map((t) => t.id))
     const fileMenu: MenuItem[] = [
         {
             label: syncing ? 'Syncing…' : 'Sync',
@@ -1760,6 +1773,17 @@ function App() {
             label: 'Add account',
             icon: '\u{2795}',
             onClick: () => setSettingUp(true),
+        },
+        {label: '', separator: true},
+        {
+            label: 'Save as...',
+            disabled: !canMailAct,
+            onClick: () => activeMessage && void saveMessageAs(activeMessage),
+        },
+        {
+            label: 'Print...',
+            disabled: !canMailAct,
+            onClick: () => activeMessage && void printMessage(activeMessage),
         },
     ]
     const editMenu: MenuItem[] = [
@@ -1793,12 +1817,78 @@ function App() {
             onClick: togglePreview,
         },
     ]
+    const mailMenu: MenuItem[] = [
+        {label: 'Open in new tab', disabled: !canMailAct, onClick: () => activeMessage && openInNewTab(activeMessage)},
+        {label: '', separator: true},
+        {label: 'Reply', disabled: !canMailAct, onClick: () => activeMessage && openReply(activeMessage)},
+        {label: 'Reply all', disabled: !canReplyAll, onClick: () => activeMessage && openReplyAll(activeMessage)},
+        {label: 'Forward', disabled: !canMailAct, onClick: () => activeMessage && openForward(activeMessage)},
+        {
+            label: 'Attach to new message',
+            disabled: !canMailAct,
+            onClick: () => activeMessage && attachToNewMessage(activeMessage),
+        },
+        {label: '', separator: true},
+        {
+            label: activeMessage?.read ? 'Mark as unread' : 'Mark as read',
+            disabled: !canMailAct,
+            onClick: () => activeMessage && void setReadState(activeMessage, !activeMessage.read),
+        },
+        {
+            label: activeMessage?.flagged ? 'Remove star' : 'Add star',
+            disabled: !canMailAct,
+            onClick: () => activeMessage && void toggleFlag(activeMessage),
+        },
+        {
+            label: 'Tag with colour',
+            disabled: !canMailAct,
+            submenu: TAG_PALETTE.map((c) => {
+                const id = colourTagId(c.colour)
+                const on = appliedTagIds.has(id)
+                return {label: c.name, swatch: c.colour, checked: on, onClick: () => void toggleTag(id, !on)}
+            }),
+        },
+        {label: '', separator: true},
+        {
+            label: 'Move to',
+            disabled: !canMailAct || isPop3 || mailMoveTargets.length === 0,
+            submenu: mailMoveTargets.map((f) => ({
+                label: f.name,
+                onClick: () => activeMessage && void moveMessage(activeMessage, f.id),
+            })),
+        },
+        {
+            label: 'Copy to',
+            disabled: !canMailAct || isPop3 || mailMoveTargets.length === 0,
+            submenu: mailMoveTargets.map((f) => ({
+                label: f.name,
+                onClick: () => activeMessage && void copyMessage(activeMessage, f.id),
+            })),
+        },
+        {
+            label: 'Mark as junk',
+            disabled: !canMailAct || isPop3,
+            onClick: () => activeMessage && void markJunk(activeMessage),
+        },
+        {label: '', separator: true},
+        {
+            label: 'Cancel send',
+            disabled: !activeOutbox,
+            onClick: () => activeMessage && setMessageToCancelSend(activeMessage),
+        },
+        {label: 'Delete', disabled: !canMailAct, onClick: () => activeMessage && requestDelete(activeMessage)},
+        {
+            label: 'Delete permanently',
+            disabled: !canMailAct,
+            onClick: () => activeMessage && setMessageToPurge(activeMessage),
+        },
+    ]
     const helpMenu: MenuItem[] = [
         {label: 'About PigeonPost', onClick: () => void showAbout()},
         {label: 'Licence', onClick: () => void showLicence()},
         {label: 'Check for Updates', onClick: checkUpdates},
     ]
-    menuShortcutsRef.current = [...fileMenu, ...editMenu, ...viewMenu, ...helpMenu]
+    menuShortcutsRef.current = [...fileMenu, ...editMenu, ...viewMenu, ...mailMenu, ...helpMenu]
 
     return (
         <div className="app">
@@ -1807,23 +1897,40 @@ function App() {
                 tabIndex={-1}
                 aria-hidden="true"
                 style={{position: 'absolute', width: 0, height: 0, overflow: 'hidden', outline: 'none'}}
+                onKeyDown={(e) => {
+                    // Neutral start: the first Tab (or Shift+Tab) from this sink enters the focus ring, the
+                    // way the keeb reference has the sink own its own Tab. Owning it here (rather than the
+                    // window handler) means it works on launch even while the splash is still up.
+                    if (e.key !== 'Tab') {
+                        return
+                    }
+                    const items = focusRingElements(focusRingRoot())
+                    if (items.length === 0) {
+                        return
+                    }
+                    e.preventDefault()
+                    e.stopPropagation()
+                    ;(e.shiftKey ? items[items.length - 1] : items[0]).focus()
+                }}
             />
             {splashVisible && <Splash version={appVersion} author={appAuthor} fading={splashFading}/>}
             <ReminderNotifications onOpen={openReminderEvent}/>
             <header className="titlebar">
-                <span className="brand">
-                    PigeonPost
-                    {unreadCounts.total > 0 && (
-                        <span className="titlebar-unread" title={`${unreadCounts.total} unread across all accounts`}>
-                            {unreadCounts.total}
-                        </span>
-                    )}
-                </span>
+                <div className="titlebar-left">
+                    <span className="brand">
+                        PigeonPost
+                        {unreadCounts.total > 0 && (
+                            <span className="titlebar-unread" title={`${unreadCounts.total} unread across all accounts`}>
+                                {unreadCounts.total}
+                            </span>
+                        )}
+                    </span>
+                    <Menu title="File" icon={'\u{1F4C1}'} items={fileMenu} align="left"/>
+                    <Menu title="Edit" icon={'\u{270F}\u{FE0F}'} items={editMenu} align="left"/>
+                    <Menu title="View" icon={'\u{1F441}\u{FE0F}'} items={viewMenu} align="left"/>
+                    <Menu title="Mail" icon={'\u{1F4EC}'} items={mailMenu} align="left"/>
+                </div>
                 <div className="titlebar-right">
-                    <Menu title="File" icon={'\u{1F4C1}'} items={fileMenu}/>
-                    <Menu title="Edit" icon={'\u{270F}\u{FE0F}'} items={editMenu}/>
-                    <Menu title="View" icon={'\u{1F441}\u{FE0F}'} items={viewMenu}/>
-                    <span className="titlebar-sep" aria-hidden="true"/>
                     <button className="sync-btn" onClick={() => setManagingContacts(true)}>
                         {'\u{1F4C7}'} Contacts
                     </button>

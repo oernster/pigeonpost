@@ -761,6 +761,13 @@
     text-align: left;
 }
 
+/* The left group: the brand and the File, Edit, View and Mail menus, sitting next to the wordmark. */
+.titlebar-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
 .titlebar-right {
     display: flex;
     align-items: center;
@@ -898,6 +905,57 @@
     padding-left: 24px;
     color: var(--text-dim);
     font-size: 12px;
+}
+
+/* A left-aligned dropdown opens rightwards from the trigger's left edge, for the menus on the left of the
+   tray; the default right alignment keeps a right-hand menu (Help) on screen. */
+.menu-dropdown.align-left {
+    left: 0;
+    right: auto;
+}
+
+/* A divider between groups of items. */
+.menu-sep {
+    height: 1px;
+    background-color: var(--border);
+    margin: 4px 6px;
+}
+
+/* A colour square shown before a tag item's label. */
+.menu-item-swatch {
+    flex-shrink: 0;
+    width: 12px;
+    height: 12px;
+    border-radius: 3px;
+    border: 1px solid rgba(0, 0, 0, 0.25);
+}
+
+/* A submenu (flyout) parent and its panel, which opens to the right of the item. The chevron is pushed to
+   the right edge the way a shortcut hint is. */
+.menu-sub-wrap {
+    position: relative;
+}
+
+.menu-sub-arrow {
+    margin-left: auto;
+    padding-left: 24px;
+    color: var(--text-dim);
+    font-size: 11px;
+}
+
+.menu-submenu {
+    position: absolute;
+    left: 100%;
+    top: -5px;
+    min-width: 170px;
+    max-height: 60vh;
+    overflow-y: auto;
+    background-color: var(--bg-elev);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+    padding: 4px;
+    z-index: 21;
 }
 
 .btn {
