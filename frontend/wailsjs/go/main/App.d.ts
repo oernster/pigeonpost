@@ -34,9 +34,9 @@ export function DeleteMessage(arg1:string):Promise<void>;
 
 export function DeleteMessagePermanent(arg1:string):Promise<void>;
 
-export function DeleteMessages(arg1:Array<string>):Promise<main.BulkDeleteResultDTO>;
+export function DeleteMessages(arg1:Array<string>):Promise<main.BulkResultDTO>;
 
-export function DeleteMessagesPermanent(arg1:Array<string>):Promise<main.BulkDeleteResultDTO>;
+export function DeleteMessagesPermanent(arg1:Array<string>):Promise<main.BulkResultDTO>;
 
 export function DeleteRule(arg1:string):Promise<void>;
 
@@ -97,6 +97,8 @@ export function MessageTags(arg1:string):Promise<Array<main.TagDTO>>;
 export function MinimiseToTray():Promise<void>;
 
 export function MoveMessage(arg1:string,arg2:string):Promise<void>;
+
+export function MoveMessages(arg1:Array<string>,arg2:string):Promise<main.BulkResultDTO>;
 
 export function OpenExternal(arg1:string):Promise<void>;
 

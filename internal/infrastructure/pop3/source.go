@@ -221,6 +221,11 @@ func (s *Source) Move(context.Context, domain.Account, domain.Folder, string, st
 	return fmt.Errorf("pop3: move message: %w", ErrUnsupported)
 }
 
+// MoveMany is unsupported for the same reason as Move: POP3 has a single mailbox with nowhere to move to.
+func (s *Source) MoveMany(context.Context, domain.Account, domain.Folder, []string, string) error {
+	return fmt.Errorf("pop3: move messages: %w", ErrUnsupported)
+}
+
 // Copy is unsupported, for the same reason as Move.
 func (s *Source) Copy(context.Context, domain.Account, domain.Folder, string, string) error {
 	return fmt.Errorf("pop3: copy message: %w", ErrUnsupported)

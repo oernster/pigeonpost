@@ -1009,26 +1009,6 @@ function App() {
         }
     }, [searchActive, searchResults, displayMessages, loadUnread])
 
-    // dropMessageOnFolder is the drag-and-drop target handler. Dragging a row that is part of the
-    // multi-selection moves the whole selection; dragging any other row moves just that one. A message is
-    // skipped when it already lives in the target folder. The Outbox is synthetic: nothing can be moved
-    // into it, and a queued item cannot be moved out.
-    const dropMessageOnFolder = useCallback((messageId: string, folderId: string) => {
-        if (folderId === OUTBOX_FOLDER_ID) {
-            return
-        }
-        const ids = markedIds.has(messageId) && markedIds.size > 1 ? [...markedIds] : [messageId]
-        for (const id of ids) {
-            const source = messages.find((m) => m.id === id) ?? searchResults.find((m) => m.id === id)
-            if (!source || source.folderId === folderId || isOutboxMessage(source)) {
-                continue
-            }
-            void moveMessageById(id, folderId)
-        }
-        setMarkedIds(new Set())
-        setAnchorId(null)
-    }, [markedIds, messages, searchResults, moveMessageById])
-
     // Copy leaves the original in place; the duplicate appears in the destination folder on next sync,
     // so there is no local list change to make here.
     const copyMessage = useCallback(async (message: Message, destFolderId: string) => {
@@ -1247,6 +1227,44 @@ function App() {
         setAnchorId(null)
     }, [])
 
+    // bulkMoveIds moves several messages into a folder in ONE batched backend call (grouped by source
+    // folder on the server), rather than a request per message, so a large Gmail selection stays under
+    // its simultaneous-connection cap. Shared by drag-and-drop and the bulk "Move to" menu.
+    const bulkMoveIds = useCallback(async (ids: string[], destFolderId: string) => {
+        if (ids.length === 0 || destFolderId === OUTBOX_FOLDER_ID) {
+            return
+        }
+        setError('')
+        try {
+            const result = await api.moveMessages(ids, destFolderId)
+            removeIdsFromLists(new Set(result.ids))
+            if (result.error) {
+                setError(`${result.failed} of ${ids.length} messages could not be moved: ${result.error}`)
+            }
+        } catch (e) {
+            setError(`Move failed: ${String(e)}`)
+        }
+        await loadUnread()
+    }, [removeIdsFromLists, loadUnread])
+
+    // dropMessageOnFolder is the drag-and-drop target handler. Dropping a row that is part of the
+    // multi-selection moves the whole selection; dropping any other row moves just that one. Messages
+    // already in the target folder and synthetic outbox items are skipped. The move is batched, so a
+    // large drop stays under Gmail's connection cap.
+    const dropMessageOnFolder = useCallback((messageId: string, folderId: string) => {
+        if (folderId === OUTBOX_FOLDER_ID) {
+            return
+        }
+        const ids = markedIds.has(messageId) && markedIds.size > 1 ? [...markedIds] : [messageId]
+        const movable = ids.filter((id) => {
+            const source = messages.find((m) => m.id === id) ?? searchResults.find((m) => m.id === id)
+            return source !== undefined && source.folderId !== folderId && !isOutboxMessage(source)
+        })
+        setMarkedIds(new Set())
+        setAnchorId(null)
+        void bulkMoveIds(movable, folderId)
+    }, [markedIds, messages, searchResults, bulkMoveIds])
+
     // runBulkDelete carries out a confirmed bulk delete or permanent delete over the selected messages in
     // one batched backend call: the server groups them by folder and issues a single delete per folder,
     // rather than a fresh connection per message. The result reports which ids were removed (dropped from
@@ -1263,7 +1281,7 @@ function App() {
             const result = permanent
                 ? await api.deleteMessagesPermanent(ids)
                 : await api.deleteMessages(ids)
-            removeIdsFromLists(new Set(result.deleted))
+            removeIdsFromLists(new Set(result.ids))
             if (result.error) {
                 setError(`${result.failed} of ${targets.length} messages could not be deleted: ${result.error}`)
             }
@@ -1327,35 +1345,14 @@ function App() {
         }
     }, [])
 
-    // bulkMove moves every selected message into the destination folder, skipping any already there and
-    // any synthetic outbox item. Each move is attempted independently, so a failure on one does not abort
-    // the rest; whichever moved are removed from the list and any failures are reported with a count.
-    const bulkMove = useCallback(async (targets: Message[], destFolderId: string) => {
-        if (destFolderId === OUTBOX_FOLDER_ID) {
-            return
-        }
-        setError('')
-        const moved = new Set<string>()
-        let attempted = 0
-        let lastError = ''
-        for (const t of targets) {
-            if (t.folderId === destFolderId || isOutboxMessage(t)) {
-                continue
-            }
-            attempted += 1
-            try {
-                await api.moveMessage(t.id, destFolderId)
-                moved.add(t.id)
-            } catch (e) {
-                lastError = String(e)
-            }
-        }
-        removeIdsFromLists(moved)
-        const failed = attempted - moved.size
-        if (failed > 0) {
-            setError(`${failed} of ${attempted} messages could not be moved: ${lastError}`)
-        }
-    }, [removeIdsFromLists])
+    // bulkMove moves every selected message into the destination folder in one batched call, skipping any
+    // already there and any synthetic outbox item.
+    const bulkMove = useCallback((targets: Message[], destFolderId: string) => {
+        const ids = targets
+            .filter((t) => t.folderId !== destFolderId && !isOutboxMessage(t))
+            .map((t) => t.id)
+        void bulkMoveIds(ids, destFolderId)
+    }, [bulkMoveIds])
 
     // markReadOnView marks a message read when it is displayed, unless it already is.
     const markReadOnView = useCallback((message: Message) => {

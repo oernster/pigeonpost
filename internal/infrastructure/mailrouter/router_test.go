@@ -64,6 +64,11 @@ func (r *recorder) Move(context.Context, domain.Account, domain.Folder, string, 
 	return nil
 }
 
+func (r *recorder) MoveMany(context.Context, domain.Account, domain.Folder, []string, string) error {
+	r.calls = append(r.calls, "movemany")
+	return nil
+}
+
 func (r *recorder) Copy(context.Context, domain.Account, domain.Folder, string, string) error {
 	r.calls = append(r.calls, "copy")
 	return nil
@@ -125,6 +130,9 @@ func exercise(t *testing.T, router *Router, account domain.Account) {
 	if err := router.Move(ctx, account, folder, "1", "dest"); err != nil {
 		t.Fatalf("Move: %v", err)
 	}
+	if err := router.MoveMany(ctx, account, folder, []string{"1"}, "dest"); err != nil {
+		t.Fatalf("MoveMany: %v", err)
+	}
 	if err := router.Copy(ctx, account, folder, "1", "dest"); err != nil {
 		t.Fatalf("Copy: %v", err)
 	}
@@ -136,7 +144,7 @@ func TestRouterRoutesImapToImapAdapter(t *testing.T) {
 
 	exercise(t, router, testAccount(t, domain.ProtocolIMAP))
 
-	want := []string{"folders", "messages", "body", "raw", "verify", "seen", "flagged", "delete", "deletemany", "move", "copy"}
+	want := []string{"folders", "messages", "body", "raw", "verify", "seen", "flagged", "delete", "deletemany", "move", "movemany", "copy"}
 	if !reflect.DeepEqual(imapRec.calls, want) {
 		t.Errorf("imap adapter calls = %v, want %v", imapRec.calls, want)
 	}
@@ -151,7 +159,7 @@ func TestRouterRoutesPop3ToPop3Adapter(t *testing.T) {
 
 	exercise(t, router, testAccount(t, domain.ProtocolPOP3))
 
-	want := []string{"folders", "messages", "body", "raw", "verify", "seen", "flagged", "delete", "deletemany", "move", "copy"}
+	want := []string{"folders", "messages", "body", "raw", "verify", "seen", "flagged", "delete", "deletemany", "move", "movemany", "copy"}
 	if !reflect.DeepEqual(pop3Rec.calls, want) {
 		t.Errorf("pop3 adapter calls = %v, want %v", pop3Rec.calls, want)
 	}

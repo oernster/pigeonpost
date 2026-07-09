@@ -172,18 +172,18 @@ export namespace main {
 	        this.rsvp = source["rsvp"];
 	    }
 	}
-	export class BulkDeleteResultDTO {
-	    deleted: string[];
+	export class BulkResultDTO {
+	    ids: string[];
 	    failed: number;
 	    error: string;
 	
 	    static createFrom(source: any = {}) {
-	        return new BulkDeleteResultDTO(source);
+	        return new BulkResultDTO(source);
 	    }
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.deleted = source["deleted"];
+	        this.ids = source["ids"];
 	        this.failed = source["failed"];
 	        this.error = source["error"];
 	    }

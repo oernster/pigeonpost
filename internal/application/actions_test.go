@@ -360,6 +360,184 @@ func TestDeleteManyEmpty(t *testing.T) {
 	}
 }
 
+func TestMoveManyBatchesBySourceFolder(t *testing.T) {
+	svc, store, accounts, remote := newActionService()
+	accounts.accounts["a1"] = testAccount(t, "a1")
+	store.folders["a1"] = []domain.Folder{
+		testFolder(t, "f1", "a1", "INBOX"),
+		testFolder(t, "fd", "a1", "Archive"),
+	}
+	store.messages["f1"] = []domain.MessageSummary{testMessage(t, "m1", "f1"), testMessage(t, "m2", "f1")}
+
+	moved, err := svc.MoveMany(context.Background(), []string{"m1", "m2"}, "fd")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(moved) != 2 {
+		t.Errorf("moved = %v, want two ids", moved)
+	}
+	if len(remote.moveManyBatches) != 1 || len(remote.moveManyBatches[0]) != 2 {
+		t.Errorf("expected one batch of two uids, got %v", remote.moveManyBatches)
+	}
+	if len(remote.moveManyDest) != 1 || remote.moveManyDest[0] != "Archive" {
+		t.Errorf("expected move to Archive, got %v", remote.moveManyDest)
+	}
+	if len(store.deletedMessages) != 2 {
+		t.Errorf("expected both cached rows removed, got %v", store.deletedMessages)
+	}
+}
+
+func TestMoveManySkipsAlreadyInDestination(t *testing.T) {
+	svc, store, accounts, remote := newActionService()
+	accounts.accounts["a1"] = testAccount(t, "a1")
+	store.folders["a1"] = []domain.Folder{testFolder(t, "fd", "a1", "Archive")}
+	store.messages["fd"] = []domain.MessageSummary{testMessage(t, "m1", "fd")}
+
+	moved, err := svc.MoveMany(context.Background(), []string{"m1"}, "fd")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(moved) != 0 {
+		t.Errorf("moved = %v, want none (already in destination)", moved)
+	}
+	if len(remote.moveManyBatches) != 0 {
+		t.Errorf("no server move expected, got %v", remote.moveManyBatches)
+	}
+}
+
+func TestMoveManyGroupsBySource(t *testing.T) {
+	svc, store, accounts, remote := newActionService()
+	accounts.accounts["a1"] = testAccount(t, "a1")
+	store.folders["a1"] = []domain.Folder{
+		testFolder(t, "f1", "a1", "INBOX"),
+		testFolder(t, "f2", "a1", "Spam"),
+		testFolder(t, "fd", "a1", "Archive"),
+	}
+	store.messages["f1"] = []domain.MessageSummary{testMessage(t, "m1", "f1")}
+	store.messages["f2"] = []domain.MessageSummary{testMessage(t, "m2", "f2")}
+
+	moved, err := svc.MoveMany(context.Background(), []string{"m1", "m2"}, "fd")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(moved) != 2 {
+		t.Errorf("moved = %v, want two ids", moved)
+	}
+	if len(remote.moveManyBatches) != 2 {
+		t.Errorf("expected two batches, one per source folder, got %v", remote.moveManyBatches)
+	}
+}
+
+func TestMoveManyDestFolderError(t *testing.T) {
+	svc, store, _, _ := newActionService()
+	store.getFolderErr = errBoom
+	if _, err := svc.MoveMany(context.Background(), []string{"m1"}, "fd"); !errors.Is(err, errBoom) {
+		t.Errorf("error = %v, want wrapped boom", err)
+	}
+}
+
+func TestMoveManyDestAccountError(t *testing.T) {
+	svc, store, accounts, _ := newActionService()
+	store.folders["a1"] = []domain.Folder{testFolder(t, "fd", "a1", "Archive")}
+	accounts.getErr = errBoom
+	if _, err := svc.MoveMany(context.Background(), []string{"m1"}, "fd"); !errors.Is(err, errBoom) {
+		t.Errorf("error = %v, want wrapped boom", err)
+	}
+}
+
+func TestMoveManyGetMessageError(t *testing.T) {
+	svc, store, accounts, _ := newActionService()
+	accounts.accounts["a1"] = testAccount(t, "a1")
+	store.folders["a1"] = []domain.Folder{testFolder(t, "fd", "a1", "Archive")}
+	store.getMessageErr = errBoom
+	moved, err := svc.MoveMany(context.Background(), []string{"m1"}, "fd")
+	if !errors.Is(err, errBoom) {
+		t.Errorf("error = %v, want wrapped boom", err)
+	}
+	if len(moved) != 0 {
+		t.Errorf("moved = %v, want none", moved)
+	}
+}
+
+func TestMoveManySourceFolderMissing(t *testing.T) {
+	svc, store, accounts, _ := newActionService()
+	accounts.accounts["a1"] = testAccount(t, "a1")
+	store.folders["a1"] = []domain.Folder{testFolder(t, "fd", "a1", "Archive")}
+	// m1's source folder f1 is deliberately absent from the folder cache.
+	store.messages["f1"] = []domain.MessageSummary{testMessage(t, "m1", "f1")}
+	moved, err := svc.MoveMany(context.Background(), []string{"m1"}, "fd")
+	if err == nil {
+		t.Error("expected an error when the source folder is missing")
+	}
+	if len(moved) != 0 {
+		t.Errorf("moved = %v, want none", moved)
+	}
+}
+
+func TestMoveManyCrossAccountRejected(t *testing.T) {
+	svc, store, accounts, _ := newActionService()
+	accounts.accounts["a1"] = testAccount(t, "a1")
+	store.folders["a1"] = []domain.Folder{testFolder(t, "fd", "a1", "Archive")}
+	store.folders["a2"] = []domain.Folder{testFolder(t, "f1", "a2", "INBOX")}
+	store.messages["f1"] = []domain.MessageSummary{testMessage(t, "m1", "f1")}
+	moved, err := svc.MoveMany(context.Background(), []string{"m1"}, "fd")
+	if err == nil {
+		t.Error("expected an error moving across accounts")
+	}
+	if len(moved) != 0 {
+		t.Errorf("moved = %v, want none", moved)
+	}
+}
+
+func TestMoveManyServerError(t *testing.T) {
+	svc, store, accounts, remote := newActionService()
+	accounts.accounts["a1"] = testAccount(t, "a1")
+	store.folders["a1"] = []domain.Folder{testFolder(t, "f1", "a1", "INBOX"), testFolder(t, "fd", "a1", "Archive")}
+	store.messages["f1"] = []domain.MessageSummary{testMessage(t, "m1", "f1")}
+	remote.moveManyErr = errBoom
+	moved, err := svc.MoveMany(context.Background(), []string{"m1"}, "fd")
+	if !errors.Is(err, errBoom) {
+		t.Errorf("error = %v, want wrapped boom", err)
+	}
+	if len(moved) != 0 {
+		t.Errorf("moved = %v, want none when the server move fails", moved)
+	}
+	if len(store.deletedMessages) != 0 {
+		t.Errorf("cache untouched when the server move fails, got %v", store.deletedMessages)
+	}
+}
+
+func TestMoveManyCacheError(t *testing.T) {
+	svc, store, accounts, _ := newActionService()
+	accounts.accounts["a1"] = testAccount(t, "a1")
+	store.folders["a1"] = []domain.Folder{testFolder(t, "f1", "a1", "INBOX"), testFolder(t, "fd", "a1", "Archive")}
+	store.messages["f1"] = []domain.MessageSummary{testMessage(t, "m1", "f1")}
+	store.deleteMessageErr = errBoom
+	moved, err := svc.MoveMany(context.Background(), []string{"m1"}, "fd")
+	if !errors.Is(err, errBoom) {
+		t.Errorf("error = %v, want wrapped boom", err)
+	}
+	if len(moved) != 1 || moved[0] != "m1" {
+		t.Errorf("moved = %v, want [m1] despite the cache error", moved)
+	}
+}
+
+func TestMoveManyEmpty(t *testing.T) {
+	svc, store, accounts, remote := newActionService()
+	accounts.accounts["a1"] = testAccount(t, "a1")
+	store.folders["a1"] = []domain.Folder{testFolder(t, "fd", "a1", "Archive")}
+	moved, err := svc.MoveMany(context.Background(), nil, "fd")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(moved) != 0 {
+		t.Errorf("moved = %v, want none", moved)
+	}
+	if len(remote.moveManyBatches) != 0 {
+		t.Errorf("no server move expected, got %v", remote.moveManyBatches)
+	}
+}
+
 func TestDeleteGetMessageError(t *testing.T) {
 	svc, store, _, _ := newActionService()
 	store.getMessageErr = errBoom

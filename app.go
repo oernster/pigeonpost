@@ -313,20 +313,35 @@ func (a *App) DeleteMessagePermanent(messageID string) error {
 // message: each is moved to Trash where the account has one, otherwise deleted permanently. It returns
 // which ids were removed (so the UI drops exactly those) plus any error text, rather than failing the
 // whole call, so a partial success still reports what went.
-func (a *App) DeleteMessages(ids []string) BulkDeleteResultDTO {
+func (a *App) DeleteMessages(ids []string) BulkResultDTO {
 	return a.bulkDelete(ids, false)
 }
 
 // DeleteMessagesPermanent removes several messages immediately and irreversibly, without moving them to
 // Trash. It is the batched counterpart to DeleteMessagePermanent.
-func (a *App) DeleteMessagesPermanent(ids []string) BulkDeleteResultDTO {
+func (a *App) DeleteMessagesPermanent(ids []string) BulkResultDTO {
 	return a.bulkDelete(ids, true)
 }
 
 // bulkDelete runs the batched delete and packs its outcome into the DTO the front end reads.
-func (a *App) bulkDelete(ids []string, permanent bool) BulkDeleteResultDTO {
+func (a *App) bulkDelete(ids []string, permanent bool) BulkResultDTO {
 	deleted, err := a.actions.DeleteMany(a.ctx, ids, permanent)
-	result := BulkDeleteResultDTO{Deleted: deleted, Failed: len(ids) - len(deleted)}
+	return bulkResult(ids, deleted, err)
+}
+
+// MoveMessages relocates several messages into one folder in a single batched pass per source folder,
+// far faster than a call per message: this is what keeps a drag-and-drop or a bulk "Move to" of a large
+// Gmail selection under Gmail's simultaneous-connection cap. It returns which ids moved so the UI drops
+// exactly those, plus any error text.
+func (a *App) MoveMessages(ids []string, destFolderID string) BulkResultDTO {
+	moved, err := a.actions.MoveMany(a.ctx, ids, destFolderID)
+	return bulkResult(ids, moved, err)
+}
+
+// bulkResult packs a batched action's outcome (the ids acted on plus any error) into the DTO the front
+// end reads, reporting how many of the requested ids were not processed.
+func bulkResult(requested, acted []string, err error) BulkResultDTO {
+	result := BulkResultDTO{Ids: acted, Failed: len(requested) - len(acted)}
 	if err != nil {
 		result.Error = err.Error()
 	}

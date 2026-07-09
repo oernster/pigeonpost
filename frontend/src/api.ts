@@ -54,6 +54,7 @@ import {
     SaveEventScoped,
     DeleteEventScoped,
     MoveMessage,
+    MoveMessages,
     RenameFolder,
     SaveRule,
     CancelOutboxItem,
@@ -97,7 +98,7 @@ export type MessageBody = Omit<main.MessageBodyDTO, 'convertValues'>
 export type Attachment = main.AttachmentDTO
 export type OutboxItem = main.OutboxItemDTO
 export type UnreadCountsResult = main.UnreadCountsDTO
-export type BulkDeleteResult = main.BulkDeleteResultDTO
+export type BulkResult = main.BulkResultDTO
 export type Contact = main.ContactDTO
 export type ContactGroup = main.ContactGroupDTO
 
@@ -279,10 +280,12 @@ export const api = {
     markFlagged: (messageId: string, flagged: boolean): Promise<void> => MarkFlagged(messageId, flagged),
     deleteMessage: (messageId: string): Promise<void> => DeleteMessage(messageId),
     deleteMessagePermanent: (messageId: string): Promise<void> => DeleteMessagePermanent(messageId),
-    // deleteMessages / deleteMessagesPermanent delete the whole selection in one batched backend call
-    // (grouped by folder, one server connection per folder) rather than one round trip per message.
-    deleteMessages: (ids: string[]): Promise<BulkDeleteResult> => DeleteMessages(ids),
-    deleteMessagesPermanent: (ids: string[]): Promise<BulkDeleteResult> => DeleteMessagesPermanent(ids),
+    // deleteMessages / deleteMessagesPermanent / moveMessages act on the whole selection in one batched
+    // backend call (grouped by folder, one server connection per folder) rather than a round trip per
+    // message, which is what keeps a large Gmail selection under its simultaneous-connection cap.
+    deleteMessages: (ids: string[]): Promise<BulkResult> => DeleteMessages(ids),
+    deleteMessagesPermanent: (ids: string[]): Promise<BulkResult> => DeleteMessagesPermanent(ids),
+    moveMessages: (ids: string[], destFolderId: string): Promise<BulkResult> => MoveMessages(ids, destFolderId),
     saveMessageAs: (messageId: string, suggestedName: string): Promise<void> =>
         SaveMessageAs(messageId, suggestedName),
     saveAttachment: (messageId: string, index: number): Promise<void> => SaveAttachment(messageId, index),

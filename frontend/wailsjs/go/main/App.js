@@ -194,6 +194,10 @@ export function MoveMessage(arg1, arg2) {
   return window['go']['main']['App']['MoveMessage'](arg1, arg2);
 }
 
+export function MoveMessages(arg1, arg2) {
+  return window['go']['main']['App']['MoveMessages'](arg1, arg2);
+}
+
 export function OpenExternal(arg1) {
   return window['go']['main']['App']['OpenExternal'](arg1);
 }

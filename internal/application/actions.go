@@ -182,6 +182,75 @@ func (s *MessageActionService) DeleteMany(ctx context.Context, messageIDs []stri
 	return deleted, errors.Join(errs...)
 }
 
+// MoveMany relocates several messages into destFolderID in as few server round trips as possible: it
+// groups them by source folder and issues one batched server move per folder, rather than a fresh
+// connection per message. Every message must belong to the same account as the destination. It returns
+// the ids that moved so the caller can drop exactly those from the source list; a folder whose batch
+// fails leaves its messages in place and contributes the returned error. A message already in the
+// destination is skipped.
+func (s *MessageActionService) MoveMany(ctx context.Context, messageIDs []string, destFolderID string) ([]string, error) {
+	dest, err := s.store.GetFolder(ctx, destFolderID)
+	if err != nil {
+		return nil, fmt.Errorf("locate destination folder %q: %w", destFolderID, err)
+	}
+	account, err := s.accounts.GetAccount(ctx, dest.AccountID())
+	if err != nil {
+		return nil, fmt.Errorf("locate account %q: %w", dest.AccountID(), err)
+	}
+	type batch struct {
+		folder domain.Folder
+		uids   []string
+		ids    []string
+	}
+	batches := map[string]*batch{}
+	order := make([]string, 0)
+	var errs []error
+	for _, id := range messageIDs {
+		msg, err := s.store.GetMessage(ctx, id)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("locate message %q: %w", id, err))
+			continue
+		}
+		if msg.FolderID() == destFolderID {
+			continue
+		}
+		b, ok := batches[msg.FolderID()]
+		if !ok {
+			folder, err := s.store.GetFolder(ctx, msg.FolderID())
+			if err != nil {
+				errs = append(errs, fmt.Errorf("locate folder %q: %w", msg.FolderID(), err))
+				continue
+			}
+			if folder.AccountID() != account.ID() {
+				errs = append(errs, fmt.Errorf("cannot move message %q to a folder in another account", id))
+				continue
+			}
+			b = &batch{folder: folder}
+			batches[msg.FolderID()] = b
+			order = append(order, msg.FolderID())
+		}
+		b.uids = append(b.uids, msg.UID())
+		b.ids = append(b.ids, id)
+	}
+	moved := make([]string, 0, len(messageIDs))
+	for _, folderID := range order {
+		b := batches[folderID]
+		if err := s.remote.MoveMany(ctx, account, b.folder, b.uids, dest.Path()); err != nil {
+			errs = append(errs, fmt.Errorf("move %d messages from %q on server: %w", len(b.uids), folderID, err))
+			continue
+		}
+		// The server move succeeded, so each message left its source folder: drop it from the cache even
+		// if the row cannot be removed (the next sync reconciles) and report the cache error.
+		for _, id := range b.ids {
+			if err := s.store.DeleteMessage(ctx, id); err != nil {
+				errs = append(errs, fmt.Errorf("remove moved message %q from cache: %w", id, err))
+			}
+			moved = append(moved, id)
+		}
+	}
+	return moved, errors.Join(errs...)
+}
+
 // Move relocates a message to another folder within the same account: it is moved on the server and
 // then removed from the local cache (the destination folder re-lists it, with its new UID, on the
 // next sync).

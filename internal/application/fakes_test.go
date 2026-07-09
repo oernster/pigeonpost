@@ -434,6 +434,7 @@ type fakeMailActions struct {
 	deleteErr         error
 	deleteManyErr     error
 	moveErr           error
+	moveManyErr       error
 	copyErr           error
 	seenCalls         []bool
 	flaggedCalls      []bool
@@ -441,6 +442,8 @@ type fakeMailActions struct {
 	deleteManyBatches [][]string
 	deleteManyTrash   []string
 	moveDestPaths     []string
+	moveManyBatches   [][]string
+	moveManyDest      []string
 	copyDestPaths     []string
 }
 
@@ -482,6 +485,15 @@ func (f *fakeMailActions) Move(_ context.Context, _ domain.Account, _ domain.Fol
 		return f.moveErr
 	}
 	f.moveDestPaths = append(f.moveDestPaths, destPath)
+	return nil
+}
+
+func (f *fakeMailActions) MoveMany(_ context.Context, _ domain.Account, _ domain.Folder, uids []string, destPath string) error {
+	if f.moveManyErr != nil {
+		return f.moveManyErr
+	}
+	f.moveManyBatches = append(f.moveManyBatches, uids)
+	f.moveManyDest = append(f.moveManyDest, destPath)
 	return nil
 }
 

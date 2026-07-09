@@ -90,6 +90,10 @@ type MailActions interface {
 	// them to trashPath or deletes them permanently when trashPath is empty. It is the batched form of
 	// Delete, so a bulk delete opens one connection for the whole folder instead of one per message.
 	DeleteMany(ctx context.Context, account domain.Account, folder domain.Folder, uids []string, trashPath string) error
+	// MoveMany relocates several messages from one folder to destPath in one server round trip. It is the
+	// batched form of Move, so a bulk move or a drag-and-drop of a selection opens one connection for the
+	// whole folder instead of one per message.
+	MoveMany(ctx context.Context, account domain.Account, folder domain.Folder, uids []string, destPath string) error
 }
 
 // MailTransport sends an outgoing message via an account's outgoing (SMTP) server.
