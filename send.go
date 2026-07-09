@@ -15,6 +15,7 @@ import (
 // addresses; the front end splits any user input into this list.
 type ComposeRequest struct {
 	AccountID            string   `json:"accountId"`
+	From                 string   `json:"from"`
 	To                   []string `json:"to"`
 	Cc                   []string `json:"cc"`
 	Bcc                  []string `json:"bcc"`
@@ -53,6 +54,7 @@ func (a *App) SendMessage(req ComposeRequest) error {
 		return err
 	}
 	return a.compose.Send(a.ctx, req.AccountID, application.Draft{
+		From:        req.From,
 		To:          to,
 		Cc:          cc,
 		Bcc:         bcc,
@@ -83,6 +85,7 @@ func (a *App) SaveDraft(req ComposeRequest) error {
 		return err
 	}
 	return a.compose.SaveDraft(a.ctx, req.AccountID, application.Draft{
+		From:        req.From,
 		To:          to,
 		Cc:          cc,
 		Bcc:         bcc,

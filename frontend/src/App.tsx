@@ -1083,11 +1083,26 @@ function App() {
     // quoted text on a reply or forward. Empty when the account has no signature, so nothing is added.
     const signatureHtml = (): string => accounts.find((a) => a.id === selectedAccount)?.signature ?? ''
 
+    // sendersFor returns the addresses an account may send from: its primary address first, then its
+    // identities. The compose window offers these in its From dropdown.
+    const sendersFor = (account?: Account): {name: string; address: string}[] =>
+        account ? [{name: account.displayName, address: account.email}, ...account.identities] : []
+
+    // replyFrom picks which of the account's own addresses a reply should be sent from: the one the
+    // original message was delivered to (its To or Cc), so a message to an alias is answered as that
+    // alias. It returns empty (the primary) when none of the account's addresses received it.
+    const replyFrom = (message: Message): string => {
+        const mine = new Set(sendersFor(accounts.find((a) => a.id === selectedAccount)).map((s) => s.address.toLowerCase()))
+        const hit = [...(message.to || []), ...(message.cc || [])].find((a) => mine.has(a.address.toLowerCase()))
+        return hit ? hit.address : ''
+    }
+
     const openReply = (message: Message) => {
         const when = message.date ? new Date(message.date).toLocaleString() : ''
         const who = message.fromName || message.fromAddress || 'the sender'
         const header = when ? `On ${when}, ${who} wrote:` : `${who} wrote:`
         setComposeInitial({
+            from: replyFrom(message),
             to: message.fromAddress,
             subject: subjectWithPrefix('Re:', message.subject),
             bodyHtml: `<p></p>${signatureHtml()}<p>${escapeHtml(header)}</p><blockquote>${quoteFor(message)}</blockquote>`,
@@ -1115,6 +1130,7 @@ function App() {
         ;(message.to || []).forEach((a) => collect(a.address, toList))
         ;(message.cc || []).forEach((a) => collect(a.address, ccList))
         setComposeInitial({
+            from: replyFrom(message),
             to: toList.join(', '),
             cc: ccList.join(', '),
             subject: subjectWithPrefix('Re:', message.subject),
@@ -1813,6 +1829,7 @@ function App() {
             {composing && selectedAccount && (
                 <ComposeModal
                     accountId={selectedAccount}
+                    senders={sendersFor(activeAccount)}
                     initial={composeInitial}
                     canSaveDraft={!isPop3}
                     onClose={() => {

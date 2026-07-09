@@ -210,6 +210,9 @@ export interface TagInput {
 
 export interface ComposeInput {
     accountId: string
+    // from is the chosen sender address: empty means the account's primary address, otherwise it must be
+    // one of the account's identities. The backend validates it.
+    from: string
     to: string[]
     cc: string[]
     bcc: string[]
@@ -244,6 +247,12 @@ export interface DraftRecoveryResult {
     savedMs: number
 }
 
+// Identity is one alternate sender address on an account: an email address with an optional display name.
+export interface Identity {
+    name: string
+    address: string
+}
+
 export interface AccountSetupInput {
     displayName: string
     email: string
@@ -256,6 +265,7 @@ export interface AccountSetupInput {
     outPort: number
     outSecurity: string
     signature: string
+    identities: Identity[]
 }
 
 export const api = {

@@ -56,6 +56,20 @@ export namespace main {
 		    return a;
 		}
 	}
+	export class AddressDTO {
+	    name: string;
+	    address: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new AddressDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.address = source["address"];
+	    }
+	}
 	export class AccountDTO {
 	    id: string;
 	    displayName: string;
@@ -68,6 +82,7 @@ export namespace main {
 	    outPort: number;
 	    outSecurity: string;
 	    signature: string;
+	    identities: AddressDTO[];
 	
 	    static createFrom(source: any = {}) {
 	        return new AccountDTO(source);
@@ -86,6 +101,39 @@ export namespace main {
 	        this.outPort = source["outPort"];
 	        this.outSecurity = source["outSecurity"];
 	        this.signature = source["signature"];
+	        this.identities = this.convertValues(source["identities"], AddressDTO);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class IdentityInput {
+	    name: string;
+	    address: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new IdentityInput(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.address = source["address"];
 	    }
 	}
 	export class AccountSetupRequest {
@@ -100,6 +148,7 @@ export namespace main {
 	    outPort: number;
 	    outSecurity: string;
 	    signature: string;
+	    identities: IdentityInput[];
 	
 	    static createFrom(source: any = {}) {
 	        return new AccountSetupRequest(source);
@@ -118,22 +167,28 @@ export namespace main {
 	        this.outPort = source["outPort"];
 	        this.outSecurity = source["outSecurity"];
 	        this.signature = source["signature"];
-	    }
-	}
-	export class AddressDTO {
-	    name: string;
-	    address: string;
-	
-	    static createFrom(source: any = {}) {
-	        return new AddressDTO(source);
+	        this.identities = this.convertValues(source["identities"], IdentityInput);
 	    }
 	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.name = source["name"];
-	        this.address = source["address"];
-	    }
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
+	
 	export class AttachmentDTO {
 	    index: number;
 	    filename: string;
@@ -222,6 +277,7 @@ export namespace main {
 	}
 	export class ComposeRequest {
 	    accountId: string;
+	    from: string;
 	    to: string[];
 	    cc: string[];
 	    bcc: string[];
@@ -238,6 +294,7 @@ export namespace main {
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.accountId = source["accountId"];
+	        this.from = source["from"];
 	        this.to = source["to"];
 	        this.cc = source["cc"];
 	        this.bcc = source["bcc"];
@@ -645,6 +702,7 @@ export namespace main {
 	        this.total = source["total"];
 	    }
 	}
+	
 	export class InvitationDTO {
 	    method: string;
 	    event: EventDTO;

@@ -109,6 +109,7 @@ type Account struct {
 	outgoing    ServerConfig
 	auth        AuthMethod
 	signature   string
+	identities  []EmailAddress
 }
 
 // NewAccount validates and constructs an account.
@@ -171,4 +172,42 @@ func (a Account) Signature() string { return a.signature }
 func (a Account) WithSignature(signature string) Account {
 	a.signature = signature
 	return a
+}
+
+// Identities returns a copy of the account's alternate sender addresses (aliases the account may send
+// as, beyond its primary address), empty when none are configured.
+func (a Account) Identities() []EmailAddress {
+	return append([]EmailAddress(nil), a.identities...)
+}
+
+// WithIdentities returns a copy of the account carrying the given alternate sender addresses.
+func (a Account) WithIdentities(identities []EmailAddress) Account {
+	a.identities = append([]EmailAddress(nil), identities...)
+	return a
+}
+
+// Senders returns every address the account is allowed to send as: its primary address first, then its
+// configured identities in order.
+func (a Account) Senders() []EmailAddress {
+	out := make([]EmailAddress, 0, 1+len(a.identities))
+	out = append(out, a.address)
+	out = append(out, a.identities...)
+	return out
+}
+
+// ResolveSender returns the account address matching the given address (case-insensitive) and whether one
+// was found. An empty address resolves to the primary. It is how a chosen From is validated at send time:
+// only an address the account owns (its primary or an identity) can be sent as, so a foreign From is
+// rejected rather than forged.
+func (a Account) ResolveSender(address string) (EmailAddress, bool) {
+	address = strings.TrimSpace(address)
+	if address == "" {
+		return a.address, true
+	}
+	for _, sender := range a.Senders() {
+		if strings.EqualFold(sender.Address(), address) {
+			return sender, true
+		}
+	}
+	return EmailAddress{}, false
 }

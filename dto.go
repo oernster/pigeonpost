@@ -20,6 +20,9 @@ type AccountDTO struct {
 	OutPort     int    `json:"outPort"`
 	OutSecurity string `json:"outSecurity"`
 	Signature   string `json:"signature"`
+	// Identities are the account's alternate sender addresses (aliases it may send as, beyond its primary
+	// address), so the compose window can offer them as From options and the edit wizard can manage them.
+	Identities []AddressDTO `json:"identities"`
 }
 
 // FolderDTO is the JSON-serialisable view of a folder.
@@ -139,6 +142,7 @@ func toAccountDTO(a domain.Account) AccountDTO {
 		OutPort:     a.Outgoing().Port(),
 		OutSecurity: a.Outgoing().Security().String(),
 		Signature:   a.Signature(),
+		Identities:  toAddressDTOs(a.Identities()),
 	}
 }
 

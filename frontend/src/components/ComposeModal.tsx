@@ -29,6 +29,9 @@ export interface MessageAttachment {
 }
 
 export interface ComposeInitial {
+    // from preselects the sender address (used by reply to send as the address the message was delivered
+    // to). Empty falls back to the account's primary address.
+    from?: string
     to?: string
     cc?: string
     bcc?: string
@@ -37,8 +40,17 @@ export interface ComposeInitial {
     messageAttachments?: MessageAttachment[]
 }
 
+// Sender is one address the account may send from, offered in the From dropdown.
+interface Sender {
+    name: string
+    address: string
+}
+
 interface ComposeModalProps {
     accountId: string
+    // senders are the account's sendable addresses (primary first, then identities). When there is more
+    // than one, the compose window shows a From dropdown.
+    senders: Sender[]
     initial?: ComposeInitial
     // canSaveDraft is false for POP3 accounts, which have no server-side Drafts mailbox to append to.
     canSaveDraft: boolean
@@ -56,8 +68,11 @@ function basename(path: string): string {
     return parts[parts.length - 1] || path
 }
 
-export function ComposeModal({accountId, initial, canSaveDraft, onClose}: ComposeModalProps) {
+export function ComposeModal({accountId, senders, initial, canSaveDraft, onClose}: ComposeModalProps) {
     const dismiss = useBackdropDismiss(onClose)
+    // The chosen From address. It defaults to the reply's delivered-to address when given, otherwise the
+    // account's primary (first) sender. The backend validates it against the account's owned addresses.
+    const [from, setFrom] = useState(initial?.from || senders[0]?.address || '')
     const [to, setTo] = useState(initial?.to ?? '')
     const [cc, setCc] = useState(initial?.cc ?? '')
     const [bcc, setBcc] = useState(initial?.bcc ?? '')
@@ -132,6 +147,7 @@ export function ComposeModal({accountId, initial, canSaveDraft, onClose}: Compos
         const html = editor?.getHTML() ?? ''
         return {
             accountId,
+            from,
             to: splitAddresses(to),
             cc: splitAddresses(cc),
             bcc: splitAddresses(bcc),
@@ -272,6 +288,18 @@ export function ComposeModal({accountId, initial, canSaveDraft, onClose}: Compos
                 <ModalClose onClose={onClose}/>
                 <h2 className="modal-title">New message</h2>
                 {error && <div className="compose-error">{error}</div>}
+                {senders.length > 1 && (
+                    <label className="field">
+                        <span>From</span>
+                        <select value={from} onChange={(e) => setFrom(e.target.value)}>
+                            {senders.map((s) => (
+                                <option key={s.address} value={s.address}>
+                                    {s.name ? `${s.name} <${s.address}>` : s.address}
+                                </option>
+                            ))}
+                        </select>
+                    </label>
+                )}
                 <label className="field">
                     <span>To</span>
                     <input value={to} onChange={(e) => {

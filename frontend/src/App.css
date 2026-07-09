@@ -1319,6 +1319,22 @@
     margin-bottom: 4px;
 }
 
+.identity-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.identity-input {
+    flex: 1;
+    min-width: 0;
+}
+
+.identity-remove {
+    flex: 0 0 auto;
+}
+
 .provider-note {
     margin: 0 0 12px;
     padding: 8px 10px;

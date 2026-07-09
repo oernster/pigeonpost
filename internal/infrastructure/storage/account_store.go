@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -11,7 +12,13 @@ import (
 )
 
 const accountColumns = `id, display_name, email, protocol,
-	in_host, in_port, in_security, out_host, out_port, out_security, auth, signature`
+	in_host, in_port, in_security, out_host, out_port, out_security, auth, signature, identities`
+
+// identityRow is the JSON shape of one stored sender identity: its display name and bare address.
+type identityRow struct {
+	Display string `json:"display"`
+	Address string `json:"address"`
+}
 
 // ListAccounts returns all accounts ordered by display name.
 func (s *Store) ListAccounts(ctx context.Context) ([]domain.Account, error) {
@@ -52,18 +59,53 @@ func (s *Store) GetAccount(ctx context.Context, id string) (domain.Account, erro
 
 // SaveAccount inserts or replaces an account.
 func (s *Store) SaveAccount(ctx context.Context, a domain.Account) error {
-	_, err := s.db.ExecContext(ctx,
+	identities, err := encodeIdentities(a.Identities())
+	if err != nil {
+		return fmt.Errorf("save account %q: %w", a.ID(), err)
+	}
+	_, err = s.db.ExecContext(ctx,
 		`INSERT OR REPLACE INTO account (`+accountColumns+`)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
 		a.ID(), a.DisplayName(), a.Address().Address(), int(a.Protocol()),
 		a.Incoming().Host(), a.Incoming().Port(), int(a.Incoming().Security()),
 		a.Outgoing().Host(), a.Outgoing().Port(), int(a.Outgoing().Security()),
-		int(a.Auth()), a.Signature(),
+		int(a.Auth()), a.Signature(), identities,
 	)
 	if err != nil {
 		return fmt.Errorf("save account %q: %w", a.ID(), err)
 	}
 	return nil
+}
+
+// encodeIdentities serialises an account's identities to the stored JSON array.
+func encodeIdentities(identities []domain.EmailAddress) (string, error) {
+	rows := make([]identityRow, 0, len(identities))
+	for _, id := range identities {
+		rows = append(rows, identityRow{Display: id.Display(), Address: id.Address()})
+	}
+	data, err := json.Marshal(rows)
+	if err != nil {
+		return "", fmt.Errorf("encode identities: %w", err)
+	}
+	return string(data), nil
+}
+
+// decodeIdentities parses the stored JSON array back into validated addresses, skipping any that no
+// longer parse so one bad row cannot make the whole account unreadable.
+func decodeIdentities(data string) ([]domain.EmailAddress, error) {
+	var rows []identityRow
+	if err := json.Unmarshal([]byte(data), &rows); err != nil {
+		return nil, fmt.Errorf("decode identities: %w", err)
+	}
+	identities := make([]domain.EmailAddress, 0, len(rows))
+	for _, row := range rows {
+		addr, err := domain.NewEmailAddress(row.Display, row.Address)
+		if err != nil {
+			continue
+		}
+		identities = append(identities, addr)
+	}
+	return identities, nil
 }
 
 // DeleteAccount removes an account row. Deleting an account that does not exist is not an error.
@@ -85,11 +127,15 @@ func scanAccount(row scanner) (domain.Account, error) {
 		protocol, auth                           int
 		inHost, outHost                          string
 		inPort, inSecurity, outPort, outSecurity int
-		signature                                string
+		signature, identitiesJSON                string
 	)
 	if err := row.Scan(&id, &displayName, &email, &protocol,
-		&inHost, &inPort, &inSecurity, &outHost, &outPort, &outSecurity, &auth, &signature); err != nil {
+		&inHost, &inPort, &inSecurity, &outHost, &outPort, &outSecurity, &auth, &signature, &identitiesJSON); err != nil {
 		return domain.Account{}, err
+	}
+	identities, err := decodeIdentities(identitiesJSON)
+	if err != nil {
+		return domain.Account{}, fmt.Errorf("account %q identities: %w", id, err)
 	}
 
 	address, err := domain.NewEmailAddress("", email)
@@ -109,5 +155,5 @@ func scanAccount(row scanner) (domain.Account, error) {
 	if err != nil {
 		return domain.Account{}, fmt.Errorf("account %q: %w", id, err)
 	}
-	return account.WithSignature(signature), nil
+	return account.WithSignature(signature).WithIdentities(identities), nil
 }

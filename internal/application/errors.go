@@ -11,6 +11,10 @@ var ErrBodyNotCached = errors.New("message body not cached")
 // ErrNoDraftsFolder is returned when a draft cannot be saved because the account has no Drafts mailbox.
 var ErrNoDraftsFolder = errors.New("account has no drafts folder")
 
+// ErrUnknownSender is returned when a message asks to be sent from an address the account does not own
+// (neither its primary address nor one of its configured identities), so it cannot be sent as it.
+var ErrUnknownSender = errors.New("account cannot send as that address")
+
 // ErrNoJunkFolder is returned when a message cannot be marked as junk because the account has no Junk
 // (spam) mailbox to file it in.
 var ErrNoJunkFolder = errors.New("account has no junk folder")

@@ -9,9 +9,11 @@ import (
 	"github.com/oernster/pigeonpost/internal/domain"
 )
 
-// Draft is the user-supplied content of a message to send. The sender is taken from the account, so
-// it is not part of the draft.
+// Draft is the user-supplied content of a message to send. From is the chosen sender address: empty means
+// the account's primary address, otherwise it must be one of the account's identities (an alias it may
+// send as), validated at send time.
 type Draft struct {
+	From        string
 	To          []domain.EmailAddress
 	Cc          []domain.EmailAddress
 	Bcc         []domain.EmailAddress
@@ -124,8 +126,12 @@ func (s *ComposeService) Send(ctx context.Context, accountID string, draft Draft
 	if err != nil {
 		return fmt.Errorf("compose: load account %q: %w", accountID, err)
 	}
+	from, ok := account.ResolveSender(draft.From)
+	if !ok {
+		return fmt.Errorf("compose: account %q send as %q: %w", accountID, draft.From, ErrUnknownSender)
+	}
 	msg, err := domain.NewOutgoingMessage(domain.OutgoingMessageInput{
-		From:        account.Address(),
+		From:        from,
 		To:          draft.To,
 		Cc:          draft.Cc,
 		Bcc:         draft.Bcc,
@@ -160,8 +166,12 @@ func (s *ComposeService) SaveDraft(ctx context.Context, accountID string, draft 
 	if err != nil {
 		return err
 	}
+	from, ok := account.ResolveSender(draft.From)
+	if !ok {
+		return fmt.Errorf("compose: account %q send as %q: %w", accountID, draft.From, ErrUnknownSender)
+	}
 	msg, err := domain.NewDraftMessage(domain.OutgoingMessageInput{
-		From:        account.Address(),
+		From:        from,
 		To:          draft.To,
 		Cc:          draft.Cc,
 		Bcc:         draft.Bcc,

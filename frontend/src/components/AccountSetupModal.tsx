@@ -2,7 +2,7 @@ import {useState} from 'react'
 import {EditorContent, useEditor} from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Link from '@tiptap/extension-link'
-import {Account, AccountSetupInput, api} from '../api'
+import {Account, AccountSetupInput, Identity, api} from '../api'
 import {useBackdropDismiss} from './useBackdropDismiss'
 import {ModalClose} from './ModalClose'
 
@@ -126,6 +126,15 @@ export function AccountSetupModal({account, onClose, onSaved}: AccountSetupModal
     const [saving, setSaving] = useState(false)
     const [msSigningIn, setMsSigningIn] = useState(false)
     const [error, setError] = useState('')
+    // Alternate sender addresses (aliases this account may send as, such as a domain alias sharing the
+    // mailbox). Prefilled when editing; the compose window offers them as From options.
+    const [identities, setIdentities] = useState<Identity[]>(
+        account?.identities?.map((i) => ({name: i.name, address: i.address})) ?? [],
+    )
+    const addIdentity = () => setIdentities([...identities, {name: '', address: ''}])
+    const updateIdentity = (index: number, field: 'name' | 'address', value: string) =>
+        setIdentities(identities.map((id, i) => (i === index ? {...id, [field]: value} : id)))
+    const removeIdentity = (index: number) => setIdentities(identities.filter((_, i) => i !== index))
     const [sigLinkOpen, setSigLinkOpen] = useState(false)
     const [sigLinkUrl, setSigLinkUrl] = useState('')
 
@@ -260,6 +269,10 @@ export function AccountSetupModal({account, onClose, onSaved}: AccountSetupModal
             outSecurity,
             // An empty editor serialises to "<p></p>"; store it as blank so no signature is inserted.
             signature: sigEditor && !sigEditor.isEmpty ? sigEditor.getHTML() : '',
+            // Drop blank rows so a half-filled identity is not saved; the backend validates the rest.
+            identities: identities
+                .filter((i) => i.address.trim() !== '')
+                .map((i) => ({name: i.name.trim(), address: i.address.trim()})),
         }
         try {
             if (editing) {
@@ -413,6 +426,29 @@ export function AccountSetupModal({account, onClose, onSaved}: AccountSetupModal
                 ) : (
                     serverFields
                 )}
+
+                <fieldset className="setup-group">
+                    <legend>Send-as addresses</legend>
+                    <p className="field-hint">Extra addresses this account may send from (for example a domain alias that shares this mailbox). They appear as From options when you compose.</p>
+                    {identities.map((identity, i) => (
+                        <div className="identity-row" key={i}>
+                            <input
+                                className="identity-input"
+                                value={identity.name}
+                                placeholder="Name (optional)"
+                                onChange={(e) => updateIdentity(i, 'name', e.target.value)}
+                            />
+                            <input
+                                className="identity-input"
+                                value={identity.address}
+                                placeholder="alias@example.com"
+                                onChange={(e) => updateIdentity(i, 'address', e.target.value)}
+                            />
+                            <button type="button" className="btn identity-remove" onClick={() => removeIdentity(i)}>Remove</button>
+                        </div>
+                    ))}
+                    <button type="button" className="btn" onClick={addIdentity}>Add address</button>
+                </fieldset>
 
                 <fieldset className="setup-group">
                     <legend>Signature</legend>

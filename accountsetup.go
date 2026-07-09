@@ -26,6 +26,17 @@ type AccountSetupRequest struct {
 	OutSecurity string `json:"outSecurity"`
 	// Signature is the account's compose signature as HTML, inserted into a new message. It may be empty.
 	Signature string `json:"signature"`
+	// Identities are the account's alternate sender addresses (aliases it may send as, such as a domain
+	// alias that shares this mailbox). Each is an address with an optional display name; the list may be
+	// empty.
+	Identities []IdentityInput `json:"identities"`
+}
+
+// IdentityInput is one alternate sender address from the setup wizard: an email address with an optional
+// display name.
+type IdentityInput struct {
+	Name    string `json:"name"`
+	Address string `json:"address"`
 }
 
 // AddAccount validates the wizard payload, builds a domain account and configures it: the incoming
@@ -157,7 +168,29 @@ func buildAccount(req AccountSetupRequest) (domain.Account, error) {
 	if err != nil {
 		return domain.Account{}, fmt.Errorf("build account: %w", err)
 	}
-	return account.WithSignature(req.Signature), nil
+	identities, err := parseIdentities(req.Identities)
+	if err != nil {
+		return domain.Account{}, err
+	}
+	return account.WithSignature(req.Signature).WithIdentities(identities), nil
+}
+
+// parseIdentities maps the wizard's identity inputs to validated addresses, skipping blank rows and
+// rejecting a malformed one so the user is told rather than silently dropping it.
+func parseIdentities(inputs []IdentityInput) ([]domain.EmailAddress, error) {
+	out := make([]domain.EmailAddress, 0, len(inputs))
+	for _, in := range inputs {
+		address := strings.TrimSpace(in.Address)
+		if address == "" {
+			continue
+		}
+		addr, err := domain.NewEmailAddress(strings.TrimSpace(in.Name), address)
+		if err != nil {
+			return nil, fmt.Errorf("invalid identity address %q: %w", address, err)
+		}
+		out = append(out, addr)
+	}
+	return out, nil
 }
 
 // parseSecurity maps a wire security identifier to the domain Security enum.

@@ -133,6 +133,63 @@ func TestAccountWithSignature(t *testing.T) {
 	}
 }
 
+func TestAccountIdentities(t *testing.T) {
+	addr, _ := NewEmailAddress("Me", "me@example.com")
+	alias, _ := NewEmailAddress("Alias", "me@alias.example")
+	in := validServerConfig(t)
+	out := validServerConfig(t)
+	a, err := NewAccount("acc-1", "Personal", addr, ProtocolIMAP, in, out, AuthPassword)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(a.Identities()) != 0 {
+		t.Errorf("default identities = %v, want none", a.Identities())
+	}
+
+	withAlias := a.WithIdentities([]EmailAddress{alias})
+	if len(a.Identities()) != 0 {
+		t.Error("WithIdentities mutated the original account")
+	}
+	got := withAlias.Identities()
+	if len(got) != 1 || got[0].Address() != "me@alias.example" {
+		t.Errorf("Identities = %v", got)
+	}
+	// Identities returns a copy: mutating it must not touch the account.
+	got[0] = EmailAddress{}
+	if withAlias.Identities()[0].Address() != "me@alias.example" {
+		t.Error("Identities returned a live slice, not a copy")
+	}
+
+	senders := withAlias.Senders()
+	if len(senders) != 2 || senders[0].Address() != "me@example.com" || senders[1].Address() != "me@alias.example" {
+		t.Errorf("Senders = %v, want primary then alias", senders)
+	}
+}
+
+func TestAccountResolveSender(t *testing.T) {
+	addr, _ := NewEmailAddress("Me", "me@example.com")
+	alias, _ := NewEmailAddress("Alias", "me@alias.example")
+	in := validServerConfig(t)
+	out := validServerConfig(t)
+	base, _ := NewAccount("acc-1", "Personal", addr, ProtocolIMAP, in, out, AuthPassword)
+	a := base.WithIdentities([]EmailAddress{alias})
+
+	if got, ok := a.ResolveSender(""); !ok || got.Address() != "me@example.com" {
+		t.Errorf("empty resolves to %v ok=%v, want primary", got, ok)
+	}
+	// Case-insensitive match against an identity, returning the stored address (with its display name).
+	if got, ok := a.ResolveSender("ME@ALIAS.EXAMPLE"); !ok || got.Address() != "me@alias.example" || got.Display() != "Alias" {
+		t.Errorf("identity resolves to %v ok=%v", got, ok)
+	}
+	if got, ok := a.ResolveSender("me@example.com"); !ok || got.Address() != "me@example.com" {
+		t.Errorf("primary resolves to %v ok=%v", got, ok)
+	}
+	if _, ok := a.ResolveSender("stranger@nowhere.example"); ok {
+		t.Error("a foreign address must not resolve")
+	}
+}
+
 func TestNewAccountInvalid(t *testing.T) {
 	addr, _ := NewEmailAddress("Me", "me@example.com")
 	sc := validServerConfig(t)

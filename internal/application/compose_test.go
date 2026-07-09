@@ -223,6 +223,18 @@ func TestComposeSendErrors(t *testing.T) {
 			t.Errorf("error = %v, want wrapped boom", err)
 		}
 	})
+
+	t.Run("unknown sender", func(t *testing.T) {
+		d := newComposeDeps().withAccount(t)
+		draft := draftTo(t, "f@example.com")
+		draft.From = "stranger@nowhere.example"
+		if err := d.service().Send(context.Background(), "a1", draft); !errors.Is(err, ErrUnknownSender) {
+			t.Errorf("error = %v, want ErrUnknownSender", err)
+		}
+		if len(d.transport.sent) != 0 {
+			t.Error("a message from an unowned address must not be sent")
+		}
+	})
 }
 
 func TestComposeSendOfflineQueues(t *testing.T) {
@@ -332,6 +344,15 @@ func TestComposeSaveDraftErrors(t *testing.T) {
 		d.drafts.saveErr = errBoom
 		if err := d.service().SaveDraft(context.Background(), "a1", draftTo(t, "f@example.com")); !errors.Is(err, errBoom) {
 			t.Errorf("error = %v, want wrapped boom", err)
+		}
+	})
+
+	t.Run("unknown sender", func(t *testing.T) {
+		d := newComposeDeps().withAccount(t).withDrafts(t)
+		draft := draftTo(t, "f@example.com")
+		draft.From = "stranger@nowhere.example"
+		if err := d.service().SaveDraft(context.Background(), "a1", draft); !errors.Is(err, ErrUnknownSender) {
+			t.Errorf("error = %v, want ErrUnknownSender", err)
 		}
 	})
 }
