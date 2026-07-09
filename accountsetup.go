@@ -74,6 +74,33 @@ func (a *App) SignInMicrosoft(displayName string) (string, error) {
 	return account.Address().Address(), nil
 }
 
+// AccountProfileRequest is the edit-wizard payload for changing only an account's profile: its display
+// name, signature and send-as identities. It carries no password or server settings because those are
+// not touched. The email identifies the account (its id) and is not itself editable.
+type AccountProfileRequest struct {
+	Email       string          `json:"email"`
+	DisplayName string          `json:"displayName"`
+	Signature   string          `json:"signature"`
+	Identities  []IdentityInput `json:"identities"`
+}
+
+// UpdateAccountProfile updates an existing account's display name, signature and send-as identities
+// without re-verifying its credentials or servers. It is the edit path for an OAuth account, whose token
+// is not a password and must not be checked against the server with one. It is used for any account
+// whose server settings are not being changed. No mail watcher restart is needed because no server or
+// protocol setting changes.
+func (a *App) UpdateAccountProfile(req AccountProfileRequest) error {
+	address, err := domain.NewEmailAddress("", strings.TrimSpace(req.Email))
+	if err != nil {
+		return fmt.Errorf("invalid email address: %w", err)
+	}
+	identities, err := parseIdentities(req.Identities)
+	if err != nil {
+		return err
+	}
+	return a.accounts.UpdateProfile(a.ctx, address.Address(), req.DisplayName, req.Signature, identities)
+}
+
 // UpdateAccount re-configures an existing account from the edit wizard. A blank password keeps the
 // current one; the identity (email address) is fixed, so the front end locks it in edit mode.
 func (a *App) UpdateAccount(req AccountSetupRequest) error {

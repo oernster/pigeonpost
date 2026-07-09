@@ -20,6 +20,11 @@ type AccountDTO struct {
 	OutPort     int    `json:"outPort"`
 	OutSecurity string `json:"outSecurity"`
 	Signature   string `json:"signature"`
+	// Auth is the account's authentication method ("password" or "oauth2"). The edit wizard reads it to
+	// pick the edit form: a password account collects a password and server settings that are re-verified;
+	// an OAuth account edits only its profile fields, because the token is not a password to check against
+	// the server.
+	Auth string `json:"auth"`
 	// Identities are the account's alternate sender addresses (aliases it may send as, beyond its primary
 	// address), so the compose window can offer them as From options and the edit wizard can manage them.
 	Identities []AddressDTO `json:"identities"`
@@ -142,6 +147,7 @@ func toAccountDTO(a domain.Account) AccountDTO {
 		OutPort:     a.Outgoing().Port(),
 		OutSecurity: a.Outgoing().Security().String(),
 		Signature:   a.Signature(),
+		Auth:        a.Auth().String(),
 		Identities:  toAddressDTOs(a.Identities()),
 	}
 }

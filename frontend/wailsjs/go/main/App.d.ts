@@ -162,4 +162,6 @@ export function UnreadCounts():Promise<main.UnreadCountsDTO>;
 
 export function UpdateAccount(arg1:main.AccountSetupRequest):Promise<void>;
 
+export function UpdateAccountProfile(arg1:main.AccountProfileRequest):Promise<void>;
+
 export function Version():Promise<string>;

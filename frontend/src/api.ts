@@ -80,6 +80,7 @@ import {
     SyncFolder,
     UnreadCounts,
     UpdateAccount,
+    UpdateAccountProfile,
     Version,
 } from '../wailsjs/go/main/App'
 import {main} from '../wailsjs/go/models'
@@ -268,11 +269,25 @@ export interface AccountSetupInput {
     identities: Identity[]
 }
 
+// AccountProfileInput edits only an account's profile (display name, signature and send-as identities),
+// leaving its servers and credentials untouched. It is the payload for an OAuth account's edit and for
+// any edit that changes no server setting. email identifies the account and is not editable.
+export interface AccountProfileInput {
+    email: string
+    displayName: string
+    signature: string
+    identities: Identity[]
+}
+
 export const api = {
     listAccounts: (): Promise<Account[]> => ListAccounts(),
     addAccount: (req: AccountSetupInput): Promise<void> => AddAccount(main.AccountSetupRequest.createFrom(req)),
     removeAccount: (accountId: string): Promise<void> => RemoveAccount(accountId),
     updateAccount: (req: AccountSetupInput): Promise<void> => UpdateAccount(main.AccountSetupRequest.createFrom(req)),
+    // updateAccountProfile changes only the name, signature and send-as identities of an existing account,
+    // without re-verifying its credentials. It is the edit path for an OAuth account.
+    updateAccountProfile: (req: AccountProfileInput): Promise<void> =>
+        UpdateAccountProfile(main.AccountProfileRequest.createFrom(req)),
     // signInMicrosoft runs the interactive OAuth flow (opens the browser, waits for consent) and resolves
     // with the signed-in address so the caller can select the new account.
     signInMicrosoft: (displayName: string): Promise<string> => SignInMicrosoft(displayName),

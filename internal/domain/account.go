@@ -150,6 +150,18 @@ func (a Account) ID() string { return a.id }
 // DisplayName returns the human-readable account name.
 func (a Account) DisplayName() string { return a.displayName }
 
+// WithDisplayName returns a copy of the account carrying the given display name, validated non-empty as
+// in NewAccount. It updates the sender name shown on outgoing mail without re-running server setup, so
+// an OAuth account (whose credentials must not be re-verified with a password) can still be renamed.
+func (a Account) WithDisplayName(displayName string) (Account, error) {
+	displayName = strings.TrimSpace(displayName)
+	if displayName == "" {
+		return Account{}, ErrEmptyDisplayName
+	}
+	a.displayName = displayName
+	return a, nil
+}
+
 // Address returns the account's email address.
 func (a Account) Address() EmailAddress { return a.address }
 

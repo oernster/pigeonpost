@@ -105,6 +105,81 @@ func TestAccountServiceRemoveCredentialError(t *testing.T) {
 	}
 }
 
+func TestAccountServiceGet(t *testing.T) {
+	svc, store, _, _ := newAccountService()
+	store.accounts["a1"] = testAccount(t, "a1")
+
+	got, err := svc.Get(context.Background(), "a1")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got.ID() != "a1" {
+		t.Fatalf("Get returned %q, want a1", got.ID())
+	}
+
+	store.getErr = errBoom
+	if _, err := svc.Get(context.Background(), "a1"); !errors.Is(err, errBoom) {
+		t.Errorf("Get error = %v, want wrapped boom", err)
+	}
+}
+
+func TestAccountServiceUpdateProfileSuccess(t *testing.T) {
+	svc, store, _, _ := newAccountService()
+	store.accounts["a1"] = testAccount(t, "a1")
+	alias, err := domain.NewEmailAddress("Alias", "alias@example.com")
+	if err != nil {
+		t.Fatalf("build alias: %v", err)
+	}
+
+	err = svc.UpdateProfile(
+		context.Background(), "a1", "New Name", "<p>Bye</p>", []domain.EmailAddress{alias},
+	)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	saved, ok := store.accounts["a1"]
+	if !ok {
+		t.Fatal("account should still exist")
+	}
+	if saved.DisplayName() != "New Name" {
+		t.Errorf("display name = %q, want New Name", saved.DisplayName())
+	}
+	if saved.Signature() != "<p>Bye</p>" {
+		t.Errorf("signature = %q, want <p>Bye</p>", saved.Signature())
+	}
+	ids := saved.Identities()
+	if len(ids) != 1 || ids[0].Address() != "alias@example.com" {
+		t.Errorf("identities = %+v, want one alias@example.com", ids)
+	}
+}
+
+func TestAccountServiceUpdateProfileGetError(t *testing.T) {
+	svc, store, _, _ := newAccountService()
+	store.getErr = errBoom
+	if err := svc.UpdateProfile(context.Background(), "a1", "New Name", "", nil); !errors.Is(err, errBoom) {
+		t.Errorf("UpdateProfile error = %v, want wrapped boom", err)
+	}
+}
+
+func TestAccountServiceUpdateProfileEmptyName(t *testing.T) {
+	svc, store, _, _ := newAccountService()
+	store.accounts["a1"] = testAccount(t, "a1")
+	err := svc.UpdateProfile(context.Background(), "a1", "   ", "", nil)
+	if !errors.Is(err, domain.ErrEmptyDisplayName) {
+		t.Errorf("UpdateProfile error = %v, want ErrEmptyDisplayName", err)
+	}
+}
+
+func TestAccountServiceUpdateProfileSaveError(t *testing.T) {
+	svc, store, _, _ := newAccountService()
+	store.accounts["a1"] = testAccount(t, "a1")
+	store.saveErr = errBoom
+	if err := svc.UpdateProfile(context.Background(), "a1", "New Name", "", nil); !errors.Is(err, errBoom) {
+		t.Errorf("UpdateProfile error = %v, want wrapped boom", err)
+	}
+}
+
 func newSetupService() (*AccountSetupService, *fakeAccountStore, *fakeCredentialStore, *fakeVerifier) {
 	store := newFakeAccountStore()
 	creds := newFakeCredentialStore()

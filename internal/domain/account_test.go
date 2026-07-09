@@ -133,6 +133,31 @@ func TestAccountWithSignature(t *testing.T) {
 	}
 }
 
+func TestAccountWithDisplayName(t *testing.T) {
+	addr, _ := NewEmailAddress("Me", "me@example.com")
+	in := validServerConfig(t)
+	out := validServerConfig(t)
+	a, err := NewAccount("acc-1", "Personal", addr, ProtocolIMAP, in, out, AuthPassword)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	renamed, err := a.WithDisplayName("  New Name  ")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if renamed.DisplayName() != "New Name" {
+		t.Errorf("DisplayName = %q, want New Name (trimmed)", renamed.DisplayName())
+	}
+	if a.DisplayName() != "Personal" {
+		t.Errorf("original account mutated: DisplayName = %q", a.DisplayName())
+	}
+
+	if _, err := a.WithDisplayName("   "); !errors.Is(err, ErrEmptyDisplayName) {
+		t.Errorf("WithDisplayName(blank) error = %v, want ErrEmptyDisplayName", err)
+	}
+}
+
 func TestAccountIdentities(t *testing.T) {
 	addr, _ := NewEmailAddress("Me", "me@example.com")
 	alias, _ := NewEmailAddress("Alias", "me@alias.example")

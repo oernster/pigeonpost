@@ -82,6 +82,7 @@ export namespace main {
 	    outPort: number;
 	    outSecurity: string;
 	    signature: string;
+	    auth: string;
 	    identities: AddressDTO[];
 	
 	    static createFrom(source: any = {}) {
@@ -101,6 +102,7 @@ export namespace main {
 	        this.outPort = source["outPort"];
 	        this.outSecurity = source["outSecurity"];
 	        this.signature = source["signature"];
+	        this.auth = source["auth"];
 	        this.identities = this.convertValues(source["identities"], AddressDTO);
 	    }
 	
@@ -135,6 +137,42 @@ export namespace main {
 	        this.name = source["name"];
 	        this.address = source["address"];
 	    }
+	}
+	export class AccountProfileRequest {
+	    email: string;
+	    displayName: string;
+	    signature: string;
+	    identities: IdentityInput[];
+	
+	    static createFrom(source: any = {}) {
+	        return new AccountProfileRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.email = source["email"];
+	        this.displayName = source["displayName"];
+	        this.signature = source["signature"];
+	        this.identities = this.convertValues(source["identities"], IdentityInput);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 	export class AccountSetupRequest {
 	    displayName: string;

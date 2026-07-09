@@ -125,6 +125,9 @@ export function AccountSetupModal({account, onClose, onSaved}: AccountSetupModal
     const [outHostTouched, setOutHostTouched] = useState(editing)
     const [saving, setSaving] = useState(false)
     const [msSigningIn, setMsSigningIn] = useState(false)
+    // msAdd is true while adding a Microsoft (OAuth) account: the details step then collects only the
+    // sender name before launching the browser sign-in, with no password or server fields.
+    const [msAdd, setMsAdd] = useState(false)
     const [error, setError] = useState('')
     // Alternate sender addresses (aliases this account may send as, such as a domain alias sharing the
     // mailbox). Prefilled when editing; the compose window offers them as From options.
@@ -188,14 +191,22 @@ export function AccountSetupModal({account, onClose, onSaved}: AccountSetupModal
         setStep('details')
     }
 
+    // Choosing Microsoft moves to the details step to collect the sender name first: the OAuth flow
+    // returns the signed-in address but not a display name, so it is gathered here before sign-in.
+    const chooseMicrosoft = () => {
+        setMsAdd(true)
+        setStep('details')
+    }
+
     // Microsoft accounts sign in through OAuth rather than an app password: this opens the system browser
     // for consent and waits for the loopback redirect, so the modal shows a waiting state until the Go
-    // side returns the signed-in address (or an error). No server details or password are collected here.
+    // side returns the signed-in address (or an error). The chosen sender name is passed through; no
+    // server details or password are collected.
     const signInMicrosoft = async () => {
         setMsSigningIn(true)
         setError('')
         try {
-            const signedInEmail = await api.signInMicrosoft('')
+            const signedInEmail = await api.signInMicrosoft(displayName.trim())
             onSaved(signedInEmail)
         } catch (e) {
             setError(String(e))
@@ -246,16 +257,40 @@ export function AccountSetupModal({account, onClose, onSaved}: AccountSetupModal
         }
     }
 
-    const canSubmit =
-        displayName.trim() !== '' &&
-        email.trim() !== '' &&
-        inHost.trim() !== '' &&
-        outHost.trim() !== '' &&
-        (editing || password !== '')
+    // An OAuth account edits only its profile: the modal hides the password and server fields; the save
+    // skips credential verification. Adding Microsoft (msAdd) is the same reduced form ahead of the
+    // browser sign-in. Both are oauthMode.
+    const oauthEditing = editing && account?.auth === 'oauth2'
+    const oauthMode = msAdd || oauthEditing
+
+    const canSubmit = oauthMode
+        ? displayName.trim() !== ''
+        : displayName.trim() !== '' &&
+          email.trim() !== '' &&
+          inHost.trim() !== '' &&
+          outHost.trim() !== '' &&
+          (editing || password !== '')
 
     const submit = async () => {
         setSaving(true)
         setError('')
+        if (oauthEditing) {
+            try {
+                await api.updateAccountProfile({
+                    email: email.trim(),
+                    displayName: displayName.trim(),
+                    signature: sigEditor && !sigEditor.isEmpty ? sigEditor.getHTML() : '',
+                    identities: identities
+                        .filter((i) => i.address.trim() !== '')
+                        .map((i) => ({name: i.name.trim(), address: i.address.trim()})),
+                })
+                onSaved(email.trim())
+            } catch (e) {
+                setError(String(e))
+                setSaving(false)
+            }
+            return
+        }
         const req: AccountSetupInput = {
             displayName: displayName.trim(),
             email: email.trim(),
@@ -296,8 +331,8 @@ export function AccountSetupModal({account, onClose, onSaved}: AccountSetupModal
                     <p className="setup-hint">Choose your email provider, or set the servers up yourself.</p>
                     {error && <div className="compose-error">{error}</div>}
                     <div className="provider-grid">
-                        <button className="provider-btn" onClick={() => void signInMicrosoft()} disabled={msSigningIn}>
-                            {msSigningIn ? 'Waiting for your browser...' : 'Microsoft'}
+                        <button className="provider-btn" onClick={chooseMicrosoft} disabled={msSigningIn}>
+                            Microsoft
                         </button>
                         {PROVIDERS.map((p) => (
                             <button key={p.id} className="provider-btn" onClick={() => chooseProvider(p)} disabled={msSigningIn}>
@@ -389,105 +424,129 @@ export function AccountSetupModal({account, onClose, onSaved}: AccountSetupModal
             <div className="modal setup" role="dialog" aria-label={editing ? 'Edit account' : 'Add account'} onClick={(e) => e.stopPropagation()}>
                 <ModalClose onClose={onClose}/>
                 <h2 className="modal-title">
-                    {editing ? 'Edit account' : provider ? `Add ${provider.name}` : 'Add account'}
+                    {editing ? 'Edit account' : msAdd ? 'Add Microsoft' : provider ? `Add ${provider.name}` : 'Add account'}
                 </h2>
-                <p className="setup-hint">
-                    PigeonPost signs in to your incoming server to check these details before saving. Your
-                    password is stored in the operating system keychain, never in the app database.
-                </p>
-                {provider && <p className="provider-note">{provider.note}</p>}
+                {oauthMode ? (
+                    <p className="setup-hint">
+                        {msAdd
+                            ? 'Enter the name to show on messages you send, then continue to sign in through your browser.'
+                            : 'Update the name shown on your messages, your signature or your send-as addresses.'}
+                    </p>
+                ) : (
+                    <p className="setup-hint">
+                        PigeonPost signs in to your incoming server to check these details before saving. Your
+                        password is stored in the operating system keychain, never in the app database.
+                    </p>
+                )}
+                {provider && !oauthMode && <p className="provider-note">{provider.note}</p>}
                 {error && <div className="compose-error">{error}</div>}
 
                 <label className="field">
                     <span>Your name</span>
                     <input value={displayName} onChange={(e) => setDisplayName(e.target.value)} autoFocus placeholder="Jane Doe"/>
                 </label>
-                <label className="field">
-                    <span>Email</span>
-                    <input
-                        value={email}
-                        readOnly={editing}
-                        className={editing ? 'locked' : undefined}
-                        onChange={(e) => onEmailChange(e.target.value)}
-                        placeholder="jane@example.com"
-                    />
-                </label>
-                <label className="field">
-                    <span>Password</span>
-                    <input type="password" value={password} onChange={(e) => setPassword(e.target.value)}/>
-                </label>
-                {editing && <p className="field-hint">Leave the password blank to keep your current one.</p>}
+                {!msAdd && (
+                    <label className="field">
+                        <span>Email</span>
+                        <input
+                            value={email}
+                            readOnly={editing}
+                            className={editing ? 'locked' : undefined}
+                            onChange={(e) => onEmailChange(e.target.value)}
+                            placeholder="jane@example.com"
+                        />
+                    </label>
+                )}
+                {!oauthMode && (
+                    <>
+                        <label className="field">
+                            <span>Password</span>
+                            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)}/>
+                        </label>
+                        {editing && <p className="field-hint">Leave the password blank to keep your current one.</p>}
 
-                {provider ? (
-                    <details className="setup-advanced">
-                        <summary>Server settings (pre-filled for {provider.name})</summary>
-                        {serverFields}
-                    </details>
-                ) : (
-                    serverFields
+                        {provider ? (
+                            <details className="setup-advanced">
+                                <summary>Server settings (pre-filled for {provider.name})</summary>
+                                {serverFields}
+                            </details>
+                        ) : (
+                            serverFields
+                        )}
+                    </>
                 )}
 
-                <fieldset className="setup-group">
-                    <legend>Send-as addresses</legend>
-                    <p className="field-hint">Extra addresses this account may send from (for example a domain alias that shares this mailbox). They appear as From options when you compose.</p>
-                    {identities.map((identity, i) => (
-                        <div className="identity-row" key={i}>
-                            <input
-                                className="identity-input"
-                                value={identity.name}
-                                placeholder="Name (optional)"
-                                onChange={(e) => updateIdentity(i, 'name', e.target.value)}
-                            />
-                            <input
-                                className="identity-input"
-                                value={identity.address}
-                                placeholder="alias@example.com"
-                                onChange={(e) => updateIdentity(i, 'address', e.target.value)}
-                            />
-                            <button type="button" className="btn identity-remove" onClick={() => removeIdentity(i)}>Remove</button>
-                        </div>
-                    ))}
-                    <button type="button" className="btn" onClick={addIdentity}>Add address</button>
-                </fieldset>
+                {!msAdd && (
+                    <>
+                        <fieldset className="setup-group">
+                            <legend>Send-as addresses</legend>
+                            <p className="field-hint">Extra addresses this account may send from (for example a domain alias that shares this mailbox). They appear as From options when you compose.</p>
+                            {identities.map((identity, i) => (
+                                <div className="identity-row" key={i}>
+                                    <input
+                                        className="identity-input"
+                                        value={identity.name}
+                                        placeholder="Name (optional)"
+                                        onChange={(e) => updateIdentity(i, 'name', e.target.value)}
+                                    />
+                                    <input
+                                        className="identity-input"
+                                        value={identity.address}
+                                        placeholder="alias@example.com"
+                                        onChange={(e) => updateIdentity(i, 'address', e.target.value)}
+                                    />
+                                    <button type="button" className="btn identity-remove" onClick={() => removeIdentity(i)}>Remove</button>
+                                </div>
+                            ))}
+                            <button type="button" className="btn" onClick={addIdentity}>Add address</button>
+                        </fieldset>
 
-                <fieldset className="setup-group">
-                    <legend>Signature</legend>
-                    <p className="field-hint">Added to new messages, and above the quoted text on a reply.</p>
-                    <div className="compose-toolbar">
-                        {sigBtn(sigEditor?.isActive('bold') ?? false, 'B', 'Bold', () => sigEditor?.chain().focus().toggleBold().run())}
-                        {sigBtn(sigEditor?.isActive('italic') ?? false, 'I', 'Italic', () => sigEditor?.chain().focus().toggleItalic().run())}
-                        {sigBtn(sigEditor?.isActive('link') ?? false, '🔗', 'Link', openSigLink)}
-                    </div>
-                    {sigLinkOpen && (
-                        <div className="compose-link-row">
-                            <input
-                                className="tag-name-input"
-                                value={sigLinkUrl}
-                                autoFocus
-                                placeholder="https://example.com"
-                                onChange={(e) => setSigLinkUrl(e.target.value)}
-                                onKeyDown={(e) => {
-                                    if (e.key === 'Enter') {
-                                        e.preventDefault()
-                                        applySigLink()
-                                    }
-                                }}
-                            />
-                            <button className="btn primary" onClick={applySigLink}>Apply</button>
-                        </div>
-                    )}
-                    <EditorContent editor={sigEditor} className="compose-editor signature-editor"/>
-                </fieldset>
+                        <fieldset className="setup-group">
+                            <legend>Signature</legend>
+                            <p className="field-hint">Added to new messages and above the quoted text on a reply.</p>
+                            <div className="compose-toolbar">
+                                {sigBtn(sigEditor?.isActive('bold') ?? false, 'B', 'Bold', () => sigEditor?.chain().focus().toggleBold().run())}
+                                {sigBtn(sigEditor?.isActive('italic') ?? false, 'I', 'Italic', () => sigEditor?.chain().focus().toggleItalic().run())}
+                                {sigBtn(sigEditor?.isActive('link') ?? false, '🔗', 'Link', openSigLink)}
+                            </div>
+                            {sigLinkOpen && (
+                                <div className="compose-link-row">
+                                    <input
+                                        className="tag-name-input"
+                                        value={sigLinkUrl}
+                                        autoFocus
+                                        placeholder="https://example.com"
+                                        onChange={(e) => setSigLinkUrl(e.target.value)}
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter') {
+                                                e.preventDefault()
+                                                applySigLink()
+                                            }
+                                        }}
+                                    />
+                                    <button className="btn primary" onClick={applySigLink}>Apply</button>
+                                </div>
+                            )}
+                            <EditorContent editor={sigEditor} className="compose-editor signature-editor"/>
+                        </fieldset>
+                    </>
+                )}
 
                 <div className="modal-actions spread">
                     {editing ? (
                         <button className="btn" onClick={onClose} disabled={saving}>Cancel</button>
                     ) : (
-                        <button className="btn" onClick={() => setStep('provider')} disabled={saving}>Back</button>
+                        <button className="btn" onClick={() => { setMsAdd(false); setStep('provider') }} disabled={saving || msSigningIn}>Back</button>
                     )}
-                    <button className="btn primary" onClick={() => void submit()} disabled={saving || !canSubmit}>
-                        {saving ? 'Verifying...' : editing ? 'Save changes' : 'Add account'}
-                    </button>
+                    {msAdd ? (
+                        <button className="btn primary" onClick={() => void signInMicrosoft()} disabled={msSigningIn || !canSubmit}>
+                            {msSigningIn ? 'Waiting for your browser...' : 'Continue with Microsoft'}
+                        </button>
+                    ) : (
+                        <button className="btn primary" onClick={() => void submit()} disabled={saving || !canSubmit}>
+                            {saving ? (oauthEditing ? 'Saving...' : 'Verifying...') : editing ? 'Save changes' : 'Add account'}
+                        </button>
+                    )}
                 </div>
             </div>
         </div>

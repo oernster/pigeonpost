@@ -37,6 +37,42 @@ func (s *AccountService) Add(ctx context.Context, account domain.Account) error 
 	return nil
 }
 
+// Get returns a single account by id.
+func (s *AccountService) Get(ctx context.Context, id string) (domain.Account, error) {
+	account, err := s.accounts.GetAccount(ctx, id)
+	if err != nil {
+		return domain.Account{}, fmt.Errorf("get account %q: %w", id, err)
+	}
+	return account, nil
+}
+
+// UpdateProfile changes an account's editable profile fields (display name, signature and alternate
+// sender identities) and nothing else: it leaves the servers, protocol, auth method and stored
+// credential untouched. That makes it the correct edit path for an OAuth account, whose token must not
+// be re-verified with a password; it is safe for any account because it changes no server setting.
+// The account is loaded, the changes are applied to the immutable value and it is saved back.
+func (s *AccountService) UpdateProfile(
+	ctx context.Context,
+	id string,
+	displayName string,
+	signature string,
+	identities []domain.EmailAddress,
+) error {
+	account, err := s.accounts.GetAccount(ctx, id)
+	if err != nil {
+		return fmt.Errorf("update account %q: %w", id, err)
+	}
+	renamed, err := account.WithDisplayName(displayName)
+	if err != nil {
+		return fmt.Errorf("update account %q: %w", id, err)
+	}
+	updated := renamed.WithSignature(signature).WithIdentities(identities)
+	if err := s.accounts.SaveAccount(ctx, updated); err != nil {
+		return fmt.Errorf("update account %q: %w", id, err)
+	}
+	return nil
+}
+
 // Remove deletes an account together with its cached mail and its keychain secret. The account row is
 // removed first so it disappears from the UI immediately; its cached folders/messages and its stored
 // password are then cleaned up.

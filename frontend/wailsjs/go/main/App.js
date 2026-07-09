@@ -322,6 +322,10 @@ export function UpdateAccount(arg1) {
   return window['go']['main']['App']['UpdateAccount'](arg1);
 }
 
+export function UpdateAccountProfile(arg1) {
+  return window['go']['main']['App']['UpdateAccountProfile'](arg1);
+}
+
 export function Version() {
   return window['go']['main']['App']['Version']();
 }
