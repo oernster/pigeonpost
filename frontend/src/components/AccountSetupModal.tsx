@@ -276,11 +276,10 @@ export function AccountSetupModal({account, onClose, onSaved}: AccountSetupModal
                     <h2 className="modal-title">Add account</h2>
                     <p className="setup-hint">Choose your email provider, or set the servers up yourself.</p>
                     {error && <div className="compose-error">{error}</div>}
-                    <button className="btn primary microsoft-btn" onClick={() => void signInMicrosoft()} disabled={msSigningIn}>
-                        {msSigningIn ? 'Waiting for your browser...' : 'Sign in with Microsoft'}
-                    </button>
-                    <p className="field-hint">Outlook.com, Hotmail, Live and Microsoft 365 accounts sign in through your browser. No password is stored.</p>
                     <div className="provider-grid">
+                        <button className="provider-btn" onClick={() => void signInMicrosoft()} disabled={msSigningIn}>
+                            {msSigningIn ? 'Waiting for your browser...' : 'Microsoft'}
+                        </button>
                         {PROVIDERS.map((p) => (
                             <button key={p.id} className="provider-btn" onClick={() => chooseProvider(p)} disabled={msSigningIn}>
                                 {p.name}
