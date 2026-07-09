@@ -91,6 +91,12 @@ const PROVIDERS: readonly Provider[] = [
         outHost: 'smtp.startmail.com', outPort: 587, outSecurity: 'starttls',
         note: 'Enable IMAP/SMTP under Settings in StartMail, then use your app-specific password.',
     },
+    {
+        id: 'zoho', name: 'Zoho Mail',
+        inHost: 'imap.zoho.com', inPort: 993, inSecurity: 'tls',
+        outHost: 'smtp.zoho.com', outPort: 465, outSecurity: 'tls',
+        note: 'Turn on IMAP under Settings in Zoho Mail, then generate an app-specific password (Security, App Passwords) if two-factor is on and use it here. If your Zoho account is on a non-US data centre change the servers to the matching region (for example imap.zoho.eu and smtp.zoho.eu).',
+    },
 ]
 
 function domainOf(email: string): string {
