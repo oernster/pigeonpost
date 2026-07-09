@@ -68,7 +68,10 @@ func (a *Authorizer) Authorize(ctx context.Context) (application.OAuthCredential
 	if err != nil {
 		return application.OAuthCredential{}, fmt.Errorf("oauth: open loopback listener: %w", err)
 	}
-	redirectURI := fmt.Sprintf("http://localhost:%d/", listener.Addr().(*net.TCPAddr).Port)
+	// No trailing slash: Microsoft's loopback matching ignores the port but compares the rest of the URI
+	// against the registered "http://localhost", so a trailing slash would make the paths differ and the
+	// request is rejected with invalid_request.
+	redirectURI := fmt.Sprintf("http://localhost:%d", listener.Addr().(*net.TCPAddr).Port)
 
 	results := make(chan authResult, 1)
 	server := &http.Server{Handler: a.callbackHandler(state, results)}
