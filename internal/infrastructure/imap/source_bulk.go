@@ -59,15 +59,14 @@ func (s *Source) DeleteMany(ctx context.Context, account domain.Account, folder 
 			}
 			continue
 		}
+		// Permanent delete: flag this chunk \Deleted then expunge it. Expunging per chunk rather than once
+		// at the end keeps each EXPUNGE bounded; a single expunge of a very large mailbox (a full Gmail Bin,
+		// say) holds the connection long enough that the server drops it with an unexpected EOF.
 		if err := client.Store(set, store, nil).Close(); err != nil {
 			return fmt.Errorf("imap: mark %d messages \\Deleted: %w", end-start, err)
 		}
-	}
-
-	// A permanent delete expunges once at the end, after every chunk is flagged \Deleted.
-	if trashPath == "" {
 		if err := client.Expunge().Close(); err != nil {
-			return fmt.Errorf("imap: expunge %d messages: %w", len(nums), err)
+			return fmt.Errorf("imap: expunge %d messages: %w", end-start, err)
 		}
 	}
 	return nil
