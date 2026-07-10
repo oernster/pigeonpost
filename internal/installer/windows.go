@@ -19,10 +19,14 @@ import (
 
 // ErrAppRunning indicates PigeonPost is running, so an install or uninstall that would overwrite or
 // remove the running executable must not proceed until the user closes it.
+//
+//lint:ignore ST1005 user-facing installer dialog text shown verbatim; the sentence punctuation is intentional
 var ErrAppRunning = errors.New("PigeonPost is running. Please close it and try again.")
 
 // ErrAppStillRunning indicates PigeonPost was asked to close but was still running after the wait, so
 // setup should not proceed.
+//
+//lint:ignore ST1005 user-facing installer dialog text shown verbatim; the sentence punctuation is intentional
 var ErrAppStillRunning = errors.New("PigeonPost could not be closed. Please close it manually and try again.")
 
 const (
