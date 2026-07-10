@@ -6,6 +6,8 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"net"
+	"strconv"
 
 	"github.com/emersion/go-sasl"
 	gosmtp "github.com/emersion/go-smtp"
@@ -45,7 +47,7 @@ func NewTransport(passwords PasswordProvider, tokens TokenProvider, clock domain
 // Send authenticates to the account's outgoing server and delivers the message.
 func (t *Transport) Send(ctx context.Context, account domain.Account, msg domain.OutgoingMessage) error {
 	out := account.Outgoing()
-	addr := fmt.Sprintf("%s:%d", out.Host(), out.Port())
+	addr := net.JoinHostPort(out.Host(), strconv.Itoa(out.Port()))
 
 	auth, err := t.authClient(ctx, account)
 	if err != nil {

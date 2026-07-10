@@ -3,6 +3,7 @@ package imap
 import (
 	"errors"
 	"fmt"
+	"net"
 	"strconv"
 
 	"github.com/emersion/go-imap/v2"
@@ -44,7 +45,7 @@ func NewSource(passwords PasswordProvider, tokens TokenProvider, clock domain.Cl
 // client options (nil for the one-shot fetch path; the IDLE watcher passes a unilateral-data handler). A
 // dial failure is wrapped with ErrOffline so a caller can treat the server as unreachable.
 func dial(incoming domain.ServerConfig, options *imapclient.Options) (*imapclient.Client, error) {
-	address := fmt.Sprintf("%s:%d", incoming.Host(), incoming.Port())
+	address := net.JoinHostPort(incoming.Host(), strconv.Itoa(incoming.Port()))
 	var (
 		client *imapclient.Client
 		err    error
