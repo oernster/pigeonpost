@@ -128,6 +128,7 @@ func run() error {
 	watcher := imap.NewWatcher(vault, tokenManager)
 
 	app = NewApp(store.Close, overlay, flasher, tray, watcher, accountService, setupService, microsoftSetupService, mailboxService, syncService, composeService, tagService, bodyService, actionService, folderService, ruleService, contactService, calendarService, schedulingService)
+	app.title = windowTitle
 
 	err = wails.Run(&options.App{
 		Title:            windowTitle,
@@ -145,6 +146,7 @@ func run() error {
 		// scheduler and mail sync can keep running in the background; see App.beforeClose.
 		OnBeforeClose: app.beforeClose,
 		OnStartup:     app.startup,
+		OnDomReady:    app.domReady,
 		OnShutdown:    app.shutdown,
 		Bind:          []interface{}{app},
 	})

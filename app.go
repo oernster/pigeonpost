@@ -42,6 +42,7 @@ type MailWatcher interface {
 // logic, delegating every call to an application use case and mapping domain results to DTOs.
 type App struct {
 	ctx        context.Context
+	title      string // main window title, used to locate its HWND to focus the WebView on launch
 	closer     func() error
 	notifier   UnreadNotifier
 	alerter    ReminderAlerter
@@ -111,26 +112,6 @@ func NewApp(
 		calendar:   calendar,
 		scheduling: scheduling,
 	}
-}
-
-// startup captures the Wails runtime context, starts the tray (its menu items emit Wails events the
-// front end turns into the matching dialogs, so this layer owns the callbacks and the taskbar package
-// stays free of Wails), and starts the reminder scheduler and the new-mail notifier.
-func (a *App) startup(ctx context.Context) {
-	a.ctx = ctx
-	if a.tray != nil {
-		a.tray.Start(taskbar.TrayActions{
-			// Open must go through the Wails runtime, not a Win32 window search: when the window is hidden
-			// to the tray it is no longer a findable visible window.
-			Open:         func() { a.revealWindow() },
-			About:        func() { runtime.EventsEmit(ctx, "menu:about") },
-			Licence:      func() { runtime.EventsEmit(ctx, "menu:licence") },
-			CheckUpdates: func() { runtime.EventsEmit(ctx, "menu:check-updates") },
-			Quit:         func() { a.quit() },
-		})
-	}
-	go a.runReminderScheduler()
-	go a.runMailNotifier()
 }
 
 // beforeClose runs when the user clicks the window's close button. Rather than quit, it asks the front
