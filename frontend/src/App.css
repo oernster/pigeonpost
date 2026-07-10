@@ -1821,6 +1821,42 @@
     box-shadow: inset 0 2px 0 var(--accent);
 }
 
+/* Folder drag-and-drop cues, in teal (--ring) to read as a move rather than the blue --accent selection.
+   A dragged custom folder is dimmed. An into drop (nesting the folder inside the target; also the cue
+   for a message dropped onto a folder) draws a teal box around the whole row. A before or after drop
+   places the folder at the target row's own level, drawn as a teal insertion line indented to that level
+   (left: --row-indent, set per row) so it reads as "drop in at this depth". The line is a pseudo-element
+   with pointer-events off, so it never intercepts the drag. */
+.list-item.folder.dragging {
+    opacity: 0.5;
+}
+
+.list-item.folder.drag-over,
+.list-item.folder.drag-into {
+    background-color: var(--bg-elev-2);
+    box-shadow: inset 0 0 0 2px var(--ring);
+}
+
+.list-item.folder.drag-before::before,
+.list-item.folder.drag-after::after {
+    content: '';
+    position: absolute;
+    left: var(--row-indent);
+    right: 8px;
+    height: 3px;
+    background-color: var(--ring);
+    border-radius: 2px;
+    pointer-events: none;
+}
+
+.list-item.folder.drag-before::before {
+    top: -1px;
+}
+
+.list-item.folder.drag-after::after {
+    bottom: -1px;
+}
+
 .field input.locked {
     color: var(--text-dim);
     cursor: not-allowed;

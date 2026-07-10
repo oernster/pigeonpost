@@ -1211,6 +1211,23 @@ function App() {
         }
     }, [folderToDelete, selectedFolder, refreshFolders])
 
+    // reparentFolder moves a folder under newParentId (empty for the top level) on the server, then
+    // refreshes the folder list. Like a rename the folder's server path changes while the open folder and
+    // its messages are left as they are. It backs the folder drag-and-drop; a same-level reorder is a local
+    // display concern handled in the sidebar and never reaches here.
+    const reparentFolder = useCallback(async (folderId: string, newParentId: string) => {
+        setFolderBusy(true)
+        setError('')
+        try {
+            await api.moveFolder(folderId, newParentId)
+            await refreshFolders()
+        } catch (e) {
+            setError(String(e))
+        } finally {
+            setFolderBusy(false)
+        }
+    }, [refreshFolders])
+
     // quoteFor returns the quoted original for reply/forward: the fetched HTML body when available,
     // otherwise the plain text (or snippet) escaped into a paragraph.
     const quoteFor = (message: Message): string => {
@@ -2255,6 +2272,7 @@ function App() {
                     onReorderAccounts={(ids) => void reorderAccounts(ids)}
                     onNewFolder={() => setFolderPrompt({mode: 'create'})}
                     onRenameFolder={(folder) => setFolderPrompt({mode: 'rename', folder})}
+                    onReparentFolder={(folderId, newParentId) => void reparentFolder(folderId, newParentId)}
                     onDeleteFolder={(folder) => setFolderToDelete(folder)}
                     onDropMessage={dropMessageOnFolder}
                     canManageFolders={!isPop3}

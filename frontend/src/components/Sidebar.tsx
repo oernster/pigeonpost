@@ -1,7 +1,16 @@
-import {useEffect, useState} from 'react'
+import {useEffect, useState, type CSSProperties} from 'react'
 import icon from '../assets/pigeonpost.png'
 import {Account, Folder} from '../api'
 import {messageDragType} from './MessageList'
+import {
+    detectSeparator,
+    leafName,
+    ancestorPaths,
+    nearestParentPath,
+    folderRank,
+    orderFolders,
+    placeAdjacent,
+} from '../folderPaths'
 
 interface SidebarProps {
     accounts: Account[]
@@ -23,6 +32,10 @@ interface SidebarProps {
     onReorderAccounts: (orderedIds: string[]) => void
     onNewFolder: () => void
     onRenameFolder: (folder: Folder) => void
+    // onReparentFolder moves the folder with folderId under newParentId (empty for the top level) on the
+    // server; it backs the drag-and-drop reparenting. A same-level reorder is handled locally and never
+    // calls this.
+    onReparentFolder: (folderId: string, newParentId: string) => void
     onDeleteFolder: (folder: Folder) => void
     onDropMessage: (messageId: string, folderId: string) => void
     // canManageFolders is false for POP3 accounts, which have no server-side folders to create.
@@ -40,19 +53,87 @@ const folderIcon: Record<string, string> = {
     custom: '\u{1F4C1}',
 }
 
-// specialFolderOrder is the canonical top-to-bottom order for the well-known mailboxes, so Inbox,
-// Sent and the rest sit at the top rather than wherever the server happens to list them. Any kind not
-// named here (custom folders) ranks after all of these and keeps its original relative order.
-const specialFolderOrder = ['inbox', 'drafts', 'sent', 'archive', 'junk', 'trash']
-
-function folderRank(kind: string): number {
-    const idx = specialFolderOrder.indexOf(kind)
-    return idx === -1 ? specialFolderOrder.length : idx
-}
-
 // accountDragType identifies an account row being dragged to reorder. It is distinct from the message
 // drag type so a message dropped on an account row is ignored and vice versa.
 const accountDragType = 'application/x-pigeonpost-account'
+
+// folderDragType identifies a custom folder row being dragged to reparent or reorder it. It is distinct
+// from the account and message drag types so each drop target accepts only what it understands.
+const folderDragType = 'application/x-pigeonpost-folder'
+
+// FOLDER_INDENT_STEP_PX is the left indent added per tree depth (and the base indent of a top-level row),
+// so a folder at depth d sits at (d + 1) steps. The same value drives the drag insertion line's indent.
+const FOLDER_INDENT_STEP_PX = 14
+
+// FOLDER_DROP_EDGE_FRACTION is the fraction of a folder row's height at its top and at its bottom that
+// targets the folder's own level (a sibling drop, drawn as an insertion line); the middle band targets
+// inside the folder (a child drop, drawn as a box). At 0.3 the top and bottom thirds are the sibling
+// zones and the middle ~40% nests, so the same-level target is easy to hit.
+const FOLDER_DROP_EDGE_FRACTION = 0.3
+
+// FolderDropZone is where a folder drag is aimed on a target row: before or after places the dragged
+// folder at the target's own level (a sibling of it); into nests the dragged folder inside the target.
+type FolderDropZone = 'before' | 'into' | 'after'
+
+// dropZoneFor returns which zone the pointer at clientY falls in for a row with bounds rect.
+function dropZoneFor(clientY: number, rect: DOMRect): FolderDropZone {
+    const offset = clientY - rect.top
+    if (offset < rect.height * FOLDER_DROP_EDGE_FRACTION) {
+        return 'before'
+    }
+    if (offset > rect.height * (1 - FOLDER_DROP_EDGE_FRACTION)) {
+        return 'after'
+    }
+    return 'into'
+}
+
+// FolderDropAction is the resolved outcome of a folder drag over a target row: a local reorder amongst
+// same-level siblings (no server call) or a reparent under a new parent (an empty parentId is the top
+// level). A gap reparent also carries the anchor path it was dropped next to, so the moved folder can
+// keep that position once the server refresh brings it in under the new parent.
+type FolderDropAction =
+    | {kind: 'reorder'; parentPath: string; anchorPath: string; after: boolean}
+    | {kind: 'reparent'; parentId: string; parentPath: string; anchorPath?: string; after?: boolean}
+
+// resolveFolderDrop decides what dropping dragged onto target in the given zone should do. It returns
+// null when the drop is not allowed (onto itself, into its own subtree or a move that changes nothing).
+// An into drop nests dragged inside target. A before or after drop aims at target's own level: when that
+// is dragged's current level it is a local reorder against target, otherwise it reparents dragged under
+// target's parent (the top level when target is top-level). Only same-rank (custom) siblings reorder,
+// since rank fixes the well-known mailboxes ahead of every custom folder.
+function resolveFolderDrop(
+    dragged: Folder,
+    target: Folder,
+    zone: FolderDropZone,
+    sep: string,
+    existing: Set<string>,
+    byPath: Map<string, string>,
+): FolderDropAction | null {
+    if (target.id === dragged.id) {
+        return null
+    }
+    const inDraggedSubtree = (p: string) => p === dragged.path || p.startsWith(dragged.path + sep)
+    const draggedParent = nearestParentPath(dragged.path, existing, sep)
+    if (zone === 'into') {
+        if (inDraggedSubtree(target.path) || draggedParent === target.path) {
+            return null
+        }
+        return {kind: 'reparent', parentId: target.id, parentPath: target.path}
+    }
+    const targetParent = nearestParentPath(target.path, existing, sep)
+    if (inDraggedSubtree(targetParent)) {
+        return null
+    }
+    const after = zone === 'after'
+    if (draggedParent === targetParent) {
+        if (folderRank(target.kind) !== folderRank(dragged.kind)) {
+            return null
+        }
+        return {kind: 'reorder', parentPath: targetParent, anchorPath: target.path, after}
+    }
+    const parentId = targetParent ? byPath.get(targetParent) ?? '' : ''
+    return {kind: 'reparent', parentId, parentPath: targetParent, anchorPath: target.path, after}
+}
 
 // moveId returns a copy of ids with fromId moved to the index toId currently sits at (a splice move),
 // which is the drag-and-drop reordering. The input is not mutated.
@@ -283,6 +364,7 @@ function SidebarContent(props: SidebarProps) {
                             selectedAccount={selectedAccount}
                             onSelectFolder={props.onSelectFolder}
                             onRenameFolder={props.onRenameFolder}
+                            onReparentFolder={props.onReparentFolder}
                             onDeleteFolder={props.onDeleteFolder}
                             onDropMessage={props.onDropMessage}
                         />
@@ -299,6 +381,7 @@ interface FolderTreeProps {
     selectedAccount: string
     onSelectFolder: (id: string) => void
     onRenameFolder: (folder: Folder) => void
+    onReparentFolder: (folderId: string, newParentId: string) => void
     onDeleteFolder: (folder: Folder) => void
     onDropMessage: (messageId: string, folderId: string) => void
 }
@@ -307,83 +390,32 @@ function collapseKey(accountId: string): string {
     return `pigeonpost.collapsed.${accountId}`
 }
 
-// detectSeparator infers the server's mailbox hierarchy delimiter from the folder paths. A character
-// is the delimiter when some folder's path, split on it, yields a parent that is itself a folder (e.g.
-// "Archived.Debt" alongside "Archived" means the delimiter is "."). It checks the two common IMAP
-// delimiters and falls back to "/".
-function detectSeparator(paths: string[]): string {
-    const set = new Set(paths)
-    for (const sep of ['.', '/']) {
-        for (const p of paths) {
-            const idx = p.lastIndexOf(sep)
-            if (idx > 0 && set.has(p.slice(0, idx))) {
-                return sep
-            }
-        }
-    }
-    return '/'
+// folderOrderKey names the per-account localStorage entry holding the custom folders' local display
+// order (a list of folder paths). IMAP has no folder order of its own, so a same-level reorder is a
+// purely local, persisted display concern.
+function folderOrderKey(accountId: string): string {
+    return `pigeonpost.folderorder.${accountId}`
 }
 
-// leafName returns the last segment of a path under the given separator.
-function leafName(path: string, sep: string): string {
-    const idx = path.lastIndexOf(sep)
-    return idx >= 0 ? path.slice(idx + 1) : path
-}
+// The folder-path and ordering helpers (detectSeparator, leafName, ancestorPaths, nearestParentPath,
+// folderRank, orderFolders, placeAdjacent) live in ../folderPaths and are imported at the top of this
+// file, keeping the pure tree logic out of the component.
 
-// ancestorPaths returns every parent path of a folder path under the given separator.
-function ancestorPaths(path: string, sep: string): string[] {
-    const parts = path.split(sep)
-    const out: string[] = []
-    for (let i = 1; i < parts.length; i++) {
-        out.push(parts.slice(0, i).join(sep))
-    }
-    return out
-}
-
-// orderFolders reorders the folders for display so the well-known mailboxes lead (see
-// specialFolderOrder) while every subtree stays contiguous under its parent. It walks the tree from
-// the roots, sorting siblings at each level by folder rank; the sort is stable, so same-rank siblings
-// (in particular custom folders) keep their original server order.
-function orderFolders(folders: Folder[], sep: string): Folder[] {
-    const byPath = new Map(folders.map((f) => [f.path, f]))
-    const nearestParent = (f: Folder): string | null => {
-        const ancestors = ancestorPaths(f.path, sep)
-        for (let i = ancestors.length - 1; i >= 0; i--) {
-            if (byPath.has(ancestors[i])) {
-                return ancestors[i]
-            }
-        }
-        return null
-    }
-    const childrenOf = new Map<string, Folder[]>()
-    const roots: Folder[] = []
-    folders.forEach((f) => {
-        const parent = nearestParent(f)
-        if (parent === null) {
-            roots.push(f)
-            return
-        }
-        const siblings = childrenOf.get(parent) ?? []
-        siblings.push(f)
-        childrenOf.set(parent, siblings)
-    })
-    const sortSiblings = (arr: Folder[]) =>
-        [...arr].sort((a, b) => folderRank(a.kind) - folderRank(b.kind))
-    const ordered: Folder[] = []
-    const walk = (f: Folder) => {
-        ordered.push(f)
-        sortSiblings(childrenOf.get(f.path) ?? []).forEach(walk)
-    }
-    sortSiblings(roots).forEach(walk)
-    return ordered
-}
-
-// FolderTree renders the folders as a nested, collapsible tree derived from their paths. The collapsed
-// state is persisted per account in localStorage, so it survives restarts.
+// FolderTree renders the folders as a nested, collapsible tree derived from their paths. Custom folders
+// can be dragged to reparent them (a server move) or reorder amongst their siblings (a local, persisted
+// order). Both the collapsed state and the local order are kept per account in localStorage, so they
+// survive restarts.
 function FolderTree(props: FolderTreeProps) {
     const {folders, selectedFolder, selectedAccount} = props
     const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
+    // dragOverId marks the folder a message is being dragged onto (an into cue). draggingFolderId is the
+    // custom folder currently being dragged to move it. folderDrop marks the row and zone a dragged
+    // folder is aimed at, driving the drop cue: a box for an into (child) drop, an insertion line for a
+    // before or after (same-level) drop. order is the persisted local order of the custom folders.
     const [dragOverId, setDragOverId] = useState<string>('')
+    const [draggingFolderId, setDraggingFolderId] = useState<string>('')
+    const [folderDrop, setFolderDrop] = useState<{folderId: string; zone: FolderDropZone} | null>(null)
+    const [order, setOrder] = useState<string[]>([])
 
     useEffect(() => {
         try {
@@ -391,6 +423,15 @@ function FolderTree(props: FolderTreeProps) {
             setCollapsed(new Set(raw ? (JSON.parse(raw) as string[]) : []))
         } catch {
             setCollapsed(new Set())
+        }
+    }, [selectedAccount])
+
+    useEffect(() => {
+        try {
+            const raw = localStorage.getItem(folderOrderKey(selectedAccount))
+            setOrder(raw ? (JSON.parse(raw) as string[]) : [])
+        } catch {
+            setOrder([])
         }
     }, [selectedAccount])
 
@@ -411,15 +452,58 @@ function FolderTree(props: FolderTreeProps) {
         })
     }
 
+    const persistOrder = (next: string[]) => {
+        setOrder(next)
+        try {
+            localStorage.setItem(folderOrderKey(selectedAccount), JSON.stringify(next))
+        } catch {
+            // A storage failure just means the order is not remembered; the UI still works.
+        }
+    }
+
     const paths = folders.map((f) => f.path)
     const sep = detectSeparator(paths)
+    const existing = new Set(paths)
+    // byPath maps a folder path to its id, so a drop that reparents under a folder path can name the id.
+    const byPath = new Map(folders.map((f) => [f.path, f.id]))
     const hasChildren = (path: string) => paths.some((p) => p.startsWith(path + sep))
-    const ordered = orderFolders(folders, sep)
+    const ordered = orderFolders(folders, sep, order)
     // A folder is visible only when none of its ancestors are collapsed.
     const visible = ordered.filter((f) => ancestorPaths(f.path, sep).every((a) => !collapsed.has(a)))
-    // The folder list is a single focus-ring stop: only one folder is tabbable (the selected one, or the
-    // first when none is selected), and Up/Down move between folders from there.
+    // The folder list is a single focus-ring stop: only one folder is tabbable (the selected one; the
+    // first when none is selected). Up/Down move between folders from there.
     const tabStopId = selectedFolder || (visible.length > 0 ? visible[0].id : '')
+    const draggedFolder = draggingFolderId ? folders.find((f) => f.id === draggingFolderId) : undefined
+
+    // customSiblingPaths returns the paths of the custom folders under parentPath in their current display
+    // order, which is the sibling group a reorder or a gap reparent splices the moved folder into.
+    const customSiblingPaths = (parentPath: string): string[] =>
+        ordered
+            .filter((f) => f.kind === 'custom' && nearestParentPath(f.path, existing, sep) === parentPath)
+            .map((f) => f.path)
+
+    // applyFolderDrop carries out a resolved drop: a local reorder persists a new order and stops; a
+    // reparent records the landing position for a gap drop (so it survives the refresh) then asks the
+    // server to move the folder.
+    const applyFolderDrop = (dragged: Folder, target: Folder, zone: FolderDropZone) => {
+        const action = resolveFolderDrop(dragged, target, zone, sep, existing, byPath)
+        if (!action) {
+            return
+        }
+        if (action.kind === 'reorder') {
+            persistOrder(
+                placeAdjacent(order, customSiblingPaths(action.parentPath), dragged.path, action.anchorPath, action.after),
+            )
+            return
+        }
+        if (action.anchorPath !== undefined && action.after !== undefined) {
+            const newPath = (action.parentPath ? action.parentPath + sep : '') + leafName(dragged.path, sep)
+            persistOrder(
+                placeAdjacent(order, customSiblingPaths(action.parentPath), newPath, action.anchorPath, action.after),
+            )
+        }
+        props.onReparentFolder(dragged.id, action.parentId)
+    }
 
     return (
         <ul className="list" data-folder-list="">
@@ -428,6 +512,11 @@ function FolderTree(props: FolderTreeProps) {
                 const depth = ancestorPaths(folder.path, sep).length
                 const parent = hasChildren(folder.path)
                 const isCollapsed = collapsed.has(folder.path)
+                const rowIndentPx = (depth + 1) * FOLDER_INDENT_STEP_PX
+                const rowStyle = {
+                    paddingLeft: rowIndentPx,
+                    ['--row-indent']: `${rowIndentPx}px`,
+                } as CSSProperties
                 return (
                     <li
                         key={folder.id}
@@ -435,9 +524,12 @@ function FolderTree(props: FolderTreeProps) {
                         className={
                             'list-item folder' +
                             (folder.id === selectedFolder ? ' selected' : '') +
-                            (folder.id === dragOverId ? ' drag-over' : '')
+                            (folder.id === dragOverId ? ' drag-over' : '') +
+                            (folder.id === draggingFolderId ? ' dragging' : '') +
+                            (folderDrop && folderDrop.folderId === folder.id ? ' drag-' + folderDrop.zone : '')
                         }
-                        style={{paddingLeft: 14 + depth * 14}}
+                        draggable={folder.kind === 'custom'}
+                        style={rowStyle}
                         tabIndex={folder.id === tabStopId ? 0 : -1}
                         onClick={() => props.onSelectFolder(folder.id)}
                         onKeyDown={(e) => {
@@ -495,21 +587,65 @@ function FolderTree(props: FolderTreeProps) {
                                 return
                             }
                         }}
+                        onDragStart={(e) => {
+                            // Only custom folders are draggable; move by dropping onto another folder (nest)
+                            // or into the gap at a level (reparent up/out or reorder). The dragged id travels
+                            // in the dataTransfer; draggingFolderId in state drives the drop-target resolving
+                            // and the dimmed-row cue during the drag.
+                            e.stopPropagation()
+                            setDraggingFolderId(folder.id)
+                            e.dataTransfer.setData(folderDragType, folder.id)
+                            e.dataTransfer.effectAllowed = 'move'
+                        }}
+                        onDragEnd={() => {
+                            setDraggingFolderId('')
+                            setDragOverId('')
+                            setFolderDrop(null)
+                        }}
                         onDragOver={(e) => {
+                            // A message drops onto any folder (into it). A dragged folder aims at a zone: the
+                            // row's middle nests it inside this folder, the top or bottom edge places it at
+                            // this folder's own level. The drop is accepted only when resolveFolderDrop allows
+                            // it (not itself, its own subtree or a change that does nothing).
                             if (e.dataTransfer.types.includes(messageDragType)) {
                                 e.preventDefault()
                                 e.dataTransfer.dropEffect = 'move'
                                 setDragOverId(folder.id)
+                                return
+                            }
+                            if (!e.dataTransfer.types.includes(folderDragType) || !draggedFolder) {
+                                return
+                            }
+                            const zone = dropZoneFor(e.clientY, e.currentTarget.getBoundingClientRect())
+                            if (resolveFolderDrop(draggedFolder, folder, zone, sep, existing, byPath)) {
+                                e.preventDefault()
+                                e.dataTransfer.dropEffect = 'move'
+                                setFolderDrop({folderId: folder.id, zone})
+                            } else {
+                                setFolderDrop((cur) => (cur?.folderId === folder.id ? null : cur))
                             }
                         }}
-                        onDragLeave={() => setDragOverId((id) => (id === folder.id ? '' : id))}
+                        onDragLeave={() => {
+                            setDragOverId((id) => (id === folder.id ? '' : id))
+                            setFolderDrop((cur) => (cur?.folderId === folder.id ? null : cur))
+                        }}
                         onDrop={(e) => {
                             e.preventDefault()
                             setDragOverId('')
+                            setFolderDrop(null)
                             const messageId = e.dataTransfer.getData(messageDragType)
                             if (messageId) {
                                 props.onDropMessage(messageId, folder.id)
+                                return
                             }
+                            const movedFolderId = e.dataTransfer.getData(folderDragType)
+                            const dragged = movedFolderId ? folders.find((f) => f.id === movedFolderId) : draggedFolder
+                            setDraggingFolderId('')
+                            if (!dragged) {
+                                return
+                            }
+                            const zone = dropZoneFor(e.clientY, e.currentTarget.getBoundingClientRect())
+                            applyFolderDrop(dragged, folder, zone)
                         }}
                     >
                         <span className="folder-name">
