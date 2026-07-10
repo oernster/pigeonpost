@@ -129,15 +129,26 @@ func (a *App) GetEvent(id string) (EventDTO, error) {
 // SaveEvent creates or updates an event and returns its id, so a newly created meeting can be acted on
 // (for example to send its invitations) without a reload.
 func (a *App) SaveEvent(req EventRequest) (string, error) {
-	start, err := parseEventTime(req.Start)
+	input, err := eventInputFromRequest(req)
 	if err != nil {
 		return "", err
+	}
+	return a.calendar.SaveEvent(a.ctx, input)
+}
+
+// eventInputFromRequest parses a request's start and end times and maps it to the application EventInput
+// that both SaveEvent and SaveEventScoped build, so the field mapping lives in one place rather than two
+// identical literals that could drift when a field is added.
+func eventInputFromRequest(req EventRequest) (application.EventInput, error) {
+	start, err := parseEventTime(req.Start)
+	if err != nil {
+		return application.EventInput{}, err
 	}
 	end, err := parseOptionalEventTime(req.End)
 	if err != nil {
-		return "", err
+		return application.EventInput{}, err
 	}
-	return a.calendar.SaveEvent(a.ctx, application.EventInput{
+	return application.EventInput{
 		ID:          req.ID,
 		UID:         req.UID,
 		CalendarID:  req.CalendarID,
@@ -155,7 +166,7 @@ func (a *App) SaveEvent(req EventRequest) (string, error) {
 		OrganizerAddress: req.Organizer.Address,
 		OrganizerName:    req.Organizer.CommonName,
 		Attendees:        attendeeInputs(req.Attendees),
-	})
+	}, nil
 }
 
 // DeleteEvent removes an event by id.
@@ -189,11 +200,7 @@ func (a *App) ListEventInstances(from, to string) ([]EventInstanceDTO, error) {
 // future, 2 all). occurrence is the RFC 3339 original start of the instance being edited (its
 // recurrenceId); req carries the edited fields and its id identifies the series.
 func (a *App) SaveEventScoped(req EventRequest, scope int, occurrence string) error {
-	start, err := parseEventTime(req.Start)
-	if err != nil {
-		return err
-	}
-	end, err := parseOptionalEventTime(req.End)
+	input, err := eventInputFromRequest(req)
 	if err != nil {
 		return err
 	}
@@ -201,25 +208,7 @@ func (a *App) SaveEventScoped(req EventRequest, scope int, occurrence string) er
 	if err != nil {
 		return err
 	}
-	return a.calendar.UpdateEventScope(a.ctx, application.EventScope(scope), application.EventInput{
-		ID:          req.ID,
-		UID:         req.UID,
-		CalendarID:  req.CalendarID,
-		Summary:     req.Summary,
-		Description: req.Description,
-		Location:    req.Location,
-		Start:       start,
-		End:         end,
-		AllDay:      req.AllDay,
-		Recurrence:  req.Recurrence,
-		TimeZone:    req.TimeZone,
-		Alarms:      remindersToAlarms(req.Reminders),
-		Extra:       req.Extra,
-
-		OrganizerAddress: req.Organizer.Address,
-		OrganizerName:    req.Organizer.CommonName,
-		Attendees:        attendeeInputs(req.Attendees),
-	}, occurrenceTime)
+	return a.calendar.UpdateEventScope(a.ctx, application.EventScope(scope), input, occurrenceTime)
 }
 
 // DeleteEventScoped removes a recurring occurrence at the given scope (0 this, 1 this and future, 2 all).
