@@ -257,17 +257,9 @@ func (s *SchedulingService) decodeInvite(ctx context.Context, messageID string) 
 
 // accountForMessage resolves the account a message belongs to, through its folder.
 func (s *SchedulingService) accountForMessage(ctx context.Context, messageID string) (domain.Account, error) {
-	msg, err := s.messages.GetMessage(ctx, messageID)
+	_, _, account, err := resolveMessageContext(ctx, s.messages, s.accounts, messageID)
 	if err != nil {
-		return domain.Account{}, fmt.Errorf("scheduling: locate message %q: %w", messageID, err)
-	}
-	folder, err := s.messages.GetFolder(ctx, msg.FolderID())
-	if err != nil {
-		return domain.Account{}, fmt.Errorf("scheduling: locate folder %q: %w", msg.FolderID(), err)
-	}
-	account, err := s.accounts.GetAccount(ctx, folder.AccountID())
-	if err != nil {
-		return domain.Account{}, fmt.Errorf("scheduling: locate account %q: %w", folder.AccountID(), err)
+		return domain.Account{}, fmt.Errorf("scheduling: %w", err)
 	}
 	return account, nil
 }

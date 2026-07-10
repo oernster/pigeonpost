@@ -32,17 +32,9 @@ func (s *MessageBodyService) Body(ctx context.Context, messageID string) (domain
 		return domain.MessageBody{}, fmt.Errorf("body cache lookup %q: %w", messageID, err)
 	}
 
-	msg, err := s.messages.GetMessage(ctx, messageID)
+	msg, folder, account, err := resolveMessageContext(ctx, s.messages, s.accounts, messageID)
 	if err != nil {
-		return domain.MessageBody{}, fmt.Errorf("locate message %q: %w", messageID, err)
-	}
-	folder, err := s.messages.GetFolder(ctx, msg.FolderID())
-	if err != nil {
-		return domain.MessageBody{}, fmt.Errorf("locate folder %q: %w", msg.FolderID(), err)
-	}
-	account, err := s.accounts.GetAccount(ctx, folder.AccountID())
-	if err != nil {
-		return domain.MessageBody{}, fmt.Errorf("locate account %q: %w", folder.AccountID(), err)
+		return domain.MessageBody{}, err
 	}
 	plain, html, invite, attachments, err := s.source.FetchBody(ctx, account, folder, msg.UID())
 	if err != nil {
@@ -85,17 +77,9 @@ func (s *MessageBodyService) RawMessage(ctx context.Context, messageID string) (
 // rawMessage locates a message, fetches its raw bytes and returns them with its subject. It is the
 // shared core of Raw and RawMessage.
 func (s *MessageBodyService) rawMessage(ctx context.Context, messageID string) (RawMessage, error) {
-	msg, err := s.messages.GetMessage(ctx, messageID)
+	msg, folder, account, err := resolveMessageContext(ctx, s.messages, s.accounts, messageID)
 	if err != nil {
-		return RawMessage{}, fmt.Errorf("locate message %q: %w", messageID, err)
-	}
-	folder, err := s.messages.GetFolder(ctx, msg.FolderID())
-	if err != nil {
-		return RawMessage{}, fmt.Errorf("locate folder %q: %w", msg.FolderID(), err)
-	}
-	account, err := s.accounts.GetAccount(ctx, folder.AccountID())
-	if err != nil {
-		return RawMessage{}, fmt.Errorf("locate account %q: %w", folder.AccountID(), err)
+		return RawMessage{}, err
 	}
 	raw, err := s.source.FetchRaw(ctx, account, folder, msg.UID())
 	if err != nil {

@@ -287,16 +287,14 @@ func (s *ComposeService) enqueue(ctx context.Context, accountID string, kind dom
 
 // draftsPath returns the path of the account's Drafts mailbox, or ErrNoDraftsFolder when none exists.
 func (s *ComposeService) draftsPath(ctx context.Context, accountID string) (string, error) {
-	folders, err := s.store.ListFolders(ctx, accountID)
+	path, found, err := folderPathByKind(ctx, s.store, accountID, domain.FolderDrafts)
 	if err != nil {
 		return "", fmt.Errorf("compose: list folders for %q: %w", accountID, err)
 	}
-	for _, folder := range folders {
-		if folder.Kind() == domain.FolderDrafts {
-			return folder.Path(), nil
-		}
+	if !found {
+		return "", ErrNoDraftsFolder
 	}
-	return "", ErrNoDraftsFolder
+	return path, nil
 }
 
 // gmailSMTPHost is Gmail's outgoing server. Gmail saves sent mail to its Sent Mail folder server-side
@@ -327,14 +325,9 @@ func (s *ComposeService) saveToSent(ctx context.Context, account domain.Account,
 // sentPath returns the path of the account's Sent mailbox. It returns an empty string when the folder
 // list cannot be read or the account has no Sent folder (both meaning: skip the best-effort Sent copy).
 func (s *ComposeService) sentPath(ctx context.Context, accountID string) string {
-	folders, err := s.store.ListFolders(ctx, accountID)
+	path, _, err := folderPathByKind(ctx, s.store, accountID, domain.FolderSent)
 	if err != nil {
 		return ""
 	}
-	for _, folder := range folders {
-		if folder.Kind() == domain.FolderSent {
-			return folder.Path()
-		}
-	}
-	return ""
+	return path
 }

@@ -24,17 +24,9 @@ func NewMessageActionService(store MailStore, accounts AccountStore, remote Mail
 
 // MarkRead sets or clears a message's read (Seen) state on the server and then in the local cache.
 func (s *MessageActionService) MarkRead(ctx context.Context, messageID string, read bool) error {
-	msg, err := s.store.GetMessage(ctx, messageID)
+	msg, folder, account, err := resolveMessageContext(ctx, s.store, s.accounts, messageID)
 	if err != nil {
-		return fmt.Errorf("locate message %q: %w", messageID, err)
-	}
-	folder, err := s.store.GetFolder(ctx, msg.FolderID())
-	if err != nil {
-		return fmt.Errorf("locate folder %q: %w", msg.FolderID(), err)
-	}
-	account, err := s.accounts.GetAccount(ctx, folder.AccountID())
-	if err != nil {
-		return fmt.Errorf("locate account %q: %w", folder.AccountID(), err)
+		return err
 	}
 	if err := s.remote.SetSeen(ctx, account, folder, msg.UID(), read); err != nil {
 		return fmt.Errorf("set server seen for %q: %w", messageID, err)
@@ -47,17 +39,9 @@ func (s *MessageActionService) MarkRead(ctx context.Context, messageID string, r
 
 // MarkFlagged sets or clears a message's flagged (starred) state on the server and then in the cache.
 func (s *MessageActionService) MarkFlagged(ctx context.Context, messageID string, flagged bool) error {
-	msg, err := s.store.GetMessage(ctx, messageID)
+	msg, folder, account, err := resolveMessageContext(ctx, s.store, s.accounts, messageID)
 	if err != nil {
-		return fmt.Errorf("locate message %q: %w", messageID, err)
-	}
-	folder, err := s.store.GetFolder(ctx, msg.FolderID())
-	if err != nil {
-		return fmt.Errorf("locate folder %q: %w", msg.FolderID(), err)
-	}
-	account, err := s.accounts.GetAccount(ctx, folder.AccountID())
-	if err != nil {
-		return fmt.Errorf("locate account %q: %w", folder.AccountID(), err)
+		return err
 	}
 	if err := s.remote.SetFlagged(ctx, account, folder, msg.UID(), flagged); err != nil {
 		return fmt.Errorf("set server flagged for %q: %w", messageID, err)
@@ -85,17 +69,9 @@ func (s *MessageActionService) DeletePermanent(ctx context.Context, messageID st
 // resolved from trashPath (move to Trash, or permanent when no Trash applies); when permanent is true
 // the trash path is always empty, forcing an immediate permanent deletion.
 func (s *MessageActionService) delete(ctx context.Context, messageID string, permanent bool) error {
-	msg, err := s.store.GetMessage(ctx, messageID)
+	msg, folder, account, err := resolveMessageContext(ctx, s.store, s.accounts, messageID)
 	if err != nil {
-		return fmt.Errorf("locate message %q: %w", messageID, err)
-	}
-	folder, err := s.store.GetFolder(ctx, msg.FolderID())
-	if err != nil {
-		return fmt.Errorf("locate folder %q: %w", msg.FolderID(), err)
-	}
-	account, err := s.accounts.GetAccount(ctx, folder.AccountID())
-	if err != nil {
-		return fmt.Errorf("locate account %q: %w", folder.AccountID(), err)
+		return err
 	}
 	trashPath := ""
 	if !permanent {
@@ -255,17 +231,9 @@ func (s *MessageActionService) MoveMany(ctx context.Context, messageIDs []string
 // then removed from the local cache (the destination folder re-lists it, with its new UID, on the
 // next sync).
 func (s *MessageActionService) Move(ctx context.Context, messageID, destFolderID string) error {
-	msg, err := s.store.GetMessage(ctx, messageID)
+	msg, source, account, err := resolveMessageContext(ctx, s.store, s.accounts, messageID)
 	if err != nil {
-		return fmt.Errorf("locate message %q: %w", messageID, err)
-	}
-	source, err := s.store.GetFolder(ctx, msg.FolderID())
-	if err != nil {
-		return fmt.Errorf("locate source folder %q: %w", msg.FolderID(), err)
-	}
-	account, err := s.accounts.GetAccount(ctx, source.AccountID())
-	if err != nil {
-		return fmt.Errorf("locate account %q: %w", source.AccountID(), err)
+		return err
 	}
 	dest, err := s.store.GetFolder(ctx, destFolderID)
 	if err != nil {
@@ -287,17 +255,9 @@ func (s *MessageActionService) Move(ctx context.Context, messageID, destFolderID
 // left in place locally (the destination folder lists the new copy, with its own server UID, on the
 // next sync). Unlike Move, the original message is untouched.
 func (s *MessageActionService) Copy(ctx context.Context, messageID, destFolderID string) error {
-	msg, err := s.store.GetMessage(ctx, messageID)
+	msg, source, account, err := resolveMessageContext(ctx, s.store, s.accounts, messageID)
 	if err != nil {
-		return fmt.Errorf("locate message %q: %w", messageID, err)
-	}
-	source, err := s.store.GetFolder(ctx, msg.FolderID())
-	if err != nil {
-		return fmt.Errorf("locate source folder %q: %w", msg.FolderID(), err)
-	}
-	account, err := s.accounts.GetAccount(ctx, source.AccountID())
-	if err != nil {
-		return fmt.Errorf("locate account %q: %w", source.AccountID(), err)
+		return err
 	}
 	dest, err := s.store.GetFolder(ctx, destFolderID)
 	if err != nil {
@@ -349,16 +309,8 @@ func (s *MessageActionService) MarkJunk(ctx context.Context, messageID string) e
 
 // junkPath returns the path of the account's Junk folder, or an empty string when the account has none.
 func (s *MessageActionService) junkPath(ctx context.Context, current domain.Folder) (string, error) {
-	folders, err := s.store.ListFolders(ctx, current.AccountID())
-	if err != nil {
-		return "", err
-	}
-	for _, folder := range folders {
-		if folder.Kind() == domain.FolderJunk {
-			return folder.Path(), nil
-		}
-	}
-	return "", nil
+	path, _, err := folderPathByKind(ctx, s.store, current.AccountID(), domain.FolderJunk)
+	return path, err
 }
 
 // trashPath returns the destination mailbox for a delete: the account's Trash folder, or an empty
@@ -367,14 +319,6 @@ func (s *MessageActionService) trashPath(ctx context.Context, current domain.Fol
 	if current.Kind() == domain.FolderTrash {
 		return "", nil
 	}
-	folders, err := s.store.ListFolders(ctx, current.AccountID())
-	if err != nil {
-		return "", err
-	}
-	for _, folder := range folders {
-		if folder.Kind() == domain.FolderTrash {
-			return folder.Path(), nil
-		}
-	}
-	return "", nil
+	path, _, err := folderPathByKind(ctx, s.store, current.AccountID(), domain.FolderTrash)
+	return path, err
 }
