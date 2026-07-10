@@ -1876,7 +1876,7 @@ function App() {
 
     // The title-bar menus are defined here so one item list drives both the dropdown and the global
     // accelerator handler above, keeping each item's shortcut hint and its wired key in step. The Mail menu
-    // opens with Sync, then mirrors the right-click actions on the active message.
+    // opens with Add account and Sync, then mirrors the right-click actions on the active message.
     const activeMessage = selectedMessage
     const activeOutbox = activeMessage ? isOutboxMessage(activeMessage) : false
     // canMailAct gates the actions that need a real, non-outbox message on screen (reply, mark, move and
@@ -1888,12 +1888,6 @@ function App() {
     const mailMoveTargets = activeMessage ? folders.filter((f) => f.id !== activeMessage.folderId) : []
     const appliedTagIds = new Set(messageTags.map((t) => t.id))
     const fileMenu: MenuItem[] = [
-        {
-            label: 'Add account',
-            icon: '\u{2795}',
-            onClick: () => setSettingUp(true),
-        },
-        {label: '', separator: true},
         {
             label: 'Save as...',
             disabled: !canMailAct,
@@ -1937,6 +1931,11 @@ function App() {
         },
     ]
     const mailMenu: MenuItem[] = [
+        {
+            label: 'Add account',
+            icon: '\u{2795}',
+            onClick: () => setSettingUp(true),
+        },
         {
             label: syncing ? 'Syncing…' : 'Sync',
             icon: '\u{267B}\u{FE0F}',
