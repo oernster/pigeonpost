@@ -403,8 +403,36 @@
 
     <section class="section" id="stack">
         <h2>Built with care</h2>
-        <p class="lead">A clean, testable core and a single small binary per platform.</p>
-        <div class="stack">
+        <p class="lead">A clean, testable core in a single small binary per platform. It is the work of
+            one person, kept honest by executable guardrails rather than headcount, so the quality holds
+            as the app grows.</p>
+        <div class="grid">
+            <div class="card">
+                <div class="ico">✅</div>
+                <h3>Tested to the last line</h3>
+                <p>The core logic carries a 100% test-coverage gate: the build fails if a single untested
+                    line lands. Even the rules that keep the layers honest are themselves tested.</p>
+            </div>
+            <div class="card">
+                <div class="ico">🧱</div>
+                <h3>Architecture that holds</h3>
+                <p>A clean, layered core whose boundaries are enforced by automated structural tests, not
+                    by good intentions, so the design cannot quietly erode as features land.</p>
+            </div>
+            <div class="card">
+                <div class="ico">🔍</div>
+                <h3>Checked on every change</h3>
+                <p>Formatting, vetting and a strict static analyser run clean across the whole Go codebase,
+                    so problems are caught before they ship rather than after.</p>
+            </div>
+            <div class="card">
+                <div class="ico">🪶</div>
+                <h3>One small binary</h3>
+                <p>A single native executable per platform, with no runtime to install and no cloud to
+                    depend on. Your mail lives on your machine.</p>
+            </div>
+        </div>
+        <div class="stack" style="margin-top: 24px;">
             <span class="chip">Go core</span>
             <span class="chip">React front end</span>
             <span class="chip">Wails</span>
