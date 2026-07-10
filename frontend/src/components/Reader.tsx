@@ -6,6 +6,12 @@ import {isOutboxMessage} from '../outbox'
 import {ReaderTabs} from './ReaderTabs'
 import {InviteCard} from './InviteCard'
 
+// The reader body is a scrollable focus stop: the arrow keys scroll it so a long email can be read from
+// the keyboard. READER_SCROLL_STEP_PX is one arrow press; PageUp/PageDown move by READER_PAGE_FRACTION of
+// the visible height.
+const READER_SCROLL_STEP_PX = 40
+const READER_PAGE_FRACTION = 0.9
+
 // handleBodyClick opens links from rendered message HTML in the external browser rather than letting
 // them navigate the app's own webview. The HTML is sanitised server-side, so anchors are safe.
 function handleBodyClick(e: ReactMouseEvent<HTMLDivElement>) {
@@ -60,6 +66,11 @@ export function Reader({message, onToggleRead, onReply, onReplyAll, onForward, o
     const [imagesShown, setImagesShown] = useState(false)
     const [attachError, setAttachError] = useState('')
     const menuRef = useRef<HTMLDivElement>(null)
+    // tagButtonRef is the Colour trigger and tagRowRef the swatch row; openedByKeyRef records a keyboard
+    // open so focus lands on the first swatch (a mouse open leaves focus on the trigger).
+    const tagButtonRef = useRef<HTMLButtonElement>(null)
+    const tagRowRef = useRef<HTMLDivElement>(null)
+    const openedByKeyRef = useRef(false)
 
     // saveAttachment writes a received attachment to disk through a native save dialog; its bytes come
     // from the locally cached body, so it works offline once the message has been opened.
@@ -96,6 +107,16 @@ export function Reader({message, onToggleRead, onReply, onReplyAll, onForward, o
         setImagesShown(false)
         setAttachError('')
     }, [message?.id])
+
+    // When the colour menu opens by keyboard, move focus to the first swatch so Left/Right walk them.
+    useEffect(() => {
+        if (tagMenuOpen && openedByKeyRef.current) {
+            tagRowRef.current?.querySelector<HTMLButtonElement>('.tag-colour')?.focus()
+        }
+        if (!tagMenuOpen) {
+            openedByKeyRef.current = false
+        }
+    }, [tagMenuOpen])
 
     if (!message) {
         return (
@@ -177,14 +198,16 @@ export function Reader({message, onToggleRead, onReply, onReplyAll, onForward, o
                     )}
                     <div className="tag-menu" ref={menuRef}>
                         <button
+                            ref={tagButtonRef}
                             className="btn"
                             onClick={() => setTagMenuOpen((v) => !v)}
                             onKeyDown={(e) => {
-                                // The colour dropdown drops open on Down and retracts on Up (Escape also
-                                // closes it), matching the move and copy selects and the menu titles.
-                                if (e.key === 'ArrowDown') {
+                                // Down, Enter or Space drops the swatch menu open and lands on the first
+                                // swatch, from where Left/Right walk them. Up or Escape retracts it.
+                                if (e.key === 'ArrowDown' || e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar') {
                                     e.preventDefault()
                                     e.stopPropagation()
+                                    openedByKeyRef.current = true
                                     setTagMenuOpen(true)
                                 } else if (e.key === 'ArrowUp' || e.key === 'Escape') {
                                     e.preventDefault()
@@ -197,7 +220,47 @@ export function Reader({message, onToggleRead, onReply, onReplyAll, onForward, o
                         </button>
                         {tagMenuOpen && (
                             <div className="tag-menu-dropdown" role="menu">
-                                <div className="tag-colour-row" role="group" aria-label="Tag colour">
+                                <div
+                                    className="tag-colour-row"
+                                    role="group"
+                                    aria-label="Tag colour"
+                                    ref={tagRowRef}
+                                    onKeyDown={(e) => {
+                                        // Left/Right walk the swatches, wrapping. Escape or Up closes back to
+                                        // the Colour button. Tab and Shift+Tab are left to bubble so the window
+                                        // ring steps out of the menu (they exit it). Enter/Space toggle a
+                                        // swatch via its own click. Up/Down are swallowed so they never leak to
+                                        // the message list.
+                                        const swatches = Array.from(
+                                            tagRowRef.current?.querySelectorAll<HTMLButtonElement>('.tag-colour') ?? [],
+                                        )
+                                        if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+                                            e.preventDefault()
+                                            e.stopPropagation()
+                                            if (swatches.length === 0) {
+                                                return
+                                            }
+                                            const at = swatches.indexOf(document.activeElement as HTMLButtonElement)
+                                            const next = e.key === 'ArrowRight'
+                                                ? (at + 1) % swatches.length
+                                                : (at - 1 + swatches.length) % swatches.length
+                                            swatches[next].focus()
+                                        } else if (e.key === 'Escape' || e.key === 'ArrowUp') {
+                                            e.preventDefault()
+                                            e.stopPropagation()
+                                            setTagMenuOpen(false)
+                                            tagButtonRef.current?.focus()
+                                        } else if (e.key === 'ArrowDown') {
+                                            e.preventDefault()
+                                            e.stopPropagation()
+                                        } else if (e.key === 'Tab') {
+                                            // Exit: close the menu and hand focus back to the Colour button,
+                                            // then let the window handler step the ring on from there.
+                                            setTagMenuOpen(false)
+                                            tagButtonRef.current?.focus()
+                                        }
+                                    }}
+                                >
                                     {TAG_PALETTE.map((c) => {
                                         const id = colourTagId(c.colour)
                                         const isOn = assigned.has(id)
@@ -207,6 +270,7 @@ export function Reader({message, onToggleRead, onReply, onReplyAll, onForward, o
                                                 className={'tag-colour' + (isOn ? ' selected' : '')}
                                                 role="menuitemcheckbox"
                                                 aria-checked={isOn}
+                                                tabIndex={-1}
                                                 title={c.name}
                                                 style={{backgroundColor: c.colour}}
                                                 onClick={() => onToggleTag(id, !isOn)}
@@ -262,7 +326,50 @@ export function Reader({message, onToggleRead, onReply, onReplyAll, onForward, o
                     </div>
                 )}
             </div>
-            <div className="reader-body">
+            <div
+                className="reader-body"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                    // The reader body is a scrollable stop: the arrow keys plus Page/Home/End scroll the
+                    // reader pane so a long email is read from the keyboard, stopped from reaching the window
+                    // ring handler. Tab and Shift+Tab are left alone, so they step the ring out of the body.
+                    const scroller = e.currentTarget.closest<HTMLElement>('.pane')
+                    if (!scroller) {
+                        return
+                    }
+                    const page = scroller.clientHeight * READER_PAGE_FRACTION
+                    let dx = 0
+                    let dy = 0
+                    if (e.key === 'ArrowDown') {
+                        dy = READER_SCROLL_STEP_PX
+                    } else if (e.key === 'ArrowUp') {
+                        dy = -READER_SCROLL_STEP_PX
+                    } else if (e.key === 'ArrowRight') {
+                        dx = READER_SCROLL_STEP_PX
+                    } else if (e.key === 'ArrowLeft') {
+                        dx = -READER_SCROLL_STEP_PX
+                    } else if (e.key === 'PageDown') {
+                        dy = page
+                    } else if (e.key === 'PageUp') {
+                        dy = -page
+                    } else if (e.key === 'Home') {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        scroller.scrollTo({top: 0})
+                        return
+                    } else if (e.key === 'End') {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        scroller.scrollTo({top: scroller.scrollHeight})
+                        return
+                    } else {
+                        return
+                    }
+                    e.preventDefault()
+                    e.stopPropagation()
+                    scroller.scrollBy({left: dx, top: dy})
+                }}
+            >
                 {!bodyLoading && body?.hasInvite && <InviteCard messageId={message.id}/>}
                 {bodyLoading ? (
                     <p className="empty-body">Loading message…</p>

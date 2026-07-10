@@ -644,6 +644,14 @@
     line-height: 1.5;
 }
 
+/* The reader body is a keyboard scroll stop, so it takes focus; show a teal ring when it does (keyboard
+   focus only), the way the list rows do. */
+.reader-body:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
+    border-radius: 4px;
+}
+
 .reader-text {
     margin: 0;
     white-space: pre-wrap;
