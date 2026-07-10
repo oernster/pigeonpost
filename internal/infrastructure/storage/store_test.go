@@ -380,9 +380,6 @@ func TestMessageRoundTrip(t *testing.T) {
 	if messages[1].From().Address() != "alice@example.com" {
 		t.Errorf("sender lost: %q", messages[1].From().Address())
 	}
-	if !messages[1].From().IsZero() && messages[0].From().IsZero() {
-		// m2 had no sender; confirm it round-tripped as zero.
-	}
 	if !messages[0].From().IsZero() {
 		t.Errorf("expected zero sender for m2, got %q", messages[0].From().Address())
 	}
