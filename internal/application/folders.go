@@ -8,6 +8,10 @@ import (
 	"github.com/oernster/pigeonpost/internal/domain"
 )
 
+// inboxName is the reserved IMAP root mailbox. A folder nested directly under it is treated as already
+// top level, so Sent reconciliation never relocates it.
+const inboxName = "INBOX"
+
 // FolderService is the use-case boundary for managing an account's mailbox structure: creating,
 // renaming and deleting folders. Each operation is applied to the server first, then the cached folder
 // list is refreshed so the change shows without waiting for a full sync.
@@ -184,7 +188,7 @@ func (s *FolderService) ReconcileSent(ctx context.Context, accountID string) err
 // special-use flag or nested directly under INBOX.
 func sentRelocationTarget(f domain.Folder) string {
 	parent := folderParentPath(f)
-	if parent == "" || f.SpecialUse() || strings.EqualFold(parent, "INBOX") {
+	if parent == "" || f.SpecialUse() || strings.EqualFold(parent, inboxName) {
 		return ""
 	}
 	return f.Name()
