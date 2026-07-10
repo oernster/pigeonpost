@@ -1876,7 +1876,7 @@ function App() {
 
     // The title-bar menus are defined here so one item list drives both the dropdown and the global
     // accelerator handler above, keeping each item's shortcut hint and its wired key in step. The Mail menu
-    // mirrors the right-click actions; both act on the active message.
+    // opens with Sync, then mirrors the right-click actions on the active message.
     const activeMessage = selectedMessage
     const activeOutbox = activeMessage ? isOutboxMessage(activeMessage) : false
     // canMailAct gates the actions that need a real, non-outbox message on screen (reply, mark, move and
@@ -1888,13 +1888,6 @@ function App() {
     const mailMoveTargets = activeMessage ? folders.filter((f) => f.id !== activeMessage.folderId) : []
     const appliedTagIds = new Set(messageTags.map((t) => t.id))
     const fileMenu: MenuItem[] = [
-        {
-            label: syncing ? 'Syncing…' : 'Sync',
-            icon: '\u{267B}\u{FE0F}',
-            shortcut: 'F9',
-            disabled: !selectedAccount || syncing,
-            onClick: () => void sync(),
-        },
         {
             label: 'Add account',
             icon: '\u{2795}',
@@ -1944,6 +1937,14 @@ function App() {
         },
     ]
     const mailMenu: MenuItem[] = [
+        {
+            label: syncing ? 'Syncing…' : 'Sync',
+            icon: '\u{267B}\u{FE0F}',
+            shortcut: 'F9',
+            disabled: !selectedAccount || syncing,
+            onClick: () => void sync(),
+        },
+        {label: '', separator: true},
         {label: 'Open in new tab', disabled: !canMailAct, onClick: () => activeMessage && openInNewTab(activeMessage)},
         {label: '', separator: true},
         {label: 'Reply', disabled: !canMailAct, onClick: () => activeMessage && openReply(activeMessage)},
