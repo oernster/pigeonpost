@@ -347,7 +347,9 @@ export const api = {
     outboxCount: (): Promise<number> => OutboxCount(),
     listOutbox: (): Promise<OutboxItem[]> => ListOutbox(),
     cancelOutboxItem: (id: string): Promise<void> => CancelOutboxItem(id),
-    pickAttachments: (): Promise<string[]> => PickAttachments(),
+    // A cancelled file dialog returns a Go nil slice, which arrives as null; coalesce it to an empty array
+    // so callers can always read .length and filter it.
+    pickAttachments: async (): Promise<string[]> => (await PickAttachments()) ?? [],
     replayOutbox: (): Promise<number> => ReplayOutbox(),
     listContacts: (): Promise<Contact[]> => ListContacts(),
     getContact: (id: string): Promise<Contact> => GetContact(id),
