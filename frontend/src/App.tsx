@@ -549,6 +549,32 @@ function App() {
         return () => window.clearTimeout(handle)
     }, [searchQuery])
 
+    // applyTagColourToLists updates a message's tag colours in every on-screen list after a tag is toggled,
+    // so the coloured dots on its row appear or disappear at once rather than only after a reload. Each tag
+    // id maps to a single palette colour, so at most one dot of that colour is ever present.
+    const applyTagColourToLists = useCallback((messageId: string, tagId: string, assigned: boolean) => {
+        const colour = tags.find((t) => t.id === tagId)?.colour
+        if (!colour) {
+            return
+        }
+        const apply = (m: Message): Message => {
+            if (m.id !== messageId) {
+                return m
+            }
+            const has = m.tagColours.includes(colour)
+            if (assigned && !has) {
+                return {...m, tagColours: [...m.tagColours, colour]}
+            }
+            if (!assigned && has) {
+                return {...m, tagColours: m.tagColours.filter((c) => c !== colour)}
+            }
+            return m
+        }
+        setMessages((prev) => prev.map(apply))
+        setSearchResults((prev) => prev.map(apply))
+        setTabs((prev) => prev.map(apply))
+    }, [tags])
+
     const toggleTag = useCallback(async (tagId: string, assigned: boolean) => {
         if (!selectedMessage) {
             return
@@ -556,10 +582,11 @@ function App() {
         try {
             await api.setMessageTag(selectedMessage.id, tagId, assigned)
             setMessageTags(await api.messageTags(selectedMessage.id))
+            applyTagColourToLists(selectedMessage.id, tagId, assigned)
         } catch (e) {
             setError(String(e))
         }
-    }, [selectedMessage])
+    }, [selectedMessage, applyTagColourToLists])
 
     // loadFolderMessages shows a folder's cached messages immediately (so it opens instantly), then
     // refreshes it from the server and updates the list if the user is still on that folder. This is
@@ -948,10 +975,11 @@ function App() {
             if (selectedMessage?.id === messageId) {
                 setMessageTags(await api.messageTags(messageId))
             }
+            applyTagColourToLists(messageId, tagId, assigned)
         } catch (e) {
             setError(String(e))
         }
-    }, [selectedMessage])
+    }, [selectedMessage, applyTagColourToLists])
 
     // saveMessageAs exports the message as a .eml file via a native save dialog, named from its subject.
     const saveMessageAs = useCallback(async (message: Message) => {

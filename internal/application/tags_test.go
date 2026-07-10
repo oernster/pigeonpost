@@ -95,6 +95,30 @@ func TestTagServiceForMessage(t *testing.T) {
 	}
 }
 
+func TestTagServiceColoursForMessages(t *testing.T) {
+	store := newFakeTagStore()
+	store.tags["t1"] = testTag(t, "t1")
+	store.byMessage["m1"] = []string{"t1"}
+	svc := NewTagService(store)
+
+	colours, err := svc.ColoursForMessages(context.Background(), []string{"m1", "m2"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	want := store.tags["t1"].Colour().Hex()
+	if len(colours["m1"]) != 1 || colours["m1"][0] != want {
+		t.Fatalf("ColoursForMessages returned %+v, want [%s] for m1", colours, want)
+	}
+	if len(colours["m2"]) != 0 {
+		t.Errorf("expected no colours for m2, got %+v", colours["m2"])
+	}
+
+	store.forMsgErr = errBoom
+	if _, err := svc.ColoursForMessages(context.Background(), []string{"m1"}); !errors.Is(err, errBoom) {
+		t.Errorf("ColoursForMessages error = %v, want wrapped boom", err)
+	}
+}
+
 func TestTagServiceAssign(t *testing.T) {
 	store := newFakeTagStore()
 	svc := NewTagService(store)

@@ -135,6 +135,13 @@ export function MessageList(props: MessageListProps) {
                             <span className="message-from" title={message.fromName || message.fromAddress || '(unknown sender)'}>
                                 {message.fromName || message.fromAddress || '(unknown sender)'}
                             </span>
+                            {message.tagColours.length > 0 && (
+                                <span className="message-tags" aria-hidden="true">
+                                    {message.tagColours.map((colour, i) => (
+                                        <span key={i} className="message-tag-dot" style={{backgroundColor: colour}}/>
+                                    ))}
+                                </span>
+                            )}
                             <span className="message-date">{formatDate(message.date)}</span>
                         </div>
                         <div className="message-subject">

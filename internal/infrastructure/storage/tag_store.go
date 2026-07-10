@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 
 	"github.com/oernster/pigeonpost/internal/domain"
 )
@@ -53,6 +54,42 @@ func (s *Store) TagsForMessage(ctx context.Context, messageID string) ([]domain.
 	}
 	defer rows.Close()
 	return scanTags(rows)
+}
+
+// TagColoursForMessages returns the hex tag colours of each of the given messages in one query, keyed by
+// message id, ordered by tag name. A message with no tags is absent from the map. It backs the tag colours
+// shown in the message list without a query per row.
+func (s *Store) TagColoursForMessages(ctx context.Context, messageIDs []string) (map[string][]string, error) {
+	result := make(map[string][]string, len(messageIDs))
+	if len(messageIDs) == 0 {
+		return result, nil
+	}
+	placeholders := make([]string, len(messageIDs))
+	args := make([]interface{}, len(messageIDs))
+	for i, id := range messageIDs {
+		placeholders[i] = "?"
+		args[i] = id
+	}
+	query := fmt.Sprintf(
+		`SELECT mt.message_id, t.colour FROM tag t
+		 JOIN message_tag mt ON mt.tag_id = t.id
+		 WHERE mt.message_id IN (%s) ORDER BY t.name;`, strings.Join(placeholders, ","))
+	rows, err := s.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("query message tag colours: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var messageID, colour string
+		if err := rows.Scan(&messageID, &colour); err != nil {
+			return nil, fmt.Errorf("scan message tag colour: %w", err)
+		}
+		result[messageID] = append(result[messageID], colour)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate message tag colours: %w", err)
+	}
+	return result, nil
 }
 
 // AddMessageTag attaches a tag to a message. Re-attaching an existing pair is a no-op.

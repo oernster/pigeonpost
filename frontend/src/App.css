@@ -515,6 +515,21 @@
     white-space: nowrap;
 }
 
+/* The tag colour dots on a message row, so a tagged email's colours show in the list at a glance. */
+.message-tags {
+    display: inline-flex;
+    gap: 3px;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+.message-tag-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    border: 1px solid rgba(0, 0, 0, 0.25);
+}
+
 .message-subject {
     margin-top: 3px;
     font-size: 14px;

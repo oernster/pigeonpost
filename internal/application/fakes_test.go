@@ -387,6 +387,21 @@ func (f *fakeTagStore) TagsForMessage(_ context.Context, messageID string) ([]do
 	return out, nil
 }
 
+func (f *fakeTagStore) TagColoursForMessages(_ context.Context, messageIDs []string) (map[string][]string, error) {
+	if f.forMsgErr != nil {
+		return nil, f.forMsgErr
+	}
+	out := make(map[string][]string)
+	for _, messageID := range messageIDs {
+		for _, id := range f.byMessage[messageID] {
+			if t, ok := f.tags[id]; ok {
+				out[messageID] = append(out[messageID], t.Colour().Hex())
+			}
+		}
+	}
+	return out, nil
+}
+
 func (f *fakeTagStore) AddMessageTag(_ context.Context, messageID, tagID string) error {
 	if f.addErr != nil {
 		return f.addErr

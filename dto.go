@@ -79,6 +79,8 @@ type MessageDTO struct {
 	Flagged        bool         `json:"flagged"`
 	HasAttachments bool         `json:"hasAttachments"`
 	Snippet        string       `json:"snippet"`
+	// TagColours are the hex colours of the tags on this message, for the coloured dots shown on the row.
+	TagColours []string `json:"tagColours"`
 }
 
 // AttachmentDTO is the JSON-serialisable metadata of one received attachment. It carries no bytes: the
@@ -164,10 +166,13 @@ func toFolderDTO(f domain.Folder) FolderDTO {
 	}
 }
 
-func toMessageDTO(m domain.MessageSummary) MessageDTO {
+func toMessageDTO(m domain.MessageSummary, tagColours []string) MessageDTO {
 	date := ""
 	if !m.Date().IsZero() {
 		date = m.Date().Format(time.RFC3339)
+	}
+	if tagColours == nil {
+		tagColours = []string{}
 	}
 	return MessageDTO{
 		ID:             m.ID(),
@@ -183,6 +188,7 @@ func toMessageDTO(m domain.MessageSummary) MessageDTO {
 		Flagged:        m.IsFlagged(),
 		HasAttachments: m.HasAttachments(),
 		Snippet:        m.Snippet(),
+		TagColours:     tagColours,
 	}
 }
 
@@ -210,12 +216,21 @@ func toFolderDTOs(folders []domain.Folder) []FolderDTO {
 	return out
 }
 
-func toMessageDTOs(messages []domain.MessageSummary) []MessageDTO {
+func toMessageDTOs(messages []domain.MessageSummary, coloursByID map[string][]string) []MessageDTO {
 	out := make([]MessageDTO, 0, len(messages))
 	for _, m := range messages {
-		out = append(out, toMessageDTO(m))
+		out = append(out, toMessageDTO(m, coloursByID[m.ID()]))
 	}
 	return out
+}
+
+// messageIDs collects the ids of a set of message summaries, for a batched tag colour lookup.
+func messageIDs(messages []domain.MessageSummary) []string {
+	ids := make([]string, len(messages))
+	for i, m := range messages {
+		ids[i] = m.ID()
+	}
+	return ids
 }
 
 // ThreadDTO is the JSON-serialisable view of a conversation: its display subject, message and unread
@@ -235,7 +250,7 @@ func toThreadDTOs(threads []domain.Thread) []ThreadDTO {
 			Subject:     thread.Subject(),
 			Count:       thread.Count(),
 			UnreadCount: thread.UnreadCount(),
-			Messages:    toMessageDTOs(thread.Messages()),
+			Messages:    toMessageDTOs(thread.Messages(), nil),
 		})
 	}
 	return out

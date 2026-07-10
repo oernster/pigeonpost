@@ -51,6 +51,17 @@ func (s *TagService) ForMessage(ctx context.Context, messageID string) ([]domain
 	return tags, nil
 }
 
+// ColoursForMessages returns the hex colours of the tags on each of the given messages, keyed by message
+// id. A message with no tags is absent from the map. It backs the tag colours shown in the message list,
+// fetched in one query rather than per row.
+func (s *TagService) ColoursForMessages(ctx context.Context, messageIDs []string) (map[string][]string, error) {
+	colours, err := s.tags.TagColoursForMessages(ctx, messageIDs)
+	if err != nil {
+		return nil, fmt.Errorf("tag colours for messages: %w", err)
+	}
+	return colours, nil
+}
+
 // Assign attaches a tag to a message. Assigning a tag already present is a no-op.
 func (s *TagService) Assign(ctx context.Context, messageID, tagID string) error {
 	if err := s.tags.AddMessageTag(ctx, messageID, tagID); err != nil {

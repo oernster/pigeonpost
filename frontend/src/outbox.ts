@@ -34,5 +34,6 @@ export function outboxItemToMessage(item: OutboxItem): Message {
         flagged: false,
         hasAttachments: false,
         snippet,
+        tagColours: [],
     }
 }

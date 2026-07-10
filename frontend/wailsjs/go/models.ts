@@ -831,6 +831,7 @@ export namespace main {
 	    flagged: boolean;
 	    hasAttachments: boolean;
 	    snippet: string;
+	    tagColours: string[];
 	
 	    static createFrom(source: any = {}) {
 	        return new MessageDTO(source);
@@ -851,6 +852,7 @@ export namespace main {
 	        this.flagged = source["flagged"];
 	        this.hasAttachments = source["hasAttachments"];
 	        this.snippet = source["snippet"];
+	        this.tagColours = source["tagColours"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

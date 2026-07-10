@@ -59,6 +59,9 @@ type TagStore interface {
 	SaveTag(ctx context.Context, tag domain.Tag) error
 	DeleteTag(ctx context.Context, id string) error
 	TagsForMessage(ctx context.Context, messageID string) ([]domain.Tag, error)
+	// TagColoursForMessages returns the hex tag colours of each of the given message ids in one query,
+	// keyed by message id, so the message list can show tag colours without a query per row.
+	TagColoursForMessages(ctx context.Context, messageIDs []string) (map[string][]string, error)
 	AddMessageTag(ctx context.Context, messageID, tagID string) error
 	RemoveMessageTag(ctx context.Context, messageID, tagID string) error
 }

@@ -471,6 +471,25 @@ func TestTagRoundTripAndAssignment(t *testing.T) {
 		t.Fatalf("expected 2 tags on m1, got %d", len(forMsg))
 	}
 
+	colours, err := store.TagColoursForMessages(ctx, []string{"m1", "m2"})
+	if err != nil {
+		t.Fatalf("tag colours for messages: %v", err)
+	}
+	got := colours["m1"]
+	if len(got) != 2 {
+		t.Fatalf("expected 2 tag colours on m1, got %+v", got)
+	}
+	inColours := map[string]bool{got[0]: true, got[1]: true}
+	if !inColours["#3366ff"] || !inColours["#ff8800"] {
+		t.Fatalf("expected m1 colours to include #3366ff and #ff8800, got %+v", got)
+	}
+	if _, ok := colours["m2"]; ok {
+		t.Errorf("expected no colours entry for untagged m2")
+	}
+	if empty, emptyErr := store.TagColoursForMessages(ctx, nil); emptyErr != nil || len(empty) != 0 {
+		t.Errorf("empty ids: colours %+v, err %v", empty, emptyErr)
+	}
+
 	if err := store.RemoveMessageTag(ctx, "m1", "t1"); err != nil {
 		t.Fatalf("detach: %v", err)
 	}

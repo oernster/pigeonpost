@@ -254,7 +254,12 @@ func (a *App) ListMessages(folderID string) ([]MessageDTO, error) {
 	if err != nil {
 		return nil, err
 	}
-	return toMessageDTOs(messages), nil
+	colours, coloursErr := a.tags.ColoursForMessages(a.ctx, messageIDs(messages))
+	if coloursErr != nil {
+		// Tag colours are decorative; a failure to load them must not break the message list.
+		colours = nil
+	}
+	return toMessageDTOs(messages, colours), nil
 }
 
 // ListThreads returns the cached messages of a folder grouped into conversations, newest conversation
@@ -273,7 +278,12 @@ func (a *App) SearchMessages(query string) ([]MessageDTO, error) {
 	if err != nil {
 		return nil, err
 	}
-	return toMessageDTOs(messages), nil
+	colours, coloursErr := a.tags.ColoursForMessages(a.ctx, messageIDs(messages))
+	if coloursErr != nil {
+		// Tag colours are decorative; a failure to load them must not break the search list.
+		colours = nil
+	}
+	return toMessageDTOs(messages, colours), nil
 }
 
 // GetMessageBody returns a message's full body, fetching and caching it on the first open.
