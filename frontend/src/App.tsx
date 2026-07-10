@@ -247,15 +247,25 @@ function App() {
     // user has not navigated away since it started.
     const selectedFolderRef = useRef<string>('')
 
-    // A neutral, offscreen focus anchor. It takes focus once on launch so nothing is highlighted, yet
-    // the very first Tab has a starting point and moves to the first control in the title tray. Without
-    // it the WebView starts with focus on no element and the first Tab does nothing.
+    // A neutral, offscreen focus anchor. It takes focus on launch so nothing is highlighted, yet the very
+    // first Tab has a starting point and enters the ring. The WebView often does not hold keyboard focus
+    // at the instant the window first appears, so focusing once on mount is not enough: the window focus
+    // listener reclaims the anchor when the WebView gains focus (and only while nothing else holds it, so
+    // it never steals focus once the user has started navigating).
     const neutralFocusRef = useRef<HTMLSpanElement>(null)
     // menuShortcutsRef holds the current menu items so the global accelerator handler always sees the
     // latest labels, enabled state and callbacks without re-binding its listener on every render.
     const menuShortcutsRef = useRef<MenuItem[]>([])
     useEffect(() => {
-        neutralFocusRef.current?.focus()
+        const claimNeutralFocus = () => {
+            const active = document.activeElement
+            if (!active || active === document.body || active === neutralFocusRef.current) {
+                neutralFocusRef.current?.focus()
+            }
+        }
+        claimNeutralFocus()
+        window.addEventListener('focus', claimNeutralFocus)
+        return () => window.removeEventListener('focus', claimNeutralFocus)
     }, [])
 
     // Close the draft-recovery prompt on Escape, matching the other dialogs. It is a plain inline modal, so
@@ -1923,8 +1933,7 @@ function App() {
             <span
                 ref={neutralFocusRef}
                 tabIndex={-1}
-                aria-hidden="true"
-                style={{position: 'absolute', width: 0, height: 0, overflow: 'hidden', outline: 'none'}}
+                style={{position: 'absolute', width: 1, height: 1, overflow: 'hidden', opacity: 0, pointerEvents: 'none', outline: 'none'}}
                 onKeyDown={(e) => {
                     // Neutral start: the first Tab (or Shift+Tab) from this sink enters the focus ring, the
                     // way the keeb reference has the sink own its own Tab. Owning it here (rather than the
