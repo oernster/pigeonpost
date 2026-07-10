@@ -14,6 +14,7 @@ import {AboutModal} from './components/AboutModal'
 import {LicenceModal} from './components/LicenceModal'
 import {arrangeByConversation, sortByDate} from './threads'
 import {ComposeInitial, ComposeModal} from './components/ComposeModal'
+import {MessagePickerDialog} from './components/MessagePickerDialog'
 import {AccountSetupModal} from './components/AccountSetupModal'
 import {ConfirmDialog} from './components/ConfirmDialog'
 import {PromptDialog} from './components/PromptDialog'
@@ -201,6 +202,8 @@ function App() {
     const [closeChoice, setCloseChoice] = useState(false)
     const [composing, setComposing] = useState<boolean>(false)
     const [composeInitial, setComposeInitial] = useState<ComposeInitial | undefined>(undefined)
+    // attachPickerOpen shows the message picker for the Attach button's "Attach email" action.
+    const [attachPickerOpen, setAttachPickerOpen] = useState(false)
     // recovery is a locally autosaved compose snapshot from a previous session, offered for restore once
     // accounts have loaded; recoveryCheckedRef makes that offer happen once per launch.
     const [recovery, setRecovery] = useState<DraftRecoveryResult | null>(null)
@@ -1284,6 +1287,35 @@ function App() {
         setComposing(true)
     }
 
+    // attachFiles picks files from the OS then opens a fresh compose with them already attached, for the
+    // Attach button's "Attach file(s)" action. A cancelled picker opens nothing.
+    const attachFiles = async () => {
+        try {
+            const paths = await api.pickAttachments()
+            if (paths.length === 0) {
+                return
+            }
+            setComposeInitial({
+                attachmentPaths: paths,
+                bodyHtml: signatureHtml() ? `<p></p>${signatureHtml()}` : undefined,
+            })
+            setComposing(true)
+        } catch (e) {
+            setError(String(e))
+        }
+    }
+
+    // attachEmails opens a fresh compose with the picked messages attached as .eml files, for the Attach
+    // button's "Attach email" action; the picker closes as it hands them over.
+    const attachEmails = (picked: Message[]) => {
+        setAttachPickerOpen(false)
+        setComposeInitial({
+            messageAttachments: picked.map((m) => ({id: m.id, name: emlFilename(m.subject || '')})),
+            bodyHtml: signatureHtml() ? `<p></p>${signatureHtml()}` : undefined,
+        })
+        setComposing(true)
+    }
+
     const showAbout = useCallback(async () => {
         try {
             setAbout(await api.about())
@@ -1946,13 +1978,21 @@ function App() {
         {label: '', separator: true},
         {label: 'Open in new tab', disabled: !canMailAct, onClick: () => activeMessage && openInNewTab(activeMessage)},
         {label: '', separator: true},
-        {label: 'Reply', disabled: !canMailAct, onClick: () => activeMessage && openReply(activeMessage)},
-        {label: 'Reply all', disabled: !canReplyAll, onClick: () => activeMessage && openReplyAll(activeMessage)},
-        {label: 'Forward', disabled: !canMailAct, onClick: () => activeMessage && openForward(activeMessage)},
         {
-            label: 'Attach to new message',
+            label: 'Respond',
+            icon: '\u{21A9}\u{FE0F}',
             disabled: !canMailAct,
-            onClick: () => activeMessage && attachToNewMessage(activeMessage),
+            submenu: [
+                {label: 'Reply', icon: '\u{21A9}\u{FE0F}', disabled: !canMailAct, onClick: () => activeMessage && openReply(activeMessage)},
+                {label: 'Reply all', icon: '\u{1F465}', disabled: !canReplyAll, onClick: () => activeMessage && openReplyAll(activeMessage)},
+                {label: 'Forward', icon: '\u{21AA}\u{FE0F}', disabled: !canMailAct, onClick: () => activeMessage && openForward(activeMessage)},
+                {
+                    label: 'Attach to new message',
+                    icon: '\u{1F4CE}',
+                    disabled: !canMailAct,
+                    onClick: () => activeMessage && attachToNewMessage(activeMessage),
+                },
+            ],
         },
         {label: '', separator: true},
         {
@@ -2056,6 +2096,53 @@ function App() {
                     <Menu title="Mail" icon={'\u{1F4EC}'} items={mailMenu} align="left"/>
                 </div>
                 <div className="titlebar-right">
+                    <button
+                        className="icon-btn"
+                        data-tip="Reply"
+                        aria-label="Reply"
+                        disabled={!canMailAct}
+                        onClick={() => activeMessage && openReply(activeMessage)}
+                    >
+                        {'\u{21A9}\u{FE0F}'}
+                    </button>
+                    <button
+                        className="icon-btn"
+                        data-tip="Reply all"
+                        aria-label="Reply all"
+                        disabled={!canReplyAll}
+                        onClick={() => activeMessage && openReplyAll(activeMessage)}
+                    >
+                        {'\u{1F465}'}
+                    </button>
+                    <button
+                        className="icon-btn"
+                        data-tip="Forward"
+                        aria-label="Forward"
+                        disabled={!canMailAct}
+                        onClick={() => activeMessage && openForward(activeMessage)}
+                    >
+                        {'\u{21AA}\u{FE0F}'}
+                    </button>
+                    <Menu
+                        title="Attach"
+                        icon={'\u{1F4CE}'}
+                        align="left"
+                        items={[
+                            {
+                                label: 'Attach email...',
+                                icon: '\u{2709}\u{FE0F}',
+                                disabled: !selectedAccount || displayMessages.length === 0,
+                                onClick: () => setAttachPickerOpen(true),
+                            },
+                            {
+                                label: 'Attach file(s)...',
+                                icon: '\u{1F4C4}',
+                                disabled: !selectedAccount,
+                                onClick: () => void attachFiles(),
+                            },
+                        ]}
+                    />
+                    <span className="titlebar-sep" aria-hidden="true"/>
                     <button className="sync-btn" onClick={() => setManagingContacts(true)}>
                         {'\u{1F4C7}'} Contacts
                     </button>
@@ -2114,6 +2201,13 @@ function App() {
                     messageListEl
                 )}
             </div>
+            )}
+            {attachPickerOpen && (
+                <MessagePickerDialog
+                    messages={displayMessages}
+                    onAttach={attachEmails}
+                    onCancel={() => setAttachPickerOpen(false)}
+                />
             )}
             <AboutModal about={about} onClose={() => setAbout(null)}/>
             <LicenceModal text={licence} onClose={() => setLicence(null)}/>

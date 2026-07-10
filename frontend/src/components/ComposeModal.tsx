@@ -38,6 +38,9 @@ export interface ComposeInitial {
     subject?: string
     bodyHtml?: string
     messageAttachments?: MessageAttachment[]
+    // attachmentPaths pre-attaches files by path, used when the Attach button picks files before opening a
+    // fresh compose so the chosen files are already attached.
+    attachmentPaths?: string[]
 }
 
 // Sender is one address the account may send from, offered in the From dropdown.
@@ -77,7 +80,7 @@ export function ComposeModal({accountId, senders, initial, canSaveDraft, onClose
     const [cc, setCc] = useState(initial?.cc ?? '')
     const [bcc, setBcc] = useState(initial?.bcc ?? '')
     const [subject, setSubject] = useState(initial?.subject ?? '')
-    const [attachments, setAttachments] = useState<string[]>([])
+    const [attachments, setAttachments] = useState<string[]>(initial?.attachmentPaths ?? [])
     const [messageAttachments, setMessageAttachments] = useState<MessageAttachment[]>(initial?.messageAttachments ?? [])
     const [sending, setSending] = useState(false)
     const [savingDraft, setSavingDraft] = useState(false)
