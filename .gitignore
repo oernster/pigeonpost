@@ -47,6 +47,5 @@ build/bin/
 
 # Local scratch
 NOTES.md
-TECH_DEBT.md
 *.db
 *.db-*
