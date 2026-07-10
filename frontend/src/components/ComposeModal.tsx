@@ -61,7 +61,41 @@ interface ComposeModalProps {
 }
 
 function splitAddresses(value: string): string[] {
-    return value.split(',').map((part) => part.trim()).filter(Boolean)
+    // Accept both comma and semicolon between addresses, so a list pasted from a client that uses ";"
+    // (such as Outlook) is split the same as a comma-separated one.
+    return value.split(/[,;]/).map((part) => part.trim()).filter(Boolean)
+}
+
+// EMAIL_TOKEN finds an address-like run anywhere in a string; EMAIL_EXACT tests that a whole string is
+// one. Both stop at the punctuation a user might wrongly place between addresses (a colon, a slash, a space
+// and so on), so a mistyped separator leaves the addresses on either side intact to be found and re-joined.
+// Neither is a full RFC validator; the backend stays the source of truth.
+const EMAIL_TOKEN = /[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}/g
+const EMAIL_EXACT = /^[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}$/
+
+// Correction is a proposed fix for a wrong address separator: the recipient fields rewritten with their
+// addresses correctly separated, plus a preview of the changed fields for the user to approve.
+interface Correction {
+    to: string
+    cc: string
+    bcc: string
+    preview: string
+}
+
+function isValidAddress(value: string): boolean {
+    return EMAIL_EXACT.test(value)
+}
+
+// detectSeparatorFix returns a corrected version of one recipient field when its only problem is a wrong
+// separator between two or more otherwise-valid addresses, re-joining the addresses it finds with "; ". It
+// returns null when the field is already correctly separated or holds a single address (valid or not), so a
+// genuine typo is never silently rewritten and is left for the backend to reject.
+function detectSeparatorFix(value: string): string | null {
+    const found = value.match(EMAIL_TOKEN) ?? []
+    if (found.length < 2) return null
+    const tokens = splitAddresses(value)
+    if (tokens.length === found.length && tokens.every(isValidAddress)) return null
+    return found.join('; ')
 }
 
 // basename returns the final path segment of a file path, handling both Windows and POSIX separators,
@@ -85,6 +119,9 @@ export function ComposeModal({accountId, senders, initial, canSaveDraft, onClose
     const [sending, setSending] = useState(false)
     const [savingDraft, setSavingDraft] = useState(false)
     const [error, setError] = useState('')
+    // correction holds a proposed fix for a wrong address separator, shown for the user to approve before the
+    // message is sent.
+    const [correction, setCorrection] = useState<Correction | null>(null)
     const [linkOpen, setLinkOpen] = useState(false)
     const [linkUrl, setLinkUrl] = useState('')
 
@@ -235,10 +272,46 @@ export function ComposeModal({accountId, senders, initial, canSaveDraft, onClose
     // message that talks about attaching something can prompt a reminder before it is sent.
     const mentionsAttachment = () => /\battach(ed)?\b/i.test(subject + ' ' + (editor?.getText() ?? ''))
 
-    // attemptSend is the single entry point for both the Send button and Ctrl+Enter. It warns once when
-    // the message mentions an attachment but none is attached, otherwise it sends straight away.
+    // separatorFix scans the recipient fields for the "wrong separator between valid addresses" mistake. When
+    // it finds one, it returns the fields rewritten with the addresses correctly separated by "; " for the
+    // user to approve. It returns null when nothing needs fixing, so a correctly-typed or a genuinely-invalid
+    // single address is left for the normal send path (and the backend) to handle.
+    const separatorFix = (): Correction | null => {
+        const fixedTo = detectSeparatorFix(to)
+        const fixedCc = detectSeparatorFix(cc)
+        const fixedBcc = detectSeparatorFix(bcc)
+        if (fixedTo === null && fixedCc === null && fixedBcc === null) return null
+        const next = {to: fixedTo ?? to, cc: fixedCc ?? cc, bcc: fixedBcc ?? bcc}
+        const preview = [
+            {value: next.to, changed: fixedTo !== null},
+            {value: next.cc, changed: fixedCc !== null},
+            {value: next.bcc, changed: fixedBcc !== null},
+        ].filter((field) => field.changed).map((field) => field.value).join('\n')
+        return {...next, preview}
+    }
+
+    // applyCorrection accepts the suggested separator fix, writing the corrected addresses back into the
+    // fields so the user can review them and send.
+    const applyCorrection = () => {
+        if (correction === null) return
+        setTo(correction.to)
+        setCc(correction.cc)
+        setBcc(correction.bcc)
+        markDirty()
+        setCorrection(null)
+        setError('')
+    }
+
+    // attemptSend is the single entry point for both the Send button and Ctrl+Enter. It offers to fix a wrong
+    // address separator, then warns once when the message mentions an attachment but none is attached,
+    // otherwise it sends straight away.
     const attemptSend = () => {
         if (!canSend()) return
+        const fix = separatorFix()
+        if (fix !== null) {
+            setCorrection(fix)
+            return
+        }
         if (mentionsAttachment() && !hasAttachments()) {
             setAttachWarn(true)
             return
@@ -291,6 +364,16 @@ export function ComposeModal({accountId, senders, initial, canSaveDraft, onClose
                 <ModalClose onClose={onClose}/>
                 <h2 className="modal-title">New message</h2>
                 {error && <div className="compose-error">{error}</div>}
+                {correction && (
+                    <div className="compose-correction">
+                        <div>Addresses should be separated by a comma or semicolon. Did you mean:</div>
+                        <div className="compose-correction-value">{correction.preview}</div>
+                        <div className="compose-correction-actions">
+                            <button type="button" className="btn" onClick={applyCorrection}>Use this</button>
+                            <button type="button" className="btn" onClick={() => setCorrection(null)}>Dismiss</button>
+                        </div>
+                    </div>
+                )}
                 {senders.length > 1 && (
                     <label className="field">
                         <span>From</span>

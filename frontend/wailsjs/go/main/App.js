@@ -290,10 +290,6 @@ export function SaveMessageAs(arg1, arg2) {
   return window['go']['main']['App']['SaveMessageAs'](arg1, arg2);
 }
 
-export function ShowDefaultAppSettings() {
-  return window['go']['main']['App']['ShowDefaultAppSettings']();
-}
-
 export function SaveRule(arg1) {
   return window['go']['main']['App']['SaveRule'](arg1);
 }
@@ -320,6 +316,10 @@ export function SendMessage(arg1) {
 
 export function SetMessageTag(arg1, arg2, arg3) {
   return window['go']['main']['App']['SetMessageTag'](arg1, arg2, arg3);
+}
+
+export function ShowDefaultAppSettings() {
+  return window['go']['main']['App']['ShowDefaultAppSettings']();
 }
 
 export function SignInMicrosoft(arg1) {

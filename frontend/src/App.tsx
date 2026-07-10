@@ -1955,17 +1955,6 @@ function App() {
     ]
     const editMenu: MenuItem[] = [
         {
-            label: 'Compose',
-            icon: '\u{1F58A}\u{FE0F}',
-            shortcut: 'Ctrl+N',
-            disabled: !selectedAccount,
-            onClick: () => {
-                const sig = signatureHtml()
-                setComposeInitial(sig ? {bodyHtml: `<p></p>${sig}`} : undefined)
-                setComposing(true)
-            },
-        },
-        {
             label: 'Rules',
             icon: '\u{1F4CF}',
             onClick: () => setManagingRules(true),
@@ -1985,6 +1974,17 @@ function App() {
         },
     ]
     const mailMenu: MenuItem[] = [
+        {
+            label: 'Compose',
+            icon: '\u{1F58A}\u{FE0F}',
+            shortcut: 'Ctrl+N',
+            disabled: !selectedAccount,
+            onClick: () => {
+                const sig = signatureHtml()
+                setComposeInitial(sig ? {bodyHtml: `<p></p>${sig}`} : undefined)
+                setComposing(true)
+            },
+        },
         {
             label: 'Add account',
             icon: '\u{2795}',

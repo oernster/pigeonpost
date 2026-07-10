@@ -1476,6 +1476,29 @@
     font-size: 13px;
 }
 
+.compose-correction {
+    background-color: rgba(127, 176, 255, 0.15);
+    border-radius: 6px;
+    padding: 8px 10px;
+    margin-bottom: 10px;
+    font-size: 13px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.compose-correction-value {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    color: var(--accent);
+    white-space: pre-line;
+    word-break: break-all;
+}
+
+.compose-correction-actions {
+    display: flex;
+    gap: 8px;
+}
+
 .modal.setup {
     max-width: 560px;
     text-align: left;

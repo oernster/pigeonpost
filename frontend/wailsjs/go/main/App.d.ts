@@ -148,8 +148,6 @@ export function SaveMessageAs(arg1:string,arg2:string):Promise<void>;
 
 export function SaveRule(arg1:main.RuleRequest):Promise<void>;
 
-export function ShowDefaultAppSettings():Promise<void>;
-
 export function SaveTag(arg1:main.TagRequest):Promise<void>;
 
 export function SearchMessages(arg1:string):Promise<Array<main.MessageDTO>>;
@@ -161,6 +159,8 @@ export function SendMeetingRequest(arg1:string,arg2:string):Promise<void>;
 export function SendMessage(arg1:main.ComposeRequest):Promise<void>;
 
 export function SetMessageTag(arg1:string,arg2:string,arg3:boolean):Promise<void>;
+
+export function ShowDefaultAppSettings():Promise<void>;
 
 export function SignInMicrosoft(arg1:string):Promise<string>;
 
