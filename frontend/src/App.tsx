@@ -58,11 +58,12 @@ function focusRingElements(root: ParentNode): HTMLElement[] {
         if (el.getClientRects().length === 0 || getComputedStyle(el).visibility === 'hidden') {
             return false
         }
-        // Collapse the folder and message lists to a single stop each: the row is the stop and its nested
-        // action buttons are skipped, because Up/Down move within those lists. The account list is left
-        // uncollapsed, so the selected account row is followed in the ring by its own action buttons (move
-        // up, move down, edit, remove) before the ring carries on to the folders, which is the account model.
-        const row = el.closest('.message-row, .list-item.folder')
+        // Collapse the message list to a single stop: the row is the stop and its nested star button is
+        // skipped, because Up/Down move within the list. The folder and account lists are left uncollapsed,
+        // so the selected row is followed in the ring by its own action buttons (a folder's move, rename and
+        // delete; an account's move up, move down, edit and remove) before the ring carries on. Non-selected
+        // rows and their buttons are tabindex -1, so only the selected row contributes its buttons.
+        const row = el.closest('.message-row')
         return !row || row === el
     })
 }

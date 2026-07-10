@@ -65,8 +65,10 @@ const folderDragType = 'application/x-pigeonpost-folder'
 
 // FOLDER_DROP_EDGE_FRACTION is the fraction of a folder row's height at its top and at its bottom that
 // targets the folder's own level (a sibling drop); the middle band targets inside the folder (a child
-// drop). It splits each row into before / into / after zones for reparent drag-and-drop.
-const FOLDER_DROP_EDGE_FRACTION = 0.25
+// drop). It splits each row into before / into / after zones for reparent drag-and-drop. At 0.3 the top
+// and bottom thirds are the sibling zones and the middle ~40% nests, so the same-level target is easy to
+// hit.
+const FOLDER_DROP_EDGE_FRACTION = 0.3
 
 // FolderDropZone is where a folder drag is aimed on a target row: before or after places the dragged
 // folder at the target's own level (a sibling of it); into nests the dragged folder inside the target.
