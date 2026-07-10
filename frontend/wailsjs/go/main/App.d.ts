@@ -148,6 +148,8 @@ export function SaveMessageAs(arg1:string,arg2:string):Promise<void>;
 
 export function SaveRule(arg1:main.RuleRequest):Promise<void>;
 
+export function ShowDefaultAppSettings():Promise<void>;
+
 export function SaveTag(arg1:main.TagRequest):Promise<void>;
 
 export function SearchMessages(arg1:string):Promise<Array<main.MessageDTO>>;

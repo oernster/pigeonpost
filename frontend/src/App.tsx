@@ -1,7 +1,7 @@
 import {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from 'react'
 import './App.css'
 import brandIcon from './assets/pigeonpost.png'
-import {AboutInfo, Account, api, CalendarEvent, Contact, DraftRecoveryResult, Folder, Message, MessageBody, OutboxItem, Rule, Tag, UnreadCountsResult} from './api'
+import {AboutInfo, Account, api, CalendarEvent, Contact, DraftRecoveryResult, EmailView, Folder, Message, MessageBody, OutboxItem, Rule, Tag, UnreadCountsResult} from './api'
 import {OUTBOX_FOLDER_ID, isOutboxMessage, outboxItemToMessage} from './outbox'
 import {applyTheme, loadTheme, Theme} from './theme'
 import {TAG_PALETTE, colourTagId} from './tagColours'
@@ -9,6 +9,7 @@ import {Sidebar} from './components/Sidebar'
 import {MessageList} from './components/MessageList'
 import {MessageContextMenu} from './components/MessageContextMenu'
 import {Reader} from './components/Reader'
+import {EmailViewerModal} from './components/EmailViewerModal'
 import {Menu, MenuItem} from './components/Menu'
 import {AboutModal} from './components/AboutModal'
 import {LicenceModal} from './components/LicenceModal'
@@ -25,7 +26,7 @@ import {ReminderNotifications} from './components/ReminderNotifications'
 import {CloseChoiceDialog} from './components/CloseChoiceDialog'
 import {Splash} from './components/Splash'
 import {useEscapeToClose} from './components/useBackdropDismiss'
-import {EventsOn} from '../wailsjs/runtime'
+import {Environment, EventsOn} from '../wailsjs/runtime'
 
 // focusRingRoot is the container the ring is scoped to: the topmost open modal when one is showing (so
 // focus stays trapped within the dialog), otherwise the whole document.
@@ -199,6 +200,10 @@ function App() {
     const [theme, setTheme] = useState<Theme>(loadTheme())
     const [about, setAbout] = useState<AboutInfo | null>(null)
     const [licence, setLicence] = useState<string | null>(null)
+    // launchedEmail holds a .eml the OS handed to PigeonPost (a double-click on the file) while the in-app
+    // viewer shows it; isWindows gates the Windows-only "Set as default for .eml" menu item.
+    const [launchedEmail, setLaunchedEmail] = useState<EmailView | null>(null)
+    const [isWindows, setIsWindows] = useState(false)
     const [closeChoice, setCloseChoice] = useState(false)
     const [composing, setComposing] = useState<boolean>(false)
     const [composeInitial, setComposeInitial] = useState<ComposeInitial | undefined>(undefined)
@@ -1349,6 +1354,23 @@ function App() {
         return () => off.forEach((unsubscribe) => unsubscribe())
     }, [showAbout, showLicence, checkUpdates])
 
+    // Detect Windows so the Mail menu can offer "Set as default for .eml", which deep-links to a Windows-only
+    // settings page. The default is off, so the item stays hidden on other platforms.
+    useEffect(() => {
+        void Environment().then((env) => setIsWindows(env.platform === 'windows')).catch(() => undefined)
+    }, [])
+
+    // A .eml the OS handed to PigeonPost (double-clicked once PigeonPost is the registered handler) arrives as
+    // an event from the backend, which has already revealed the window; show the parsed email in the in-app
+    // viewer or surface a parse failure in the error bar rather than doing nothing.
+    useEffect(() => {
+        const off = [
+            EventsOn('eml:open', (email) => setLaunchedEmail(email as EmailView)),
+            EventsOn('eml:open-error', (message) => setError(String(message))),
+        ]
+        return () => off.forEach((unsubscribe) => unsubscribe())
+    }, [])
+
     // The background mail poller emits mail:new when it brings in newly arrived messages (the same event
     // that raises the desktop notification), so refresh the unread counts and the folder on screen to show
     // the arrivals without waiting for the next on-screen sync.
@@ -1975,6 +1997,13 @@ function App() {
             disabled: !selectedAccount || syncing,
             onClick: () => void sync(),
         },
+        ...(isWindows
+            ? [{
+                label: 'Set as default for .eml...',
+                icon: '\u{1F4CC}',
+                onClick: () => void api.showDefaultAppSettings(),
+            }]
+            : []),
         {label: '', separator: true},
         {label: 'Open in new tab', disabled: !canMailAct, onClick: () => activeMessage && openInNewTab(activeMessage)},
         {label: '', separator: true},
@@ -2211,6 +2240,7 @@ function App() {
             )}
             <AboutModal about={about} onClose={() => setAbout(null)}/>
             <LicenceModal text={licence} onClose={() => setLicence(null)}/>
+            {launchedEmail && <EmailViewerModal email={launchedEmail} onClose={() => setLaunchedEmail(null)}/>}
             {closeChoice && (
                 <CloseChoiceDialog
                     onMinimise={() => {

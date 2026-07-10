@@ -227,6 +227,17 @@ func (a *App) OpenEmailAttachment(messageID string, index int) (EmailView, error
 	return parseEmailView(attachment.Content())
 }
 
+// emailFileView reads a .eml file from disk and parses it into the viewer's headers and sanitised body,
+// reusing the same parse and remote-image blocking as an attached email. It backs opening a .eml that the
+// OS handed to PigeonPost as the registered file handler.
+func emailFileView(path string) (EmailView, error) {
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return EmailView{}, fmt.Errorf("read email file: %w", err)
+	}
+	return parseEmailView(raw)
+}
+
 // parseEmailView reads a raw RFC 5322 message into the headers and body the viewer shows. The body reuses
 // the same sanitiser and remote-image blocking as the main reader, so an attached email is as safe to view
 // as an ordinary one.

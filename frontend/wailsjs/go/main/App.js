@@ -290,6 +290,10 @@ export function SaveMessageAs(arg1, arg2) {
   return window['go']['main']['App']['SaveMessageAs'](arg1, arg2);
 }
 
+export function ShowDefaultAppSettings() {
+  return window['go']['main']['App']['ShowDefaultAppSettings']();
+}
+
 export function SaveRule(arg1) {
   return window['go']['main']['App']['SaveRule'](arg1);
 }

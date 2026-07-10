@@ -127,6 +127,12 @@ func (a *App) installInto(launchOnBoot bool) error {
 
 	a.progress(80, "Creating shortcuts...")
 	installer.CreateShortcuts(exePath, dir)
+	// Register PigeonPost as an .eml handler so it appears in the Windows "Open with" picker and can be
+	// chosen as the default. This never seizes the default; the user grants that from the picker's Always
+	// button or Settings > Default apps.
+	if err := installer.RegisterEmlAssociation(exePath, exePath); err != nil {
+		return fmt.Errorf("register file association: %w", err)
+	}
 
 	a.progress(92, "Applying settings...")
 	if err := installer.SetLaunchOnBoot(exePath, launchOnBoot); err != nil {
@@ -161,6 +167,7 @@ func (a *App) Uninstall(removeData bool) error {
 	}
 	a.progress(20, "Removing shortcuts...")
 	installer.RemoveShortcuts()
+	_ = installer.UnregisterEmlAssociation()
 	_ = installer.SetLaunchOnBoot("", false)
 
 	a.progress(50, "Removing registry entries...")

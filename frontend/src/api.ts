@@ -80,6 +80,7 @@ import {
     SearchMessages,
     SendMessage,
     SetMessageTag,
+    ShowDefaultAppSettings,
     SyncAccount,
     SyncFolder,
     UnreadCounts,
@@ -338,6 +339,9 @@ export const api = {
     saveAttachment: (messageId: string, index: number): Promise<void> => SaveAttachment(messageId, index),
     openAttachment: (messageId: string, index: number): Promise<void> => OpenAttachment(messageId, index),
     openEmailAttachment: (messageId: string, index: number): Promise<EmailView> => OpenEmailAttachment(messageId, index),
+    // showDefaultAppSettings opens Windows' Default apps settings so the user can make PigeonPost the default
+    // for .eml files (Windows does not let an app claim the default silently).
+    showDefaultAppSettings: (): Promise<void> => ShowDefaultAppSettings(),
     saveAllAttachments: (messageId: string): Promise<void> => SaveAllAttachments(messageId),
     moveMessage: (messageId: string, destFolderId: string): Promise<void> => MoveMessage(messageId, destFolderId),
     markJunk: (messageId: string): Promise<void> => MarkJunk(messageId),
