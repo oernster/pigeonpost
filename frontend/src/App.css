@@ -863,6 +863,15 @@
     border-color: var(--border);
 }
 
+/* Keyboard focus ring on the title-tray buttons (the menu triggers, Contacts and Calendar, the theme
+   toggle). Without it the first Tab lands on the File menu with nothing visible to show for it. */
+.menu-title:enabled:focus-visible,
+.sync-btn:enabled:focus-visible,
+.icon-btn:enabled:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
 .menu-dropdown {
     position: absolute;
     right: 0;
