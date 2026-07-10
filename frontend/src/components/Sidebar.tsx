@@ -6,6 +6,9 @@ import {messageDragType} from './MessageList'
 interface SidebarProps {
     accounts: Account[]
     selectedAccount: string
+    // syncingAccountIds holds the ids of accounts whose mailbox sync is in progress, so each row can show a
+    // small syncing cue and stays independent of the others.
+    syncingAccountIds: ReadonlySet<string>
     // unreadByAccount maps an account id to its unread message count. An account with no unread mail is
     // absent from the map.
     unreadByAccount: {[accountId: string]: number}
@@ -192,6 +195,9 @@ function SidebarContent(props: SidebarProps) {
                         <span className="item-text">
                             <span className="item-title" title={account.displayName}>{account.displayName}</span>
                             <span className="item-sub" title={account.email}>{account.email}</span>
+                            {props.syncingAccountIds.has(account.id) && (
+                                <span className="account-syncing">Synchronising…</span>
+                            )}
                         </span>
                         <span className="account-actions">
                             {canReorder && (

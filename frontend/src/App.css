@@ -1733,6 +1733,7 @@
     padding: 3px 5px;
     border-radius: 6px;
     background-color: var(--bg-elev-2);
+    border: 1px solid var(--ring);
     box-shadow: 0 6px 16px rgba(0, 0, 0, 0.45);
     opacity: 0;
     pointer-events: none;
@@ -1754,7 +1755,7 @@
 .account-action {
     background: transparent;
     border: none;
-    color: var(--text-dim);
+    color: var(--text);
     font-size: 15px;
     line-height: 1;
     width: 22px;
@@ -1785,6 +1786,12 @@
 .account-action:disabled {
     opacity: 0.35;
     cursor: default;
+}
+
+.account-syncing {
+    margin-top: 2px;
+    font-size: 11px;
+    color: var(--ring);
 }
 
 /* An account row being dragged is dimmed; the row it is dropped onto shows an accent line at its top

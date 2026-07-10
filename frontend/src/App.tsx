@@ -187,7 +187,7 @@ function App() {
     const [messages, setMessages] = useState<Message[]>([])
     const [selectedMessage, setSelectedMessage] = useState<Message | null>(null)
     const [error, setError] = useState<string>('')
-    const [syncing, setSyncing] = useState<boolean>(false)
+    const [syncingAccounts, setSyncingAccounts] = useState<Set<string>>(() => new Set<string>())
     const [outbox, setOutbox] = useState<OutboxItem[]>([])
     const [messageToCancelSend, setMessageToCancelSend] = useState<Message | null>(null)
     const [cancellingSend, setCancellingSend] = useState<boolean>(false)
@@ -775,13 +775,14 @@ function App() {
         if (!selectedAccount) {
             return
         }
-        setSyncing(true)
+        const accountId = selectedAccount
+        setSyncingAccounts((prev) => new Set(prev).add(accountId))
         setError('')
         try {
-            await api.syncAccount(selectedAccount)
+            await api.syncAccount(accountId)
             // Connectivity is back: flush anything queued while offline, then refresh views.
             await api.replayOutbox()
-            setFolders(await api.listFolders(selectedAccount))
+            setFolders(await api.listFolders(accountId))
             if (selectedFolder) {
                 setMessages(await api.listMessages(selectedFolder))
             }
@@ -790,9 +791,17 @@ function App() {
         } catch (e) {
             setError(String(e))
         } finally {
-            setSyncing(false)
+            setSyncingAccounts((prev) => {
+                const next = new Set(prev)
+                next.delete(accountId)
+                return next
+            })
         }
     }, [selectedAccount, selectedFolder, refreshOutbox, loadUnread])
+
+    // accountSyncing is true while the selected account's mailbox sync is running, so the Sync control
+    // disables and relabels for that account only; other accounts stay syncable one by one.
+    const accountSyncing = selectedAccount !== '' && syncingAccounts.has(selectedAccount)
 
     useEffect(() => {
         void refreshOutbox()
@@ -1989,9 +1998,9 @@ function App() {
             onClick: () => setSettingUp(true),
         },
         {
-            label: syncing ? 'Syncing…' : 'Sync',
+            label: accountSyncing ? 'Synchronising…' : 'Sync',
             shortcut: 'F9',
-            disabled: !selectedAccount || syncing,
+            disabled: !selectedAccount || accountSyncing,
             onClick: () => void sync(),
         },
         ...(isWindows
@@ -2145,9 +2154,9 @@ function App() {
                     </button>
                     <button
                         className="icon-btn"
-                        data-tip={syncing ? 'Syncing…' : 'Sync'}
+                        data-tip={accountSyncing ? 'Synchronising…' : 'Sync'}
                         aria-label="Sync"
-                        disabled={!selectedAccount || syncing}
+                        disabled={!selectedAccount || accountSyncing}
                         onClick={() => void sync()}
                     >
                         {'\u{267B}\u{FE0F}'}
@@ -2233,6 +2242,7 @@ function App() {
                 <Sidebar
                     accounts={accounts}
                     selectedAccount={selectedAccount}
+                    syncingAccountIds={syncingAccounts}
                     unreadByAccount={unreadCounts.byAccount}
                     folders={sidebarFolders}
                     selectedFolder={selectedFolder}
