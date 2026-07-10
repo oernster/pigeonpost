@@ -251,12 +251,14 @@ function App() {
         }
     })
     const [readingFull, setReadingFull] = useState<boolean>(false)
-    // emailOpenTick bumps each time an email is opened; readerBodyRef points at the reader's scrollable
-    // body. Together they let the effect below move focus onto the opened email.
+    // emailOpenTick bumps each time an email is opened; the effect below then moves focus onto the opened
+    // email's close cross. readerBodyRef points at the reader's scrollable body (a keyboard scroll stop).
     const [emailOpenTick, setEmailOpenTick] = useState<number>(0)
+    // listReturnTick bumps when an email is closed, so the effect below returns focus to the message list.
+    const [listReturnTick, setListReturnTick] = useState<number>(0)
     const readerBodyRef = useRef<HTMLDivElement>(null)
     // readerSinkRef is a neutral anchor at the top of the full-width reader; openSourceRef records whether
-    // the last open was by keyboard or mouse, so the focus effect below can start each open differently.
+    // the last open was by keyboard or mouse.
     const readerSinkRef = useRef<HTMLSpanElement>(null)
     const openSourceRef = useRef<'keyboard' | 'mouse'>('keyboard')
     // Tracks the folder currently on screen, so a background refresh only replaces the list when the
@@ -967,20 +969,24 @@ function App() {
     }, [])
 
     // When an email is opened (emailOpenTick bumped), move focus into the reader so the keyboard does not
-    // fall back to the start of the ring (which made the next Tab land on File). A keyboard open lands on
-    // the scrollable body, so the arrows scroll it at once. A mouse open of the full-width reader lands on a
-    // neutral anchor instead, whose first Tab is the reader's Back button.
+    // fall back to the start of the ring (which made the next Tab land on File). Focus lands on the active
+    // tab's close cross, the first stop within an open email, so it can be shut with one key; a following
+    // Tab moves on to the toolbar then the body.
     useEffect(() => {
         if (emailOpenTick === 0) {
             return
         }
-        const fullWidth = document.querySelector('.reader-scoped') !== null
-        if (openSourceRef.current === 'mouse' && fullWidth) {
-            readerSinkRef.current?.focus()
-        } else {
-            readerBodyRef.current?.focus()
-        }
+        document.querySelector<HTMLElement>('.reader-tab.active .reader-tab-close')?.focus()
     }, [emailOpenTick])
+
+    // After an email is closed, put focus on the topmost message header so the keyboard returns to the list
+    // rather than being stranded on the now-gone reader controls.
+    useEffect(() => {
+        if (listReturnTick === 0) {
+            return
+        }
+        document.querySelector<HTMLElement>('.message-list .message-row')?.focus()
+    }, [listReturnTick])
 
     // togglePreview flips the reading pane and returns to the list, so toggling never strands the user in
     // the full-width reader.
@@ -998,6 +1004,10 @@ function App() {
             setSelectedMessage((sel) => (sel?.id === id ? (next[Math.min(idx, next.length - 1)] ?? null) : sel))
             return next
         })
+        // Closing an email returns to the message list; the effect keyed on listReturnTick lands focus on
+        // the topmost header once the list has re-rendered.
+        setReadingFull(false)
+        setListReturnTick((n) => n + 1)
     }, [])
 
     // openContextMenu opens the action menu at the cursor without selecting the message. A right-click is

@@ -8,7 +8,9 @@ interface ReaderTabsProps {
 }
 
 // ReaderTabs renders the strip of open message tabs above the reader. The tab whose message is the one
-// currently shown is highlighted. Selecting a tab shows that message; closing it removes the tab.
+// currently shown is highlighted. Clicking a tab body shows that message; its close cross is the tab's
+// keyboard stop (the first stop within an open email), so closing it is one key away and the title never
+// takes focus on its own.
 export function ReaderTabs({tabs, activeMessageId, onSelectTab, onCloseTab}: ReaderTabsProps) {
     return (
         <div className="reader-tabs" role="tablist">
@@ -18,17 +20,11 @@ export function ReaderTabs({tabs, activeMessageId, onSelectTab, onCloseTab}: Rea
                     <div
                         key={tab.id}
                         role="tab"
-                        tabIndex={0}
+                        tabIndex={-1}
                         aria-selected={tab.id === activeMessageId}
                         className={'reader-tab' + (tab.id === activeMessageId ? ' active' : '')}
                         title={label}
                         onClick={() => onSelectTab(tab)}
-                        onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                                e.preventDefault()
-                                onSelectTab(tab)
-                            }
-                        }}
                     >
                         <span className="reader-tab-title">{label}</span>
                         <button
