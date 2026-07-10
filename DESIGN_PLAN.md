@@ -57,7 +57,8 @@ Custom folders can be reorganised by dragging: dropping one on another nests it 
 into the gap at a shallower level moves it up or out to the top level, both real server moves through a
 path-to-path rename, while dropping it into the gap at its own level reorders it amongst its siblings as a
 local per-account order (IMAP has no folder order of its own). Folder rename and delete stay, both
-keyboard-reachable. Schema unchanged at v30.
+keyboard-reachable; the Delete key removes a focused custom folder through the same confirmation as its
+delete button. Schema unchanged at v30.
 This document is the target design; the actual per-release delivery record lives in NOTES.md.
 Author: Oliver Ernster. Licence: GPL-3.0.
 
