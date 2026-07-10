@@ -124,9 +124,19 @@ func overlapsWindow(start, end, from, to time.Time) bool {
 	return !effectiveEnd.Before(from)
 }
 
-// maxReminderLead bounds how far ahead reminders are considered, a little over the longest offered
-// reminder (one week), so a due reminder for a near-future occurrence is found without expanding forever.
-const maxReminderLead = 8 * 24 * time.Hour
+// The reminder scan horizon must cover the longest reminder lead the calendar UI offers, so a due
+// reminder for a near-future occurrence is found without expanding the search forever. Expressing it from
+// named parts (rather than a bare multiplier) keeps its relationship to that longest lead explicit: if the
+// UI ever offers a longer reminder, longestReminderLead is the single value to raise.
+const (
+	// longestReminderLead is the longest lead the reminder UI offers (one week before the event).
+	longestReminderLead = 7 * 24 * time.Hour
+	// reminderLeadMargin is a day of slack beyond the longest lead, so an occurrence at the window edge
+	// still surfaces its reminder.
+	reminderLeadMargin = 24 * time.Hour
+	// maxReminderLead is the horizon DueReminders and PendingReminders expand occurrences to.
+	maxReminderLead = longestReminderLead + reminderLeadMargin
+)
 
 // DueReminder is a reminder that has come due: which event and occurrence it belongs to and when it fired.
 type DueReminder struct {
