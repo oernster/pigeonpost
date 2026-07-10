@@ -1211,25 +1211,35 @@ function App() {
         }
     }, [folderToDelete, selectedFolder, refreshFolders])
 
-    // moveFolder reparents the folder chosen for moving under newParentId (empty for the top level),
-    // then refreshes the list. Like a rename, the folder's server path changes but the open folder and
-    // its messages are left as they are.
+    // reparentFolder moves a folder under newParentId (empty for the top level) and refreshes the list. It
+    // backs both the move dialog and drag-and-drop. Like a rename, the folder's server path changes but the
+    // open folder and its messages are left as they are. It returns whether the move succeeded, so the
+    // dialog can stay open on failure.
+    const reparentFolder = useCallback(async (folderId: string, newParentId: string): Promise<boolean> => {
+        setFolderBusy(true)
+        setError('')
+        try {
+            await api.moveFolder(folderId, newParentId)
+            await refreshFolders()
+            return true
+        } catch (e) {
+            setError(String(e))
+            return false
+        } finally {
+            setFolderBusy(false)
+        }
+    }, [refreshFolders])
+
+    // moveFolder applies the move dialog's chosen destination to the folder being moved, closing the dialog
+    // on success.
     const moveFolder = useCallback(async (newParentId: string) => {
         if (!folderToMove) {
             return
         }
-        setFolderBusy(true)
-        setError('')
-        try {
-            await api.moveFolder(folderToMove.id, newParentId)
-            await refreshFolders()
+        if (await reparentFolder(folderToMove.id, newParentId)) {
             setFolderToMove(null)
-        } catch (e) {
-            setError(String(e))
-        } finally {
-            setFolderBusy(false)
         }
-    }, [folderToMove, refreshFolders])
+    }, [folderToMove, reparentFolder])
 
     // quoteFor returns the quoted original for reply/forward: the fetched HTML body when available,
     // otherwise the plain text (or snippet) escaped into a paragraph.
@@ -2276,6 +2286,7 @@ function App() {
                     onNewFolder={() => setFolderPrompt({mode: 'create'})}
                     onRenameFolder={(folder) => setFolderPrompt({mode: 'rename', folder})}
                     onMoveFolder={(folder) => setFolderToMove(folder)}
+                    onReparentFolder={(folderId, newParentId) => void reparentFolder(folderId, newParentId)}
                     onDeleteFolder={(folder) => setFolderToDelete(folder)}
                     onDropMessage={dropMessageOnFolder}
                     canManageFolders={!isPop3}

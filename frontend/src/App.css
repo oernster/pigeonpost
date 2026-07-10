@@ -1820,6 +1820,36 @@
     box-shadow: inset 0 2px 0 var(--accent);
 }
 
+/* A custom folder being dragged to a new parent is dimmed. A valid drop-target folder is outlined all
+   round (dropping nests the dragged folder inside it), which reads as "drop into here" and is distinct
+   from the account reorder cue that marks a single insertion line. */
+.list-item.folder.dragging {
+    opacity: 0.5;
+}
+
+.list-item.folder.drag-over {
+    background-color: var(--bg-elev-2);
+    box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+/* The top-level drop strip sits above the folder list and appears only while a nested folder is dragged,
+   giving a target for moving it out to the top level. It highlights when the drag is over it. */
+.folder-drop-top {
+    margin: 4px 8px 6px;
+    padding: 6px 10px;
+    border: 1px dashed var(--ring);
+    border-radius: 6px;
+    font-size: 12px;
+    color: var(--text-dim);
+    text-align: center;
+}
+
+.folder-drop-top.active {
+    border-color: var(--accent);
+    background-color: var(--bg-elev-2);
+    color: var(--text);
+}
+
 .field input.locked {
     color: var(--text-dim);
     cursor: not-allowed;
