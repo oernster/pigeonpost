@@ -157,6 +157,24 @@ func (f Folder) RenamedTo(newLeaf string) string {
 	return newLeaf
 }
 
+// MovedUnder returns the full path this folder would have if it were reparented directly under
+// newParentPath, keeping its current leaf name and the server's hierarchy separator. An empty
+// newParentPath moves the folder to the top level. It builds the destination path for a server-side
+// move, which the server carries out as a rename from the current path to this one.
+func (f Folder) MovedUnder(newParentPath string) string {
+	if newParentPath == "" {
+		return f.name
+	}
+	return newParentPath + f.separator + f.name
+}
+
+// HasAncestorPath reports whether this folder is the folder at ancestorPath or a descendant of it,
+// compared under the folder's hierarchy separator. It guards a move: a folder cannot be reparented
+// under itself or under one of its own descendants.
+func (f Folder) HasAncestorPath(ancestorPath string) bool {
+	return f.path == ancestorPath || strings.HasPrefix(f.path, ancestorPath+f.separator)
+}
+
 // IsSentLike reports whether this folder is the account Sent or wears a well-known sent leaf name. The
 // sync-time reconciler uses it to find stray sent folders left behind by other clients.
 func (f Folder) IsSentLike() bool {

@@ -96,6 +96,8 @@ export function MessageTags(arg1:string):Promise<Array<main.TagDTO>>;
 
 export function MinimiseToTray():Promise<void>;
 
+export function MoveFolder(arg1:string,arg2:string):Promise<void>;
+
 export function MoveMessage(arg1:string,arg2:string):Promise<void>;
 
 export function MoveMessages(arg1:Array<string>,arg2:string):Promise<main.BulkResultDTO>;

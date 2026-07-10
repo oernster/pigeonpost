@@ -390,3 +390,9 @@ func (a *App) RenameFolder(folderID, newName string) error {
 func (a *App) DeleteFolder(folderID string) error {
 	return a.folders.Delete(a.ctx, folderID)
 }
+
+// MoveFolder reparents a folder under a new parent on the server (an empty newParentID moves it to the
+// top level) and refreshes the cached folder list. It backs the drag-and-drop reparent.
+func (a *App) MoveFolder(folderID, newParentID string) error {
+	return a.folders.Move(a.ctx, folderID, newParentID)
+}
