@@ -3,8 +3,8 @@
 Cross-platform desktop email, calendar and address book client. Go core, React front end,
 local-first. Delivered as a signed download at https://www.pigeonpost.ink.
 
-Status: design locked; 0.9.0 complete on main (VERSION 0.9.0, schema v27); 0.8.0 released
-(tagged v0.8.0, schema v23); 0.7.0 cut at schema v15;
+Status: design locked; 0.10.0 complete on main (VERSION 0.10.0, schema v30); 0.9.0 released
+(tagged v0.9.0, schema v27); 0.8.0 released (tagged v0.8.0, schema v23); 0.7.0 cut at schema v15;
 0.6.0 released
 (tagged v0.6.0). The 0.5.0 release
 (folder create/rename/delete, message move/copy, on-arrival mark/flag rules, a right-click context
@@ -16,8 +16,7 @@ separate inbox) plus a UI, keyboard and rules pass: filter-rule match operators 
 starts/ends with, does not contain) and To/Cc fields, a reading pane with mark-on-view, a Mark submenu,
 per-folder/account/total unread badges, an explicit keyboard focus ring, the outbox surfaced as a
 per-account folder, a red taskbar overlay badge, a regrouped title tray and a reader fix for HTML mail
-that showed its text duplicated and oversized. Microsoft is unsupported
-(see section 7). 0.7.0 adds the address book (vCard and CSV) and the calendar (ICS, with month, week and
+that showed its text duplicated and oversized. 0.7.0 adds the address book (vCard and CSV) and the calendar (ICS, with month, week and
 day views), both round-tripping with Outlook and Thunderbird; cross-platform delivery remains ahead for
 1.0.0. 0.8.0 carries the calendar to full RFC 5545: recurring events (daily, weekly, monthly and yearly)
 that expand across every view with this / this-and-following / all editing, per-event IANA time zones
@@ -35,6 +34,20 @@ correspondents in the reader. It also lands an interop pass: subjects, display n
 filenames are RFC 2047 encoded-word and HTML-entity decoded; the Teams
 `X-MICROSOFT-SKYPETEAMSMEETINGURL` join link is parsed into the event on import; and imported ICS
 descriptions that arrive as HTML are converted to readable text.
+0.10.0 makes Microsoft accounts work: sign-in is OAuth (authorization-code plus PKCE over a loopback
+redirect, XOAUTH2 mailbox access, a refresh token kept in the keychain and renewed silently); the Entra
+registration it needs turned out to be free, so the 0.9.0-era removal is reversed. It adds Gmail and Zoho
+provider presets (personal app-password accounts), send-as identities and a reworked account list (drag or
+button reordering, a hover action toolbar, a left unread gutter and full-width name and email). Mail
+operations are hardened for Gmail scale: bulk delete and move batch into one connection per folder so a
+large selection stays under Gmail's connection cap, Ctrl+A selects all, the expunge runs in chunks and sent
+messages are saved to the Sent folder. The reader gains attachment Open, Save and Save-all, inline cid:
+images and an in-app .eml viewer that also backs a Windows .eml file association (PigeonPost registers as an
+Open-with handler that can be set as the default). Compose accepts a semicolon as well as a comma between
+addresses and offers a one-click fix when a wrong separator sits between valid ones. The largest strand is a
+keyboard, menu and tray pass: full keyboard navigation with an explicit focus ring and menu accelerators,
+the title tools grouped into File, Edit, View and Mail menus and a tray toolbar carrying Reply, Reply all,
+Forward, Attach, Compose, Add account and Sync. Schema moved from v27 to v30.
 This document is the target design; the actual per-release delivery record lives in NOTES.md.
 Author: Oliver Ernster. Licence: GPL-3.0.
 
@@ -322,7 +335,6 @@ hardest-to-reverse parts) first.
 3. Move/copy/drag + folders + offline outbox. Full folder ops, dnd-kit drag, outbox replay,
    filters/rules.
 4. Account wizard + POP3. Autoconfig wizard, POP3, multiple accounts each with a separate inbox.
-   (Microsoft is unsupported, see section 7.)
 5. Search + address book. FTS5 search, contacts, vCard import/export.
 6. Calendar. Month/week/day, events, reminders, ICS import/export, remote ICS subscription.
 7. Packaging + polish. Signed installers for all three platforms, keyboard navigation as an explicit
@@ -335,11 +347,11 @@ hardest-to-reverse parts) first.
 
 - Licence: GPL-3.0, whole app.
 - Stack: Go + Wails + React/TS, Emersion mail suite, pure-Go SQLite + FTS5, OS keychain.
-- Auth: password auth (generic IMAP/POP3) in v1; a generic OAuth seam is in place but no provider uses
-  it. Microsoft is unsupported and dropped: only OAuth connects personal accounts now and its app
-  registration is gated behind a paid Azure sign-up. Gmail personal accounts are supported via an
-  app-password preset; one-click Google sign-in is declined (annual CASA fee) and Workspace accounts
-  are OAuth-only, so unsupported.
+- Auth: password (or app password) over generic IMAP/POP3 is the core path; XOAUTH2 OAuth is
+  implemented and Microsoft uses it (authorization-code plus PKCE, loopback redirect, free Entra
+  registration). Gmail personal accounts are supported via an app-password preset; one-click Google
+  sign-in is declined (annual CASA fee) and Workspace accounts are OAuth-only, so they are not covered
+  by the personal preset.
 - Calendar/contacts: file ICS/vCard import/export + read-only ICS subscription in v1; two-way
   CalDAV/CardDAV in v2.
 - Compose: light TipTap rich-text + plain-text toggle in v1; no full HTML-editor parity.

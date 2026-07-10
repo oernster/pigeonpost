@@ -9,7 +9,7 @@ local-first. Built as a calmer, more predictable alternative to Thunderbird.
 
 - People who run standard IMAP/POP3 mailboxes (self-hosted, ISP, Fastmail, corporate) and want a
   fast, native, local-first desktop client.
-- Gmail, iCloud, Yahoo, Fastmail and StartMail users who connect with an app password (the setup
+- Gmail, iCloud, Yahoo, Zoho, Fastmail and StartMail users who connect with an app password (the setup
   wizard fills in the servers).
 - Microsoft users (Outlook.com, Hotmail, Live, Microsoft 365): sign in through Microsoft's OAuth in
   your browser (one click, no app password); PigeonPost keeps a refresh token in the OS keychain.
@@ -26,10 +26,12 @@ local-first. Built as a calmer, more predictable alternative to Thunderbird.
 Shipped:
 
 - **Accounts**: add, edit and remove IMAP and POP3 accounts from a two-step setup wizard (provider
-  presets for Gmail, iCloud, Yahoo, Fastmail and StartMail, plus manual host/port/security).
+  presets for Gmail, iCloud, Yahoo, Zoho, Fastmail and StartMail, plus manual host/port/security).
   Credentials are verified against the server before anything is saved. Each account keeps its own
   separate inbox; there is no unified inbox. POP3 accounts download into a single mailbox with read and
-  star marks kept locally, and their folder, move/copy and draft actions are hidden.
+  star marks kept locally; their folder, move/copy and draft actions are hidden. Accounts can be
+  reordered in the sidebar by dragging or up/down buttons; an account can also carry several send-as
+  addresses, picked from a From dropdown when composing.
 - **Sync and read**: folders and message summaries pulled into a local SQLite cache and read offline;
   full message bodies fetched on open and cached. HTML mail is sanitised, and remote images are blocked
   by default with a per-message "Load images" toggle. A message that carries attachments shows a paperclip
@@ -42,7 +44,8 @@ Shipped:
   mailbox. Each account can carry its own rich-text signature, inserted into a new message and above the
   quoted text on a reply or forward. The message you are writing is also autosaved locally as you type and
   offered back for recovery after an accidental close or a crash; this recovery copy is local only and
-  never sent to the server.
+  never sent to the server. Recipient fields accept a comma or a semicolon between addresses; a wrong
+  separator typed between valid ones is caught and a one-click fix offered.
 - **Offline**: sends and drafts made while disconnected are queued and delivered automatically on the
   next sync (attachments included). The outbox is a per-account folder: select it to review what is
   waiting and cancel any queued message before it sends.
@@ -63,7 +66,9 @@ Shipped:
   Full keyboard control: arrows move within the message and folder lists, an explicit focus ring steps
   the whole window with Tab or Left/Right, Delete sends to Trash and Shift+Delete purges. A Date header
   sorts the folder list newest-first or oldest-first (remembered across launches); an optional
-  conversation view groups a folder's messages into threads by subject.
+  conversation view groups a folder's messages into threads by subject. A `.eml` file opens in an in-app
+  viewer rather than an external client, whether it arrives as an attachment or is double-clicked in the
+  file manager; on Windows PigeonPost registers as a `.eml` handler that can be set as the default.
 - **Notifications**: newly arrived mail raises a native desktop notification (a Windows toast, or the
   platform equivalent) naming the subject and sender, so you are alerted even when the window is hidden
   to the tray. Each IMAP account is watched by a persistent IDLE connection that pushes the instant mail
