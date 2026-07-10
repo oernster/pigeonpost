@@ -66,6 +66,12 @@
     padding: 8px 14px;
     background-color: var(--bg-elev);
     border-bottom: 1px solid var(--border);
+    /* Give the menu bar its own stacking context above the panes, so an open menu dropdown (and any
+       positioned email HTML rendered in the reader below) can never paint over it: the menus stay visible.
+       The panes carry no stacking z-index, so 30 sits above them while modals and context menus (40+) still
+       cover the bar as they should. */
+    position: relative;
+    z-index: 30;
 }
 
 .brand {
