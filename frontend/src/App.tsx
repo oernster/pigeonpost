@@ -1682,6 +1682,23 @@ function App() {
                 setAnchorId(selectedMessage.id)
                 return
             }
+            // Enter or plain Space opens the focused or selected message. Owned by the window (not just the
+            // message row) so it works even when a click left focus on a child of the row rather than the row
+            // itself. Scoped to the message list and skipped on a button or link, which handle their own
+            // activation, so it never hijacks Enter elsewhere.
+            if ((e.key === 'Enter' || e.key === ' ' || e.code === 'Space') && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
+                const row = target?.closest<HTMLElement>('.message-row')
+                if (target && target.tagName !== 'BUTTON' && target.tagName !== 'A' && (row || target.closest('.message-list'))) {
+                    const toOpen = row
+                        ? list.find((m) => m.id === row.getAttribute('data-mid'))
+                        : selectedMessage
+                    if (toOpen) {
+                        e.preventDefault()
+                        openInNewTab(toOpen)
+                        return
+                    }
+                }
+            }
             if (e.key === 'Delete') {
                 // Delete acts on the whole selection: the Ctrl/Shift set if there is one, else the active
                 // message. One target uses the single confirm; several use the count confirm.

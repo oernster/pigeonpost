@@ -99,15 +99,6 @@ export function MessageList(props: MessageListProps) {
                         }}
                         onClick={(e) => props.onActivate(message, {ctrl: e.ctrlKey || e.metaKey, shift: e.shiftKey})}
                         onDoubleClick={() => props.onOpenInNewTab(message)}
-                        onKeyDown={(e) => {
-                            // Enter or Space opens the message in a tab. Ctrl or Shift with Space are left to
-                            // the window handler, which uses them to build a multi-selection.
-                            if ((e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar') &&
-                                !e.ctrlKey && !e.metaKey && !e.shiftKey) {
-                                e.preventDefault()
-                                props.onOpenInNewTab(message)
-                            }
-                        }}
                         draggable
                         onDragStart={(e) => {
                             e.dataTransfer.setData(messageDragType, message.id)
