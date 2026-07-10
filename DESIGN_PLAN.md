@@ -72,7 +72,7 @@ for correct IPv6 handling; organizer and attendee JSON encode errors propagate r
 and the densest functions (buildFolders, ParseBody, source.go) are decomposed into readable pieces.
 staticcheck joins the standard verification and the whole Go module is clean; the 100% domain and
 application coverage gate holds throughout. Schema unchanged at v30.
-This document is the target design; the actual per-release delivery record lives in NOTES.md.
+This document is the target design.
 Author: Oliver Ernster. Licence: GPL-3.0.
 
 ---
