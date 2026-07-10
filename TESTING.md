@@ -60,10 +60,10 @@ documented here.
 | internal/infrastructure/mailrouter | 100% | per-protocol dispatch (pure) |
 | internal/infrastructure/keychain | 100% | go-keyring mock |
 | internal/infrastructure/mailparse | ~92% | MIME body parsing, HTML sanitising, image blocking and hidden-preheader removal (pure); a few defensive decode branches uncovered |
-| internal/infrastructure/storage | ~75% | logic and error paths covered; see exclusions |
+| internal/infrastructure/storage | ~78% | logic and error paths covered; see exclusions |
 | internal/infrastructure/pop3 | ~44% | response and UIDL parsing covered; the live dial and download excluded |
 | internal/infrastructure/taskbar | ~22% | the pure label formatting and no-op stub covered; the Windows-only Win32 overlay excluded |
-| internal/infrastructure/imap | ~17% | the source adapter's pure helpers; the wire-to-domain and HTML logic now lives in `mailparse`, and live fetch/append plus the IDLE watcher are excluded |
+| internal/infrastructure/imap | ~24% | the source adapter's pure helpers; the wire-to-domain and HTML logic now lives in `mailparse`, and live fetch/append plus the IDLE watcher are excluded |
 | internal/infrastructure/smtp | 0% | transport is live `Send` only; MIME building lives in `message` |
 | internal/installer | ~38% | extract and paths covered; Win32 side effects excluded |
 | main package, installer app, tools/genicons | 0% | composition root, GUI and tooling, excluded |

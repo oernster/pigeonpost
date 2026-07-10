@@ -3,7 +3,7 @@
 Cross-platform desktop email, calendar and address book client. Go core, React front end,
 local-first. Delivered as a signed download at https://www.pigeonpost.ink.
 
-Status: design locked; 0.11.0 complete on main (VERSION 0.11.0, schema v30); 0.10.0 released
+Status: design locked; 0.12.0 complete on main (VERSION 0.12.0, schema v30); 0.11.0 released (tagged v0.11.0, schema v30); 0.10.0 released
 (tagged v0.10.0, schema v30); 0.9.0 released (tagged v0.9.0, schema v27); 0.8.0 released (tagged v0.8.0, schema v23); 0.7.0 cut at schema v15;
 0.6.0 released
 (tagged v0.6.0). The 0.5.0 release
@@ -59,6 +59,19 @@ path-to-path rename, while dropping it into the gap at its own level reorders it
 local per-account order (IMAP has no folder order of its own). Folder rename and delete stay, both
 keyboard-reachable; the Delete key removes a focused custom folder through the same confirmation as its
 delete button. Schema unchanged at v30.
+0.12.0 is a behaviour-preserving cleanup with no feature, UI or schema change, paying down the backend
+technical debt catalogued in TECH_DEBT.md. The near-duplicate blocks that were the dominant debt are
+collapsed behind the coverage gate: shared message-context and folder-by-kind resolution in the
+application layer, a generic row-iteration helper across the storage list methods, one outgoing-message
+assembler, a value-copy idiom in the domain copy methods, a shared VCALENDAR-encode helper in the ICS
+codec and shared credential selection across the IMAP fetch and IDLE paths. The magic numbers and
+misplaced constants the house rules target are named or lifted: the vtimezone offsets, the SQLite
+busy_timeout, the bare INBOX literal and server-side-Sent modelled as a domain method rather than a
+hardcoded host. Dead IMAP folder classifiers are removed; host:port formatting moves to net.JoinHostPort
+for correct IPv6 handling; organizer and attendee JSON encode errors propagate rather than dropping data;
+and the densest functions (buildFolders, ParseBody, source.go) are decomposed into readable pieces.
+staticcheck joins the standard verification and the whole Go module is clean; the 100% domain and
+application coverage gate holds throughout. Schema unchanged at v30.
 This document is the target design; the actual per-release delivery record lives in NOTES.md.
 Author: Oliver Ernster. Licence: GPL-3.0.
 

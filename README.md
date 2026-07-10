@@ -75,6 +75,7 @@ two-way CalDAV/CardDAV. See [DESIGN_PLAN.md](DESIGN_PLAN.md) for the full roadma
 - [ARCHITECTURE.md](ARCHITECTURE.md): the clean-architecture invariants and how they are enforced.
 - [TESTING.md](TESTING.md): the test strategy, the coverage gate and how to run everything.
 - [DESIGN_PLAN.md](DESIGN_PLAN.md): the product design and phased roadmap.
+- [TECH_DEBT.md](TECH_DEBT.md): the standing technical-debt reference.
 
 ## Quick start
 
