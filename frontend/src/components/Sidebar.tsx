@@ -198,6 +198,7 @@ function SidebarContent(props: SidebarProps) {
                                 <>
                                     <button
                                         className="account-action"
+                                        tabIndex={account.id === accountTabStopId ? 0 : -1}
                                         aria-label={`Move ${account.email} up`}
                                         title="Move up"
                                         disabled={index === 0}
@@ -210,6 +211,7 @@ function SidebarContent(props: SidebarProps) {
                                     </button>
                                     <button
                                         className="account-action"
+                                        tabIndex={account.id === accountTabStopId ? 0 : -1}
                                         aria-label={`Move ${account.email} down`}
                                         title="Move down"
                                         disabled={index === accounts.length - 1}
@@ -224,6 +226,7 @@ function SidebarContent(props: SidebarProps) {
                             )}
                             <button
                                 className="account-action"
+                                tabIndex={account.id === accountTabStopId ? 0 : -1}
                                 aria-label={`Edit ${account.email}`}
                                 title="Edit account"
                                 onClick={(e) => {
@@ -235,6 +238,7 @@ function SidebarContent(props: SidebarProps) {
                             </button>
                             <button
                                 className="account-action delete"
+                                tabIndex={account.id === accountTabStopId ? 0 : -1}
                                 aria-label={`Remove ${account.email}`}
                                 title="Remove account"
                                 onClick={(e) => {
