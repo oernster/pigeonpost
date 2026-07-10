@@ -55,8 +55,9 @@ func (g ContactGroup) WithMember(contactID string) ContactGroup {
 	if contactID == "" || g.Contains(contactID) {
 		return g
 	}
-	next := append(append([]string(nil), g.members...), contactID)
-	return ContactGroup{id: g.id, name: g.name, members: next}
+	next := g
+	next.members = append(append([]string(nil), g.members...), contactID)
+	return next
 }
 
 // WithoutMember returns a copy of the group with the contact id removed. An id that is not a member
@@ -65,13 +66,15 @@ func (g ContactGroup) WithoutMember(contactID string) ContactGroup {
 	if !g.Contains(contactID) {
 		return g
 	}
-	next := make([]string, 0, len(g.members))
+	members := make([]string, 0, len(g.members))
 	for _, m := range g.members {
 		if m != contactID {
-			next = append(next, m)
+			members = append(members, m)
 		}
 	}
-	return ContactGroup{id: g.id, name: g.name, members: next}
+	next := g
+	next.members = members
+	return next
 }
 
 // dedupeMembers trims, drops blanks and removes duplicate member ids, keeping first-seen order.
