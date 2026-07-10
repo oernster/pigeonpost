@@ -441,10 +441,11 @@ function FolderTree(props: FolderTreeProps) {
                         tabIndex={folder.id === tabStopId ? 0 : -1}
                         onClick={() => props.onSelectFolder(folder.id)}
                         onKeyDown={(e) => {
-                            // Only the row itself drives navigation; a key on a child button (the collapse
-                            // toggle, rename or delete) is left to that button. Those buttons are out of the
-                            // Tab order, so Tab and Shift+Tab enter and leave the whole folder list as one
-                            // stop (landing on the inbox) rather than stepping through each folder's buttons.
+                            // Only the row itself drives navigation here; a key while focus is on a child
+                            // button (the collapse toggle, rename or delete) is left to that button. The
+                            // collapse toggle stays out of the Tab order (Left/Right drives it); the selected
+                            // row's rename and delete ARE tabbable, so Tab steps the row then those two then
+                            // out of the list, while Up/Down move between folders.
                             if (e.target !== e.currentTarget) {
                                 return
                             }
@@ -536,7 +537,7 @@ function FolderTree(props: FolderTreeProps) {
                             <span className="account-actions">
                                 <button
                                     className="account-action"
-                                    tabIndex={-1}
+                                    tabIndex={folder.id === tabStopId ? 0 : -1}
                                     aria-label={`Rename ${folder.name}`}
                                     title="Rename folder"
                                     onClick={(e) => {
@@ -548,7 +549,7 @@ function FolderTree(props: FolderTreeProps) {
                                 </button>
                                 <button
                                     className="account-action delete"
-                                    tabIndex={-1}
+                                    tabIndex={folder.id === tabStopId ? 0 : -1}
                                     aria-label={`Delete ${folder.name}`}
                                     title="Delete folder"
                                     onClick={(e) => {
