@@ -53,6 +53,10 @@ function formatDate(iso: string): string {
 export function MessageList(props: MessageListProps) {
     const {messages, selectedIds, activeId, folderSelected, searchQuery, searchActive} = props
     const selectionCount = selectedIds.size
+    // The message list is a single focus-ring stop: the active message is the tabbable row, falling back to
+    // the first message when none is active, so Tab from the search box always reaches the list. Up and Down
+    // move the selection from there, the same roving-tabindex model the folder and account lists use.
+    const tabStopId = activeId ?? (messages.length > 0 ? messages[0].id : null)
 
     const content = () => {
         if (searchActive) {
@@ -84,7 +88,7 @@ export function MessageList(props: MessageListProps) {
                             (activeId === message.id ? ' active' : '')
                         }
                         data-mid={message.id}
-                        tabIndex={activeId === message.id ? 0 : -1}
+                        tabIndex={tabStopId === message.id ? 0 : -1}
                         aria-selected={selectedIds.has(message.id)}
                         // Shift-click would otherwise select the page text across the rows it spans; suppress
                         // that here so a range selection stays a message selection.

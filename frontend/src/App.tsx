@@ -49,9 +49,11 @@ function focusRingElements(root: ParentNode): HTMLElement[] {
         if (el.getClientRects().length === 0 || getComputedStyle(el).visibility === 'hidden') {
             return false
         }
-        // Collapse the roving lists (messages, folders, accounts) to a single stop each: the row itself
-        // is the stop, so skip the action buttons nested inside a row (Up/Down move within the list).
-        const row = el.closest('.message-row, .list-item.folder, .list-item.account')
+        // Collapse the folder and message lists to a single stop each: the row is the stop and its nested
+        // action buttons are skipped, because Up/Down move within those lists. The account list is left
+        // uncollapsed, so the selected account row is followed in the ring by its own action buttons (move
+        // up, move down, edit, remove) before the ring carries on to the folders, which is the account model.
+        const row = el.closest('.message-row, .list-item.folder')
         return !row || row === el
     })
 }
@@ -1527,23 +1529,24 @@ function App() {
                 return
             }
 
-            if (isText) {
-                return
-            }
-            // The neutral start sink owns the very first Tab (its onKeyDown enters the ring). This is the
-            // fallback for when focus is instead on the body: route Tab into the ring when focus is outside
-            // it. A context menu owns its own keys, so it is the only overlay that blocks this; the splash
-            // does not, so the first Tab on launch still enters the ring. Once focus is on a real control,
-            // native Tab moves between elements as usual.
+            // Tab and Shift+Tab step the focus ring, exactly mirroring Right and Left, so the whole main
+            // window is one ring with a single order. Driving Tab through the ring (rather than letting the
+            // browser fall back to native Tab once focus is on a control) is what keeps Tab and Right
+            // identical: native Tab would otherwise step into controls the ring deliberately skips (such as a
+            // message row's star button) and then bounce focus back to the first stop. This runs before the
+            // text-field guard so Tab also leaves a text field by the ring. The neutral start sink owns the
+            // very first Tab on launch, stopping propagation before this runs; a context menu owns its own
+            // keys, so the ring stays disabled while one is open.
             if (e.key === 'Tab') {
                 if (contextMenu) {
                     return
                 }
-                const ring = focusRingElements(focusRingRoot())
-                if (ring.length > 0 && ring.indexOf(document.activeElement as HTMLElement) === -1) {
-                    e.preventDefault()
-                    stepFocusRing(e.shiftKey ? -1 : 1)
-                }
+                e.preventDefault()
+                stepFocusRing(e.shiftKey ? -1 : 1)
+                return
+            }
+            // A text field keeps its own caret keys: the arrows move the caret, not the ring.
+            if (isText) {
                 return
             }
             // Right/Left step the focus ring, mirroring Tab/Shift+Tab across the main window. A context
