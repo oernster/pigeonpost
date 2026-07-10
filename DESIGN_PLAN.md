@@ -3,8 +3,8 @@
 Cross-platform desktop email, calendar and address book client. Go core, React front end,
 local-first. Delivered as a signed download at https://www.pigeonpost.ink.
 
-Status: design locked; 0.10.0 complete on main (VERSION 0.10.0, schema v30); 0.9.0 released
-(tagged v0.9.0, schema v27); 0.8.0 released (tagged v0.8.0, schema v23); 0.7.0 cut at schema v15;
+Status: design locked; 0.11.0 complete on main (VERSION 0.11.0, schema v30); 0.10.0 released
+(tagged v0.10.0, schema v30); 0.9.0 released (tagged v0.9.0, schema v27); 0.8.0 released (tagged v0.8.0, schema v23); 0.7.0 cut at schema v15;
 0.6.0 released
 (tagged v0.6.0). The 0.5.0 release
 (folder create/rename/delete, message move/copy, on-arrival mark/flag rules, a right-click context
@@ -48,6 +48,16 @@ addresses and offers a one-click fix when a wrong separator sits between valid o
 keyboard, menu and tray pass: full keyboard navigation with an explicit focus ring and menu accelerators,
 the title tools grouped into File, Edit, View and Mail menus and a tray toolbar carrying Reply, Reply all,
 Forward, Attach, Compose, Add account and Sync. Schema moved from v27 to v30.
+0.11.0 is a folder-management pass. Sync becomes per-account: each account syncs on its own and shows a
+Synchronising cue on its row, independent of the others. Folder classification is tightened so each
+well-known role (Inbox, Sent, Drafts, Trash, Junk and Archive) is held by exactly one folder, the server's
+own RFC 6154 special-use flags winning over a name match and a well-known name nested under another special
+folder rejected; stray Sent folders are reconciled into a single top-level Sent at the start of every sync.
+Custom folders can be reorganised by dragging: dropping one on another nests it as a child and dropping it
+into the gap at a shallower level moves it up or out to the top level, both real server moves through a
+path-to-path rename, while dropping it into the gap at its own level reorders it amongst its siblings as a
+local per-account order (IMAP has no folder order of its own). Folder rename and delete stay, both
+keyboard-reachable. Schema unchanged at v30.
 This document is the target design; the actual per-release delivery record lives in NOTES.md.
 Author: Oliver Ernster. Licence: GPL-3.0.
 
@@ -114,7 +124,7 @@ learning async Rust under load on a protocol-heavy app. All chosen dependencies 
 | Credentials | zalando/go-keyring | OS keychain; never in the DB. |
 | Front end | React 18 + TypeScript (Vite) | Existing React/TS + Wails lineage. |
 | List virtualization | @tanstack/react-virtual | 100k-message folders scroll smoothly. |
-| Drag/drop | dnd-kit | Message-to-folder, folder reorder. |
+| Drag/drop | native HTML5 drag-and-drop | Message-to-folder, account reorder, folder reparent and reorder. |
 | Rich-text compose | TipTap (ProseMirror) | Clean, sanitisable, email-safe HTML. |
 | HTML mail render | sandboxed iframe + sanitiser | Untrusted HTML is the top security surface. |
 
@@ -218,7 +228,7 @@ refresh token in the keychain.
 
 ### Move / copy / drag
 
-Domain use cases `MoveMessages{message_ids, target_folder}` and `CopyMessages`. UI drag (dnd-kit) and
+Domain use cases `MoveMessages{message_ids, target_folder}` and `CopyMessages`. UI drag (native HTML5 drag-and-drop) and
 context menu both call the same use case, so drag is only an input method. Same-account move maps to
 IMAP MOVE; cross-account move is copy-to-target then delete-from-source through the outbox so a
 mid-way failure is recoverable.
@@ -332,7 +342,7 @@ hardest-to-reverse parts) first.
    account via manual setup, three-pane read-only. Proves the sync engine and layering.
 2. Send + compose + flags. SMTP send, compose (plain + TipTap rich-text), read/unread bold, coloured
    tags, star/junk.
-3. Move/copy/drag + folders + offline outbox. Full folder ops, dnd-kit drag, outbox replay,
+3. Move/copy/drag + folders + offline outbox. Full folder ops, native HTML5 drag, outbox replay,
    filters/rules.
 4. Account wizard + POP3. Autoconfig wizard, POP3, multiple accounts each with a separate inbox.
 5. Search + address book. FTS5 search, contacts, vCard import/export.

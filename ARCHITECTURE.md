@@ -199,7 +199,14 @@ Folder operations: the `FolderService` creates, renames and deletes mailboxes on
 `FolderActions` port. Each cached `Folder` records the server's mailbox hierarchy delimiter (schema
 v10), captured from the IMAP `LIST` response, so the leaf name and a rename's destination path are
 derived with the real separator ("." on StartMail, not the default "/"); a folder with an unknown
-delimiter falls back to "/".
+delimiter falls back to "/". `FolderService.Move` reparents a folder, moving it under a new parent through
+the same path-to-path rename (an empty parent is the top level) and rejecting a move across accounts or
+into the folder's own subtree; the sidebar's folder drag-and-drop calls this, while a same-level reorder is
+a local per-account display order held in the front end, since IMAP has no folder order. Classification
+gives each well-known role to exactly one folder: the server's RFC 6154 special-use attributes are
+authoritative, otherwise the well-known leaf name is used; a name match nested under a different
+special folder is rejected, so a stray "Sent" under Drafts never becomes the account Sent. Any stray sent
+folders are reconciled into one top-level Sent at the start of each sync.
 
 Mark read/unread and star/flag: the UI calls the facade, which routes through the
 `MessageActionService`. It writes the flag (`\Seen` or `\Flagged`) to the IMAP server first (via the
