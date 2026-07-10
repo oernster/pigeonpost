@@ -1545,6 +1545,28 @@ function App() {
                 stepFocusRing(e.shiftKey ? -1 : 1)
                 return
             }
+            // A dropdown drops open on the Down cursor and retracts on Up, so a focused select reveals its
+            // list on Down rather than silently changing value (which for the reader's action selects would
+            // fire a move or copy). Left and Right step the ring out of it like any stop; every other key
+            // keeps the native select behaviour (type to jump to an option). The menu titles already open on
+            // Down through their own handler.
+            if (target && target.tagName === 'SELECT') {
+                if (e.key === 'ArrowDown') {
+                    e.preventDefault()
+                    ;(target as HTMLSelectElement & {showPicker?: () => void}).showPicker?.()
+                    return
+                }
+                if (e.key === 'ArrowUp') {
+                    e.preventDefault()
+                    return
+                }
+                if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+                    e.preventDefault()
+                    stepFocusRing(e.key === 'ArrowRight' ? 1 : -1)
+                    return
+                }
+                return
+            }
             // A text field keeps its own caret keys: the arrows move the caret, not the ring.
             if (isText) {
                 return

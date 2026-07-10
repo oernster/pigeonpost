@@ -176,7 +176,25 @@ export function Reader({message, onToggleRead, onReply, onReplyAll, onForward, o
                         </>
                     )}
                     <div className="tag-menu" ref={menuRef}>
-                        <button className="btn" onClick={() => setTagMenuOpen((v) => !v)}>Colour &#9662;</button>
+                        <button
+                            className="btn"
+                            onClick={() => setTagMenuOpen((v) => !v)}
+                            onKeyDown={(e) => {
+                                // The colour dropdown drops open on Down and retracts on Up (Escape also
+                                // closes it), matching the move and copy selects and the menu titles.
+                                if (e.key === 'ArrowDown') {
+                                    e.preventDefault()
+                                    e.stopPropagation()
+                                    setTagMenuOpen(true)
+                                } else if (e.key === 'ArrowUp' || e.key === 'Escape') {
+                                    e.preventDefault()
+                                    e.stopPropagation()
+                                    setTagMenuOpen(false)
+                                }
+                            }}
+                        >
+                            Colour &#9662;
+                        </button>
                         {tagMenuOpen && (
                             <div className="tag-menu-dropdown" role="menu">
                                 <div className="tag-colour-row" role="group" aria-label="Tag colour">
