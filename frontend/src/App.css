@@ -360,14 +360,12 @@
     border-left-color: var(--accent);
 }
 
-/* Keyboard focus ring on a folder or account row. The selected row already shows its own fill, so the
-   ring is drawn only where focus sits apart from the selection, matching the message list's focus cursor.
-   Gated on :focus-visible so it appears for keyboard navigation, not a mouse click. */
+/* Keyboard focus ring on a folder or account row: a 2px teal inset surround shown whenever the row holds
+   keyboard focus, including the selected row (the list tab stop IS the selected row, so it must show the
+   ring too). The selected fill is a neutral elevation, not the teal accent, so the teal ring stays visible
+   on it. Gated on :focus-visible so it appears for keyboard navigation, not a mouse click. */
 .list-item:focus-visible {
     outline: none;
-}
-
-.list-item:focus-visible:not(.selected) {
     box-shadow: inset 0 0 0 2px var(--accent);
 }
 
@@ -618,6 +616,7 @@
 .reader-toolbar {
     display: flex;
     justify-content: flex-end;
+    flex-wrap: wrap;
     gap: 8px;
     margin-bottom: 10px;
 }
@@ -1725,6 +1724,10 @@
     color: var(--text);
     border: 1px solid var(--border);
     border-radius: 6px;
+    /* The value shown is always the short "Move to…"/"Copy to…" placeholder (the select resets to ""),
+       but the browser sizes the box to the widest folder-name option, so cap the width to reclaim the
+       space; the open dropdown still lists the full names. */
+    max-width: 130px;
     padding: 6px 8px;
     font-size: 13px;
     cursor: pointer;
