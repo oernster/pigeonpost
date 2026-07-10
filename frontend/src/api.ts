@@ -72,6 +72,7 @@ import {
     SaveDraft,
     SaveDraftRecovery,
     OpenAttachment,
+    OpenEmailAttachment,
     SaveAllAttachments,
     SaveAttachment,
     SaveMessageAs,
@@ -282,6 +283,17 @@ export interface AccountProfileInput {
     identities: Identity[]
 }
 
+// EmailView is a parsed .eml attachment shown in the in-app viewer: its key headers and its sanitised HTML
+// and plain-text bodies.
+export interface EmailView {
+    subject: string
+    from: string
+    to: string
+    date: string
+    html: string
+    plain: string
+}
+
 export const api = {
     listAccounts: (): Promise<Account[]> => ListAccounts(),
     addAccount: (req: AccountSetupInput): Promise<void> => AddAccount(main.AccountSetupRequest.createFrom(req)),
@@ -325,6 +337,7 @@ export const api = {
         SaveMessageAs(messageId, suggestedName),
     saveAttachment: (messageId: string, index: number): Promise<void> => SaveAttachment(messageId, index),
     openAttachment: (messageId: string, index: number): Promise<void> => OpenAttachment(messageId, index),
+    openEmailAttachment: (messageId: string, index: number): Promise<EmailView> => OpenEmailAttachment(messageId, index),
     saveAllAttachments: (messageId: string): Promise<void> => SaveAllAttachments(messageId),
     moveMessage: (messageId: string, destFolderId: string): Promise<void> => MoveMessage(messageId, destFolderId),
     markJunk: (messageId: string): Promise<void> => MarkJunk(messageId),

@@ -550,6 +550,28 @@ export namespace main {
 	        this.bodyHtml = source["bodyHtml"];
 	    }
 	}
+	export class EmailView {
+	    subject: string;
+	    from: string;
+	    to: string;
+	    date: string;
+	    html: string;
+	    plain: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new EmailView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.subject = source["subject"];
+	        this.from = source["from"];
+	        this.to = source["to"];
+	        this.date = source["date"];
+	        this.html = source["html"];
+	        this.plain = source["plain"];
+	    }
+	}
 	export class OrganizerDTO {
 	    address: string;
 	    commonName: string;

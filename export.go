@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"os/exec"
@@ -8,9 +9,11 @@ import (
 	goruntime "runtime"
 	"strings"
 
+	"github.com/emersion/go-message/mail"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 
 	"github.com/oernster/pigeonpost/internal/domain"
+	"github.com/oernster/pigeonpost/internal/infrastructure/mailparse"
 )
 
 // messageFileMode is the permission for an exported .eml file: readable and writable by the owner,
@@ -200,4 +203,71 @@ func openWithDefaultApp(path string) error {
 	default:
 		return exec.Command("xdg-open", path).Start()
 	}
+}
+
+// EmailView is a parsed .eml attachment prepared for the in-app viewer: its key headers and its sanitised
+// body, so an attached email opens inside PigeonPost rather than an external mail client.
+type EmailView struct {
+	Subject string `json:"subject"`
+	From    string `json:"from"`
+	To      string `json:"to"`
+	Date    string `json:"date"`
+	HTML    string `json:"html"`
+	Plain   string `json:"plain"`
+}
+
+// OpenEmailAttachment parses an attached email (a message/rfc822 attachment, saved with a .eml name) into
+// its headers and sanitised body for the in-app viewer, so the user reads it in PigeonPost rather than
+// handing the .eml to an external mail client.
+func (a *App) OpenEmailAttachment(messageID string, index int) (EmailView, error) {
+	attachment, err := a.attachmentAt(messageID, index)
+	if err != nil {
+		return EmailView{}, err
+	}
+	return parseEmailView(attachment.Content())
+}
+
+// parseEmailView reads a raw RFC 5322 message into the headers and body the viewer shows. The body reuses
+// the same sanitiser and remote-image blocking as the main reader, so an attached email is as safe to view
+// as an ordinary one.
+func parseEmailView(raw []byte) (EmailView, error) {
+	reader, err := mail.CreateReader(bytes.NewReader(raw))
+	if err != nil {
+		return EmailView{}, fmt.Errorf("parse attached email: %w", err)
+	}
+	subject, _ := reader.Header.Subject()
+	date := ""
+	if d, err := reader.Header.Date(); err == nil {
+		date = d.Format("2006-01-02 15:04")
+	}
+	parsed, err := mailparse.ParseBody(raw)
+	if err != nil {
+		return EmailView{}, err
+	}
+	return EmailView{
+		Subject: subject,
+		From:    headerAddresses(reader.Header, "From"),
+		To:      headerAddresses(reader.Header, "To"),
+		Date:    date,
+		HTML:    parsed.HTML,
+		Plain:   parsed.Plain,
+	}, nil
+}
+
+// headerAddresses formats an address header (From or To) as a comma-separated "Name <address>" list for
+// display. It returns an empty string when the header is absent or unparseable.
+func headerAddresses(header mail.Header, key string) string {
+	addrs, err := header.AddressList(key)
+	if err != nil || len(addrs) == 0 {
+		return ""
+	}
+	parts := make([]string, 0, len(addrs))
+	for _, addr := range addrs {
+		if addr.Name != "" {
+			parts = append(parts, fmt.Sprintf("%s <%s>", addr.Name, addr.Address))
+		} else {
+			parts = append(parts, addr.Address)
+		}
+	}
+	return strings.Join(parts, ", ")
 }

@@ -102,6 +102,8 @@ export function MoveMessages(arg1:Array<string>,arg2:string):Promise<main.BulkRe
 
 export function OpenAttachment(arg1:string,arg2:number):Promise<void>;
 
+export function OpenEmailAttachment(arg1:string,arg2:number):Promise<main.EmailView>;
+
 export function OpenExternal(arg1:string):Promise<void>;
 
 export function OpenReleasesPage():Promise<void>;

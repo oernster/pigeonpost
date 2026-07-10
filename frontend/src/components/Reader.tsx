@@ -1,6 +1,7 @@
 import {useEffect, useRef, useState} from 'react'
 import type {MouseEvent as ReactMouseEvent, RefObject} from 'react'
-import {api, Folder, Message, MessageBody, Tag} from '../api'
+import {api, EmailView, Folder, Message, MessageBody, Tag} from '../api'
+import {EmailViewerModal} from './EmailViewerModal'
 import {TAG_PALETTE, colourTagId} from '../tagColours'
 import {isOutboxMessage} from '../outbox'
 import {ReaderTabs} from './ReaderTabs'
@@ -71,6 +72,8 @@ export function Reader({message, onToggleRead, onReply, onReplyAll, onForward, o
     const [tagMenuOpen, setTagMenuOpen] = useState(false)
     const [imagesShown, setImagesShown] = useState(false)
     const [attachError, setAttachError] = useState('')
+    // viewedEmail holds a parsed .eml attachment while the in-app viewer shows it.
+    const [viewedEmail, setViewedEmail] = useState<EmailView | null>(null)
     const menuRef = useRef<HTMLDivElement>(null)
     // tagButtonRef is the Colour trigger and tagRowRef the swatch row; openedByKeyRef records a keyboard
     // open so focus lands on the first swatch (a mouse open leaves focus on the trigger).
@@ -92,13 +95,17 @@ export function Reader({message, onToggleRead, onReply, onReplyAll, onForward, o
         }
     }
 
-    // openAttachment writes the attachment to a temporary file and opens it with the OS default app, so a
-    // received file (or an attached .eml) can be viewed without saving it first.
-    const openAttachment = async (index: number) => {
+    // openAttachment shows an attached .eml in the in-app viewer (so it never hands off to an external mail
+    // client). Any other file opens with the OS default app after writing it to a temporary file.
+    const openAttachment = async (index: number, filename: string) => {
         if (!message) return
         setAttachError('')
         try {
-            await api.openAttachment(message.id, index)
+            if (filename.toLowerCase().endsWith('.eml')) {
+                setViewedEmail(await api.openEmailAttachment(message.id, index))
+            } else {
+                await api.openAttachment(message.id, index)
+            }
         } catch (e) {
             setAttachError(String(e))
         }
@@ -462,7 +469,7 @@ export function Reader({message, onToggleRead, onReply, onReplyAll, onForward, o
                                 <button
                                     type="button"
                                     className="btn"
-                                    onClick={() => void openAttachment(att.index)}
+                                    onClick={() => void openAttachment(att.index, att.filename)}
                                 >
                                     Open
                                 </button>
@@ -477,6 +484,9 @@ export function Reader({message, onToggleRead, onReply, onReplyAll, onForward, o
                         ))}
                     </ul>
                 </div>
+            )}
+            {viewedEmail && (
+                <EmailViewerModal email={viewedEmail} onClose={() => setViewedEmail(null)}/>
             )}
         </section>
     )
