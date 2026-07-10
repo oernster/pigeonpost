@@ -562,19 +562,6 @@ function FolderTree(props: FolderTreeProps) {
                                 props.onSelectFolder(folder.id)
                                 return
                             }
-                            // Delete removes this folder: the keyboard equivalent of the row's delete
-                            // button, showing the same confirmation. Only custom folders are deletable, so a
-                            // well-known row just swallows the key. Either way the key is consumed here so it
-                            // never bubbles to the window handler to delete the message selection while focus
-                            // sits on a folder.
-                            if (e.key === 'Delete') {
-                                e.preventDefault()
-                                e.stopPropagation()
-                                if (folder.kind === 'custom') {
-                                    props.onDeleteFolder(folder)
-                                }
-                                return
-                            }
                             // Up/Down move between folders, wrapping at the ends.
                             if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
                                 e.preventDefault()

@@ -1826,8 +1826,22 @@ function App() {
                 }
             }
             if (e.key === 'Delete') {
-                // Delete acts on the whole selection: the Ctrl/Shift set if there is one, else the active
-                // message. One target uses the single confirm; several use the count confirm.
+                // A folder row owns Delete: it removes the focused custom folder, with the same confirm as
+                // the row's delete button. The folder is resolved from whichever element in the tree holds
+                // focus (the row after keyboard navigation or a child of it), so it does not depend on the row
+                // itself being the exact focus target. A well-known folder is not deletable, so its row just
+                // swallows the key rather than falling through to delete a message.
+                const folderRow = target?.closest<HTMLElement>('[data-folder-list] [data-folder-id]')
+                if (folderRow) {
+                    e.preventDefault()
+                    const folder = folders.find((f) => f.id === folderRow.getAttribute('data-folder-id'))
+                    if (folder && folder.kind === 'custom') {
+                        setFolderToDelete(folder)
+                    }
+                    return
+                }
+                // Otherwise Delete acts on the message selection: the Ctrl/Shift set if there is one, else the
+                // active message. One target uses the single confirm; several use the count confirm.
                 const selIds = markedIds.size ? markedIds : (selectedMessage ? new Set([selectedMessage.id]) : new Set<string>())
                 const targets = list.filter((m) => selIds.has(m.id))
                 if (targets.length === 0) {
@@ -1853,7 +1867,7 @@ function App() {
         searchActive, searchResults, displayMessages, selectedMessage, requestDelete, markedIds, anchorId,
         splashVisible, composing, settingUp, accountToEdit, managingRules, managingContacts, managingCalendar, about,
         licence, folderPrompt, messageToDelete, accountToDelete, folderToDelete, messageToPurge,
-        contextMenu, messageToCancelSend, bulkToDelete, bulkToPurge, togglePreview,
+        contextMenu, messageToCancelSend, bulkToDelete, bulkToPurge, togglePreview, folders,
     ])
 
     // Menu accelerators (Compose, Sync, the reading pane and any others defined on the menus) fire from
