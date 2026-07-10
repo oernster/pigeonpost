@@ -16,6 +16,13 @@ const hoursPerYearScan = 366 * 24
 // tzDateTimeLayout is the floating local date-time form a VTIMEZONE DTSTART uses (no zone suffix).
 const tzDateTimeLayout = "20060102T150405"
 
+// secondsPerMinute and secondsPerHour convert a zone's UTC offset (held in seconds) into the RFC 5545
+// +HHMM form.
+const (
+	secondsPerMinute = 60
+	secondsPerHour   = 3600
+)
+
 // weekdayCodes maps a Go weekday to the RFC 5545 two-letter BYDAY code.
 var weekdayCodes = [...]string{"SU", "MO", "TU", "WE", "TH", "FR", "SA"}
 
@@ -138,7 +145,7 @@ func formatOffset(seconds int) string {
 		sign = "-"
 		seconds = -seconds
 	}
-	return fmt.Sprintf("%s%02d%02d", sign, seconds/3600, (seconds%3600)/60)
+	return fmt.Sprintf("%s%02d%02d", sign, seconds/secondsPerHour, (seconds%secondsPerHour)/secondsPerMinute)
 }
 
 // transitionRule derives the yearly RRULE for a transition from its onset date: the same month and the
