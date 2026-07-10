@@ -40,18 +40,32 @@ func (k FolderKind) String() string {
 	}
 }
 
+// sentLikeLeafNames are the well-known leaf names mail clients have used for a sent mailbox, lowercased.
+// A folder wearing one of these names is sent-like even when it is not the account's canonical Sent, so
+// sync can merge strays (an old client's "Sent Messages") into the one real Sent folder. The IMAP
+// name-classification table mirrors these entries for its sent role.
+var sentLikeLeafNames = map[string]struct{}{
+	"sent":          {},
+	"sent items":    {},
+	"sent mail":     {},
+	"sent messages": {},
+}
+
 // Folder is a mailbox within an account, with cached unread and total message counts. The separator is
 // the server's mailbox hierarchy delimiter, kept so the leaf name and a rename path are derived
-// correctly on servers that do not use "/" (StartMail, for example, uses ".").
+// correctly on servers that do not use "/" (StartMail, for example, uses "."). specialUse records that
+// the server itself declared the folder's role via an RFC 6154 attribute; it is carried in memory from
+// a live folder fetch and is not persisted.
 type Folder struct {
-	id        string
-	accountID string
-	path      string
-	name      string
-	separator string
-	kind      FolderKind
-	unread    int
-	total     int
+	id         string
+	accountID  string
+	path       string
+	name       string
+	separator  string
+	kind       FolderKind
+	unread     int
+	total      int
+	specialUse bool
 }
 
 // NewFolder validates and constructs a folder using the default "/" hierarchy separator. It is a
@@ -141,6 +155,28 @@ func (f Folder) RenamedTo(newLeaf string) string {
 		return f.path[:idx+len(f.separator)] + newLeaf
 	}
 	return newLeaf
+}
+
+// IsSentLike reports whether this folder is the account Sent or wears a well-known sent leaf name. The
+// sync-time reconciler uses it to find stray sent folders left behind by other clients.
+func (f Folder) IsSentLike() bool {
+	if f.kind == FolderSent {
+		return true
+	}
+	_, ok := sentLikeLeafNames[strings.ToLower(strings.TrimSpace(f.name))]
+	return ok
+}
+
+// SpecialUse reports whether the server declared this folder's role via an RFC 6154 special-use
+// attribute rather than the role being inferred from its name. A declared folder's position is the
+// server's own choice (Gmail keeps Sent under [Gmail], for example), so reconciliation never moves it.
+func (f Folder) SpecialUse() bool { return f.specialUse }
+
+// WithSpecialUse returns a copy marked as declared (or not) by the server's special-use attributes.
+func (f Folder) WithSpecialUse(declared bool) Folder {
+	copied := f
+	copied.specialUse = declared
+	return copied
 }
 
 // WithCounts returns a copy with new unread and total counts, validated.

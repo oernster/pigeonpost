@@ -226,7 +226,9 @@ func buildFolders(accountID string, list []*imap.ListData) ([]domain.Folder, err
 		if err != nil {
 			return nil, fmt.Errorf("build folder %q: %w", in.mailbox, err)
 		}
-		folders = append(folders, folder)
+		// Carry whether the server itself declared the role, so reconciliation respects the server's own
+		// placement of a declared folder and only relocates one that was classified by name.
+		folders = append(folders, folder.WithSpecialUse(in.hasSpec))
 	}
 	return folders, nil
 }

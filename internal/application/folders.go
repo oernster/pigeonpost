@@ -79,6 +79,87 @@ func (s *FolderService) Delete(ctx context.Context, folderID string) error {
 	return s.refresh(ctx, account)
 }
 
+// ReconcileSent enforces the single-Sent invariant on the server, so after every account sync there is
+// exactly one sent folder and it sits at the top level. Any stray sent-like folder (an old client's
+// "Sent Messages", a "Sent" nested under another folder) has its messages moved into the canonical Sent
+// and is then deleted; a stray is only deleted after its messages have moved out, so mail is never lost.
+// A canonical Sent that itself sits nested is renamed to the top level, unless the server declared its
+// position via a special-use attribute (Gmail keeps Sent under [Gmail]) or it sits directly under INBOX
+// (an INBOX-namespace server), both of which are the server's own layout and are respected. POP3
+// accounts have no server folders, so they are skipped. The pass is idempotent: once one top-level Sent
+// remains it does nothing.
+func (s *FolderService) ReconcileSent(ctx context.Context, accountID string) error {
+	account, err := s.accounts.GetAccount(ctx, accountID)
+	if err != nil {
+		return fmt.Errorf("folders: load account %q: %w", accountID, err)
+	}
+	if account.Protocol() == domain.ProtocolPOP3 {
+		return nil
+	}
+	folders, err := s.source.FetchFolders(ctx, account)
+	if err != nil {
+		return fmt.Errorf("folders: reconcile sent: list mailboxes: %w", err)
+	}
+	var canonical *domain.Folder
+	for i := range folders {
+		if folders[i].Kind() == domain.FolderSent {
+			canonical = &folders[i]
+			break
+		}
+	}
+	if canonical == nil {
+		return nil
+	}
+	changed := false
+	for _, folder := range folders {
+		// Only a Custom folder wearing a sent name is a stray: a folder the server flagged as another
+		// role (a real Drafts named oddly) keeps that role and is never merged.
+		if folder.ID() == canonical.ID() || folder.Kind() != domain.FolderCustom || !folder.IsSentLike() {
+			continue
+		}
+		if err := s.remote.MoveAllMessages(ctx, account, folder.Path(), canonical.Path()); err != nil {
+			return fmt.Errorf("folders: merge %q into %q: %w", folder.Path(), canonical.Path(), err)
+		}
+		if err := s.store.SaveMessages(ctx, folder.ID(), nil); err != nil {
+			return fmt.Errorf("folders: clear cached messages for %q: %w", folder.ID(), err)
+		}
+		if err := s.remote.DeleteFolder(ctx, account, folder.Path()); err != nil {
+			return fmt.Errorf("folders: remove merged %q: %w", folder.Path(), err)
+		}
+		changed = true
+	}
+	if target := sentRelocationTarget(*canonical); target != "" {
+		if err := s.remote.RenameFolder(ctx, account, canonical.Path(), target); err != nil {
+			return fmt.Errorf("folders: relocate %q to top level: %w", canonical.Path(), err)
+		}
+		changed = true
+	}
+	if !changed {
+		return nil
+	}
+	return s.refresh(ctx, account)
+}
+
+// sentRelocationTarget returns the top-level path the canonical Sent should be renamed to; it returns
+// an empty string when the folder must stay where it is: already top level, declared by the server's
+// special-use flag or nested directly under INBOX.
+func sentRelocationTarget(f domain.Folder) string {
+	parent := folderParentPath(f)
+	if parent == "" || f.SpecialUse() || strings.EqualFold(parent, "INBOX") {
+		return ""
+	}
+	return f.Name()
+}
+
+// folderParentPath returns the path of a folder's parent (an empty string for a top-level folder).
+func folderParentPath(f domain.Folder) string {
+	suffix := f.Separator() + f.Name()
+	if !strings.HasSuffix(f.Path(), suffix) {
+		return ""
+	}
+	return strings.TrimSuffix(f.Path(), suffix)
+}
+
 // refresh re-fetches the account's folder list from the server and replaces the cached copy.
 func (s *FolderService) refresh(ctx context.Context, account domain.Account) error {
 	folders, err := s.source.FetchFolders(ctx, account)

@@ -108,10 +108,13 @@ type MailTransport interface {
 
 // FolderActions creates, renames and deletes mailboxes on a remote server. It is separate from the
 // message-level MailActions because it changes the folder structure rather than messages.
+// MoveAllMessages relocates every message in one mailbox into another, used when merging a stray sent
+// folder into the canonical one; an empty source mailbox is a no-op.
 type FolderActions interface {
 	CreateFolder(ctx context.Context, account domain.Account, path string) error
 	RenameFolder(ctx context.Context, account domain.Account, oldPath, newPath string) error
 	DeleteFolder(ctx context.Context, account domain.Account, path string) error
+	MoveAllMessages(ctx context.Context, account domain.Account, fromPath, toPath string) error
 }
 
 // DraftSaver appends a message to an account's Drafts mailbox on the server, flagged \Draft, so the

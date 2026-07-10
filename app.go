@@ -282,8 +282,14 @@ func (a *App) GetMessageBody(messageID string) (MessageBodyDTO, error) {
 	return toMessageBodyDTO(body), nil
 }
 
-// SyncAccount pulls folders and messages from the server into the local cache.
+// SyncAccount pulls folders and messages from the server into the local cache. The sent-folder
+// reconciliation runs first, so any stray sent folders are merged into the one canonical Sent on the
+// server and the sync then stores the clean structure; the pass is idempotent, so on a healthy account
+// it does nothing.
 func (a *App) SyncAccount(accountID string) error {
+	if err := a.folders.ReconcileSent(a.ctx, accountID); err != nil {
+		return err
+	}
 	return a.sync.SyncAccount(a.ctx, accountID)
 }
 

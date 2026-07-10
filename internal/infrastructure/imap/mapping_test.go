@@ -115,6 +115,16 @@ func TestBuildFolders(t *testing.T) {
 	if sent != 1 {
 		t.Errorf("expected exactly one Sent folder, got %d", sent)
 	}
+	// The declared-by-server marker must be carried, so reconciliation can respect a server-declared
+	// folder's placement: the flagged Sent is marked, the name-only stray is not.
+	for _, f := range folders {
+		if f.Path() == "Sent" && !f.SpecialUse() {
+			t.Error("the flagged Sent must carry SpecialUse")
+		}
+		if f.Path() == "Sent Messages" && f.SpecialUse() {
+			t.Error("a name-only folder must not carry SpecialUse")
+		}
+	}
 }
 
 func TestBuildFoldersNameFallback(t *testing.T) {

@@ -547,12 +547,14 @@ func (f *fakeMailActions) Copy(_ context.Context, _ domain.Account, _ domain.Fol
 
 // fakeFolderActions is a hand-written FolderActions recording the folder operations it was asked for.
 type fakeFolderActions struct {
-	createErr error
-	renameErr error
-	deleteErr error
-	created   []string
-	renamed   [][2]string
-	deleted   []string
+	createErr  error
+	renameErr  error
+	deleteErr  error
+	moveAllErr error
+	created    []string
+	renamed    [][2]string
+	deleted    []string
+	movedAll   [][2]string
 }
 
 func (f *fakeFolderActions) CreateFolder(_ context.Context, _ domain.Account, path string) error {
@@ -576,6 +578,14 @@ func (f *fakeFolderActions) DeleteFolder(_ context.Context, _ domain.Account, pa
 		return f.deleteErr
 	}
 	f.deleted = append(f.deleted, path)
+	return nil
+}
+
+func (f *fakeFolderActions) MoveAllMessages(_ context.Context, _ domain.Account, fromPath, toPath string) error {
+	if f.moveAllErr != nil {
+		return f.moveAllErr
+	}
+	f.movedAll = append(f.movedAll, [2]string{fromPath, toPath})
 	return nil
 }
 

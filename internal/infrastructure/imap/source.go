@@ -279,6 +279,32 @@ func (s *Source) DeleteFolder(ctx context.Context, account domain.Account, path 
 	return nil
 }
 
+// MoveAllMessages moves every message in the mailbox at fromPath into the mailbox at toPath, used when
+// a stray sent folder is merged into the canonical one. An empty source mailbox is a no-op. It
+// satisfies application.FolderActions; the client library falls back to COPY plus expunge when the
+// server lacks the MOVE extension.
+func (s *Source) MoveAllMessages(ctx context.Context, account domain.Account, fromPath, toPath string) error {
+	client, err := s.connect(ctx, account)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = client.Logout().Wait() }()
+
+	selected, err := client.Select(fromPath, nil).Wait()
+	if err != nil {
+		return fmt.Errorf("imap: select %q: %w", fromPath, err)
+	}
+	if selected.NumMessages == 0 {
+		return nil
+	}
+	var all imap.SeqSet
+	all.AddRange(1, 0)
+	if _, err := client.Move(all, toPath).Wait(); err != nil {
+		return fmt.Errorf("imap: move all messages from %q to %q: %w", fromPath, toPath, err)
+	}
+	return nil
+}
+
 // SaveDraft appends a message to the account's Drafts mailbox, flagged \Draft and \Seen, so it is
 // available from any device. It satisfies application.DraftSaver.
 func (s *Source) SaveDraft(ctx context.Context, account domain.Account, draftsPath string, msg domain.OutgoingMessage) error {

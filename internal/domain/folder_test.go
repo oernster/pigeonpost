@@ -116,6 +116,51 @@ func TestFolderRenamedTo(t *testing.T) {
 	}
 }
 
+func TestFolderIsSentLike(t *testing.T) {
+	cases := map[string]struct {
+		path string
+		kind FolderKind
+		want bool
+	}{
+		"canonical sent kind":        {"Sent", FolderSent, true},
+		"custom named sent messages": {"Sent Messages", FolderCustom, true},
+		"custom sent under a parent": {"Money/Sent", FolderCustom, true},
+		"case-insensitive name":      {"SENT MAIL", FolderCustom, true},
+		"ordinary custom folder":     {"Money", FolderCustom, false},
+		"inbox is not sent-like":     {"INBOX", FolderInbox, false},
+		"trash named plainly":        {"Trash", FolderTrash, false},
+		"sent items name":            {"Sent Items", FolderCustom, true},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			folder, err := NewFolder("id", "a1", tc.path, tc.kind, 0, 0)
+			if err != nil {
+				t.Fatalf("build folder: %v", err)
+			}
+			if got := folder.IsSentLike(); got != tc.want {
+				t.Errorf("IsSentLike(%q kind %v) = %v, want %v", tc.path, tc.kind, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestFolderWithSpecialUse(t *testing.T) {
+	folder, err := NewFolder("id", "a1", "Sent", FolderSent, 0, 0)
+	if err != nil {
+		t.Fatalf("build folder: %v", err)
+	}
+	if folder.SpecialUse() {
+		t.Error("a new folder must not be marked special-use by default")
+	}
+	declared := folder.WithSpecialUse(true)
+	if !declared.SpecialUse() {
+		t.Error("WithSpecialUse(true) must mark the copy")
+	}
+	if folder.SpecialUse() {
+		t.Error("original mutated by WithSpecialUse")
+	}
+}
+
 func TestFolderWithSeparator(t *testing.T) {
 	// A server using "." as its delimiter must yield the correct leaf name and rename path, not treat
 	// the whole dotted path as one name.
