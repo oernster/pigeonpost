@@ -99,18 +99,46 @@ func isNonInboxWellKnown(k domain.FolderKind) bool {
 // (then the first listed) wins, and a name match nested under a different well-known folder is rejected,
 // so a stray "Sent" under Drafts never becomes the account Sent. Every other mailbox is Custom.
 func buildFolders(accountID string, list []*imap.ListData) ([]domain.Folder, error) {
-	type folderInfo struct {
-		mailbox   string
-		separator string
-		special   domain.FolderKind
-		hasSpec   bool
-		named     domain.FolderKind
-		hasNamed  bool
-		depth     int
+	infos, barrier := classifyList(list)
+	winner := electWinners(infos, barrier)
+	folders := make([]domain.Folder, 0, len(infos))
+	for _, in := range infos {
+		kind := domain.FolderCustom
+		if in.hasSpec && in.special == domain.FolderInbox {
+			kind = domain.FolderInbox
+		} else if role, ok := winner[in.mailbox]; ok {
+			kind = role
+		}
+		folder, err := domain.NewFolderWithSeparator(
+			makeFolderID(accountID, in.mailbox), accountID, in.mailbox, in.separator, kind, 0, 0)
+		if err != nil {
+			return nil, fmt.Errorf("build folder %q: %w", in.mailbox, err)
+		}
+		// Carry whether the server itself declared the role, so reconciliation respects the server's own
+		// placement of a declared folder and only relocates one that was classified by name.
+		folders = append(folders, folder.WithSpecialUse(in.hasSpec))
 	}
+	return folders, nil
+}
+
+// folderInfo is one mailbox's classification during buildFolders' whole-list pass: its path and
+// separator, the role its RFC 6154 special-use attributes declare and the role its leaf name matches
+// (each with a found flag), and its nesting depth (for the shallowest-wins tie-break).
+type folderInfo struct {
+	mailbox   string
+	separator string
+	special   domain.FolderKind
+	hasSpec   bool
+	named     domain.FolderKind
+	hasNamed  bool
+	depth     int
+}
+
+// classifyList reads each LIST response into a folderInfo and records, as barriers, the paths that are a
+// non-inbox well-known mailbox (by special use or by name), so a name match nested beneath one of them can
+// later be rejected.
+func classifyList(list []*imap.ListData) ([]folderInfo, map[string]bool) {
 	infos := make([]folderInfo, 0, len(list))
-	// barrier holds the paths of folders that are a non-inbox well-known mailbox (by special use or by
-	// name); a name match nested beneath one of these is rejected.
 	barrier := map[string]bool{}
 	for _, data := range list {
 		separator := ""
@@ -138,6 +166,14 @@ func buildFolders(accountID string, list []*imap.ListData) ([]domain.Folder, err
 			barrier[data.Mailbox] = true
 		}
 	}
+	return infos, barrier
+}
+
+// electWinners gives each non-inbox well-known role to exactly one folder: a server-flagged folder wins
+// (the first listed, if several are flagged), otherwise the shallowest (then first-listed) folder whose
+// leaf name matches and that does not sit under another well-known subtree. It returns the winning mailbox
+// path per role.
+func electWinners(infos []folderInfo, barrier map[string]bool) map[string]domain.FolderKind {
 	// underBarrier reports whether a folder sits inside a non-inbox well-known subtree.
 	underBarrier := func(in folderInfo) bool {
 		if in.separator == "" {
@@ -154,7 +190,6 @@ func buildFolders(accountID string, list []*imap.ListData) ([]domain.Folder, err
 			}
 		}
 	}
-	// winner maps a mailbox path to the non-inbox well-known role it wins.
 	winner := map[string]domain.FolderKind{}
 	roles := []domain.FolderKind{
 		domain.FolderSent, domain.FolderDrafts, domain.FolderTrash, domain.FolderJunk, domain.FolderArchive,
@@ -182,24 +217,7 @@ func buildFolders(accountID string, list []*imap.ListData) ([]domain.Folder, err
 			winner[infos[best].mailbox] = role
 		}
 	}
-	folders := make([]domain.Folder, 0, len(infos))
-	for _, in := range infos {
-		kind := domain.FolderCustom
-		if in.hasSpec && in.special == domain.FolderInbox {
-			kind = domain.FolderInbox
-		} else if role, ok := winner[in.mailbox]; ok {
-			kind = role
-		}
-		folder, err := domain.NewFolderWithSeparator(
-			makeFolderID(accountID, in.mailbox), accountID, in.mailbox, in.separator, kind, 0, 0)
-		if err != nil {
-			return nil, fmt.Errorf("build folder %q: %w", in.mailbox, err)
-		}
-		// Carry whether the server itself declared the role, so reconciliation respects the server's own
-		// placement of a declared folder and only relocates one that was classified by name.
-		folders = append(folders, folder.WithSpecialUse(in.hasSpec))
-	}
-	return folders, nil
+	return winner
 }
 
 // mapFlags converts IMAP flags into the domain flag set, ignoring flags the domain does not model.
