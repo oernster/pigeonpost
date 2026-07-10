@@ -13,6 +13,10 @@ import (
 
 const driverName = "sqlite"
 
+// busyTimeoutMillis is how long a connection blocked by another writer waits, in milliseconds (5s),
+// before giving up with SQLITE_BUSY. It lives on the DSN so every pooled connection inherits it.
+const busyTimeoutMillis = 5000
+
 // Store is the SQLite-backed implementation of the application storage ports.
 type Store struct {
 	db *sql.DB
@@ -25,7 +29,7 @@ func Open(ctx context.Context, path string) (*Store, error) {
 	// first. busy_timeout and foreign_keys are per-connection settings: run once via Exec they leave the
 	// pool's other connections without them, which is what made a concurrent write fail immediately with
 	// SQLITE_BUSY instead of waiting. The full set gives every connection the same ACID behaviour:
-	//   - busy_timeout(5000): a writer blocked by another waits up to 5s rather than failing (isolation).
+	//   - busy_timeout: a writer blocked by another waits up to busyTimeoutMillis rather than failing (isolation).
 	//   - journal_mode(WAL): readers see a consistent snapshot while one writer proceeds (isolation).
 	//   - synchronous(NORMAL): commits are durable across an application crash, the common case, while
 	//     avoiding an fsync on every write (durability).
@@ -34,7 +38,7 @@ func Open(ctx context.Context, path string) (*Store, error) {
 	//   - _txlock=immediate: every transaction takes the write lock at BEGIN, so two writers serialise
 	//     cleanly instead of both starting as readers and deadlocking on the upgrade (atomicity).
 	dsn := path + "?" + strings.Join([]string{
-		"_pragma=busy_timeout(5000)",
+		fmt.Sprintf("_pragma=busy_timeout(%d)", busyTimeoutMillis),
 		"_pragma=journal_mode(WAL)",
 		"_pragma=synchronous(NORMAL)",
 		"_pragma=foreign_keys(ON)",
