@@ -25,9 +25,10 @@ import (
 )
 
 // htmlSanitizer strips anything unsafe (scripts, event handlers, javascript: URLs, style/iframe/form
-// elements) from message HTML while keeping common formatting and links. It also allows the
-// data-pp-src attribute on images, which is where parkElementSource parks a remote image's original
-// source so it does not load until the reader asks for it. It is built once and safe for concurrent use.
+// elements) from message HTML while keeping common formatting and links. It allows the data-pp-src
+// attribute on images, where parkElementSource parks a remote image's original source so it does not
+// load until the reader asks. It also allows data: image URIs so an embedded image resolved from a
+// cid: reference renders inline. It is built once and safe for concurrent use.
 var htmlSanitizer = buildSanitizer()
 
 // blockedImageAttr holds a remote image's original src while it is prevented from loading.
@@ -36,6 +37,7 @@ const blockedImageAttr = "data-pp-src"
 func buildSanitizer() *bluemonday.Policy {
 	policy := bluemonday.UGCPolicy()
 	policy.AllowAttrs(blockedImageAttr).OnElements("img")
+	policy.AllowDataURIImages()
 	return policy
 }
 
@@ -82,6 +84,7 @@ func ParseBody(raw []byte) (ParsedBody, error) {
 	var plainBuf, htmlBuf strings.Builder
 	var invite []byte
 	var attachments []ParsedAttachment
+	inlineImages := map[string]inlineImage{}
 	for {
 		part, err := reader.NextPart()
 		if err == io.EOF {
@@ -105,6 +108,12 @@ func ParseBody(raw []byte) (ParsedBody, error) {
 		if err != nil {
 			return ParsedBody{}, fmt.Errorf("mailparse: read part body: %w", err)
 		}
+		// A part with a Content-ID and an image payload is an embedded image the HTML references by a cid:
+		// URL; collect it (whether the sender marked it inline or as an attachment) so the HTML can show it
+		// inline. An attachment-dispositioned one still lists as a saveable attachment below as well.
+		if id := contentID(part.Header); id != "" && strings.HasPrefix(mediaType, "image/") {
+			inlineImages[id] = inlineImage{mediaType: mediaType, content: content}
+		}
 		switch header := part.Header.(type) {
 		case *mail.AttachmentHeader:
 			attachments = append(attachments, attachmentPart(header, mediaType, content))
@@ -115,16 +124,16 @@ func ParseBody(raw []byte) (ParsedBody, error) {
 			case mediaType == "text/plain" || mediaType == "":
 				plainBuf.Write(content)
 			default:
-				// An inline non-text part (a cid: embedded image, say) is not part of the readable text and
-				// is not a saveable attachment either, so it is skipped rather than written into the body as
-				// raw bytes.
+				// An inline non-text part with no usable Content-ID is neither readable text nor a
+				// referenced embedded image (a cid: image is collected above), so it is skipped rather than
+				// written into the body as raw bytes.
 			}
 		}
 	}
 	plain := plainBuf.String()
 	htmlBody := htmlBuf.String()
 	if htmlBody != "" {
-		htmlBody = htmlSanitizer.Sanitize(prepareHTML(htmlBody))
+		htmlBody = htmlSanitizer.Sanitize(prepareHTML(htmlBody, inlineImages))
 	}
 	if strings.TrimSpace(plain) == "" && htmlBody != "" {
 		plain = htmlToText(htmlBody)
@@ -199,12 +208,13 @@ func partMediaType(header mail.PartHeader) string {
 // the sanitiser strips the style attribute that hides them, so left in place they would surface and
 // duplicate the visible content; they are dropped here while their hiding style is still readable.
 // Second it stops the message from auto-loading any remote resource, which would leak that the reader
-// opened it (and their IP) to the sender. It parks every <img> and <picture> <source> src into a data
-// attribute and drops srcset, and it neutralises remote url(...) references in inline style attributes
-// and <style> elements, so a CSS background cannot be used as a tracking pixel either. Embedded data:
-// and cid: references are left intact. On a parse or render failure the original HTML is returned
+// opened it (and their IP) to the sender. It parks a remote <img> or <picture> <source> src into a
+// data attribute and drops srcset; it also neutralises remote url(...) references in inline style
+// attributes and <style> elements, so a CSS background cannot be used as a tracking pixel either. An
+// embedded image is shown at once: a cid: reference is resolved to the message's own image part as a
+// data: URI, while an inline data: URI is kept. On a parse or render failure the original HTML is returned
 // unchanged; the sanitizer still runs over it afterwards.
-func prepareHTML(source string) string {
+func prepareHTML(source string, inline map[string]inlineImage) string {
 	doc, err := html.Parse(strings.NewReader(source))
 	if err != nil {
 		return source
@@ -214,7 +224,7 @@ func prepareHTML(source string) string {
 		if n.Type == html.ElementNode {
 			switch n.Data {
 			case "img", "source":
-				parkElementSource(n)
+				parkElementSource(n, inline)
 			case "style":
 				stripStyleElementURLs(n)
 			}
@@ -259,15 +269,21 @@ func isHiddenBySender(n *html.Node) bool {
 	return false
 }
 
-// parkElementSource renames an element's src attribute to the blocked-image data attribute and drops
-// srcset, so the browser has nothing to fetch until the source is restored. It covers <img> and the
-// <source> children of a <picture>, both of which trigger a remote fetch through src or srcset.
-func parkElementSource(n *html.Node) {
+// parkElementSource rewrites an image element's src for safe display and drops srcset. An embedded
+// image is shown at once: a cid: reference is swapped for the matching part's data: URI, while an
+// inline data: URI is left as is. A remote src is parked into the blocked-image data attribute instead, so the
+// browser fetches nothing until the reader asks. srcset is always dropped, being a second way to
+// trigger a remote fetch. It covers <img> and the <source> children of a <picture>.
+func parkElementSource(n *html.Node, inline map[string]inlineImage) {
 	kept := n.Attr[:0]
 	for _, attr := range n.Attr {
 		switch strings.ToLower(attr.Key) {
 		case "src":
-			attr.Key = blockedImageAttr
+			if resolved, ok := resolveInlineImage(attr.Val, inline); ok {
+				attr.Val = resolved
+			} else if isRemoteURL(attr.Val) {
+				attr.Key = blockedImageAttr
+			}
 			kept = append(kept, attr)
 		case "srcset":
 			// Dropped: srcset is another way to trigger a remote fetch.

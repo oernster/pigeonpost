@@ -254,8 +254,8 @@ func TestParseBodyRemovesHiddenPreheader(t *testing.T) {
 }
 
 func TestPrepareHTMLParksPictureSource(t *testing.T) {
-	out := prepareHTML(`<picture><source srcset="http://tracker.example/2x.webp">` +
-		`<img src="http://tracker.example/pixel.gif"></picture>`)
+	out := prepareHTML(`<picture><source srcset="http://tracker.example/2x.webp">`+
+		`<img src="http://tracker.example/pixel.gif"></picture>`, nil)
 	if strings.Contains(strings.ToLower(out), "srcset") {
 		t.Errorf("a <source> srcset should be dropped, got: %s", out)
 	}
@@ -268,7 +268,7 @@ func TestPrepareHTMLParksPictureSource(t *testing.T) {
 }
 
 func TestPrepareHTMLStripsRemoteCSSBackgroundInStyleAttr(t *testing.T) {
-	out := prepareHTML(`<div style="color:red;background:url('http://tracker.example/bg.png')">hi</div>`)
+	out := prepareHTML(`<div style="color:red;background:url('http://tracker.example/bg.png')">hi</div>`, nil)
 	if strings.Contains(out, "tracker.example") {
 		t.Errorf("a remote CSS url should be stripped, got: %s", out)
 	}
@@ -278,7 +278,7 @@ func TestPrepareHTMLStripsRemoteCSSBackgroundInStyleAttr(t *testing.T) {
 }
 
 func TestPrepareHTMLStripsRemoteURLInStyleElement(t *testing.T) {
-	out := prepareHTML(`<style>.hero{background:url(https://tracker.example/hero.jpg)}</style>`)
+	out := prepareHTML(`<style>.hero{background:url(https://tracker.example/hero.jpg)}</style>`, nil)
 	if strings.Contains(out, "tracker.example") {
 		t.Errorf("a remote url inside a <style> element should be stripped, got: %s", out)
 	}
@@ -286,7 +286,7 @@ func TestPrepareHTMLStripsRemoteURLInStyleElement(t *testing.T) {
 
 func TestPrepareHTMLKeepsEmbeddedDataURI(t *testing.T) {
 	const dataURI = "data:image/png;base64,iVBORw0KGgo="
-	out := prepareHTML(`<div style="background:url(` + dataURI + `)">x</div>`)
+	out := prepareHTML(`<div style="background:url(`+dataURI+`)">x</div>`, nil)
 	if !strings.Contains(out, dataURI) {
 		t.Errorf("an embedded data URI should be kept, got: %s", out)
 	}
@@ -317,6 +317,79 @@ func TestParseBodyBlocksRemoteImages(t *testing.T) {
 	// The alt text and surrounding content survive.
 	if !strings.Contains(html, "Hello") || !strings.Contains(html, `alt="pic"`) {
 		t.Errorf("expected alt and content preserved, got: %s", html)
+	}
+}
+
+func TestPrepareHTMLResolvesCidImageToDataURI(t *testing.T) {
+	inline := map[string]inlineImage{"logo": {mediaType: "image/png", content: []byte{0x89, 0x50, 0x4e, 0x47}}}
+	out := prepareHTML(`<img src="cid:logo" alt="logo">`, inline)
+	if !strings.Contains(out, "data:image/png;base64,") {
+		t.Errorf("a resolvable cid image should be inlined as a data URI, got: %s", out)
+	}
+	if strings.Contains(out, "cid:logo") || strings.Contains(out, blockedImageAttr) {
+		t.Errorf("a resolved cid image should be neither a cid reference nor parked, got: %s", out)
+	}
+}
+
+func TestPrepareHTMLLeavesEmbeddedDataURIImageUnparked(t *testing.T) {
+	const dataURI = "data:image/png;base64,iVBORw0KGgo="
+	out := prepareHTML(`<img src="`+dataURI+`" alt="x">`, nil)
+	if !strings.Contains(out, `src="`+dataURI+`"`) {
+		t.Errorf("an embedded data: image should stay loadable, got: %s", out)
+	}
+	if strings.Contains(out, blockedImageAttr) {
+		t.Errorf("an embedded data: image should not be parked, got: %s", out)
+	}
+}
+
+func TestPrepareHTMLLeavesUnresolvedCidUnparked(t *testing.T) {
+	out := prepareHTML(`<img src="cid:missing" alt="x">`, nil)
+	if strings.Contains(out, blockedImageAttr) {
+		t.Errorf("an unresolved cid image should not be parked as remote, got: %s", out)
+	}
+	if !strings.Contains(out, "cid:missing") {
+		t.Errorf("an unresolved cid image should be left in place, got: %s", out)
+	}
+}
+
+func TestParseBodyResolvesInlineCidImage(t *testing.T) {
+	// A 1x1 transparent GIF carried inline and referenced by the HTML through its Content-ID.
+	const gifBase64 = "R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"
+	raw := "MIME-Version: 1.0\r\n" +
+		"Content-Type: multipart/related; boundary=b\r\n" +
+		"\r\n" +
+		"--b\r\n" +
+		"Content-Type: text/html; charset=utf-8\r\n" +
+		"\r\n" +
+		`<p>Logo:</p><img src="cid:logo" alt="logo">` + "\r\n" +
+		"--b\r\n" +
+		"Content-Type: image/gif\r\n" +
+		"Content-Disposition: inline\r\n" +
+		"Content-Id: <logo>\r\n" +
+		"Content-Transfer-Encoding: base64\r\n" +
+		"\r\n" +
+		gifBase64 + "\r\n" +
+		"--b--\r\n"
+
+	parsed, err := ParseBody([]byte(raw))
+	if err != nil {
+		t.Fatalf("ParseBody: %v", err)
+	}
+	html := parsed.HTML
+	// The embedded image is inlined as a data: URI and survives sanitising, so it renders with no fetch.
+	if !strings.Contains(html, "data:image/gif;base64,"+gifBase64) {
+		t.Errorf("expected the cid image inlined as its data URI, got: %s", html)
+	}
+	// It is neither left as an unloadable cid: reference nor parked as if it were a remote tracker.
+	if strings.Contains(html, "cid:logo") {
+		t.Errorf("the embedded image should not stay a cid: reference, got: %s", html)
+	}
+	if strings.Contains(html, blockedImageAttr) {
+		t.Errorf("a message whose only image is embedded should have nothing parked, got: %s", html)
+	}
+	// The alt text survives.
+	if !strings.Contains(html, `alt="logo"`) {
+		t.Errorf("expected alt text preserved, got: %s", html)
 	}
 }
 
