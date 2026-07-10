@@ -431,27 +431,20 @@ function FolderTree(props: FolderTreeProps) {
                         tabIndex={folder.id === tabStopId ? 0 : -1}
                         onClick={() => props.onSelectFolder(folder.id)}
                         onKeyDown={(e) => {
-                            // Only the row itself drives selection and Up/Down; a key on a child button
-                            // (the collapse toggle, rename or delete) is left to that button.
+                            // Only the row itself drives navigation; a key on a child button (the collapse
+                            // toggle, rename or delete) is left to that button. Those buttons are out of the
+                            // Tab order, so Tab and Shift+Tab enter and leave the whole folder list as one
+                            // stop (landing on the inbox) rather than stepping through each folder's buttons.
                             if (e.target !== e.currentTarget) {
                                 return
                             }
-                            if (e.key === 'Enter') {
-                                e.preventDefault()
-                                props.onSelectFolder(folder.id)
-                                return
-                            }
-                            // Up/Down move between folders within this one focus-ring stop, wrapping at the
-                            // ends. Left/Right are left to bubble up to the window handler, which steps the
-                            // focus ring.
-                            if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-                                e.preventDefault()
-                                e.stopPropagation()
-                                const li = e.currentTarget
-                                const parent = li.parentElement
-                                let sibling = e.key === 'ArrowDown' ? li.nextElementSibling : li.previousElementSibling
-                                if (!sibling && parent) {
-                                    sibling = e.key === 'ArrowDown' ? parent.firstElementChild : parent.lastElementChild
+                            const li = e.currentTarget
+                            const moveFocus = (forward: boolean) => {
+                                let sibling = forward ? li.nextElementSibling : li.previousElementSibling
+                                if (!sibling && li.parentElement) {
+                                    sibling = forward
+                                        ? li.parentElement.firstElementChild
+                                        : li.parentElement.lastElementChild
                                 }
                                 if (sibling instanceof HTMLElement) {
                                     sibling.focus()
@@ -460,6 +453,35 @@ function FolderTree(props: FolderTreeProps) {
                                         props.onSelectFolder(id)
                                     }
                                 }
+                            }
+                            if (e.key === 'Enter') {
+                                e.preventDefault()
+                                props.onSelectFolder(folder.id)
+                                return
+                            }
+                            // Up/Down move between folders, wrapping at the ends.
+                            if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                                e.preventDefault()
+                                e.stopPropagation()
+                                moveFocus(e.key === 'ArrowDown')
+                                return
+                            }
+                            // Right expands a collapsed parent, else moves to the next folder; Left collapses
+                            // an expanded parent, else moves to the previous. Consumed here (not bubbled to the
+                            // ring) so the arrows navigate the tree and Tab is what leaves the list.
+                            if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+                                e.preventDefault()
+                                e.stopPropagation()
+                                if (e.key === 'ArrowRight' && parent && isCollapsed) {
+                                    toggle(folder.path)
+                                    return
+                                }
+                                if (e.key === 'ArrowLeft' && parent && !isCollapsed) {
+                                    toggle(folder.path)
+                                    return
+                                }
+                                moveFocus(e.key === 'ArrowRight')
+                                return
                             }
                         }}
                         onDragOver={(e) => {
@@ -484,6 +506,7 @@ function FolderTree(props: FolderTreeProps) {
                                 <button
                                     type="button"
                                     className="folder-toggle"
+                                    tabIndex={-1}
                                     aria-label={isCollapsed ? `Expand ${leaf}` : `Collapse ${leaf}`}
                                     onClick={(e) => {
                                         e.stopPropagation()
@@ -503,6 +526,7 @@ function FolderTree(props: FolderTreeProps) {
                             <span className="account-actions">
                                 <button
                                     className="account-action"
+                                    tabIndex={-1}
                                     aria-label={`Rename ${folder.name}`}
                                     title="Rename folder"
                                     onClick={(e) => {
@@ -514,6 +538,7 @@ function FolderTree(props: FolderTreeProps) {
                                 </button>
                                 <button
                                     className="account-action delete"
+                                    tabIndex={-1}
                                     aria-label={`Delete ${folder.name}`}
                                     title="Delete folder"
                                     onClick={(e) => {
