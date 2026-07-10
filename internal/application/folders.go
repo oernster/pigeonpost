@@ -60,46 +60,6 @@ func (s *FolderService) Rename(ctx context.Context, folderID, newName string) er
 	return s.refresh(ctx, account)
 }
 
-// Move reparents a folder directly under the folder identified by newParentID, keeping its leaf name,
-// then refreshes the cached list. An empty newParentID moves the folder to the top level. The owning
-// account is taken from the folder itself. The reparent is applied to the server as a path-to-path
-// rename, so the server carries the whole subtree with it and the refreshed list reflects the new
-// tree. The move is rejected when the target parent belongs to a different account or lies within the
-// folder's own subtree; it is a no-op when the folder already sits directly under the requested
-// parent.
-func (s *FolderService) Move(ctx context.Context, folderID, newParentID string) error {
-	folder, err := s.store.GetFolder(ctx, folderID)
-	if err != nil {
-		return fmt.Errorf("folders: locate folder %q: %w", folderID, err)
-	}
-	account, err := s.accounts.GetAccount(ctx, folder.AccountID())
-	if err != nil {
-		return fmt.Errorf("folders: load account %q: %w", folder.AccountID(), err)
-	}
-	newParentPath := ""
-	if newParentID != "" {
-		parent, err := s.store.GetFolder(ctx, newParentID)
-		if err != nil {
-			return fmt.Errorf("folders: locate target folder %q: %w", newParentID, err)
-		}
-		if parent.AccountID() != folder.AccountID() {
-			return ErrFolderMoveAcrossAccounts
-		}
-		if parent.HasAncestorPath(folder.Path()) {
-			return ErrFolderMoveIntoSelf
-		}
-		newParentPath = parent.Path()
-	}
-	newPath := folder.MovedUnder(newParentPath)
-	if newPath == folder.Path() {
-		return nil
-	}
-	if err := s.remote.RenameFolder(ctx, account, folder.Path(), newPath); err != nil {
-		return fmt.Errorf("folders: move %q: %w", folder.Path(), err)
-	}
-	return s.refresh(ctx, account)
-}
-
 // Delete removes a folder on the server, clears its cached messages, then refreshes the cached list.
 func (s *FolderService) Delete(ctx context.Context, folderID string) error {
 	folder, err := s.store.GetFolder(ctx, folderID)

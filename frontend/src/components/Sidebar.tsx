@@ -1,8 +1,7 @@
-import {useEffect, useMemo, useState} from 'react'
+import {useEffect, useState} from 'react'
 import icon from '../assets/pigeonpost.png'
 import {Account, Folder} from '../api'
 import {messageDragType} from './MessageList'
-import {detectSeparator, leafName, ancestorPaths, moveTargets} from '../folderPaths'
 
 interface SidebarProps {
     accounts: Account[]
@@ -24,10 +23,6 @@ interface SidebarProps {
     onReorderAccounts: (orderedIds: string[]) => void
     onNewFolder: () => void
     onRenameFolder: (folder: Folder) => void
-    onMoveFolder: (folder: Folder) => void
-    // onReparentFolder moves the folder with folderId under newParentId (empty for the top level); it
-    // backs the drag-and-drop reparenting, calling the same use case as the move dialog.
-    onReparentFolder: (folderId: string, newParentId: string) => void
     onDeleteFolder: (folder: Folder) => void
     onDropMessage: (messageId: string, folderId: string) => void
     // canManageFolders is false for POP3 accounts, which have no server-side folders to create.
@@ -58,33 +53,6 @@ function folderRank(kind: string): number {
 // accountDragType identifies an account row being dragged to reorder. It is distinct from the message
 // drag type so a message dropped on an account row is ignored and vice versa.
 const accountDragType = 'application/x-pigeonpost-account'
-
-// folderDragType identifies a custom folder row being dragged to reparent it. It is distinct from the
-// account and message drag types so each drop target accepts only what it understands.
-const folderDragType = 'application/x-pigeonpost-folder'
-
-// FOLDER_DROP_EDGE_FRACTION is the fraction of a folder row's height at its top and at its bottom that
-// targets the folder's own level (a sibling drop); the middle band targets inside the folder (a child
-// drop). It splits each row into before / into / after zones for reparent drag-and-drop. At 0.3 the top
-// and bottom thirds are the sibling zones and the middle ~40% nests, so the same-level target is easy to
-// hit.
-const FOLDER_DROP_EDGE_FRACTION = 0.3
-
-// FolderDropZone is where a folder drag is aimed on a target row: before or after places the dragged
-// folder at the target's own level (a sibling of it); into nests the dragged folder inside the target.
-type FolderDropZone = 'before' | 'into' | 'after'
-
-// dropZoneFor returns which zone the pointer at clientY falls in for a row with bounds rect.
-function dropZoneFor(clientY: number, rect: DOMRect): FolderDropZone {
-    const offset = clientY - rect.top
-    if (offset < rect.height * FOLDER_DROP_EDGE_FRACTION) {
-        return 'before'
-    }
-    if (offset > rect.height * (1 - FOLDER_DROP_EDGE_FRACTION)) {
-        return 'after'
-    }
-    return 'into'
-}
 
 // moveId returns a copy of ids with fromId moved to the index toId currently sits at (a splice move),
 // which is the drag-and-drop reordering. The input is not mutated.
@@ -315,8 +283,6 @@ function SidebarContent(props: SidebarProps) {
                             selectedAccount={selectedAccount}
                             onSelectFolder={props.onSelectFolder}
                             onRenameFolder={props.onRenameFolder}
-                            onMoveFolder={props.onMoveFolder}
-                            onReparentFolder={props.onReparentFolder}
                             onDeleteFolder={props.onDeleteFolder}
                             onDropMessage={props.onDropMessage}
                         />
@@ -333,8 +299,6 @@ interface FolderTreeProps {
     selectedAccount: string
     onSelectFolder: (id: string) => void
     onRenameFolder: (folder: Folder) => void
-    onMoveFolder: (folder: Folder) => void
-    onReparentFolder: (folderId: string, newParentId: string) => void
     onDeleteFolder: (folder: Folder) => void
     onDropMessage: (messageId: string, folderId: string) => void
 }
@@ -343,8 +307,38 @@ function collapseKey(accountId: string): string {
     return `pigeonpost.collapsed.${accountId}`
 }
 
-// The folder-path helpers (detectSeparator, leafName, ancestorPaths) live in ../folderPaths so the move
-// dialog can share them; they are imported at the top of this file.
+// detectSeparator infers the server's mailbox hierarchy delimiter from the folder paths. A character
+// is the delimiter when some folder's path, split on it, yields a parent that is itself a folder (e.g.
+// "Archived.Debt" alongside "Archived" means the delimiter is "."). It checks the two common IMAP
+// delimiters and falls back to "/".
+function detectSeparator(paths: string[]): string {
+    const set = new Set(paths)
+    for (const sep of ['.', '/']) {
+        for (const p of paths) {
+            const idx = p.lastIndexOf(sep)
+            if (idx > 0 && set.has(p.slice(0, idx))) {
+                return sep
+            }
+        }
+    }
+    return '/'
+}
+
+// leafName returns the last segment of a path under the given separator.
+function leafName(path: string, sep: string): string {
+    const idx = path.lastIndexOf(sep)
+    return idx >= 0 ? path.slice(idx + 1) : path
+}
+
+// ancestorPaths returns every parent path of a folder path under the given separator.
+function ancestorPaths(path: string, sep: string): string[] {
+    const parts = path.split(sep)
+    const out: string[] = []
+    for (let i = 1; i < parts.length; i++) {
+        out.push(parts.slice(0, i).join(sep))
+    }
+    return out
+}
 
 // orderFolders reorders the folders for display so the well-known mailboxes lead (see
 // specialFolderOrder) while every subtree stays contiguous under its parent. It walks the tree from
@@ -390,13 +384,6 @@ function FolderTree(props: FolderTreeProps) {
     const {folders, selectedFolder, selectedAccount} = props
     const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
     const [dragOverId, setDragOverId] = useState<string>('')
-    // draggingFolderId is the custom folder currently being dragged to reparent it; topDropActive marks
-    // the top-level drop strip as hovered. Both drive the drag cues.
-    const [draggingFolderId, setDraggingFolderId] = useState<string>('')
-    const [topDropActive, setTopDropActive] = useState(false)
-    // folderDrop marks the row and zone a dragged folder is currently aimed at, driving the drop cue: a
-    // box for an into (child) drop, an edge line for a before or after (same-level sibling) drop.
-    const [folderDrop, setFolderDrop] = useState<{folderId: string; zone: FolderDropZone} | null>(null)
 
     useEffect(() => {
         try {
@@ -424,21 +411,8 @@ function FolderTree(props: FolderTreeProps) {
         })
     }
 
-    // While a folder is being dragged, validTargetIds is the set of folder ids it may be dropped onto to
-    // reparent it (plus the empty id for the top level), so a drop is only accepted and highlighted on a
-    // valid target. It is derived from the same rule as the move dialog. canDropTopLevel is true when the
-    // dragged folder is nested, so it can be dragged out to the top level.
-    const validTargetIds = useMemo(() => {
-        const dragged = draggingFolderId ? folders.find((f) => f.id === draggingFolderId) : undefined
-        return dragged ? new Set(moveTargets(dragged, folders).map((t) => t.id)) : new Set<string>()
-    }, [draggingFolderId, folders])
-    const canDropTopLevel = validTargetIds.has('')
-
     const paths = folders.map((f) => f.path)
     const sep = detectSeparator(paths)
-    // byPath maps a folder path to its id, for resolving a folder's parent when a sibling drop needs the
-    // parent's id as the destination.
-    const byPath = new Map(folders.map((f) => [f.path, f.id]))
     const hasChildren = (path: string) => paths.some((p) => p.startsWith(path + sep))
     const ordered = orderFolders(folders, sep)
     // A folder is visible only when none of its ancestors are collapsed.
@@ -448,43 +422,12 @@ function FolderTree(props: FolderTreeProps) {
     const tabStopId = selectedFolder || (visible.length > 0 ? visible[0].id : '')
 
     return (
-        <>
-            {canDropTopLevel && (
-                <div
-                    className={'folder-drop-top' + (topDropActive ? ' active' : '')}
-                    onDragOver={(e) => {
-                        if (e.dataTransfer.types.includes(folderDragType)) {
-                            e.preventDefault()
-                            e.dataTransfer.dropEffect = 'move'
-                            setTopDropActive(true)
-                        }
-                    }}
-                    onDragLeave={() => setTopDropActive(false)}
-                    onDrop={(e) => {
-                        e.preventDefault()
-                        const movedFolderId = e.dataTransfer.getData(folderDragType)
-                        setTopDropActive(false)
-                        setDraggingFolderId('')
-                        if (movedFolderId) {
-                            props.onReparentFolder(movedFolderId, '')
-                        }
-                    }}
-                >
-                    Move to top level
-                </div>
-            )}
-            <ul className="list" data-folder-list="">
+        <ul className="list" data-folder-list="">
             {visible.map((folder) => {
                 const leaf = leafName(folder.path, sep)
                 const depth = ancestorPaths(folder.path, sep).length
                 const parent = hasChildren(folder.path)
                 const isCollapsed = collapsed.has(folder.path)
-                // siblingParentId is the destination for a same-level drop on this row: this folder's own
-                // parent id (or the empty id when it already sits at the top level). dropParentFor maps a
-                // drop zone on this row to the id the dragged folder is reparented under.
-                const parentPath = ancestorPaths(folder.path, sep).slice(-1)[0] ?? ''
-                const siblingParentId = parentPath ? (byPath.get(parentPath) ?? '') : ''
-                const dropParentFor = (zone: FolderDropZone) => (zone === 'into' ? folder.id : siblingParentId)
                 return (
                     <li
                         key={folder.id}
@@ -492,21 +435,16 @@ function FolderTree(props: FolderTreeProps) {
                         className={
                             'list-item folder' +
                             (folder.id === selectedFolder ? ' selected' : '') +
-                            (folder.id === dragOverId ? ' drag-over' : '') +
-                            (folder.id === draggingFolderId ? ' dragging' : '') +
-                            (folderDrop && folderDrop.folderId === folder.id ? ' drag-' + folderDrop.zone : '')
+                            (folder.id === dragOverId ? ' drag-over' : '')
                         }
-                        draggable={folder.kind === 'custom'}
                         style={{paddingLeft: 14 + depth * 14}}
                         tabIndex={folder.id === tabStopId ? 0 : -1}
                         onClick={() => props.onSelectFolder(folder.id)}
                         onKeyDown={(e) => {
                             // Only the row itself drives navigation; a key on a child button (the collapse
-                            // toggle, move, rename or delete) is left to that button. Only the selected row's
-                            // action buttons are in the Tab order (a roving tab stop), so Tab steps from the
-                            // row into its buttons then straight out of the list, while Up/Down move between
-                            // folders. That keeps the buttons keyboard-reachable without trapping Tab in the
-                            // tree: it is always at most a few Tabs out to the next region.
+                            // toggle, rename or delete) is left to that button. Those buttons are out of the
+                            // Tab order, so Tab and Shift+Tab enter and leave the whole folder list as one
+                            // stop (landing on the inbox) rather than stepping through each folder's buttons.
                             if (e.target !== e.currentTarget) {
                                 return
                             }
@@ -556,65 +494,21 @@ function FolderTree(props: FolderTreeProps) {
                                 return
                             }
                         }}
-                        onDragStart={(e) => {
-                            // Only custom folders are draggable; reparent by dropping onto another folder or
-                            // the top-level strip. The dragged id travels in the dataTransfer; draggingFolderId
-                            // in state drives the valid-target highlighting during the drag.
-                            e.stopPropagation()
-                            setDraggingFolderId(folder.id)
-                            e.dataTransfer.setData(folderDragType, folder.id)
-                            e.dataTransfer.effectAllowed = 'move'
-                        }}
-                        onDragEnd={() => {
-                            setDraggingFolderId('')
-                            setDragOverId('')
-                            setTopDropActive(false)
-                            setFolderDrop(null)
-                        }}
                         onDragOver={(e) => {
-                            // A message drops onto any folder (into it). A dragged folder aims at a zone: the
-                            // row's middle nests it inside this folder, the top or bottom edge places it at
-                            // this folder's own level (a sibling). The drop is accepted only when that
-                            // destination is valid (not itself, its own subtree or a no-op to where it is).
                             if (e.dataTransfer.types.includes(messageDragType)) {
                                 e.preventDefault()
                                 e.dataTransfer.dropEffect = 'move'
                                 setDragOverId(folder.id)
-                                return
-                            }
-                            if (!e.dataTransfer.types.includes(folderDragType)) {
-                                return
-                            }
-                            const zone = dropZoneFor(e.clientY, e.currentTarget.getBoundingClientRect())
-                            if (validTargetIds.has(dropParentFor(zone))) {
-                                e.preventDefault()
-                                e.dataTransfer.dropEffect = 'move'
-                                setFolderDrop({folderId: folder.id, zone})
-                            } else {
-                                setFolderDrop((cur) => (cur?.folderId === folder.id ? null : cur))
                             }
                         }}
-                        onDragLeave={() => {
-                            setDragOverId((id) => (id === folder.id ? '' : id))
-                            setFolderDrop((cur) => (cur?.folderId === folder.id ? null : cur))
-                        }}
+                        onDragLeave={() => setDragOverId((id) => (id === folder.id ? '' : id))}
                         onDrop={(e) => {
                             e.preventDefault()
                             setDragOverId('')
-                            setFolderDrop(null)
                             const messageId = e.dataTransfer.getData(messageDragType)
                             if (messageId) {
                                 props.onDropMessage(messageId, folder.id)
-                                return
                             }
-                            const movedFolderId = e.dataTransfer.getData(folderDragType)
-                            if (movedFolderId) {
-                                const dropParentId = dropParentFor(dropZoneFor(e.clientY, e.currentTarget.getBoundingClientRect()))
-                                if (validTargetIds.has(dropParentId)) {
-                                    props.onReparentFolder(movedFolderId, dropParentId)
-                                }
-                            }
-                            setDraggingFolderId('')
                         }}
                     >
                         <span className="folder-name">
@@ -642,19 +536,7 @@ function FolderTree(props: FolderTreeProps) {
                             <span className="account-actions">
                                 <button
                                     className="account-action"
-                                    tabIndex={folder.id === tabStopId ? 0 : -1}
-                                    aria-label={`Move ${folder.name}`}
-                                    title="Move folder"
-                                    onClick={(e) => {
-                                        e.stopPropagation()
-                                        props.onMoveFolder(folder)
-                                    }}
-                                >
-                                    &#8618;
-                                </button>
-                                <button
-                                    className="account-action"
-                                    tabIndex={folder.id === tabStopId ? 0 : -1}
+                                    tabIndex={-1}
                                     aria-label={`Rename ${folder.name}`}
                                     title="Rename folder"
                                     onClick={(e) => {
@@ -666,7 +548,7 @@ function FolderTree(props: FolderTreeProps) {
                                 </button>
                                 <button
                                     className="account-action delete"
-                                    tabIndex={folder.id === tabStopId ? 0 : -1}
+                                    tabIndex={-1}
                                     aria-label={`Delete ${folder.name}`}
                                     title="Delete folder"
                                     onClick={(e) => {
@@ -681,7 +563,6 @@ function FolderTree(props: FolderTreeProps) {
                     </li>
                 )
             })}
-            </ul>
-        </>
+        </ul>
     )
 }

@@ -19,7 +19,6 @@ import {MessagePickerDialog} from './components/MessagePickerDialog'
 import {AccountSetupModal} from './components/AccountSetupModal'
 import {ConfirmDialog} from './components/ConfirmDialog'
 import {PromptDialog} from './components/PromptDialog'
-import {MoveFolderDialog} from './components/MoveFolderDialog'
 import {RuleManagerModal} from './components/RuleManagerModal'
 import {ContactsModal} from './components/ContactsModal'
 import {CalendarModal} from './components/CalendarModal'
@@ -58,12 +57,11 @@ function focusRingElements(root: ParentNode): HTMLElement[] {
         if (el.getClientRects().length === 0 || getComputedStyle(el).visibility === 'hidden') {
             return false
         }
-        // Collapse the message list to a single stop: the row is the stop and its nested star button is
-        // skipped, because Up/Down move within the list. The folder and account lists are left uncollapsed,
-        // so the selected row is followed in the ring by its own action buttons (a folder's move, rename and
-        // delete; an account's move up, move down, edit and remove) before the ring carries on. Non-selected
-        // rows and their buttons are tabindex -1, so only the selected row contributes its buttons.
-        const row = el.closest('.message-row')
+        // Collapse the folder and message lists to a single stop each: the row is the stop and its nested
+        // action buttons are skipped, because Up/Down move within those lists. The account list is left
+        // uncollapsed, so the selected account row is followed in the ring by its own action buttons (move
+        // up, move down, edit, remove) before the ring carries on to the folders, which is the account model.
+        const row = el.closest('.message-row, .list-item.folder')
         return !row || row === el
     })
 }
@@ -220,7 +218,6 @@ function App() {
     const [accountToDelete, setAccountToDelete] = useState<Account | null>(null)
     const [folderPrompt, setFolderPrompt] = useState<{mode: 'create' | 'rename'; folder?: Folder} | null>(null)
     const [folderToDelete, setFolderToDelete] = useState<Folder | null>(null)
-    const [folderToMove, setFolderToMove] = useState<Folder | null>(null)
     const [folderBusy, setFolderBusy] = useState<boolean>(false)
     const [deleting, setDeleting] = useState<boolean>(false)
     const [tags, setTags] = useState<Tag[]>([])
@@ -1211,36 +1208,6 @@ function App() {
             setFolderBusy(false)
         }
     }, [folderToDelete, selectedFolder, refreshFolders])
-
-    // reparentFolder moves a folder under newParentId (empty for the top level) and refreshes the list. It
-    // backs both the move dialog and drag-and-drop. Like a rename, the folder's server path changes but the
-    // open folder and its messages are left as they are. It returns whether the move succeeded, so the
-    // dialog can stay open on failure.
-    const reparentFolder = useCallback(async (folderId: string, newParentId: string): Promise<boolean> => {
-        setFolderBusy(true)
-        setError('')
-        try {
-            await api.moveFolder(folderId, newParentId)
-            await refreshFolders()
-            return true
-        } catch (e) {
-            setError(String(e))
-            return false
-        } finally {
-            setFolderBusy(false)
-        }
-    }, [refreshFolders])
-
-    // moveFolder applies the move dialog's chosen destination to the folder being moved, closing the dialog
-    // on success.
-    const moveFolder = useCallback(async (newParentId: string) => {
-        if (!folderToMove) {
-            return
-        }
-        if (await reparentFolder(folderToMove.id, newParentId)) {
-            setFolderToMove(null)
-        }
-    }, [folderToMove, reparentFolder])
 
     // quoteFor returns the quoted original for reply/forward: the fetched HTML body when available,
     // otherwise the plain text (or snippet) escaped into a paragraph.
@@ -2286,8 +2253,6 @@ function App() {
                     onReorderAccounts={(ids) => void reorderAccounts(ids)}
                     onNewFolder={() => setFolderPrompt({mode: 'create'})}
                     onRenameFolder={(folder) => setFolderPrompt({mode: 'rename', folder})}
-                    onMoveFolder={(folder) => setFolderToMove(folder)}
-                    onReparentFolder={(folderId, newParentId) => void reparentFolder(folderId, newParentId)}
                     onDeleteFolder={(folder) => setFolderToDelete(folder)}
                     onDropMessage={dropMessageOnFolder}
                     canManageFolders={!isPop3}
@@ -2511,15 +2476,6 @@ function App() {
                     busy={folderBusy}
                     onConfirm={() => void confirmDeleteFolder()}
                     onCancel={() => setFolderToDelete(null)}
-                />
-            )}
-            {folderToMove && (
-                <MoveFolderDialog
-                    folder={folderToMove}
-                    folders={folders}
-                    busy={folderBusy}
-                    onMove={(newParentId) => void moveFolder(newParentId)}
-                    onCancel={() => setFolderToMove(null)}
                 />
             )}
         </div>

@@ -190,10 +190,6 @@ export function MinimiseToTray() {
   return window['go']['main']['App']['MinimiseToTray']();
 }
 
-export function MoveFolder(arg1, arg2) {
-  return window['go']['main']['App']['MoveFolder'](arg1, arg2);
-}
-
 export function MoveMessage(arg1, arg2) {
   return window['go']['main']['App']['MoveMessage'](arg1, arg2);
 }
