@@ -229,3 +229,30 @@ func TestNewAccountInvalid(t *testing.T) {
 		t.Errorf("zero address error = %v", err)
 	}
 }
+
+func TestAccountSavesSentServerSide(t *testing.T) {
+	build := func(outgoingHost string) Account {
+		in, err := NewServerConfig("imap.example.com", 993, SecurityTLS)
+		if err != nil {
+			t.Fatalf("incoming: %v", err)
+		}
+		out, err := NewServerConfig(outgoingHost, 465, SecurityTLS)
+		if err != nil {
+			t.Fatalf("outgoing: %v", err)
+		}
+		account, err := NewAccount("id", "Me", mustAddr(t, "me@example.com"), ProtocolIMAP, in, out, AuthPassword)
+		if err != nil {
+			t.Fatalf("account: %v", err)
+		}
+		return account
+	}
+	if !build("smtp.gmail.com").SavesSentServerSide() {
+		t.Error("gmail SMTP host should save sent server-side")
+	}
+	if !build("SMTP.GMAIL.COM").SavesSentServerSide() {
+		t.Error("gmail host match should be case-insensitive")
+	}
+	if build("smtp.fastmail.com").SavesSentServerSide() {
+		t.Error("a non-gmail host should not save sent server-side")
+	}
+}

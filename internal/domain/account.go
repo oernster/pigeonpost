@@ -174,6 +174,19 @@ func (a Account) Incoming() ServerConfig { return a.incoming }
 // Outgoing returns the outgoing (SMTP) server configuration.
 func (a Account) Outgoing() ServerConfig { return a.outgoing }
 
+// savesSentServerSideHosts are the outgoing (SMTP) servers whose provider files a copy of every sent
+// message into the Sent mailbox itself, so a client must not also append its own copy or the message
+// would appear in Sent twice. Gmail is the one such provider PigeonPost offers.
+var savesSentServerSideHosts = map[string]bool{
+	"smtp.gmail.com": true,
+}
+
+// SavesSentServerSide reports whether the account's provider saves sent mail to the Sent folder
+// server-side, so the compose path must not append its own copy. The host is matched case-insensitively.
+func (a Account) SavesSentServerSide() bool {
+	return savesSentServerSideHosts[strings.ToLower(a.outgoing.Host())]
+}
+
 // Auth returns the authentication method.
 func (a Account) Auth() AuthMethod { return a.auth }
 

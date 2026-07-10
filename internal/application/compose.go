@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 
 	"github.com/oernster/pigeonpost/internal/domain"
 )
@@ -297,22 +296,12 @@ func (s *ComposeService) draftsPath(ctx context.Context, accountID string) (stri
 	return path, nil
 }
 
-// gmailSMTPHost is Gmail's outgoing server. Gmail saves sent mail to its Sent Mail folder server-side
-// automatically, so PigeonPost must not also append a copy or the message would appear in Sent twice.
-const gmailSMTPHost = "smtp.gmail.com"
-
-// autoSavesSent reports whether the account's provider saves sent mail server-side, so the client must
-// not append its own copy. Gmail is the provider PigeonPost offers that does this.
-func autoSavesSent(account domain.Account) bool {
-	return strings.EqualFold(account.Outgoing().Host(), gmailSMTPHost)
-}
-
 // saveToSent appends a copy of a just-sent message to the account's Sent mailbox, so the user keeps a
 // record of what they sent. It is best-effort: the message has already been delivered, so a provider
 // that saves sent mail itself (skipped), a missing Sent folder or an append failure must never turn a
 // successful send into a failure.
 func (s *ComposeService) saveToSent(ctx context.Context, account domain.Account, msg domain.OutgoingMessage) {
-	if autoSavesSent(account) {
+	if account.SavesSentServerSide() {
 		return
 	}
 	sentPath := s.sentPath(ctx, account.ID())
