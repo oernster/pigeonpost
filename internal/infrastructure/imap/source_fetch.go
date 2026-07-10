@@ -133,3 +133,30 @@ func (s *Source) FetchMessages(ctx context.Context, account domain.Account, fold
 	}
 	return messages, nil
 }
+
+// FetchFolders lists the selectable mailboxes on the server for an account.
+func (s *Source) FetchFolders(ctx context.Context, account domain.Account) ([]domain.Folder, error) {
+	client, err := s.connect(ctx, account)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = client.Logout().Wait() }()
+
+	list, err := client.List("", "*", nil).Collect()
+	if err != nil {
+		return nil, fmt.Errorf("imap: list mailboxes: %w", err)
+	}
+
+	selectable := make([]*imap.ListData, 0, len(list))
+	for _, data := range list {
+		if hasAttr(data.Attrs, imap.MailboxAttrNonExistent) || hasAttr(data.Attrs, imap.MailboxAttrNoSelect) {
+			continue
+		}
+		selectable = append(selectable, data)
+	}
+	folders, err := buildFolders(account.ID(), selectable)
+	if err != nil {
+		return nil, fmt.Errorf("imap: build folders: %w", err)
+	}
+	return folders, nil
+}
