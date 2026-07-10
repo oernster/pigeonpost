@@ -100,6 +100,8 @@ export function MoveMessage(arg1:string,arg2:string):Promise<void>;
 
 export function MoveMessages(arg1:Array<string>,arg2:string):Promise<main.BulkResultDTO>;
 
+export function OpenAttachment(arg1:string,arg2:number):Promise<void>;
+
 export function OpenExternal(arg1:string):Promise<void>;
 
 export function OpenReleasesPage():Promise<void>;
@@ -121,6 +123,8 @@ export function ReplayOutbox():Promise<number>;
 export function RequestQuit():Promise<void>;
 
 export function RespondToInvitation(arg1:string,arg2:string):Promise<void>;
+
+export function SaveAllAttachments(arg1:string):Promise<void>;
 
 export function SaveAttachment(arg1:string,arg2:number):Promise<void>;
 

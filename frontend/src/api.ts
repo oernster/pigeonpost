@@ -71,6 +71,8 @@ import {
     SignInMicrosoft,
     SaveDraft,
     SaveDraftRecovery,
+    OpenAttachment,
+    SaveAllAttachments,
     SaveAttachment,
     SaveMessageAs,
     SaveTag,
@@ -322,6 +324,8 @@ export const api = {
     saveMessageAs: (messageId: string, suggestedName: string): Promise<void> =>
         SaveMessageAs(messageId, suggestedName),
     saveAttachment: (messageId: string, index: number): Promise<void> => SaveAttachment(messageId, index),
+    openAttachment: (messageId: string, index: number): Promise<void> => OpenAttachment(messageId, index),
+    saveAllAttachments: (messageId: string): Promise<void> => SaveAllAttachments(messageId),
     moveMessage: (messageId: string, destFolderId: string): Promise<void> => MoveMessage(messageId, destFolderId),
     markJunk: (messageId: string): Promise<void> => MarkJunk(messageId),
     copyMessage: (messageId: string, destFolderId: string): Promise<void> => CopyMessage(messageId, destFolderId),

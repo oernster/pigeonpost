@@ -92,6 +92,29 @@ export function Reader({message, onToggleRead, onReply, onReplyAll, onForward, o
         }
     }
 
+    // openAttachment writes the attachment to a temporary file and opens it with the OS default app, so a
+    // received file (or an attached .eml) can be viewed without saving it first.
+    const openAttachment = async (index: number) => {
+        if (!message) return
+        setAttachError('')
+        try {
+            await api.openAttachment(message.id, index)
+        } catch (e) {
+            setAttachError(String(e))
+        }
+    }
+
+    // saveAllAttachments writes every attachment into a folder chosen through a native dialog, in one step.
+    const saveAllAttachments = async () => {
+        if (!message) return
+        setAttachError('')
+        try {
+            await api.saveAllAttachments(message.id)
+        } catch (e) {
+            setAttachError(String(e))
+        }
+    }
+
     const tabStrip = tabs.length > 0
         ? <ReaderTabs tabs={tabs} activeMessageId={message?.id ?? ''} onSelectTab={onSelectTab} onCloseTab={onCloseTab}/>
         : null
@@ -423,7 +446,12 @@ export function Reader({message, onToggleRead, onReply, onReplyAll, onForward, o
             {!bodyLoading && body && body.attachments && body.attachments.length > 0 && (
                 <div className="reader-attachments">
                     <div className="reader-attachments-title">
-                        {body.attachments.length === 1 ? '1 attachment' : `${body.attachments.length} attachments`}
+                        <span>{body.attachments.length === 1 ? '1 attachment' : `${body.attachments.length} attachments`}</span>
+                        {body.attachments.length > 1 && (
+                            <button type="button" className="btn" onClick={() => void saveAllAttachments()}>
+                                Save all
+                            </button>
+                        )}
                     </div>
                     {attachError && <div className="compose-error">{attachError}</div>}
                     <ul className="attachment-list">
@@ -431,6 +459,13 @@ export function Reader({message, onToggleRead, onReply, onReplyAll, onForward, o
                             <li key={att.index} className="attachment-chip">
                                 <span className="attachment-name" title={att.filename}>{att.filename}</span>
                                 <span className="attachment-size">{formatBytes(att.size)}</span>
+                                <button
+                                    type="button"
+                                    className="btn"
+                                    onClick={() => void openAttachment(att.index)}
+                                >
+                                    Open
+                                </button>
                                 <button
                                     type="button"
                                     className="btn"

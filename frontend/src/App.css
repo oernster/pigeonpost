@@ -2304,11 +2304,45 @@
 }
 
 .reader-attachments-title {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
     font-size: 12px;
     text-transform: uppercase;
     letter-spacing: 0.04em;
     color: var(--text-dim);
     margin-bottom: 8px;
+}
+
+/* The Save all button sits in the uppercase attachments header, so undo the header's text styling on it
+   to keep it looking like an ordinary button. */
+.reader-attachments-title .btn {
+    text-transform: none;
+    letter-spacing: normal;
+}
+
+/* Reader attachments are a vertical list of full-width rows so each name has room beside its Open and Save
+   buttons, unlike the compact fixed-width chips the composer uses. */
+.reader-attachments .attachment-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.reader-attachments .attachment-chip {
+    width: 100%;
+    max-width: none;
+}
+
+.reader-attachments .attachment-name {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .attachment-size {

@@ -198,6 +198,10 @@ export function MoveMessages(arg1, arg2) {
   return window['go']['main']['App']['MoveMessages'](arg1, arg2);
 }
 
+export function OpenAttachment(arg1, arg2) {
+  return window['go']['main']['App']['OpenAttachment'](arg1, arg2);
+}
+
 export function OpenExternal(arg1) {
   return window['go']['main']['App']['OpenExternal'](arg1);
 }
@@ -240,6 +244,10 @@ export function RequestQuit() {
 
 export function RespondToInvitation(arg1, arg2) {
   return window['go']['main']['App']['RespondToInvitation'](arg1, arg2);
+}
+
+export function SaveAllAttachments(arg1) {
+  return window['go']['main']['App']['SaveAllAttachments'](arg1);
 }
 
 export function SaveAttachment(arg1, arg2) {
