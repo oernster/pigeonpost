@@ -78,16 +78,16 @@ func (s *Source) FetchFolders(ctx context.Context, account domain.Account) ([]do
 		return nil, fmt.Errorf("imap: list mailboxes: %w", err)
 	}
 
-	folders := make([]domain.Folder, 0, len(list))
+	selectable := make([]*imap.ListData, 0, len(list))
 	for _, data := range list {
 		if hasAttr(data.Attrs, imap.MailboxAttrNonExistent) || hasAttr(data.Attrs, imap.MailboxAttrNoSelect) {
 			continue
 		}
-		folder, err := buildFolder(account.ID(), data)
-		if err != nil {
-			return nil, fmt.Errorf("imap: build folder %q: %w", data.Mailbox, err)
-		}
-		folders = append(folders, folder)
+		selectable = append(selectable, data)
+	}
+	folders, err := buildFolders(account.ID(), selectable)
+	if err != nil {
+		return nil, fmt.Errorf("imap: build folders: %w", err)
 	}
 	return folders, nil
 }

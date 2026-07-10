@@ -50,31 +50,59 @@ var folderKindByLeafName = map[string]domain.FolderKind{
 	"archives":         domain.FolderArchive,
 }
 
-// folderKindFor classifies a mailbox from its name and RFC 6154 special-use attributes. Attributes win
-// when present; otherwise the leaf name is matched against the well-known names, so servers that omit
-// special-use still get a usable Trash/Sent/Drafts/Junk/Archive classification.
-func folderKindFor(mailbox, leaf string, attrs []imap.MailboxAttr) domain.FolderKind {
+// specialRoleFor returns the well-known role a mailbox's RFC 6154 special-use attributes declare, and
+// whether it declared one. INBOX is always the inbox. A server's declaration is authoritative, so a role
+// it flags is never also given to a folder that merely shares a well-known name.
+func specialRoleFor(mailbox string, attrs []imap.MailboxAttr) (domain.FolderKind, bool) {
 	if strings.EqualFold(mailbox, "INBOX") {
-		return domain.FolderInbox
+		return domain.FolderInbox, true
 	}
 	for _, attr := range attrs {
 		switch attr {
 		case imap.MailboxAttrSent:
-			return domain.FolderSent
+			return domain.FolderSent, true
 		case imap.MailboxAttrDrafts:
-			return domain.FolderDrafts
+			return domain.FolderDrafts, true
 		case imap.MailboxAttrTrash:
-			return domain.FolderTrash
+			return domain.FolderTrash, true
 		case imap.MailboxAttrJunk:
-			return domain.FolderJunk
+			return domain.FolderJunk, true
 		case imap.MailboxAttrArchive:
-			return domain.FolderArchive
+			return domain.FolderArchive, true
 		}
 	}
-	if kind, ok := folderKindByLeafName[strings.ToLower(strings.TrimSpace(leaf))]; ok {
-		return kind
+	return domain.FolderCustom, false
+}
+
+// namedRoleFor returns the well-known role a mailbox's leaf name matches, and whether it matched one. It
+// is the fallback for servers that do not advertise special-use.
+func namedRoleFor(leaf string) (domain.FolderKind, bool) {
+	kind, ok := folderKindByLeafName[strings.ToLower(strings.TrimSpace(leaf))]
+	return kind, ok
+}
+
+// folderKindFor classifies a single mailbox from its name and special-use attributes, the attributes
+// winning when present. buildFolders is the whole-list classifier that also deduplicates a role across
+// folders; this single-folder form is kept for callers that classify one mailbox in isolation.
+func folderKindFor(mailbox, leaf string, attrs []imap.MailboxAttr) domain.FolderKind {
+	if role, ok := specialRoleFor(mailbox, attrs); ok {
+		return role
+	}
+	if role, ok := namedRoleFor(leaf); ok {
+		return role
 	}
 	return domain.FolderCustom
+}
+
+// isNonInboxWellKnown reports whether a role is one of the special mailboxes that must not host a sibling
+// role by name: a folder named "Sent" nested under Drafts (or Trash, Junk, Archive) is not the account's
+// Sent. INBOX is excluded because servers legitimately nest the special folders under it.
+func isNonInboxWellKnown(k domain.FolderKind) bool {
+	switch k {
+	case domain.FolderSent, domain.FolderDrafts, domain.FolderTrash, domain.FolderJunk, domain.FolderArchive:
+		return true
+	}
+	return false
 }
 
 // buildFolder maps a LIST response into a domain folder. Counts are unknown from LIST alone and
@@ -93,6 +121,114 @@ func buildFolder(accountID string, data *imap.ListData) (domain.Folder, error) {
 	kind := folderKindFor(data.Mailbox, leaf, data.Attrs)
 	return domain.NewFolderWithSeparator(
 		makeFolderID(accountID, data.Mailbox), accountID, data.Mailbox, separator, kind, 0, 0)
+}
+
+// buildFolders maps the selectable LIST responses into domain folders, giving each well-known role to
+// exactly one folder. RFC 6154 special-use attributes are authoritative: a role the server flags is given
+// only to the flagged folder, so other folders that merely share a well-known name stay Custom. A role the
+// server does not flag falls back to the well-known leaf names; among several name matches the shallowest
+// (then the first listed) wins, and a name match nested under a different well-known folder is rejected,
+// so a stray "Sent" under Drafts never becomes the account Sent. Every other mailbox is Custom.
+func buildFolders(accountID string, list []*imap.ListData) ([]domain.Folder, error) {
+	type folderInfo struct {
+		mailbox   string
+		separator string
+		special   domain.FolderKind
+		hasSpec   bool
+		named     domain.FolderKind
+		hasNamed  bool
+		depth     int
+	}
+	infos := make([]folderInfo, 0, len(list))
+	// barrier holds the paths of folders that are a non-inbox well-known mailbox (by special use or by
+	// name); a name match nested beneath one of these is rejected.
+	barrier := map[string]bool{}
+	for _, data := range list {
+		separator := ""
+		if data.Delim != 0 {
+			separator = string(data.Delim)
+		}
+		leaf := data.Mailbox
+		depth := 0
+		if separator != "" {
+			if idx := strings.LastIndex(data.Mailbox, separator); idx >= 0 {
+				leaf = data.Mailbox[idx+len(separator):]
+			}
+			depth = strings.Count(data.Mailbox, separator)
+		}
+		special, hasSpec := specialRoleFor(data.Mailbox, data.Attrs)
+		named, hasNamed := namedRoleFor(leaf)
+		infos = append(infos, folderInfo{data.Mailbox, separator, special, hasSpec, named, hasNamed, depth})
+		role := domain.FolderCustom
+		if hasSpec {
+			role = special
+		} else if hasNamed {
+			role = named
+		}
+		if isNonInboxWellKnown(role) {
+			barrier[data.Mailbox] = true
+		}
+	}
+	// underBarrier reports whether a folder sits inside a non-inbox well-known subtree.
+	underBarrier := func(in folderInfo) bool {
+		if in.separator == "" {
+			return false
+		}
+		for path := in.mailbox; ; {
+			idx := strings.LastIndex(path, in.separator)
+			if idx < 0 {
+				return false
+			}
+			path = path[:idx]
+			if barrier[path] {
+				return true
+			}
+		}
+	}
+	// winner maps a mailbox path to the non-inbox well-known role it wins.
+	winner := map[string]domain.FolderKind{}
+	roles := []domain.FolderKind{
+		domain.FolderSent, domain.FolderDrafts, domain.FolderTrash, domain.FolderJunk, domain.FolderArchive,
+	}
+	for _, role := range roles {
+		best := -1
+		for i := range infos {
+			if infos[i].hasSpec && infos[i].special == role {
+				best = i
+				break // a flagged role is authoritative; the first flagged folder wins.
+			}
+		}
+		if best < 0 {
+			for i := range infos {
+				in := infos[i]
+				if in.hasSpec || !in.hasNamed || in.named != role || underBarrier(in) {
+					continue
+				}
+				if best < 0 || in.depth < infos[best].depth {
+					best = i
+				}
+			}
+		}
+		if best >= 0 {
+			winner[infos[best].mailbox] = role
+		}
+	}
+	folders := make([]domain.Folder, 0, len(infos))
+	for _, in := range infos {
+		kind := domain.FolderCustom
+		if in.hasSpec && in.special == domain.FolderInbox {
+			kind = domain.FolderInbox
+		} else if role, ok := winner[in.mailbox]; ok {
+			kind = role
+		}
+		folder, err := domain.NewFolderWithSeparator(
+			makeFolderID(accountID, in.mailbox), accountID, in.mailbox, in.separator, kind, 0, 0)
+		if err != nil {
+			return nil, fmt.Errorf("build folder %q: %w", in.mailbox, err)
+		}
+		folders = append(folders, folder)
+	}
+	return folders, nil
 }
 
 // mapFlags converts IMAP flags into the domain flag set, ignoring flags the domain does not model.

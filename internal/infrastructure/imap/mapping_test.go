@@ -69,6 +69,84 @@ func TestBuildFolder(t *testing.T) {
 	}
 }
 
+func TestBuildFolders(t *testing.T) {
+	// StartMail-shaped: the server flags the real top-level Sent, and there are strays that only match by
+	// name (a "Sent Messages" left by an old client and a "Sent" nested under Drafts). Exactly one folder
+	// must end up as Sent, and it must be the flagged top-level one.
+	list := []*imap.ListData{
+		{Mailbox: "INBOX", Delim: '.'},
+		{Mailbox: "Drafts", Delim: '.', Attrs: []imap.MailboxAttr{imap.MailboxAttrDrafts}},
+		{Mailbox: "Drafts.Sent", Delim: '.'},
+		{Mailbox: "Sent", Delim: '.', Attrs: []imap.MailboxAttr{imap.MailboxAttrSent}},
+		{Mailbox: "Sent Messages", Delim: '.'},
+		{Mailbox: "Spam", Delim: '.', Attrs: []imap.MailboxAttr{imap.MailboxAttrJunk}},
+		{Mailbox: "Trash", Delim: '.', Attrs: []imap.MailboxAttr{imap.MailboxAttrTrash}},
+		{Mailbox: "3D Printing", Delim: '.'},
+	}
+	folders, err := buildFolders("a1", list)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	byPath := map[string]domain.FolderKind{}
+	for _, f := range folders {
+		byPath[f.Path()] = f.Kind()
+	}
+	want := map[string]domain.FolderKind{
+		"INBOX":         domain.FolderInbox,
+		"Drafts":        domain.FolderDrafts,
+		"Drafts.Sent":   domain.FolderCustom,
+		"Sent":          domain.FolderSent,
+		"Sent Messages": domain.FolderCustom,
+		"Spam":          domain.FolderJunk,
+		"Trash":         domain.FolderTrash,
+		"3D Printing":   domain.FolderCustom,
+	}
+	for path, wantKind := range want {
+		if byPath[path] != wantKind {
+			t.Errorf("%q kind = %v, want %v", path, byPath[path], wantKind)
+		}
+	}
+	sent := 0
+	for _, k := range byPath {
+		if k == domain.FolderSent {
+			sent++
+		}
+	}
+	if sent != 1 {
+		t.Errorf("expected exactly one Sent folder, got %d", sent)
+	}
+}
+
+func TestBuildFoldersNameFallback(t *testing.T) {
+	// A server without special-use that nests the special folders under INBOX: leaf names classify, a Sent
+	// under INBOX is fine (INBOX is not a barrier) and a Sent under Drafts is rejected.
+	list := []*imap.ListData{
+		{Mailbox: "INBOX", Delim: '.'},
+		{Mailbox: "INBOX.Drafts", Delim: '.'},
+		{Mailbox: "INBOX.Sent", Delim: '.'},
+		{Mailbox: "INBOX.Drafts.Sent", Delim: '.'},
+	}
+	folders, err := buildFolders("a1", list)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	byPath := map[string]domain.FolderKind{}
+	for _, f := range folders {
+		byPath[f.Path()] = f.Kind()
+	}
+	cases := map[string]domain.FolderKind{
+		"INBOX":             domain.FolderInbox,
+		"INBOX.Drafts":      domain.FolderDrafts,
+		"INBOX.Sent":        domain.FolderSent,
+		"INBOX.Drafts.Sent": domain.FolderCustom,
+	}
+	for path, want := range cases {
+		if byPath[path] != want {
+			t.Errorf("%q = %v, want %v", path, byPath[path], want)
+		}
+	}
+}
+
 func TestMapFlags(t *testing.T) {
 	flags := mapFlags([]imap.Flag{imap.FlagSeen, imap.FlagFlagged, imap.FlagAnswered, imap.FlagDraft, imap.FlagDeleted, imap.FlagJunk})
 	for _, want := range []domain.Flag{domain.FlagSeen, domain.FlagFlagged, domain.FlagAnswered, domain.FlagDraft, domain.FlagDeleted} {
