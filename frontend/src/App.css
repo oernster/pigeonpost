@@ -385,6 +385,7 @@
 }
 
 .list-item.folder {
+    position: relative;
     flex-direction: row;
     align-items: center;
     justify-content: space-between;
@@ -1752,6 +1753,20 @@
     z-index: 1;
 }
 
+/* Custom folder rows carry the same floating action toolbar (move, rename, delete) as accounts, using
+   the shared .account-actions styling. It is revealed on hover or keyboard focus within the row; the
+   row (which is position:relative) is lifted so its toolbar paints over the row beneath it. */
+.list-item.folder:hover .account-actions,
+.list-item.folder:focus-within .account-actions {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.list-item.folder:hover,
+.list-item.folder:focus-within {
+    z-index: 1;
+}
+
 .account-action {
     background: transparent;
     border: none;
@@ -1863,6 +1878,39 @@
     font-size: 14px;
     line-height: 1.6;
     color: var(--text-dim);
+}
+
+/* MoveFolderDialog destination picker: a compact scrollable radio list so an account with many folders
+   still fits the modal. */
+.move-target-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    max-height: 260px;
+    overflow-y: auto;
+    margin: 8px 0;
+    padding: 6px;
+    border: 1px solid var(--ring);
+    border-radius: 6px;
+}
+
+.move-target {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 6px;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.move-target:hover {
+    background-color: var(--bg-elev);
+}
+
+.move-target-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 /* --- Tags --- */

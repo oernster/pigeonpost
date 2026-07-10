@@ -53,6 +53,7 @@ import {
     SaveEvent,
     SaveEventScoped,
     DeleteEventScoped,
+    MoveFolder,
     MoveMessage,
     MoveMessages,
     RenameFolder,
@@ -349,6 +350,9 @@ export const api = {
     createFolder: (accountId: string, name: string): Promise<void> => CreateFolder(accountId, name),
     renameFolder: (folderId: string, newName: string): Promise<void> => RenameFolder(folderId, newName),
     deleteFolder: (folderId: string): Promise<void> => DeleteFolder(folderId),
+    // moveFolder reparents a folder under the folder with newParentId or to the top level when
+    // newParentId is empty.
+    moveFolder: (folderId: string, newParentId: string): Promise<void> => MoveFolder(folderId, newParentId),
     listRules: (): Promise<Rule[]> => ListRules(),
     saveRule: (req: RuleInput): Promise<void> => SaveRule(main.RuleRequest.createFrom(req)),
     deleteRule: (ruleId: string): Promise<void> => DeleteRule(ruleId),

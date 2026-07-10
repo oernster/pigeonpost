@@ -2,6 +2,7 @@ import {useEffect, useState} from 'react'
 import icon from '../assets/pigeonpost.png'
 import {Account, Folder} from '../api'
 import {messageDragType} from './MessageList'
+import {detectSeparator, leafName, ancestorPaths} from '../folderPaths'
 
 interface SidebarProps {
     accounts: Account[]
@@ -23,6 +24,7 @@ interface SidebarProps {
     onReorderAccounts: (orderedIds: string[]) => void
     onNewFolder: () => void
     onRenameFolder: (folder: Folder) => void
+    onMoveFolder: (folder: Folder) => void
     onDeleteFolder: (folder: Folder) => void
     onDropMessage: (messageId: string, folderId: string) => void
     // canManageFolders is false for POP3 accounts, which have no server-side folders to create.
@@ -283,6 +285,7 @@ function SidebarContent(props: SidebarProps) {
                             selectedAccount={selectedAccount}
                             onSelectFolder={props.onSelectFolder}
                             onRenameFolder={props.onRenameFolder}
+                            onMoveFolder={props.onMoveFolder}
                             onDeleteFolder={props.onDeleteFolder}
                             onDropMessage={props.onDropMessage}
                         />
@@ -299,6 +302,7 @@ interface FolderTreeProps {
     selectedAccount: string
     onSelectFolder: (id: string) => void
     onRenameFolder: (folder: Folder) => void
+    onMoveFolder: (folder: Folder) => void
     onDeleteFolder: (folder: Folder) => void
     onDropMessage: (messageId: string, folderId: string) => void
 }
@@ -307,38 +311,8 @@ function collapseKey(accountId: string): string {
     return `pigeonpost.collapsed.${accountId}`
 }
 
-// detectSeparator infers the server's mailbox hierarchy delimiter from the folder paths. A character
-// is the delimiter when some folder's path, split on it, yields a parent that is itself a folder (e.g.
-// "Archived.Debt" alongside "Archived" means the delimiter is "."). It checks the two common IMAP
-// delimiters and falls back to "/".
-function detectSeparator(paths: string[]): string {
-    const set = new Set(paths)
-    for (const sep of ['.', '/']) {
-        for (const p of paths) {
-            const idx = p.lastIndexOf(sep)
-            if (idx > 0 && set.has(p.slice(0, idx))) {
-                return sep
-            }
-        }
-    }
-    return '/'
-}
-
-// leafName returns the last segment of a path under the given separator.
-function leafName(path: string, sep: string): string {
-    const idx = path.lastIndexOf(sep)
-    return idx >= 0 ? path.slice(idx + 1) : path
-}
-
-// ancestorPaths returns every parent path of a folder path under the given separator.
-function ancestorPaths(path: string, sep: string): string[] {
-    const parts = path.split(sep)
-    const out: string[] = []
-    for (let i = 1; i < parts.length; i++) {
-        out.push(parts.slice(0, i).join(sep))
-    }
-    return out
-}
+// The folder-path helpers (detectSeparator, leafName, ancestorPaths) live in ../folderPaths so the move
+// dialog can share them; they are imported at the top of this file.
 
 // orderFolders reorders the folders for display so the well-known mailboxes lead (see
 // specialFolderOrder) while every subtree stays contiguous under its parent. It walks the tree from
@@ -534,6 +508,18 @@ function FolderTree(props: FolderTreeProps) {
                         {folder.unread > 0 && <span className="badge">{folder.unread}</span>}
                         {folder.kind === 'custom' && (
                             <span className="account-actions">
+                                <button
+                                    className="account-action"
+                                    tabIndex={-1}
+                                    aria-label={`Move ${folder.name}`}
+                                    title="Move folder"
+                                    onClick={(e) => {
+                                        e.stopPropagation()
+                                        props.onMoveFolder(folder)
+                                    }}
+                                >
+                                    &#8618;
+                                </button>
                                 <button
                                     className="account-action"
                                     tabIndex={-1}

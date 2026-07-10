@@ -19,6 +19,7 @@ import {MessagePickerDialog} from './components/MessagePickerDialog'
 import {AccountSetupModal} from './components/AccountSetupModal'
 import {ConfirmDialog} from './components/ConfirmDialog'
 import {PromptDialog} from './components/PromptDialog'
+import {MoveFolderDialog} from './components/MoveFolderDialog'
 import {RuleManagerModal} from './components/RuleManagerModal'
 import {ContactsModal} from './components/ContactsModal'
 import {CalendarModal} from './components/CalendarModal'
@@ -218,6 +219,7 @@ function App() {
     const [accountToDelete, setAccountToDelete] = useState<Account | null>(null)
     const [folderPrompt, setFolderPrompt] = useState<{mode: 'create' | 'rename'; folder?: Folder} | null>(null)
     const [folderToDelete, setFolderToDelete] = useState<Folder | null>(null)
+    const [folderToMove, setFolderToMove] = useState<Folder | null>(null)
     const [folderBusy, setFolderBusy] = useState<boolean>(false)
     const [deleting, setDeleting] = useState<boolean>(false)
     const [tags, setTags] = useState<Tag[]>([])
@@ -1208,6 +1210,26 @@ function App() {
             setFolderBusy(false)
         }
     }, [folderToDelete, selectedFolder, refreshFolders])
+
+    // moveFolder reparents the folder chosen for moving under newParentId (empty for the top level),
+    // then refreshes the list. Like a rename, the folder's server path changes but the open folder and
+    // its messages are left as they are.
+    const moveFolder = useCallback(async (newParentId: string) => {
+        if (!folderToMove) {
+            return
+        }
+        setFolderBusy(true)
+        setError('')
+        try {
+            await api.moveFolder(folderToMove.id, newParentId)
+            await refreshFolders()
+            setFolderToMove(null)
+        } catch (e) {
+            setError(String(e))
+        } finally {
+            setFolderBusy(false)
+        }
+    }, [folderToMove, refreshFolders])
 
     // quoteFor returns the quoted original for reply/forward: the fetched HTML body when available,
     // otherwise the plain text (or snippet) escaped into a paragraph.
@@ -2253,6 +2275,7 @@ function App() {
                     onReorderAccounts={(ids) => void reorderAccounts(ids)}
                     onNewFolder={() => setFolderPrompt({mode: 'create'})}
                     onRenameFolder={(folder) => setFolderPrompt({mode: 'rename', folder})}
+                    onMoveFolder={(folder) => setFolderToMove(folder)}
                     onDeleteFolder={(folder) => setFolderToDelete(folder)}
                     onDropMessage={dropMessageOnFolder}
                     canManageFolders={!isPop3}
@@ -2476,6 +2499,15 @@ function App() {
                     busy={folderBusy}
                     onConfirm={() => void confirmDeleteFolder()}
                     onCancel={() => setFolderToDelete(null)}
+                />
+            )}
+            {folderToMove && (
+                <MoveFolderDialog
+                    folder={folderToMove}
+                    folders={folders}
+                    busy={folderBusy}
+                    onMove={(newParentId) => void moveFolder(newParentId)}
+                    onCancel={() => setFolderToMove(null)}
                 />
             )}
         </div>

@@ -25,6 +25,14 @@ var ErrAlreadyJunk = errors.New("message is already in the junk folder")
 // ErrEmptyFolderName is returned when a folder create or rename is given a blank name.
 var ErrEmptyFolderName = errors.New("folder name is empty")
 
+// ErrFolderMoveIntoSelf is returned when a folder move would reparent a folder under itself or under
+// one of its own descendants, which no mailbox tree can represent.
+var ErrFolderMoveIntoSelf = errors.New("cannot move a folder into itself or its own subtree")
+
+// ErrFolderMoveAcrossAccounts is returned when a folder move names a target parent belonging to a
+// different account; a folder can only be moved within its own account's mailbox tree.
+var ErrFolderMoveAcrossAccounts = errors.New("cannot move a folder to another account")
+
 // ErrNoInvite is returned when a message carries no text/calendar scheduling payload to act on.
 var ErrNoInvite = errors.New("message carries no meeting invitation")
 
