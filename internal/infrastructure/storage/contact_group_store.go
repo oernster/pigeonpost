@@ -48,24 +48,15 @@ func (s *Store) ListContactGroups(ctx context.Context) ([]domain.ContactGroup, e
 
 // groupMembers returns a group's member contact ids in stored order.
 func (s *Store) groupMembers(ctx context.Context, groupID string) ([]string, error) {
-	rows, err := s.db.QueryContext(ctx,
-		"SELECT contact_id FROM contact_group_member WHERE group_id = ? ORDER BY position;", groupID)
-	if err != nil {
-		return nil, fmt.Errorf("query group members: %w", err)
-	}
-	defer rows.Close()
-	var members []string
-	for rows.Next() {
-		var id string
-		if err := rows.Scan(&id); err != nil {
-			return nil, fmt.Errorf("scan group member: %w", err)
-		}
-		members = append(members, id)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate group members: %w", err)
-	}
-	return members, nil
+	return queryRows(ctx, s.db, "group members",
+		"SELECT contact_id FROM contact_group_member WHERE group_id = ? ORDER BY position;",
+		func(row scanner) (string, error) {
+			var id string
+			if err := row.Scan(&id); err != nil {
+				return "", fmt.Errorf("scan group member: %w", err)
+			}
+			return id, nil
+		}, groupID)
 }
 
 // SaveContactGroup inserts or updates a group and replaces its member links in one transaction.

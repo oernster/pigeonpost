@@ -35,33 +35,23 @@ func (s *Store) GetMessageBody(ctx context.Context, messageID string) (domain.Me
 
 // messageAttachments loads a message's cached attachments, ordered as the sender arranged them.
 func (s *Store) messageAttachments(ctx context.Context, messageID string) ([]domain.Attachment, error) {
-	rows, err := s.db.QueryContext(ctx,
+	return queryRows(ctx, s.db, fmt.Sprintf("message attachments %q", messageID),
 		`SELECT filename, content_type, content FROM message_attachment
-		 WHERE message_id = ? ORDER BY position ASC;`, messageID)
-	if err != nil {
-		return nil, fmt.Errorf("query message attachments %q: %w", messageID, err)
-	}
-	defer rows.Close()
-
-	var attachments []domain.Attachment
-	for rows.Next() {
-		var (
-			filename, contentType string
-			content               []byte
-		)
-		if err := rows.Scan(&filename, &contentType, &content); err != nil {
-			return nil, fmt.Errorf("scan message attachment %q: %w", messageID, err)
-		}
-		attachment, err := domain.NewAttachment(filename, contentType, content)
-		if err != nil {
-			return nil, fmt.Errorf("rebuild message attachment %q: %w", messageID, err)
-		}
-		attachments = append(attachments, attachment)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate message attachments %q: %w", messageID, err)
-	}
-	return attachments, nil
+		 WHERE message_id = ? ORDER BY position ASC;`,
+		func(row scanner) (domain.Attachment, error) {
+			var (
+				filename, contentType string
+				content               []byte
+			)
+			if err := row.Scan(&filename, &contentType, &content); err != nil {
+				return domain.Attachment{}, fmt.Errorf("scan message attachment %q: %w", messageID, err)
+			}
+			attachment, err := domain.NewAttachment(filename, contentType, content)
+			if err != nil {
+				return domain.Attachment{}, fmt.Errorf("rebuild message attachment %q: %w", messageID, err)
+			}
+			return attachment, nil
+		}, messageID)
 }
 
 // SaveMessageBody inserts or replaces a cached message body, including any text/calendar payload and its

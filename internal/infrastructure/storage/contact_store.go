@@ -84,54 +84,36 @@ func (s *Store) assembleContact(ctx context.Context, b contactRow) (domain.Conta
 
 // contactEmails returns a contact's labelled emails in stored order.
 func (s *Store) contactEmails(ctx context.Context, contactID string) ([]domain.ContactEmail, error) {
-	rows, err := s.db.QueryContext(ctx,
-		"SELECT label, address FROM contact_email WHERE contact_id = ? ORDER BY position;", contactID)
-	if err != nil {
-		return nil, fmt.Errorf("query contact emails: %w", err)
-	}
-	defer rows.Close()
-	var emails []domain.ContactEmail
-	for rows.Next() {
-		var label, address string
-		if err := rows.Scan(&label, &address); err != nil {
-			return nil, fmt.Errorf("scan contact email: %w", err)
-		}
-		email, err := domain.NewContactEmail(label, address)
-		if err != nil {
-			return nil, fmt.Errorf("rebuild contact email: %w", err)
-		}
-		emails = append(emails, email)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate contact emails: %w", err)
-	}
-	return emails, nil
+	return queryRows(ctx, s.db, "contact emails",
+		"SELECT label, address FROM contact_email WHERE contact_id = ? ORDER BY position;",
+		func(row scanner) (domain.ContactEmail, error) {
+			var label, address string
+			if err := row.Scan(&label, &address); err != nil {
+				return domain.ContactEmail{}, fmt.Errorf("scan contact email: %w", err)
+			}
+			email, err := domain.NewContactEmail(label, address)
+			if err != nil {
+				return domain.ContactEmail{}, fmt.Errorf("rebuild contact email: %w", err)
+			}
+			return email, nil
+		}, contactID)
 }
 
 // contactPhones returns a contact's labelled phone numbers in stored order.
 func (s *Store) contactPhones(ctx context.Context, contactID string) ([]domain.ContactPhone, error) {
-	rows, err := s.db.QueryContext(ctx,
-		"SELECT label, number FROM contact_phone WHERE contact_id = ? ORDER BY position;", contactID)
-	if err != nil {
-		return nil, fmt.Errorf("query contact phones: %w", err)
-	}
-	defer rows.Close()
-	var phones []domain.ContactPhone
-	for rows.Next() {
-		var label, number string
-		if err := rows.Scan(&label, &number); err != nil {
-			return nil, fmt.Errorf("scan contact phone: %w", err)
-		}
-		phone, err := domain.NewContactPhone(label, number)
-		if err != nil {
-			return nil, fmt.Errorf("rebuild contact phone: %w", err)
-		}
-		phones = append(phones, phone)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate contact phones: %w", err)
-	}
-	return phones, nil
+	return queryRows(ctx, s.db, "contact phones",
+		"SELECT label, number FROM contact_phone WHERE contact_id = ? ORDER BY position;",
+		func(row scanner) (domain.ContactPhone, error) {
+			var label, number string
+			if err := row.Scan(&label, &number); err != nil {
+				return domain.ContactPhone{}, fmt.Errorf("scan contact phone: %w", err)
+			}
+			phone, err := domain.NewContactPhone(label, number)
+			if err != nil {
+				return domain.ContactPhone{}, fmt.Errorf("rebuild contact phone: %w", err)
+			}
+			return phone, nil
+		}, contactID)
 }
 
 // SaveContact inserts or updates a contact and replaces its emails and phones in one transaction, so a

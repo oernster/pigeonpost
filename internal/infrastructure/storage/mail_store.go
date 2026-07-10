@@ -28,34 +28,23 @@ var (
 // ListFolders returns the cached folders for an account, ordered by path. Each folder's unread and
 // total counts are computed live from the cached messages rather than read from the stored columns.
 func (s *Store) ListFolders(ctx context.Context, accountID string) ([]domain.Folder, error) {
-	rows, err := s.db.QueryContext(ctx, fmt.Sprintf(
+	return queryRows(ctx, s.db, "folders", fmt.Sprintf(
 		`SELECT f.id, f.account_id, f.path, f.separator, f.kind, %s AS unread, %s AS total
 		 FROM folder f WHERE f.account_id = ? ORDER BY f.path;`, unreadCountExpr, totalCountExpr),
-		accountID)
-	if err != nil {
-		return nil, fmt.Errorf("query folders: %w", err)
-	}
-	defer rows.Close()
-
-	var folders []domain.Folder
-	for rows.Next() {
-		var (
-			id, accID, path, sep string
-			kind, unread, total  int
-		)
-		if err := rows.Scan(&id, &accID, &path, &sep, &kind, &unread, &total); err != nil {
-			return nil, fmt.Errorf("scan folder: %w", err)
-		}
-		folder, err := domain.NewFolderWithSeparator(id, accID, path, sep, domain.FolderKind(kind), unread, total)
-		if err != nil {
-			return nil, fmt.Errorf("rebuild folder %q: %w", id, err)
-		}
-		folders = append(folders, folder)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate folders: %w", err)
-	}
-	return folders, nil
+		func(row scanner) (domain.Folder, error) {
+			var (
+				id, accID, path, sep string
+				kind, unread, total  int
+			)
+			if err := row.Scan(&id, &accID, &path, &sep, &kind, &unread, &total); err != nil {
+				return domain.Folder{}, fmt.Errorf("scan folder: %w", err)
+			}
+			folder, err := domain.NewFolderWithSeparator(id, accID, path, sep, domain.FolderKind(kind), unread, total)
+			if err != nil {
+				return domain.Folder{}, fmt.Errorf("rebuild folder %q: %w", id, err)
+			}
+			return folder, nil
+		}, accountID)
 }
 
 // SaveFolders replaces the cached folder set for an account in a single transaction.
@@ -78,27 +67,10 @@ func (s *Store) SaveFolders(ctx context.Context, accountID string, folders []dom
 
 // ListMessages returns the cached message summaries for a folder, newest first.
 func (s *Store) ListMessages(ctx context.Context, folderID string) ([]domain.MessageSummary, error) {
-	rows, err := s.db.QueryContext(ctx,
+	return queryRows(ctx, s.db, "messages",
 		`SELECT id, folder_id, uid, message_id, from_display, from_address, to_json, cc_json, subject,
 		        date_ms, size, flags, has_attachments, snippet
-		 FROM message WHERE folder_id = ? ORDER BY date_ms DESC;`, folderID)
-	if err != nil {
-		return nil, fmt.Errorf("query messages: %w", err)
-	}
-	defer rows.Close()
-
-	var messages []domain.MessageSummary
-	for rows.Next() {
-		message, err := scanMessage(rows)
-		if err != nil {
-			return nil, err
-		}
-		messages = append(messages, message)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate messages: %w", err)
-	}
-	return messages, nil
+		 FROM message WHERE folder_id = ? ORDER BY date_ms DESC;`, scanMessage, folderID)
 }
 
 // DeleteMessage removes a cached message and everything derived from it (body, tags, index row) in a
@@ -232,28 +204,11 @@ func (s *Store) SearchMessages(ctx context.Context, query string) ([]domain.Mess
 	if ftsQuery == "" {
 		return nil, nil
 	}
-	rows, err := s.db.QueryContext(ctx,
+	return queryRows(ctx, s.db, "search results",
 		`SELECT m.id, m.folder_id, m.uid, m.message_id, m.from_display, m.from_address, m.to_json,
 		        m.cc_json, m.subject, m.date_ms, m.size, m.flags, m.has_attachments, m.snippet
 		 FROM message m JOIN message_fts f ON f.message_id = m.id
-		 WHERE message_fts MATCH ? ORDER BY rank;`, ftsQuery)
-	if err != nil {
-		return nil, fmt.Errorf("search messages: %w", err)
-	}
-	defer rows.Close()
-
-	var messages []domain.MessageSummary
-	for rows.Next() {
-		message, err := scanMessage(rows)
-		if err != nil {
-			return nil, err
-		}
-		messages = append(messages, message)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate search results: %w", err)
-	}
-	return messages, nil
+		 WHERE message_fts MATCH ? ORDER BY rank;`, scanMessage, ftsQuery)
 }
 
 // buildFTSQuery turns free user input into a safe FTS5 MATCH expression: each whitespace-separated

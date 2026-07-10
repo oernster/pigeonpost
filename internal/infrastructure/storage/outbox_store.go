@@ -57,27 +57,10 @@ func (s *Store) EnqueueOutbox(ctx context.Context, item domain.OutboxItem) error
 
 // ListOutbox returns the queued operations, oldest first.
 func (s *Store) ListOutbox(ctx context.Context) ([]domain.OutboxItem, error) {
-	rows, err := s.db.QueryContext(ctx,
+	return queryRows(ctx, s.db, "outbox",
 		`SELECT id, account_id, kind, from_display, from_address, to_json, cc_json,
 		        bcc_json, subject, body, html_body, attachments_json, created_ms, failure
-		 FROM outbox ORDER BY created_ms ASC, id ASC;`)
-	if err != nil {
-		return nil, fmt.Errorf("query outbox: %w", err)
-	}
-	defer rows.Close()
-
-	var items []domain.OutboxItem
-	for rows.Next() {
-		item, err := scanOutbox(rows)
-		if err != nil {
-			return nil, err
-		}
-		items = append(items, item)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate outbox: %w", err)
-	}
-	return items, nil
+		 FROM outbox ORDER BY created_ms ASC, id ASC;`, scanOutbox)
 }
 
 // DeleteOutbox removes a queued operation by id, after it has been replayed or dropped.

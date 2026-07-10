@@ -73,9 +73,7 @@ func encodeScheduling(method domain.Method, events []domain.Event) ([]byte, erro
 	if len(events) == 0 {
 		return nil, domain.ErrNoSchedulingEvents
 	}
-	cal := goical.NewCalendar()
-	cal.Props.SetText(goical.PropVersion, "2.0")
-	cal.Props.SetText(goical.PropProductID, productID)
+	cal := newICSCalendar()
 	cal.Props.SetText(goical.PropMethod, string(method))
 	cal.Children = append(cal.Children, timezoneComponents(events)...)
 	for _, ev := range events {

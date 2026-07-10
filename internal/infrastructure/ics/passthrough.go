@@ -1,7 +1,6 @@
 package ics
 
 import (
-	"bytes"
 	"strings"
 	"time"
 
@@ -41,15 +40,7 @@ func rawComponent(comp *goical.Component, uid string) string {
 	if comp.Props.Get(goical.PropDateTimeStamp) == nil {
 		comp.Props.SetDateTime(goical.PropDateTimeStamp, time.Now().UTC())
 	}
-	cal := goical.NewCalendar()
-	cal.Props.SetText(goical.PropVersion, "2.0")
-	cal.Props.SetText(goical.PropProductID, productID)
-	cal.Children = append(cal.Children, comp)
-	var buf bytes.Buffer
-	if err := goical.NewEncoder(&buf).Encode(cal); err != nil {
-		return ""
-	}
-	return buf.String()
+	return encodeStandalone(comp)
 }
 
 // decodeComponent parses the first VTODO or VJOURNAL out of a preserved VCALENDAR string, or nil on any

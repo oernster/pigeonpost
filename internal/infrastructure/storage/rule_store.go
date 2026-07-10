@@ -9,33 +9,23 @@ import (
 
 // ListRules returns all filter rules, ordered by name for a stable display.
 func (s *Store) ListRules(ctx context.Context) ([]domain.Rule, error) {
-	rows, err := s.db.QueryContext(ctx,
-		"SELECT id, name, field, operator, contains, action FROM rule ORDER BY name;")
-	if err != nil {
-		return nil, fmt.Errorf("query rules: %w", err)
-	}
-	defer rows.Close()
-
-	var rules []domain.Rule
-	for rows.Next() {
-		var (
-			id, name, contains      string
-			field, operator, action int
-		)
-		if err := rows.Scan(&id, &name, &field, &operator, &contains, &action); err != nil {
-			return nil, fmt.Errorf("scan rule: %w", err)
-		}
-		rule, err := domain.NewRule(id, name, domain.RuleField(field),
-			domain.RuleOperator(operator), contains, domain.RuleAction(action))
-		if err != nil {
-			return nil, fmt.Errorf("rebuild rule %q: %w", id, err)
-		}
-		rules = append(rules, rule)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate rules: %w", err)
-	}
-	return rules, nil
+	return queryRows(ctx, s.db, "rules",
+		"SELECT id, name, field, operator, contains, action FROM rule ORDER BY name;",
+		func(row scanner) (domain.Rule, error) {
+			var (
+				id, name, contains      string
+				field, operator, action int
+			)
+			if err := row.Scan(&id, &name, &field, &operator, &contains, &action); err != nil {
+				return domain.Rule{}, fmt.Errorf("scan rule: %w", err)
+			}
+			rule, err := domain.NewRule(id, name, domain.RuleField(field),
+				domain.RuleOperator(operator), contains, domain.RuleAction(action))
+			if err != nil {
+				return domain.Rule{}, fmt.Errorf("rebuild rule %q: %w", id, err)
+			}
+			return rule, nil
+		})
 }
 
 // SaveRule inserts or updates a rule by id.

@@ -24,8 +24,8 @@ const generatedIDBytes = 16
 const productID = "-//PigeonPost//Calendar//EN"
 
 // emptyCalendar is a minimal valid VCALENDAR, returned when there are no events to encode (the encoder
-// rejects a childless calendar).
-var emptyCalendar = []byte("BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:" + productID + "\r\nEND:VCALENDAR\r\n")
+// rejects a childless calendar). Its VERSION and PRODID match newICSCalendar's (see encode.go).
+var emptyCalendar = []byte("BEGIN:VCALENDAR\r\nVERSION:" + icalVersion + "\r\nPRODID:" + productID + "\r\nEND:VCALENDAR\r\n")
 
 // Codec is the iCalendar implementation of the application CalendarCodec port.
 type Codec struct{}
@@ -205,9 +205,7 @@ func (Codec) Encode(events []domain.Event, passthrough []domain.CalendarPassthro
 	if len(events) == 0 && len(passthrough) == 0 {
 		return emptyCalendar, nil
 	}
-	cal := goical.NewCalendar()
-	cal.Props.SetText(goical.PropVersion, "2.0")
-	cal.Props.SetText(goical.PropProductID, productID)
+	cal := newICSCalendar()
 	// VTIMEZONE definitions come first so the events' TZID references resolve within the file itself.
 	cal.Children = append(cal.Children, timezoneComponents(events)...)
 	for _, ev := range events {
@@ -352,15 +350,7 @@ func rawICS(e goical.Event) string {
 	if comp.Props.Get(goical.PropUID) == nil {
 		comp.Props.SetText(goical.PropUID, generatedID())
 	}
-	cal := goical.NewCalendar()
-	cal.Props.SetText(goical.PropVersion, "2.0")
-	cal.Props.SetText(goical.PropProductID, productID)
-	cal.Children = append(cal.Children, comp)
-	var buf bytes.Buffer
-	if err := goical.NewEncoder(&buf).Encode(cal); err != nil {
-		return ""
-	}
-	return buf.String()
+	return encodeStandalone(comp)
 }
 
 // setWhen writes a date or date-time property. A timed value is written in loc: a real zone makes go-ical

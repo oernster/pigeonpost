@@ -23,25 +23,8 @@ type identityRow struct {
 // ListAccounts returns all accounts in the user's chosen sidebar order (the position column), falling
 // back to display name for accounts that share a position (all of them until the first manual reorder).
 func (s *Store) ListAccounts(ctx context.Context) ([]domain.Account, error) {
-	rows, err := s.db.QueryContext(ctx,
-		"SELECT "+accountColumns+" FROM account ORDER BY position, display_name;")
-	if err != nil {
-		return nil, fmt.Errorf("query accounts: %w", err)
-	}
-	defer rows.Close()
-
-	var accounts []domain.Account
-	for rows.Next() {
-		account, err := scanAccount(rows)
-		if err != nil {
-			return nil, err
-		}
-		accounts = append(accounts, account)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate accounts: %w", err)
-	}
-	return accounts, nil
+	return queryRows(ctx, s.db, "accounts",
+		"SELECT "+accountColumns+" FROM account ORDER BY position, display_name;", scanAccount)
 }
 
 // GetAccount returns the account with the given id, or application.ErrAccountNotFound.

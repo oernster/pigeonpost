@@ -13,27 +13,18 @@ import (
 
 // ListCalendars returns every calendar, ordered by name.
 func (s *Store) ListCalendars(ctx context.Context) ([]domain.Calendar, error) {
-	rows, err := s.db.QueryContext(ctx, "SELECT id, name, colour FROM calendar ORDER BY name;")
-	if err != nil {
-		return nil, fmt.Errorf("query calendars: %w", err)
-	}
-	defer rows.Close()
-	var calendars []domain.Calendar
-	for rows.Next() {
-		var id, name, colour string
-		if err := rows.Scan(&id, &name, &colour); err != nil {
-			return nil, fmt.Errorf("scan calendar: %w", err)
-		}
-		calendar, err := domain.NewCalendar(id, name, colour)
-		if err != nil {
-			return nil, fmt.Errorf("rebuild calendar %q: %w", id, err)
-		}
-		calendars = append(calendars, calendar)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate calendars: %w", err)
-	}
-	return calendars, nil
+	return queryRows(ctx, s.db, "calendars", "SELECT id, name, colour FROM calendar ORDER BY name;",
+		func(row scanner) (domain.Calendar, error) {
+			var id, name, colour string
+			if err := row.Scan(&id, &name, &colour); err != nil {
+				return domain.Calendar{}, fmt.Errorf("scan calendar: %w", err)
+			}
+			calendar, err := domain.NewCalendar(id, name, colour)
+			if err != nil {
+				return domain.Calendar{}, fmt.Errorf("rebuild calendar %q: %w", id, err)
+			}
+			return calendar, nil
+		})
 }
 
 // SaveCalendar inserts or updates a calendar by id.
@@ -65,23 +56,7 @@ const eventColumns = "id, uid, calendar_id, summary, description, location, star
 
 // ListEvents returns every event, ordered by start time.
 func (s *Store) ListEvents(ctx context.Context) ([]domain.Event, error) {
-	rows, err := s.db.QueryContext(ctx, "SELECT "+eventColumns+" FROM event ORDER BY start_ms;")
-	if err != nil {
-		return nil, fmt.Errorf("query events: %w", err)
-	}
-	defer rows.Close()
-	var events []domain.Event
-	for rows.Next() {
-		event, err := scanEvent(rows)
-		if err != nil {
-			return nil, err
-		}
-		events = append(events, event)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate events: %w", err)
-	}
-	return events, nil
+	return queryRows(ctx, s.db, "events", "SELECT "+eventColumns+" FROM event ORDER BY start_ms;", scanEvent)
 }
 
 // GetEvent returns a single event by id.
@@ -132,7 +107,7 @@ func (s *Store) DeleteEvent(ctx context.Context, id string) error {
 
 // scanEvent reads one event row into a validated domain event. A zero end_ms means the event has no
 // end; a zero recurrence_id means the event is not an override.
-func scanEvent(row interface{ Scan(...any) error }) (domain.Event, error) {
+func scanEvent(row scanner) (domain.Event, error) {
 	var (
 		id, uid, calendarID, summary, description, location, recurrence, extra, rdate, exdate, timeZone, alarms string
 		organizer, attendees                                                                                    string
@@ -256,27 +231,18 @@ func (s *Store) SavePassthrough(ctx context.Context, p domain.CalendarPassthroug
 
 // ListPassthrough returns every preserved passthrough component, ordered by UID for a stable export.
 func (s *Store) ListPassthrough(ctx context.Context) ([]domain.CalendarPassthrough, error) {
-	rows, err := s.db.QueryContext(ctx, "SELECT uid, kind, raw FROM calendar_passthrough ORDER BY uid;")
-	if err != nil {
-		return nil, fmt.Errorf("query passthrough: %w", err)
-	}
-	defer rows.Close()
-	var out []domain.CalendarPassthrough
-	for rows.Next() {
-		var uid, kind, raw string
-		if err := rows.Scan(&uid, &kind, &raw); err != nil {
-			return nil, fmt.Errorf("scan passthrough: %w", err)
-		}
-		p, err := domain.NewCalendarPassthrough(uid, kind, raw)
-		if err != nil {
-			return nil, fmt.Errorf("rebuild passthrough %q: %w", uid, err)
-		}
-		out = append(out, p)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate passthrough: %w", err)
-	}
-	return out, nil
+	return queryRows(ctx, s.db, "passthrough", "SELECT uid, kind, raw FROM calendar_passthrough ORDER BY uid;",
+		func(row scanner) (domain.CalendarPassthrough, error) {
+			var uid, kind, raw string
+			if err := row.Scan(&uid, &kind, &raw); err != nil {
+				return domain.CalendarPassthrough{}, fmt.Errorf("scan passthrough: %w", err)
+			}
+			p, err := domain.NewCalendarPassthrough(uid, kind, raw)
+			if err != nil {
+				return domain.CalendarPassthrough{}, fmt.Errorf("rebuild passthrough %q: %w", uid, err)
+			}
+			return p, nil
+		})
 }
 
 // decodeTimes parses the comma-separated Unix millisecond values written by encodeTimes back into UTC

@@ -76,3 +76,30 @@ func (s *Store) migrate(ctx context.Context) error {
 	}
 	return nil
 }
+
+// queryRows runs query and maps every result row through scan into a slice, owning the open, the row
+// iteration, the deferred Close and the terminal rows.Err() so each list method supplies only its SQL and
+// a per-row scan. scan reads one row and returns the built value; an error it returns (a scan or a
+// domain-rebuild failure) stops the iteration and is returned unwrapped, matching the earlier hand-written
+// loops. what names the entity in the wrapped query and iterate errors. The N+1 readers (ListContacts,
+// ListContactGroups) keep their explicit form because they must Close the rows before their per-row
+// sub-queries.
+func queryRows[T any](ctx context.Context, db *sql.DB, what, query string, scan func(scanner) (T, error), args ...any) ([]T, error) {
+	rows, err := db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("query %s: %w", what, err)
+	}
+	defer rows.Close()
+	var out []T
+	for rows.Next() {
+		v, err := scan(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, v)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate %s: %w", what, err)
+	}
+	return out, nil
+}
