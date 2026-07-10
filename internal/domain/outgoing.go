@@ -35,35 +35,7 @@ type OutgoingMessageInput struct {
 // NewOutgoingMessage validates and constructs a message. It requires a sender and at least one
 // valid recipient; any zero address in the recipient lists is rejected.
 func NewOutgoingMessage(in OutgoingMessageInput) (OutgoingMessage, error) {
-	if in.From.IsZero() {
-		return OutgoingMessage{}, ErrNoSender
-	}
-	to, err := cleanRecipients(in.To)
-	if err != nil {
-		return OutgoingMessage{}, err
-	}
-	if len(to) == 0 {
-		return OutgoingMessage{}, ErrNoRecipients
-	}
-	cc, err := cleanRecipients(in.Cc)
-	if err != nil {
-		return OutgoingMessage{}, err
-	}
-	bcc, err := cleanRecipients(in.Bcc)
-	if err != nil {
-		return OutgoingMessage{}, err
-	}
-	return OutgoingMessage{
-		from:        in.From,
-		to:          to,
-		cc:          cc,
-		bcc:         bcc,
-		subject:     strings.TrimSpace(in.Subject),
-		body:        in.Body,
-		htmlBody:    in.HTMLBody,
-		attachments: append([]Attachment(nil), in.Attachments...),
-		calendar:    in.Calendar,
-	}, nil
+	return assemble(in, true)
 }
 
 // NewDraftMessage validates and constructs a message for saving as a draft. Unlike a message bound for
@@ -71,12 +43,22 @@ func NewOutgoingMessage(in OutgoingMessageInput) (OutgoingMessage, error) {
 // the user is still composing it. A sender is still required (it identifies the drafting account) and
 // any recipient that is present must be a valid, non-zero address.
 func NewDraftMessage(in OutgoingMessageInput) (OutgoingMessage, error) {
+	return assemble(in, false)
+}
+
+// assemble validates the input and builds an immutable OutgoingMessage. A sender is always required and
+// any recipient present must be a valid, non-zero address. requireRecipients distinguishes a send, which
+// needs at least one To recipient, from a draft still being composed, which may have none.
+func assemble(in OutgoingMessageInput, requireRecipients bool) (OutgoingMessage, error) {
 	if in.From.IsZero() {
 		return OutgoingMessage{}, ErrNoSender
 	}
 	to, err := cleanRecipients(in.To)
 	if err != nil {
 		return OutgoingMessage{}, err
+	}
+	if requireRecipients && len(to) == 0 {
+		return OutgoingMessage{}, ErrNoRecipients
 	}
 	cc, err := cleanRecipients(in.Cc)
 	if err != nil {
