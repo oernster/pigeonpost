@@ -44,18 +44,7 @@ func NewWatcher(passwords PasswordProvider, tokens TokenProvider) *Watcher {
 // secret returns the credential to authenticate the IDLE connection with: a refreshed OAuth access token
 // for an OAuth account, otherwise the stored keychain password.
 func (w *Watcher) secret(ctx context.Context, account domain.Account) (string, error) {
-	if account.Auth() == domain.AuthOAuth2 {
-		token, err := w.tokens.AccessToken(ctx, account)
-		if err != nil {
-			return "", fmt.Errorf("imap idle: token for %q: %w", account.ID(), err)
-		}
-		return token, nil
-	}
-	password, err := w.passwords.Password(ctx, account)
-	if err != nil {
-		return "", fmt.Errorf("imap idle: password for %q: %w", account.ID(), err)
-	}
-	return password, nil
+	return credentialFor(ctx, w.passwords, w.tokens, account, "imap idle")
 }
 
 // Watch holds an IDLE connection to the account's inbox until ctx is cancelled, calling onChange whenever

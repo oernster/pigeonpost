@@ -36,16 +36,24 @@ func (s *Source) connect(ctx context.Context, account domain.Account) (*imapclie
 // secret returns the credential to authenticate with: a refreshed OAuth access token for an OAuth
 // account, otherwise the stored keychain password.
 func (s *Source) secret(ctx context.Context, account domain.Account) (string, error) {
+	return credentialFor(ctx, s.passwords, s.tokens, account, "imap")
+}
+
+// credentialFor selects the secret to authenticate an account with: a refreshed OAuth access token for an
+// OAuth account, otherwise the stored keychain password. errLabel prefixes the wrapped error so the
+// one-shot fetch path and the long-lived IDLE watcher stay distinguishable, since both authenticate the
+// same way and would otherwise drift apart.
+func credentialFor(ctx context.Context, passwords PasswordProvider, tokens TokenProvider, account domain.Account, errLabel string) (string, error) {
 	if account.Auth() == domain.AuthOAuth2 {
-		token, err := s.tokens.AccessToken(ctx, account)
+		token, err := tokens.AccessToken(ctx, account)
 		if err != nil {
-			return "", fmt.Errorf("imap: token for %q: %w", account.ID(), err)
+			return "", fmt.Errorf("%s: token for %q: %w", errLabel, account.ID(), err)
 		}
 		return token, nil
 	}
-	password, err := s.passwords.Password(ctx, account)
+	password, err := passwords.Password(ctx, account)
 	if err != nil {
-		return "", fmt.Errorf("imap: password for %q: %w", account.ID(), err)
+		return "", fmt.Errorf("%s: password for %q: %w", errLabel, account.ID(), err)
 	}
 	return password, nil
 }
