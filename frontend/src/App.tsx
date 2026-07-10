@@ -30,7 +30,13 @@ import {EventsOn} from '../wailsjs/runtime'
 // focus stays trapped within the dialog), otherwise the whole document.
 function focusRingRoot(): Document | HTMLElement {
     const modals = document.querySelectorAll<HTMLElement>('.modal')
-    return modals.length > 0 ? modals[modals.length - 1] : document
+    if (modals.length > 0) {
+        return modals[modals.length - 1]
+    }
+    // The full-width reader (reading pane off, a message opened) is a self-contained screen reached by Back,
+    // so the ring stays inside it and wraps there rather than escaping to the menus.
+    const reader = document.querySelector<HTMLElement>('.reader-scoped')
+    return reader ?? document
 }
 
 // focusRingElements returns the visible, tabbable elements in document order within root: the same set
@@ -249,6 +255,10 @@ function App() {
     // body. Together they let the effect below move focus onto the opened email.
     const [emailOpenTick, setEmailOpenTick] = useState<number>(0)
     const readerBodyRef = useRef<HTMLDivElement>(null)
+    // readerSinkRef is a neutral anchor at the top of the full-width reader; openSourceRef records whether
+    // the last open was by keyboard or mouse, so the focus effect below can start each open differently.
+    const readerSinkRef = useRef<HTMLSpanElement>(null)
+    const openSourceRef = useRef<'keyboard' | 'mouse'>('keyboard')
     // Tracks the folder currently on screen, so a background refresh only replaces the list when the
     // user has not navigated away since it started.
     const selectedFolderRef = useRef<string>('')
@@ -947,19 +957,27 @@ function App() {
 
     // openInNewTab pins a message as a reader tab (if not already open) and shows it. With the reading
     // pane off this opens the message full-width (readingFull); with it on the tab appears in the pane.
-    const openInNewTab = useCallback((message: Message) => {
+    const openInNewTab = useCallback((message: Message, fromKeyboard = true) => {
         setTabs((prev) => (prev.some((t) => t.id === message.id) ? prev : [...prev, message]))
         setSelectedMessage(message)
         setReadingFull(true)
-        // Signal that an email was opened, so the effect below moves focus onto its body.
+        // Record how the email was opened and signal the focus effect below.
+        openSourceRef.current = fromKeyboard ? 'keyboard' : 'mouse'
         setEmailOpenTick((n) => n + 1)
     }, [])
 
-    // When an email is opened (emailOpenTick bumped), move keyboard focus onto its body, so the arrows
-    // scroll the email and Tab steps to the reader's controls rather than the focus falling back to the
-    // start of the ring (which made the next Tab land on the File menu).
+    // When an email is opened (emailOpenTick bumped), move focus into the reader so the keyboard does not
+    // fall back to the start of the ring (which made the next Tab land on File). A keyboard open lands on
+    // the scrollable body, so the arrows scroll it at once. A mouse open of the full-width reader lands on a
+    // neutral anchor instead, whose first Tab is the reader's Back button.
     useEffect(() => {
-        if (emailOpenTick > 0) {
+        if (emailOpenTick === 0) {
+            return
+        }
+        const fullWidth = document.querySelector('.reader-scoped') !== null
+        if (openSourceRef.current === 'mouse' && fullWidth) {
+            readerSinkRef.current?.focus()
+        } else {
             readerBodyRef.current?.focus()
         }
     }, [emailOpenTick])
@@ -1822,6 +1840,7 @@ function App() {
         <Reader
             message={selectedMessage}
             bodyRef={readerBodyRef}
+            sinkRef={readerSinkRef}
             onToggleRead={(m) => void toggleRead(m)}
             onReply={openReply}
             onReplyAll={openReplyAll}

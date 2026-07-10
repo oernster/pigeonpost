@@ -31,7 +31,7 @@ interface MessageListProps {
     onClearSelection: () => void
     onToggleFlag: (message: Message) => void
     onContextMenu: (message: Message, x: number, y: number) => void
-    onOpenInNewTab: (message: Message) => void
+    onOpenInNewTab: (message: Message, fromKeyboard?: boolean) => void
     // sortAscending is the current date order of the list (false is newest first); onToggleSort flips it.
     sortAscending: boolean
     onToggleSort: () => void
@@ -98,7 +98,7 @@ export function MessageList(props: MessageListProps) {
                             }
                         }}
                         onClick={(e) => props.onActivate(message, {ctrl: e.ctrlKey || e.metaKey, shift: e.shiftKey})}
-                        onDoubleClick={() => props.onOpenInNewTab(message)}
+                        onDoubleClick={() => props.onOpenInNewTab(message, false)}
                         draggable
                         onDragStart={(e) => {
                             e.dataTransfer.setData(messageDragType, message.id)

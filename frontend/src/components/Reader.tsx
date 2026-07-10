@@ -62,9 +62,12 @@ interface ReaderProps {
     // bodyRef is attached to the scrollable email body so the parent can move focus onto it when a message
     // is opened, so the keyboard lands on the email rather than jumping back to the start of the ring.
     bodyRef?: RefObject<HTMLDivElement>
+    // sinkRef is a neutral anchor at the top of the full-width reader; the parent focuses it on a mouse
+    // open so the first Tab lands on the Back button.
+    sinkRef?: RefObject<HTMLSpanElement>
 }
 
-export function Reader({message, onToggleRead, onReply, onReplyAll, onForward, onDelete, onCancelSend, folders, onMove, onCopy, canMoveCopy, messageTags, onToggleTag, body, bodyLoading, tabs, onSelectTab, onCloseTab, onBack, bodyRef}: ReaderProps) {
+export function Reader({message, onToggleRead, onReply, onReplyAll, onForward, onDelete, onCancelSend, folders, onMove, onCopy, canMoveCopy, messageTags, onToggleTag, body, bodyLoading, tabs, onSelectTab, onCloseTab, onBack, bodyRef, sinkRef}: ReaderProps) {
     const [tagMenuOpen, setTagMenuOpen] = useState(false)
     const [imagesShown, setImagesShown] = useState(false)
     const [attachError, setAttachError] = useState('')
@@ -74,6 +77,8 @@ export function Reader({message, onToggleRead, onReply, onReplyAll, onForward, o
     const tagButtonRef = useRef<HTMLButtonElement>(null)
     const tagRowRef = useRef<HTMLDivElement>(null)
     const openedByKeyRef = useRef(false)
+    // backButtonRef is the Back button; the reader's neutral sink hands the first Tab to it on a mouse open.
+    const backButtonRef = useRef<HTMLButtonElement>(null)
 
     // saveAttachment writes a received attachment to disk through a native save dialog; its bytes come
     // from the locally cached body, so it works offline once the message has been opened.
@@ -145,11 +150,27 @@ export function Reader({message, onToggleRead, onReply, onReplyAll, onForward, o
     const renderedHtml = imagesShown ? rawHtml.replace(/data-pp-src=/g, 'src=') : rawHtml
 
     return (
-        <section className="pane reader">
+        <section className={'pane reader' + (onBack ? ' reader-scoped' : '')}>
+            {onBack && (
+                <span
+                    ref={sinkRef}
+                    tabIndex={-1}
+                    aria-hidden="true"
+                    style={{position: 'absolute', width: 0, height: 0, overflow: 'hidden', outline: 'none'}}
+                    onKeyDown={(e) => {
+                        // A mouse open lands focus here; the first Tab goes to Back so the reader starts there.
+                        if (e.key === 'Tab' && !e.shiftKey) {
+                            e.preventDefault()
+                            e.stopPropagation()
+                            backButtonRef.current?.focus()
+                        }
+                    }}
+                />
+            )}
             {tabStrip}
             <div className="reader-header">
                 <div className="reader-toolbar">
-                    {onBack && <button className="btn" onClick={onBack}>&#8592; Back</button>}
+                    {onBack && <button ref={backButtonRef} className="btn" onClick={onBack}>&#8592; Back</button>}
                     {outbox ? (
                         <button className="btn danger-outline" onClick={() => onCancelSend(message)}>
                             Cancel send
