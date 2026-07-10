@@ -245,6 +245,10 @@ function App() {
         }
     })
     const [readingFull, setReadingFull] = useState<boolean>(false)
+    // emailOpenTick bumps each time an email is opened; readerBodyRef points at the reader's scrollable
+    // body. Together they let the effect below move focus onto the opened email.
+    const [emailOpenTick, setEmailOpenTick] = useState<number>(0)
+    const readerBodyRef = useRef<HTMLDivElement>(null)
     // Tracks the folder currently on screen, so a background refresh only replaces the list when the
     // user has not navigated away since it started.
     const selectedFolderRef = useRef<string>('')
@@ -947,7 +951,18 @@ function App() {
         setTabs((prev) => (prev.some((t) => t.id === message.id) ? prev : [...prev, message]))
         setSelectedMessage(message)
         setReadingFull(true)
+        // Signal that an email was opened, so the effect below moves focus onto its body.
+        setEmailOpenTick((n) => n + 1)
     }, [])
+
+    // When an email is opened (emailOpenTick bumped), move keyboard focus onto its body, so the arrows
+    // scroll the email and Tab steps to the reader's controls rather than the focus falling back to the
+    // start of the ring (which made the next Tab land on the File menu).
+    useEffect(() => {
+        if (emailOpenTick > 0) {
+            readerBodyRef.current?.focus()
+        }
+    }, [emailOpenTick])
 
     // togglePreview flips the reading pane and returns to the list, so toggling never strands the user in
     // the full-width reader.
@@ -1806,6 +1821,7 @@ function App() {
     ) : (
         <Reader
             message={selectedMessage}
+            bodyRef={readerBodyRef}
             onToggleRead={(m) => void toggleRead(m)}
             onReply={openReply}
             onReplyAll={openReplyAll}

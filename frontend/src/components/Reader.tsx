@@ -1,5 +1,5 @@
 import {useEffect, useRef, useState} from 'react'
-import type {MouseEvent as ReactMouseEvent} from 'react'
+import type {MouseEvent as ReactMouseEvent, RefObject} from 'react'
 import {api, Folder, Message, MessageBody, Tag} from '../api'
 import {TAG_PALETTE, colourTagId} from '../tagColours'
 import {isOutboxMessage} from '../outbox'
@@ -59,9 +59,12 @@ interface ReaderProps {
     onCloseTab: (id: string) => void
     // onBack is set only when the reader is shown full-width (reading pane off); it returns to the list.
     onBack?: () => void
+    // bodyRef is attached to the scrollable email body so the parent can move focus onto it when a message
+    // is opened, so the keyboard lands on the email rather than jumping back to the start of the ring.
+    bodyRef?: RefObject<HTMLDivElement>
 }
 
-export function Reader({message, onToggleRead, onReply, onReplyAll, onForward, onDelete, onCancelSend, folders, onMove, onCopy, canMoveCopy, messageTags, onToggleTag, body, bodyLoading, tabs, onSelectTab, onCloseTab, onBack}: ReaderProps) {
+export function Reader({message, onToggleRead, onReply, onReplyAll, onForward, onDelete, onCancelSend, folders, onMove, onCopy, canMoveCopy, messageTags, onToggleTag, body, bodyLoading, tabs, onSelectTab, onCloseTab, onBack, bodyRef}: ReaderProps) {
     const [tagMenuOpen, setTagMenuOpen] = useState(false)
     const [imagesShown, setImagesShown] = useState(false)
     const [attachError, setAttachError] = useState('')
@@ -327,6 +330,7 @@ export function Reader({message, onToggleRead, onReply, onReplyAll, onForward, o
                 )}
             </div>
             <div
+                ref={bodyRef}
                 className="reader-body"
                 tabIndex={0}
                 onKeyDown={(e) => {
