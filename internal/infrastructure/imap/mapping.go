@@ -81,19 +81,6 @@ func namedRoleFor(leaf string) (domain.FolderKind, bool) {
 	return kind, ok
 }
 
-// folderKindFor classifies a single mailbox from its name and special-use attributes, the attributes
-// winning when present. buildFolders is the whole-list classifier that also deduplicates a role across
-// folders; this single-folder form is kept for callers that classify one mailbox in isolation.
-func folderKindFor(mailbox, leaf string, attrs []imap.MailboxAttr) domain.FolderKind {
-	if role, ok := specialRoleFor(mailbox, attrs); ok {
-		return role
-	}
-	if role, ok := namedRoleFor(leaf); ok {
-		return role
-	}
-	return domain.FolderCustom
-}
-
 // isNonInboxWellKnown reports whether a role is one of the special mailboxes that must not host a sibling
 // role by name: a folder named "Sent" nested under Drafts (or Trash, Junk, Archive) is not the account's
 // Sent. INBOX is excluded because servers legitimately nest the special folders under it.
@@ -103,24 +90,6 @@ func isNonInboxWellKnown(k domain.FolderKind) bool {
 		return true
 	}
 	return false
-}
-
-// buildFolder maps a LIST response into a domain folder. Counts are unknown from LIST alone and
-// default to zero until a later STATUS/SELECT sync fills them in.
-func buildFolder(accountID string, data *imap.ListData) (domain.Folder, error) {
-	separator := ""
-	if data.Delim != 0 {
-		separator = string(data.Delim)
-	}
-	leaf := data.Mailbox
-	if separator != "" {
-		if idx := strings.LastIndex(data.Mailbox, separator); idx >= 0 {
-			leaf = data.Mailbox[idx+len(separator):]
-		}
-	}
-	kind := folderKindFor(data.Mailbox, leaf, data.Attrs)
-	return domain.NewFolderWithSeparator(
-		makeFolderID(accountID, data.Mailbox), accountID, data.Mailbox, separator, kind, 0, 0)
 }
 
 // buildFolders maps the selectable LIST responses into domain folders, giving each well-known role to

@@ -22,50 +22,57 @@ func TestMakeIdentifiers(t *testing.T) {
 	}
 }
 
-func TestFolderKindFor(t *testing.T) {
+func TestSpecialRoleFor(t *testing.T) {
 	cases := []struct {
 		name    string
 		mailbox string
 		attrs   []imap.MailboxAttr
 		want    domain.FolderKind
+		ok      bool
 	}{
-		{"inbox by name", "INBOX", nil, domain.FolderInbox},
-		{"inbox case-insensitive", "inbox", nil, domain.FolderInbox},
-		{"sent", "Sent", []imap.MailboxAttr{imap.MailboxAttrSent}, domain.FolderSent},
-		{"drafts", "Drafts", []imap.MailboxAttr{imap.MailboxAttrDrafts}, domain.FolderDrafts},
-		{"trash", "Trash", []imap.MailboxAttr{imap.MailboxAttrTrash}, domain.FolderTrash},
-		{"junk", "Spam", []imap.MailboxAttr{imap.MailboxAttrJunk}, domain.FolderJunk},
-		{"archive", "Archive", []imap.MailboxAttr{imap.MailboxAttrArchive}, domain.FolderArchive},
-		{"custom no attrs", "Work", nil, domain.FolderCustom},
-		{"custom other attr", "Work", []imap.MailboxAttr{imap.MailboxAttrHasChildren}, domain.FolderCustom},
-		{"trash by name", "Trash", nil, domain.FolderTrash},
-		{"deleted items by name", "Deleted Items", nil, domain.FolderTrash},
-		{"spam by name", "spam", nil, domain.FolderJunk},
-		{"sent by name", "Sent Items", nil, domain.FolderSent},
+		{"inbox by name", "INBOX", nil, domain.FolderInbox, true},
+		{"inbox case-insensitive", "inbox", nil, domain.FolderInbox, true},
+		{"sent", "Sent", []imap.MailboxAttr{imap.MailboxAttrSent}, domain.FolderSent, true},
+		{"drafts", "Drafts", []imap.MailboxAttr{imap.MailboxAttrDrafts}, domain.FolderDrafts, true},
+		{"trash", "Trash", []imap.MailboxAttr{imap.MailboxAttrTrash}, domain.FolderTrash, true},
+		{"junk", "Spam", []imap.MailboxAttr{imap.MailboxAttrJunk}, domain.FolderJunk, true},
+		{"archive", "Archive", []imap.MailboxAttr{imap.MailboxAttrArchive}, domain.FolderArchive, true},
+		{"custom no attrs", "Work", nil, domain.FolderCustom, false},
+		{"custom other attr", "Work", []imap.MailboxAttr{imap.MailboxAttrHasChildren}, domain.FolderCustom, false},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := folderKindFor(tc.mailbox, tc.mailbox, tc.attrs); got != tc.want {
-				t.Errorf("kind = %v, want %v", got, tc.want)
+			got, ok := specialRoleFor(tc.mailbox, tc.attrs)
+			if got != tc.want || ok != tc.ok {
+				t.Errorf("specialRoleFor = (%v, %t), want (%v, %t)", got, ok, tc.want, tc.ok)
 			}
 		})
 	}
 }
 
-func TestBuildFolder(t *testing.T) {
-	data := &imap.ListData{Mailbox: "INBOX/Projects", Attrs: []imap.MailboxAttr{imap.MailboxAttrArchive}}
-	folder, err := buildFolder("a1", data)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+func TestNamedRoleFor(t *testing.T) {
+	cases := []struct {
+		name string
+		leaf string
+		want domain.FolderKind
+		ok   bool
+	}{
+		{"trash by name", "Trash", domain.FolderTrash, true},
+		{"deleted items by name", "Deleted Items", domain.FolderTrash, true},
+		{"spam by name", "spam", domain.FolderJunk, true},
+		{"sent by name", "Sent Items", domain.FolderSent, true},
+		{"custom name", "Work", domain.FolderCustom, false},
 	}
-	if folder.Path() != "INBOX/Projects" {
-		t.Errorf("path = %q", folder.Path())
-	}
-	if folder.Kind() != domain.FolderArchive {
-		t.Errorf("kind = %v", folder.Kind())
-	}
-	if folder.AccountID() != "a1" {
-		t.Errorf("accountID = %q", folder.AccountID())
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, ok := namedRoleFor(tc.leaf)
+			if ok != tc.ok {
+				t.Errorf("namedRoleFor(%q) ok = %t, want %t", tc.leaf, ok, tc.ok)
+			}
+			if tc.ok && got != tc.want {
+				t.Errorf("namedRoleFor(%q) = %v, want %v", tc.leaf, got, tc.want)
+			}
+		})
 	}
 }
 
