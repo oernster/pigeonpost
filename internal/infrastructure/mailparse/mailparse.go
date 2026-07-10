@@ -81,10 +81,7 @@ func ParseBody(raw []byte) (ParsedBody, error) {
 	if err != nil {
 		return ParsedBody{}, fmt.Errorf("mailparse: parse message: %w", err)
 	}
-	var plainBuf, htmlBuf strings.Builder
-	var invite []byte
-	var attachments []ParsedAttachment
-	inlineImages := map[string]inlineImage{}
+	acc := bodyAccumulator{inlineImages: map[string]inlineImage{}}
 	for {
 		part, err := reader.NextPart()
 		if err == io.EOF {
@@ -93,52 +90,73 @@ func ParseBody(raw []byte) (ParsedBody, error) {
 		if err != nil {
 			return ParsedBody{}, fmt.Errorf("mailparse: read part: %w", err)
 		}
-		mediaType := partMediaType(part.Header)
-		if mediaType == "text/calendar" {
-			content, err := io.ReadAll(part.Body)
-			if err != nil {
-				return ParsedBody{}, fmt.Errorf("mailparse: read part body: %w", err)
-			}
-			if invite == nil {
-				invite = content
-			}
-			continue
-		}
-		content, err := io.ReadAll(part.Body)
-		if err != nil {
-			return ParsedBody{}, fmt.Errorf("mailparse: read part body: %w", err)
-		}
-		// A part with a Content-ID and an image payload is an embedded image the HTML references by a cid:
-		// URL; collect it (whether the sender marked it inline or as an attachment) so the HTML can show it
-		// inline. An attachment-dispositioned one still lists as a saveable attachment below as well.
-		if id := contentID(part.Header); id != "" && strings.HasPrefix(mediaType, "image/") {
-			inlineImages[id] = inlineImage{mediaType: mediaType, content: content}
-		}
-		switch header := part.Header.(type) {
-		case *mail.AttachmentHeader:
-			attachments = append(attachments, attachmentPart(header, mediaType, content))
-		case *mail.InlineHeader:
-			switch {
-			case mediaType == "text/html":
-				htmlBuf.Write(content)
-			case mediaType == "text/plain" || mediaType == "":
-				plainBuf.Write(content)
-			default:
-				// An inline non-text part with no usable Content-ID is neither readable text nor a
-				// referenced embedded image (a cid: image is collected above), so it is skipped rather than
-				// written into the body as raw bytes.
-			}
+		if err := acc.handlePart(part); err != nil {
+			return ParsedBody{}, err
 		}
 	}
-	plain := plainBuf.String()
-	htmlBody := htmlBuf.String()
+	plain := acc.plain.String()
+	htmlBody := acc.html.String()
 	if htmlBody != "" {
-		htmlBody = htmlSanitizer.Sanitize(prepareHTML(htmlBody, inlineImages))
+		htmlBody = htmlSanitizer.Sanitize(prepareHTML(htmlBody, acc.inlineImages))
 	}
 	if strings.TrimSpace(plain) == "" && htmlBody != "" {
 		plain = htmlToText(htmlBody)
 	}
-	return ParsedBody{Plain: plain, HTML: htmlBody, Invite: invite, Attachments: attachments}, nil
+	return ParsedBody{Plain: plain, HTML: htmlBody, Invite: acc.invite, Attachments: acc.attachments}, nil
+}
+
+// bodyAccumulator gathers the parts of a MIME message as ParseBody walks them: the plain and HTML
+// bodies, an inline-image table keyed by Content-ID, the saveable attachments and the first calendar
+// invite.
+type bodyAccumulator struct {
+	plain        strings.Builder
+	html         strings.Builder
+	invite       []byte
+	attachments  []ParsedAttachment
+	inlineImages map[string]inlineImage
+}
+
+// handlePart folds a single MIME part into the accumulator: a text/calendar part becomes the invite, an
+// image carrying a Content-ID is remembered for inline display, and an attachment- or inline-dispositioned
+// part is stored or written into the matching body buffer.
+func (acc *bodyAccumulator) handlePart(part *mail.Part) error {
+	mediaType := partMediaType(part.Header)
+	if mediaType == "text/calendar" {
+		content, err := io.ReadAll(part.Body)
+		if err != nil {
+			return fmt.Errorf("mailparse: read part body: %w", err)
+		}
+		if acc.invite == nil {
+			acc.invite = content
+		}
+		return nil
+	}
+	content, err := io.ReadAll(part.Body)
+	if err != nil {
+		return fmt.Errorf("mailparse: read part body: %w", err)
+	}
+	// A part with a Content-ID and an image payload is an embedded image the HTML references by a cid:
+	// URL; collect it (whether the sender marked it inline or as an attachment) so the HTML can show it
+	// inline. An attachment-dispositioned one still lists as a saveable attachment below as well.
+	if id := contentID(part.Header); id != "" && strings.HasPrefix(mediaType, "image/") {
+		acc.inlineImages[id] = inlineImage{mediaType: mediaType, content: content}
+	}
+	switch header := part.Header.(type) {
+	case *mail.AttachmentHeader:
+		acc.attachments = append(acc.attachments, attachmentPart(header, mediaType, content))
+	case *mail.InlineHeader:
+		switch {
+		case mediaType == "text/html":
+			acc.html.Write(content)
+		case mediaType == "text/plain" || mediaType == "":
+			acc.plain.Write(content)
+		default:
+			// An inline non-text part with no usable Content-ID is neither readable text nor a
+			// referenced embedded image (a cid: image is collected above), so it is skipped rather than
+			// written into the body as raw bytes.
+		}
+	}
+	return nil
 }
 
 // headerWordDecoder decodes RFC 2047 encoded-words in header text (subjects, display names, attachment
