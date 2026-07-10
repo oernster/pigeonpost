@@ -1650,12 +1650,13 @@ function App() {
                 if (!next) {
                     return
                 }
-                // Keep DOM focus on the row the cursor moves to when navigating within the list, so the
-                // focus ring's current stop stays in step and a following Right/Left steps out correctly.
-                // Only when a message row already holds focus, so an arrow pressed elsewhere in the window
-                // still moves the selection without stealing focus.
-                const focusedRow = document.activeElement as HTMLElement | null
-                if (focusedRow && focusedRow.classList.contains('message-row')) {
+                // Move DOM focus onto the row the cursor lands on unless another real control holds focus.
+                // That covers being already on a message row and sitting on a neutral spot (the start sink
+                // or the body, both tabindex -1), so focus and the cursor stay together and Enter or Space
+                // can open the focused row. An arrow pressed while a header button holds focus still moves
+                // the selection without stealing that focus.
+                const active = document.activeElement as HTMLElement | null
+                if (!active || active.tabIndex < 0 || active.classList.contains('message-row')) {
                     document.querySelectorAll<HTMLElement>('.message-list .message-row').forEach((row) => {
                         if (row.getAttribute('data-mid') === next.id) {
                             row.focus()
