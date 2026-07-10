@@ -54,3 +54,15 @@ func mailLine(m MailSummary) string {
 	}
 	return fmt.Sprintf("%s from %s", subject, sender)
 }
+
+// TrayActions holds the callbacks a tray context menu invokes. They are supplied by the composition
+// root, which owns the Wails runtime, so this package stays free of any UI-framework dependency. On
+// Windows the persistent tray icon calls them; off Windows there is no tray menu, so they are never
+// invoked, but the type exists so the composition root compiles and wires identically everywhere.
+type TrayActions struct {
+	Open         func()
+	About        func()
+	Licence      func()
+	CheckUpdates func()
+	Quit         func()
+}

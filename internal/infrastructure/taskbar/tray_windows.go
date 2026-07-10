@@ -12,18 +12,6 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-// TrayActions holds the callbacks the tray context menu invokes. They are supplied by the composition
-// root, which owns the Wails runtime, so this package stays free of any UI-framework dependency. Open
-// restores the window (which may be hidden to the tray, so it goes through the runtime rather than a
-// Win32 window search).
-type TrayActions struct {
-	Open         func()
-	About        func()
-	Licence      func()
-	CheckUpdates func()
-	Quit         func()
-}
-
 // Tray is a persistent Windows notification-area icon. Left-clicking it restores the main window;
 // right-clicking opens a menu mirroring the Help menu plus Open and Quit; and Notify raises a balloon
 // for a due reminder. It owns a hidden window on its own message-pumping thread, since tray callbacks

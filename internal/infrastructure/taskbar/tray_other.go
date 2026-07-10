@@ -2,17 +2,6 @@
 
 package taskbar
 
-// TrayActions holds the callbacks a tray context menu invokes. Off Windows there is no tray icon or
-// menu, so the callbacks are never called; the type exists so the composition root compiles identically
-// everywhere.
-type TrayActions struct {
-	Open         func()
-	About        func()
-	Licence      func()
-	CheckUpdates func()
-	Quit         func()
-}
-
 // Tray off Windows has no persistent icon or menu (those are Windows shell features); it only forwards
 // reminder notifications to the platform's notification service, implemented per-OS in the Notify
 // method. It satisfies the same contract as the windows implementation so the composition root wires it
