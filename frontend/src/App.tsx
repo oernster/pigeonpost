@@ -1976,7 +1976,6 @@ function App() {
     const mailMenu: MenuItem[] = [
         {
             label: 'Compose',
-            icon: '\u{1F58A}\u{FE0F}',
             shortcut: 'Ctrl+N',
             disabled: !selectedAccount,
             onClick: () => {
@@ -1987,12 +1986,10 @@ function App() {
         },
         {
             label: 'Add account',
-            icon: '\u{2795}',
             onClick: () => setSettingUp(true),
         },
         {
             label: syncing ? 'Syncing…' : 'Sync',
-            icon: '\u{267B}\u{FE0F}',
             shortcut: 'F9',
             disabled: !selectedAccount || syncing,
             onClick: () => void sync(),
@@ -2125,6 +2122,37 @@ function App() {
                     <Menu title="Mail" icon={'\u{1F4EC}'} items={mailMenu} align="left"/>
                 </div>
                 <div className="titlebar-right">
+                    <button
+                        className="icon-btn"
+                        data-tip="Compose"
+                        aria-label="Compose"
+                        disabled={!selectedAccount}
+                        onClick={() => {
+                            const sig = signatureHtml()
+                            setComposeInitial(sig ? {bodyHtml: `<p></p>${sig}`} : undefined)
+                            setComposing(true)
+                        }}
+                    >
+                        {'\u{1F58A}\u{FE0F}'}
+                    </button>
+                    <button
+                        className="icon-btn"
+                        data-tip="Add account"
+                        aria-label="Add account"
+                        onClick={() => setSettingUp(true)}
+                    >
+                        {'\u{2795}'}
+                    </button>
+                    <button
+                        className="icon-btn"
+                        data-tip={syncing ? 'Syncing…' : 'Sync'}
+                        aria-label="Sync"
+                        disabled={!selectedAccount || syncing}
+                        onClick={() => void sync()}
+                    >
+                        {'\u{267B}\u{FE0F}'}
+                    </button>
+                    <span className="titlebar-sep" aria-hidden="true"/>
                     <button
                         className="icon-btn"
                         data-tip="Reply"
