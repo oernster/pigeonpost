@@ -79,7 +79,15 @@ func (s *Store) SaveEvent(ctx context.Context, e domain.Event) error {
 	if e.IsOverride() {
 		recurrenceIDMs = e.RecurrenceID().UnixMilli()
 	}
-	_, err := s.db.ExecContext(ctx,
+	organizer, err := encodeOrganizer(e.Organizer())
+	if err != nil {
+		return fmt.Errorf("save event %q: %w", e.ID(), err)
+	}
+	attendees, err := encodeAttendees(e.Attendees())
+	if err != nil {
+		return fmt.Errorf("save event %q: %w", e.ID(), err)
+	}
+	_, err = s.db.ExecContext(ctx,
 		`INSERT INTO event (`+eventColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		 ON CONFLICT(id) DO UPDATE SET uid = excluded.uid, calendar_id = excluded.calendar_id,
 		     summary = excluded.summary, description = excluded.description, location = excluded.location,
@@ -90,7 +98,7 @@ func (s *Store) SaveEvent(ctx context.Context, e domain.Event) error {
 		e.ID(), e.UID(), e.CalendarID(), e.Summary(), e.Description(), e.Location(),
 		e.Start().UnixMilli(), endMs, boolToInt(e.AllDay()), e.Recurrence(), e.Extra(),
 		encodeTimes(e.RDates()), encodeTimes(e.ExDates()), recurrenceIDMs, e.TimeZone(), encodeAlarms(e.Alarms()),
-		encodeOrganizer(e.Organizer()), encodeAttendees(e.Attendees()))
+		organizer, attendees)
 	if err != nil {
 		return fmt.Errorf("save event %q: %w", e.ID(), err)
 	}

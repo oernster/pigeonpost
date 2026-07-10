@@ -24,15 +24,15 @@ type attendeeRow struct {
 }
 
 // encodeOrganizer serialises an event's organizer as JSON, or the empty string when it has none.
-func encodeOrganizer(o domain.Organizer) string {
+func encodeOrganizer(o domain.Organizer) (string, error) {
 	if o.IsZero() {
-		return ""
+		return "", nil
 	}
 	b, err := json.Marshal(organizerRow{Address: o.Address().Address(), CommonName: o.CommonName()})
 	if err != nil {
-		return ""
+		return "", fmt.Errorf("encode organizer: %w", err)
 	}
-	return string(b)
+	return string(b), nil
 }
 
 // decodeOrganizer parses a stored organizer JSON value back into a domain organizer. The empty string
@@ -53,9 +53,9 @@ func decodeOrganizer(s string) (domain.Organizer, error) {
 }
 
 // encodeAttendees serialises an event's attendees as a JSON array, or the empty string when it has none.
-func encodeAttendees(attendees []domain.Attendee) string {
+func encodeAttendees(attendees []domain.Attendee) (string, error) {
 	if len(attendees) == 0 {
-		return ""
+		return "", nil
 	}
 	rows := make([]attendeeRow, len(attendees))
 	for i, a := range attendees {
@@ -69,9 +69,9 @@ func encodeAttendees(attendees []domain.Attendee) string {
 	}
 	b, err := json.Marshal(rows)
 	if err != nil {
-		return ""
+		return "", fmt.Errorf("encode attendees: %w", err)
 	}
-	return string(b)
+	return string(b), nil
 }
 
 // decodeAttendees parses a stored attendees JSON array back into domain attendees. The empty string

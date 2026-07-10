@@ -273,11 +273,11 @@ func TestEventSchedulingRoundTrip(t *testing.T) {
 }
 
 func TestEncodeDecodeSchedulingEmpty(t *testing.T) {
-	if s := encodeOrganizer(domain.Organizer{}); s != "" {
-		t.Errorf("empty organizer encode = %q, want empty", s)
+	if s, err := encodeOrganizer(domain.Organizer{}); err != nil || s != "" {
+		t.Errorf("empty organizer encode = %q, %v, want empty and no error", s, err)
 	}
-	if s := encodeAttendees(nil); s != "" {
-		t.Errorf("empty attendees encode = %q, want empty", s)
+	if s, err := encodeAttendees(nil); err != nil || s != "" {
+		t.Errorf("empty attendees encode = %q, %v, want empty and no error", s, err)
 	}
 	org, err := decodeOrganizer("")
 	if err != nil || !org.IsZero() {
