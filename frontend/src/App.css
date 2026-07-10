@@ -372,7 +372,7 @@
    on it. Gated on :focus-visible so it appears for keyboard navigation, not a mouse click. */
 .list-item:focus-visible {
     outline: none;
-    box-shadow: inset 0 0 0 2px var(--accent);
+    box-shadow: inset 0 0 0 2px var(--ring);
 }
 
 .item-title {
@@ -471,7 +471,7 @@
    moving the cursor over unselected rows to build a selection is visible. A selected row already shows its
    own fill, so the ring is only drawn where the cursor sits apart from the selection. */
 .message-row.active:not(.selected) {
-    box-shadow: inset 0 0 0 2px var(--accent);
+    box-shadow: inset 0 0 0 2px var(--ring);
 }
 
 .message-row.unread .message-subject,
@@ -653,7 +653,7 @@
 /* The reader body is a keyboard scroll stop, so it takes focus; show a teal ring when it does (keyboard
    focus only), the way the list rows do. */
 .reader-body:focus-visible {
-    outline: 2px solid var(--accent);
+    outline: 2px solid var(--ring);
     outline-offset: -2px;
     border-radius: 4px;
 }
@@ -881,7 +881,7 @@
 .menu-title:enabled:focus-visible,
 .sync-btn:enabled:focus-visible,
 .icon-btn:enabled:focus-visible {
-    outline: 2px solid var(--accent);
+    outline: 2px solid var(--ring);
     outline-offset: 2px;
 }
 
@@ -1687,7 +1687,7 @@
 }
 
 .account-action:focus-visible {
-    outline: 2px solid var(--accent);
+    outline: 2px solid var(--ring);
     outline-offset: 1px;
     color: var(--accent);
 }
