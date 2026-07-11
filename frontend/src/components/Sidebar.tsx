@@ -1,4 +1,4 @@
-import {useEffect, useState, type CSSProperties} from 'react'
+import {useState, type CSSProperties} from 'react'
 import icon from '../assets/pigeonpost.png'
 import {Account, Folder} from '../api'
 import {messageDragType} from './MessageList'
@@ -20,6 +20,7 @@ import {
     type FolderDropAction,
     type FolderDropZone,
 } from '../sidebarDnd'
+import {usePersistedFolderState} from '../hooks/usePersistedFolderState'
 
 interface SidebarProps {
     accounts: Account[]
@@ -296,17 +297,6 @@ interface FolderTreeProps {
     onDropMessage: (messageId: string, folderId: string) => void
 }
 
-function collapseKey(accountId: string): string {
-    return `pigeonpost.collapsed.${accountId}`
-}
-
-// folderOrderKey names the per-account localStorage entry holding the custom folders' local display
-// order (a list of folder paths). IMAP has no folder order of its own, so a same-level reorder is a
-// purely local, persisted display concern.
-function folderOrderKey(accountId: string): string {
-    return `pigeonpost.folderorder.${accountId}`
-}
-
 // The folder-path and ordering helpers (detectSeparator, leafName, ancestorPaths, nearestParentPath,
 // orderFolders, placeAdjacent) live in ../folderPaths and are imported at the top of this file, keeping
 // the pure tree logic out of the component.
@@ -317,59 +307,14 @@ function folderOrderKey(accountId: string): string {
 // survive restarts.
 function FolderTree(props: FolderTreeProps) {
     const {folders, selectedFolder, selectedAccount} = props
-    const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
+    const {collapsed, order, toggle, persistOrder} = usePersistedFolderState(selectedAccount)
     // dragOverId marks the folder a message is being dragged onto (an into cue). draggingFolderId is the
     // custom folder currently being dragged to move it. folderDrop marks the row and zone a dragged
     // folder is aimed at, driving the drop cue: a box for an into (child) drop, an insertion line for a
-    // before or after (same-level) drop. order is the persisted local order of the custom folders.
+    // before or after (same-level) drop.
     const [dragOverId, setDragOverId] = useState<string>('')
     const [draggingFolderId, setDraggingFolderId] = useState<string>('')
     const [folderDrop, setFolderDrop] = useState<{folderId: string; zone: FolderDropZone} | null>(null)
-    const [order, setOrder] = useState<string[]>([])
-
-    useEffect(() => {
-        try {
-            const raw = localStorage.getItem(collapseKey(selectedAccount))
-            setCollapsed(new Set(raw ? (JSON.parse(raw) as string[]) : []))
-        } catch {
-            setCollapsed(new Set())
-        }
-    }, [selectedAccount])
-
-    useEffect(() => {
-        try {
-            const raw = localStorage.getItem(folderOrderKey(selectedAccount))
-            setOrder(raw ? (JSON.parse(raw) as string[]) : [])
-        } catch {
-            setOrder([])
-        }
-    }, [selectedAccount])
-
-    const toggle = (path: string) => {
-        setCollapsed((prev) => {
-            const next = new Set(prev)
-            if (next.has(path)) {
-                next.delete(path)
-            } else {
-                next.add(path)
-            }
-            try {
-                localStorage.setItem(collapseKey(selectedAccount), JSON.stringify([...next]))
-            } catch {
-                // A storage failure just means the state is not remembered; the UI still works.
-            }
-            return next
-        })
-    }
-
-    const persistOrder = (next: string[]) => {
-        setOrder(next)
-        try {
-            localStorage.setItem(folderOrderKey(selectedAccount), JSON.stringify(next))
-        } catch {
-            // A storage failure just means the order is not remembered; the UI still works.
-        }
-    }
 
     const paths = folders.map((f) => f.path)
     const sep = detectSeparator(paths)
