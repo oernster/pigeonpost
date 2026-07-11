@@ -14,8 +14,18 @@ var _ application.ContactStore = (*Store)(nil)
 func buildTestContact(t *testing.T, id, name string, emails, phones int) domain.Contact {
 	t.Helper()
 	in := domain.ContactInput{ID: id, UID: "uid-" + id, FormattedName: name, GivenName: "Given", FamilyName: "Family"}
+	c, err := domain.NewContact(withChildren(t, in, emails, phones))
+	if err != nil {
+		t.Fatalf("contact: %v", err)
+	}
+	return c
+}
+
+// withChildren fills the given input with the requested number of emails and phones.
+func withChildren(t *testing.T, in domain.ContactInput, emails, phones int) domain.ContactInput {
+	t.Helper()
 	for i := 0; i < emails; i++ {
-		e, err := domain.NewContactEmail("work", id+"@example.com")
+		e, err := domain.NewContactEmail("work", in.ID+"@example.com")
 		if err != nil {
 			t.Fatalf("email: %v", err)
 		}
@@ -28,18 +38,25 @@ func buildTestContact(t *testing.T, id, name string, emails, phones int) domain.
 		}
 		in.Phones = append(in.Phones, p)
 	}
-	c, err := domain.NewContact(in)
-	if err != nil {
-		t.Fatalf("contact: %v", err)
-	}
-	return c
+	return in
 }
 
 func TestContactRoundTrip(t *testing.T) {
 	store := openTestStore(t)
 	ctx := context.Background()
 
-	if err := store.SaveContact(ctx, buildTestContact(t, "c1", "Jo Bloggs", 1, 1)); err != nil {
+	in := withChildren(t, domain.ContactInput{
+		ID: "c1", UID: "uid-c1", FormattedName: "Jo Bloggs", GivenName: "Given", FamilyName: "Family",
+		Birthday: "1990-05-17",
+	}, 1, 1)
+	addr1, _ := domain.NewContactAddress("home", "1 High St", "London", "Greater London", "E1 1AA", "UK")
+	addr2, _ := domain.NewContactAddress("work", "2 Low St", "Leeds", "", "LS1 1AA", "UK")
+	in.Addresses = []domain.ContactAddress{addr1, addr2}
+	c, err := domain.NewContact(in)
+	if err != nil {
+		t.Fatalf("contact: %v", err)
+	}
+	if err := store.SaveContact(ctx, c); err != nil {
 		t.Fatalf("SaveContact: %v", err)
 	}
 	got, err := store.GetContact(ctx, "c1")
@@ -49,11 +66,25 @@ func TestContactRoundTrip(t *testing.T) {
 	if got.FormattedName() != "Jo Bloggs" || got.UID() != "uid-c1" || got.GivenName() != "Given" {
 		t.Errorf("fields not persisted: %+v", got)
 	}
+	if got.Birthday() != "1990-05-17" {
+		t.Errorf("birthday = %q, want 1990-05-17", got.Birthday())
+	}
 	if len(got.Emails()) != 1 || got.PrimaryEmail().Address() != "c1@example.com" {
 		t.Errorf("emails = %+v", got.Emails())
 	}
 	if len(got.Phones()) != 1 || got.Phones()[0].Number() != "12345" {
 		t.Errorf("phones = %+v", got.Phones())
+	}
+	addrs := got.Addresses()
+	if len(addrs) != 2 {
+		t.Fatalf("addresses = %+v, want 2 in order", addrs)
+	}
+	if addrs[0].Label() != "home" || addrs[0].Street() != "1 High St" || addrs[0].Locality() != "London" ||
+		addrs[0].Region() != "Greater London" || addrs[0].PostalCode() != "E1 1AA" || addrs[0].Country() != "UK" {
+		t.Errorf("first address not persisted: %+v", addrs[0])
+	}
+	if addrs[1].Label() != "work" || addrs[1].Street() != "2 Low St" || addrs[1].Region() != "" {
+		t.Errorf("second address not persisted: %+v", addrs[1])
 	}
 }
 

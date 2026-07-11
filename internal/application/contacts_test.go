@@ -226,6 +226,43 @@ func TestContactServiceSaveContactNewGeneratesID(t *testing.T) {
 	}
 }
 
+func TestContactServiceSaveContactPersistsBirthdayAndAddresses(t *testing.T) {
+	store := &fakeContactStore{}
+	svc := NewContactService(store, fixedID("generated"))
+
+	err := svc.SaveContact(context.Background(), ContactInput{
+		FormattedName: "Jo Bloggs",
+		Birthday:      "1990-05-17",
+		Addresses: []ContactAddressInput{
+			{Label: "home", Street: "1 High St", Locality: "London", PostalCode: "E1 1AA", Country: "UK"},
+			{Label: "work", Country: "UK"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("SaveContact: %v", err)
+	}
+	saved := store.savedC[0]
+	if saved.Birthday() != "1990-05-17" {
+		t.Errorf("birthday = %q, want 1990-05-17", saved.Birthday())
+	}
+	addrs := saved.Addresses()
+	if len(addrs) != 2 || addrs[0].Street() != "1 High St" || addrs[0].Label() != "home" || addrs[1].Country() != "UK" {
+		t.Errorf("addresses not persisted: %+v", addrs)
+	}
+}
+
+func TestContactServiceSaveContactAddressError(t *testing.T) {
+	svc := NewContactService(&fakeContactStore{}, fixedID("x"))
+	err := svc.SaveContact(context.Background(), ContactInput{
+		FormattedName: "Jo",
+		// An address with every component empty must fail with ErrEmptyAddress.
+		Addresses: []ContactAddressInput{{Label: "home"}},
+	})
+	if !errors.Is(err, domain.ErrEmptyAddress) {
+		t.Errorf("err = %v, want wrapped ErrEmptyAddress", err)
+	}
+}
+
 func TestContactServiceSaveContactExistingIDNoEmails(t *testing.T) {
 	store := &fakeContactStore{}
 	svc := NewContactService(store, fixedID("unused"))

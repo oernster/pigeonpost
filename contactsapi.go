@@ -26,33 +26,47 @@ type ContactPhoneDTO struct {
 	Number string `json:"number"`
 }
 
+// ContactAddressDTO is a labelled postal address on a contact.
+type ContactAddressDTO struct {
+	Label      string `json:"label"`
+	Street     string `json:"street"`
+	Locality   string `json:"locality"`
+	Region     string `json:"region"`
+	PostalCode string `json:"postalCode"`
+	Country    string `json:"country"`
+}
+
 // ContactDTO is the JSON-serialisable view of an address-book contact.
 type ContactDTO struct {
-	ID            string            `json:"id"`
-	UID           string            `json:"uid"`
-	FormattedName string            `json:"formattedName"`
-	GivenName     string            `json:"givenName"`
-	FamilyName    string            `json:"familyName"`
-	Organization  string            `json:"organization"`
-	Title         string            `json:"title"`
-	Note          string            `json:"note"`
-	Emails        []ContactEmailDTO `json:"emails"`
-	Phones        []ContactPhoneDTO `json:"phones"`
+	ID            string              `json:"id"`
+	UID           string              `json:"uid"`
+	FormattedName string              `json:"formattedName"`
+	GivenName     string              `json:"givenName"`
+	FamilyName    string              `json:"familyName"`
+	Organization  string              `json:"organization"`
+	Title         string              `json:"title"`
+	Note          string              `json:"note"`
+	Birthday      string              `json:"birthday"`
+	Emails        []ContactEmailDTO   `json:"emails"`
+	Phones        []ContactPhoneDTO   `json:"phones"`
+	Addresses     []ContactAddressDTO `json:"addresses"`
 }
 
 // ContactRequest is the front-end payload for creating or updating a contact. An empty id means a new
 // contact.
 type ContactRequest struct {
-	ID            string            `json:"id"`
-	UID           string            `json:"uid"`
-	FormattedName string            `json:"formattedName"`
-	GivenName     string            `json:"givenName"`
-	FamilyName    string            `json:"familyName"`
-	Organization  string            `json:"organization"`
-	Title         string            `json:"title"`
-	Note          string            `json:"note"`
-	Emails        []ContactEmailDTO `json:"emails"`
-	Phones        []ContactPhoneDTO `json:"phones"`
+	ID            string              `json:"id"`
+	UID           string              `json:"uid"`
+	FormattedName string              `json:"formattedName"`
+	GivenName     string              `json:"givenName"`
+	FamilyName    string              `json:"familyName"`
+	Organization  string              `json:"organization"`
+	Title         string              `json:"title"`
+	Note          string              `json:"note"`
+	Birthday      string              `json:"birthday"`
+	Emails        []ContactEmailDTO   `json:"emails"`
+	Phones        []ContactPhoneDTO   `json:"phones"`
+	Addresses     []ContactAddressDTO `json:"addresses"`
 }
 
 // ContactGroupDTO is the JSON-serialisable view of a contact group (mailing list).
@@ -103,8 +117,10 @@ func (a *App) SaveContact(req ContactRequest) error {
 		Organization:  req.Organization,
 		Title:         req.Title,
 		Note:          req.Note,
+		Birthday:      req.Birthday,
 		Emails:        toEmailInputs(req.Emails),
 		Phones:        toPhoneInputs(req.Phones),
+		Addresses:     toAddressInputs(req.Addresses),
 	})
 }
 
@@ -244,9 +260,27 @@ func toContactDTO(c domain.Contact) ContactDTO {
 		Organization:  c.Organization(),
 		Title:         c.Title(),
 		Note:          c.Note(),
+		Birthday:      c.Birthday(),
 		Emails:        emails,
 		Phones:        phones,
+		Addresses:     toContactAddressDTOs(c.Addresses()),
 	}
+}
+
+// toContactAddressDTOs maps a contact's domain addresses to their DTOs.
+func toContactAddressDTOs(in []domain.ContactAddress) []ContactAddressDTO {
+	out := make([]ContactAddressDTO, 0, len(in))
+	for _, a := range in {
+		out = append(out, ContactAddressDTO{
+			Label:      a.Label(),
+			Street:     a.Street(),
+			Locality:   a.Locality(),
+			Region:     a.Region(),
+			PostalCode: a.PostalCode(),
+			Country:    a.Country(),
+		})
+	}
+	return out
 }
 
 // toEmailInputs maps email DTOs to the application input type.
@@ -263,6 +297,22 @@ func toPhoneInputs(in []ContactPhoneDTO) []application.ContactPhoneInput {
 	out := make([]application.ContactPhoneInput, 0, len(in))
 	for _, p := range in {
 		out = append(out, application.ContactPhoneInput{Label: p.Label, Number: p.Number})
+	}
+	return out
+}
+
+// toAddressInputs maps address DTOs to the application input type.
+func toAddressInputs(in []ContactAddressDTO) []application.ContactAddressInput {
+	out := make([]application.ContactAddressInput, 0, len(in))
+	for _, a := range in {
+		out = append(out, application.ContactAddressInput{
+			Label:      a.Label,
+			Street:     a.Street,
+			Locality:   a.Locality,
+			Region:     a.Region,
+			PostalCode: a.PostalCode,
+			Country:    a.Country,
+		})
 	}
 	return out
 }

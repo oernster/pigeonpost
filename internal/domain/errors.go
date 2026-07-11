@@ -37,6 +37,7 @@ var (
 	ErrEmptyContactID        = errors.New("contact id is empty")
 	ErrEmptyContactName      = errors.New("contact formatted name is empty")
 	ErrEmptyPhoneNumber      = errors.New("contact phone number is empty")
+	ErrEmptyAddress          = errors.New("contact address is empty")
 	ErrEmptyContactGroupID   = errors.New("contact group id is empty")
 	ErrEmptyContactGroupName = errors.New("contact group name is empty")
 

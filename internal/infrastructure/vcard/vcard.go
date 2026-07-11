@@ -74,8 +74,10 @@ func cardToContact(card govcard.Card) (domain.Contact, error) {
 		Organization:  card.Value(govcard.FieldOrganization),
 		Title:         card.Value(govcard.FieldTitle),
 		Note:          card.Value(govcard.FieldNote),
+		Birthday:      strings.TrimSpace(card.Value(govcard.FieldBirthday)),
 		Emails:        cardEmails(card),
 		Phones:        cardPhones(card),
+		Addresses:     cardAddresses(card),
 	})
 }
 
@@ -104,6 +106,21 @@ func cardPhones(card govcard.Card) []domain.ContactPhone {
 		phones = append(phones, phone)
 	}
 	return phones
+}
+
+// cardAddresses reads the card's ADR fields, skipping any whose components are all empty (which would
+// not form a valid address) rather than failing the whole import.
+func cardAddresses(card govcard.Card) []domain.ContactAddress {
+	var addresses []domain.ContactAddress
+	for _, a := range card.Addresses() {
+		address, err := domain.NewContactAddress(firstType(a.Params), a.StreetAddress, a.Locality,
+			a.Region, a.PostalCode, a.Country)
+		if err != nil {
+			continue
+		}
+		addresses = append(addresses, address)
+	}
+	return addresses
 }
 
 // firstType returns the first TYPE parameter (the label), or an empty string when there is none.
@@ -142,11 +159,18 @@ func contactToCard(c domain.Contact) govcard.Card {
 	setIfPresent(card, govcard.FieldOrganization, c.Organization())
 	setIfPresent(card, govcard.FieldTitle, c.Title())
 	setIfPresent(card, govcard.FieldNote, c.Note())
+	setIfPresent(card, govcard.FieldBirthday, c.Birthday())
 	for _, e := range c.Emails() {
 		card.Add(govcard.FieldEmail, &govcard.Field{Value: e.Address().Address(), Params: typeParam(e.Label())})
 	}
 	for _, p := range c.Phones() {
 		card.Add(govcard.FieldTelephone, &govcard.Field{Value: p.Number(), Params: typeParam(p.Label())})
+	}
+	for _, a := range c.Addresses() {
+		// ADR is PostOfficeBox;ExtendedAddress;StreetAddress;Locality;Region;PostalCode;Country; the two
+		// leading semicolons leave the PO-box and extended-address components empty.
+		value := ";;" + a.Street() + ";" + a.Locality() + ";" + a.Region() + ";" + a.PostalCode() + ";" + a.Country()
+		card.Add(govcard.FieldAddress, &govcard.Field{Value: value, Params: typeParam(a.Label())})
 	}
 	govcard.ToV4(card)
 	return card

@@ -43,6 +43,82 @@ func TestNewContactPhoneEmpty(t *testing.T) {
 	}
 }
 
+func TestNewContactAddress(t *testing.T) {
+	a, err := NewContactAddress("  home ", "  1 High St ", "  London ", "  Greater London ", "  E1 1AA ", "  UK ")
+	if err != nil {
+		t.Fatalf("NewContactAddress: %v", err)
+	}
+	checks := map[string]string{
+		a.Label():      "home",
+		a.Street():     "1 High St",
+		a.Locality():   "London",
+		a.Region():     "Greater London",
+		a.PostalCode(): "E1 1AA",
+		a.Country():    "UK",
+	}
+	for got, want := range checks {
+		if got != want {
+			t.Errorf("component = %q, want %q (trimmed)", got, want)
+		}
+	}
+}
+
+func TestNewContactAddressPartialIsAllowed(t *testing.T) {
+	// A single non-empty component (here just the country) is enough; the label may be empty.
+	a, err := NewContactAddress("", "", "", "", "", "UK")
+	if err != nil {
+		t.Fatalf("NewContactAddress: %v", err)
+	}
+	if a.Country() != "UK" || a.Label() != "" || a.Street() != "" {
+		t.Errorf("partial address not mapped: %+v", a)
+	}
+}
+
+func TestNewContactAddressAllEmpty(t *testing.T) {
+	if _, err := NewContactAddress("  home ", "  ", "", " ", "", "   "); !errors.Is(err, ErrEmptyAddress) {
+		t.Errorf("err = %v, want ErrEmptyAddress", err)
+	}
+}
+
+func TestNewContactStoresAndTrimsBirthday(t *testing.T) {
+	c, err := NewContact(ContactInput{ID: "c1", FormattedName: "Jo", Birthday: "  1990-05-17 "})
+	if err != nil {
+		t.Fatalf("NewContact: %v", err)
+	}
+	if c.Birthday() != "1990-05-17" {
+		t.Errorf("birthday = %q, want trimmed 1990-05-17", c.Birthday())
+	}
+}
+
+func TestContactAddressesAreCopies(t *testing.T) {
+	addr, _ := NewContactAddress("home", "1 High St", "London", "", "E1 1AA", "UK")
+	in := []ContactAddress{addr}
+	c, _ := NewContact(ContactInput{ID: "c1", FormattedName: "Jo", Addresses: in})
+
+	// Mutating the input slice after construction must not change the contact.
+	other, _ := NewContactAddress("work", "2 Low St", "Leeds", "", "LS1 1AA", "UK")
+	in[0] = other
+	if c.Addresses()[0].Street() != "1 High St" {
+		t.Errorf("contact shares its backing array with the input slice")
+	}
+	// Mutating the returned slice must not change the contact either.
+	got := c.Addresses()
+	got[0] = other
+	if c.Addresses()[0].Street() != "1 High St" {
+		t.Errorf("contact shares its backing array with the returned slice")
+	}
+}
+
+func TestContactAddressesNilWhenNone(t *testing.T) {
+	c, err := NewContact(ContactInput{ID: "c1", FormattedName: "Jo"})
+	if err != nil {
+		t.Fatalf("NewContact: %v", err)
+	}
+	if c.Addresses() != nil {
+		t.Errorf("expected nil addresses for a contact with none, got %+v", c.Addresses())
+	}
+}
+
 func TestNewContactValidatesRequiredFields(t *testing.T) {
 	if _, err := NewContact(ContactInput{ID: "  ", FormattedName: "Jo"}); !errors.Is(err, ErrEmptyContactID) {
 		t.Errorf("blank id err = %v, want ErrEmptyContactID", err)

@@ -24,6 +24,25 @@ CREATE TABLE IF NOT EXISTS template (
 );
 `
 
+// schemaV32 adds a contact's birthday (vCard BDAY, kept as free text; existing rows default to ”,
+// meaning none) and its labelled postal addresses. Addresses keep an explicit position so their order
+// is preserved on round-trip, mirroring the contact_email and contact_phone tables.
+const schemaV32 = `
+ALTER TABLE contact ADD COLUMN birthday TEXT NOT NULL DEFAULT '';
+CREATE TABLE IF NOT EXISTS contact_address (
+    contact_id  TEXT NOT NULL,
+    position    INTEGER NOT NULL,
+    label       TEXT NOT NULL,
+    street      TEXT NOT NULL,
+    locality    TEXT NOT NULL,
+    region      TEXT NOT NULL,
+    postal_code TEXT NOT NULL,
+    country     TEXT NOT NULL,
+    PRIMARY KEY (contact_id, position)
+);
+CREATE INDEX IF NOT EXISTS idx_contact_address_contact ON contact_address(contact_id);
+`
+
 // migrations is the ordered list of schema steps. Index i upgrades the database from version i to
 // version i+1, so a fresh database applies them all and an existing one applies only what it lacks.
-var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15, schemaV16, schemaV17, schemaV18, schemaV19, schemaV20, schemaV21, schemaV22, schemaV23, schemaV24, schemaV25, schemaV26, schemaV27, schemaV28, schemaV29, schemaV30, schemaV31}
+var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15, schemaV16, schemaV17, schemaV18, schemaV19, schemaV20, schemaV21, schemaV22, schemaV23, schemaV24, schemaV25, schemaV26, schemaV27, schemaV28, schemaV29, schemaV30, schemaV31, schemaV32}

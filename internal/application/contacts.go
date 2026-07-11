@@ -20,6 +20,17 @@ type ContactPhoneInput struct {
 	Number string
 }
 
+// ContactAddressInput is a raw labelled postal address from the UI, validated into a domain value on
+// save.
+type ContactAddressInput struct {
+	Label      string
+	Street     string
+	Locality   string
+	Region     string
+	PostalCode string
+	Country    string
+}
+
 // ContactInput carries the fields to create or update a contact. An empty ID means a new contact; an
 // empty UID means the store assigns one.
 type ContactInput struct {
@@ -31,8 +42,10 @@ type ContactInput struct {
 	Organization  string
 	Title         string
 	Note          string
+	Birthday      string
 	Emails        []ContactEmailInput
 	Phones        []ContactPhoneInput
+	Addresses     []ContactAddressInput
 }
 
 // ContactGroupInput carries the fields to create or update a group. An empty ID means a new group.
@@ -86,6 +99,10 @@ func (s *ContactService) SaveContact(ctx context.Context, in ContactInput) error
 	if err != nil {
 		return fmt.Errorf("contacts: build phone: %w", err)
 	}
+	addresses, err := buildContactAddresses(in.Addresses)
+	if err != nil {
+		return fmt.Errorf("contacts: build address: %w", err)
+	}
 	contact, err := domain.NewContact(domain.ContactInput{
 		ID:            id,
 		UID:           in.UID,
@@ -95,8 +112,10 @@ func (s *ContactService) SaveContact(ctx context.Context, in ContactInput) error
 		Organization:  in.Organization,
 		Title:         in.Title,
 		Note:          in.Note,
+		Birthday:      in.Birthday,
 		Emails:        emails,
 		Phones:        phones,
+		Addresses:     addresses,
 	})
 	if err != nil {
 		return fmt.Errorf("contacts: build contact: %w", err)
@@ -207,6 +226,23 @@ func buildContactPhones(in []ContactPhoneInput) ([]domain.ContactPhone, error) {
 			return nil, err
 		}
 		out = append(out, phone)
+	}
+	return out, nil
+}
+
+// buildContactAddresses validates each raw address input into a domain value, or returns nil when there
+// are none.
+func buildContactAddresses(in []ContactAddressInput) ([]domain.ContactAddress, error) {
+	if len(in) == 0 {
+		return nil, nil
+	}
+	out := make([]domain.ContactAddress, 0, len(in))
+	for _, a := range in {
+		address, err := domain.NewContactAddress(a.Label, a.Street, a.Locality, a.Region, a.PostalCode, a.Country)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, address)
 	}
 	return out, nil
 }

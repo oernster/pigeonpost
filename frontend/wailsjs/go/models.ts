@@ -343,6 +343,28 @@ export namespace main {
 	        this.attachmentMessageIds = source["attachmentMessageIds"];
 	    }
 	}
+	export class ContactAddressDTO {
+	    label: string;
+	    street: string;
+	    locality: string;
+	    region: string;
+	    postalCode: string;
+	    country: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ContactAddressDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.label = source["label"];
+	        this.street = source["street"];
+	        this.locality = source["locality"];
+	        this.region = source["region"];
+	        this.postalCode = source["postalCode"];
+	        this.country = source["country"];
+	    }
+	}
 	export class ContactPhoneDTO {
 	    label: string;
 	    number: string;
@@ -380,8 +402,10 @@ export namespace main {
 	    organization: string;
 	    title: string;
 	    note: string;
+	    birthday: string;
 	    emails: ContactEmailDTO[];
 	    phones: ContactPhoneDTO[];
+	    addresses: ContactAddressDTO[];
 	
 	    static createFrom(source: any = {}) {
 	        return new ContactDTO(source);
@@ -397,8 +421,10 @@ export namespace main {
 	        this.organization = source["organization"];
 	        this.title = source["title"];
 	        this.note = source["note"];
+	        this.birthday = source["birthday"];
 	        this.emails = this.convertValues(source["emails"], ContactEmailDTO);
 	        this.phones = this.convertValues(source["phones"], ContactPhoneDTO);
+	        this.addresses = this.convertValues(source["addresses"], ContactAddressDTO);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -462,8 +488,10 @@ export namespace main {
 	    organization: string;
 	    title: string;
 	    note: string;
+	    birthday: string;
 	    emails: ContactEmailDTO[];
 	    phones: ContactPhoneDTO[];
+	    addresses: ContactAddressDTO[];
 	
 	    static createFrom(source: any = {}) {
 	        return new ContactRequest(source);
@@ -479,8 +507,10 @@ export namespace main {
 	        this.organization = source["organization"];
 	        this.title = source["title"];
 	        this.note = source["note"];
+	        this.birthday = source["birthday"];
 	        this.emails = this.convertValues(source["emails"], ContactEmailDTO);
 	        this.phones = this.convertValues(source["phones"], ContactPhoneDTO);
+	        this.addresses = this.convertValues(source["addresses"], ContactAddressDTO);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

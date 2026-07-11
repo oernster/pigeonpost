@@ -8,15 +8,15 @@ import (
 	"github.com/oernster/pigeonpost/internal/domain"
 )
 
-// contactRow holds a contact's base columns before its emails and phones are attached.
+// contactRow holds a contact's base columns before its emails, phones and addresses are attached.
 type contactRow struct {
-	id, uid, formattedName, given, family, org, title, note string
+	id, uid, formattedName, given, family, org, title, note, birthday string
 }
 
-// ListContacts returns every contact with its emails and phones, ordered by formatted name.
+// ListContacts returns every contact with its emails, phones and addresses, ordered by formatted name.
 func (s *Store) ListContacts(ctx context.Context) ([]domain.Contact, error) {
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT id, uid, formatted_name, given_name, family_name, organization, title, note
+		`SELECT id, uid, formatted_name, given_name, family_name, organization, title, note, birthday
 		 FROM contact ORDER BY formatted_name;`)
 	if err != nil {
 		return nil, fmt.Errorf("query contacts: %w", err)
@@ -24,7 +24,7 @@ func (s *Store) ListContacts(ctx context.Context) ([]domain.Contact, error) {
 	var bases []contactRow
 	for rows.Next() {
 		var b contactRow
-		if err := rows.Scan(&b.id, &b.uid, &b.formattedName, &b.given, &b.family, &b.org, &b.title, &b.note); err != nil {
+		if err := rows.Scan(&b.id, &b.uid, &b.formattedName, &b.given, &b.family, &b.org, &b.title, &b.note, &b.birthday); err != nil {
 			_ = rows.Close()
 			return nil, fmt.Errorf("scan contact: %w", err)
 		}
@@ -52,16 +52,17 @@ func (s *Store) ListContacts(ctx context.Context) ([]domain.Contact, error) {
 func (s *Store) GetContact(ctx context.Context, id string) (domain.Contact, error) {
 	var b contactRow
 	err := s.db.QueryRowContext(ctx,
-		`SELECT id, uid, formatted_name, given_name, family_name, organization, title, note
+		`SELECT id, uid, formatted_name, given_name, family_name, organization, title, note, birthday
 		 FROM contact WHERE id = ?;`, id).
-		Scan(&b.id, &b.uid, &b.formattedName, &b.given, &b.family, &b.org, &b.title, &b.note)
+		Scan(&b.id, &b.uid, &b.formattedName, &b.given, &b.family, &b.org, &b.title, &b.note, &b.birthday)
 	if err != nil {
 		return domain.Contact{}, fmt.Errorf("get contact %q: %w", id, err)
 	}
 	return s.assembleContact(ctx, b)
 }
 
-// assembleContact loads a contact's emails and phones and rebuilds the validated domain value.
+// assembleContact loads a contact's emails, phones and addresses and rebuilds the validated domain
+// value.
 func (s *Store) assembleContact(ctx context.Context, b contactRow) (domain.Contact, error) {
 	emails, err := s.contactEmails(ctx, b.id)
 	if err != nil {
@@ -71,10 +72,14 @@ func (s *Store) assembleContact(ctx context.Context, b contactRow) (domain.Conta
 	if err != nil {
 		return domain.Contact{}, err
 	}
+	addresses, err := s.contactAddresses(ctx, b.id)
+	if err != nil {
+		return domain.Contact{}, err
+	}
 	c, err := domain.NewContact(domain.ContactInput{
 		ID: b.id, UID: b.uid, FormattedName: b.formattedName, GivenName: b.given,
-		FamilyName: b.family, Organization: b.org, Title: b.title, Note: b.note,
-		Emails: emails, Phones: phones,
+		FamilyName: b.family, Organization: b.org, Title: b.title, Note: b.note, Birthday: b.birthday,
+		Emails: emails, Phones: phones, Addresses: addresses,
 	})
 	if err != nil {
 		return domain.Contact{}, fmt.Errorf("rebuild contact %q: %w", b.id, err)
@@ -116,18 +121,36 @@ func (s *Store) contactPhones(ctx context.Context, contactID string) ([]domain.C
 		}, contactID)
 }
 
+// contactAddresses returns a contact's labelled postal addresses in stored order.
+func (s *Store) contactAddresses(ctx context.Context, contactID string) ([]domain.ContactAddress, error) {
+	return queryRows(ctx, s.db, "contact addresses",
+		"SELECT label, street, locality, region, postal_code, country FROM contact_address WHERE contact_id = ? ORDER BY position;",
+		func(row scanner) (domain.ContactAddress, error) {
+			var label, street, locality, region, postalCode, country string
+			if err := row.Scan(&label, &street, &locality, &region, &postalCode, &country); err != nil {
+				return domain.ContactAddress{}, fmt.Errorf("scan contact address: %w", err)
+			}
+			address, err := domain.NewContactAddress(label, street, locality, region, postalCode, country)
+			if err != nil {
+				return domain.ContactAddress{}, fmt.Errorf("rebuild contact address: %w", err)
+			}
+			return address, nil
+		}, contactID)
+}
+
 // SaveContact inserts or updates a contact and replaces its emails and phones in one transaction, so a
 // save is idempotent.
 func (s *Store) SaveContact(ctx context.Context, c domain.Contact) error {
 	return s.inTx(ctx, func(tx *sql.Tx) error {
 		if _, err := tx.ExecContext(ctx,
-			`INSERT INTO contact (id, uid, formatted_name, given_name, family_name, organization, title, note)
-			 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+			`INSERT INTO contact (id, uid, formatted_name, given_name, family_name, organization, title, note, birthday)
+			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 			 ON CONFLICT(id) DO UPDATE SET uid = excluded.uid, formatted_name = excluded.formatted_name,
 			     given_name = excluded.given_name, family_name = excluded.family_name,
-			     organization = excluded.organization, title = excluded.title, note = excluded.note;`,
+			     organization = excluded.organization, title = excluded.title, note = excluded.note,
+			     birthday = excluded.birthday;`,
 			c.ID(), c.UID(), c.FormattedName(), c.GivenName(), c.FamilyName(),
-			c.Organization(), c.Title(), c.Note()); err != nil {
+			c.Organization(), c.Title(), c.Note(), c.Birthday()); err != nil {
 			return fmt.Errorf("save contact %q: %w", c.ID(), err)
 		}
 		if _, err := tx.ExecContext(ctx, "DELETE FROM contact_email WHERE contact_id = ?;", c.ID()); err != nil {
@@ -150,6 +173,16 @@ func (s *Store) SaveContact(ctx context.Context, c domain.Contact) error {
 				return fmt.Errorf("insert contact phone: %w", err)
 			}
 		}
+		if _, err := tx.ExecContext(ctx, "DELETE FROM contact_address WHERE contact_id = ?;", c.ID()); err != nil {
+			return fmt.Errorf("clear contact addresses: %w", err)
+		}
+		for i, a := range c.Addresses() {
+			if _, err := tx.ExecContext(ctx,
+				"INSERT INTO contact_address (contact_id, position, label, street, locality, region, postal_code, country) VALUES (?, ?, ?, ?, ?, ?, ?, ?);",
+				c.ID(), i, a.Label(), a.Street(), a.Locality(), a.Region(), a.PostalCode(), a.Country()); err != nil {
+				return fmt.Errorf("insert contact address: %w", err)
+			}
+		}
 		return nil
 	})
 }
@@ -160,6 +193,7 @@ func (s *Store) DeleteContact(ctx context.Context, id string) error {
 		for _, stmt := range []string{
 			"DELETE FROM contact_email WHERE contact_id = ?;",
 			"DELETE FROM contact_phone WHERE contact_id = ?;",
+			"DELETE FROM contact_address WHERE contact_id = ?;",
 			"DELETE FROM contact_group_member WHERE contact_id = ?;",
 			"DELETE FROM contact WHERE id = ?;",
 		} {

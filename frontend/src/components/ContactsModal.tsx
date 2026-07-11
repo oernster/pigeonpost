@@ -1,5 +1,5 @@
 import {useEffect, useState} from 'react'
-import {api, Contact, ContactInput, ContactEmailInput, ContactPhoneInput, ContactGroup, ContactGroupInput} from '../api'
+import {api, Contact, ContactInput, ContactEmailInput, ContactPhoneInput, ContactAddressInput, ContactGroup, ContactGroupInput} from '../api'
 import {useBackdropDismiss} from './useBackdropDismiss'
 import {ModalClose} from './ModalClose'
 import {ConfirmDialog} from './ConfirmDialog'
@@ -19,13 +19,15 @@ interface ContactForm {
     organization: string
     title: string
     note: string
+    birthday: string
     emails: ContactEmailInput[]
     phones: ContactPhoneInput[]
+    addresses: ContactAddressInput[]
 }
 
 const emptyForm: ContactForm = {
     id: '', uid: '', formattedName: '', givenName: '', familyName: '',
-    organization: '', title: '', note: '', emails: [], phones: [],
+    organization: '', title: '', note: '', birthday: '', emails: [], phones: [], addresses: [],
 }
 
 // GroupForm backs the group editor: a name and the ids of the contacts in the group (a mailing list).
@@ -56,9 +58,20 @@ function formFor(c: Contact): ContactForm {
         organization: c.organization,
         title: c.title,
         note: c.note,
+        birthday: c.birthday,
         emails: (c.emails ?? []).map((e) => ({label: e.label, address: e.address})),
         phones: (c.phones ?? []).map((p) => ({label: p.label, number: p.number})),
+        addresses: (c.addresses ?? []).map((a) => ({
+            label: a.label, street: a.street, locality: a.locality,
+            region: a.region, postalCode: a.postalCode, country: a.country,
+        })),
     }
+}
+
+// addressIsEmpty is true when every component of an address row is blank after trimming, so such a row
+// is dropped on save rather than sent to the backend (which would reject it).
+function addressIsEmpty(a: ContactAddressInput): boolean {
+    return [a.street, a.locality, a.region, a.postalCode, a.country].every((s) => s.trim() === '')
 }
 
 // ContactsModal lists the address book and edits contacts. It imports and exports vCard and CSV so
@@ -157,6 +170,7 @@ export function ContactsModal({contacts, onChanged, onClose}: ContactsModalProps
                 formattedName: displayNameOf(form),
                 emails: form.emails.filter((e) => e.address.trim() !== ''),
                 phones: form.phones.filter((p) => p.number.trim() !== ''),
+                addresses: form.addresses.filter((a) => !addressIsEmpty(a)),
             }
             await api.saveContact(req)
             setForm(null)
@@ -294,6 +308,10 @@ export function ContactsModal({contacts, onChanged, onClose}: ContactsModalProps
                             <input className="tag-name-input" placeholder="Job title" value={form.title}
                                    onChange={(e) => set('title', e.target.value)}/>
                         </div>
+                        <div className="rule-form-row">
+                            <input className="tag-name-input" type="date" aria-label="Birthday" value={form.birthday}
+                                   onChange={(e) => set('birthday', e.target.value)}/>
+                        </div>
 
                         {form.emails.map((em, i) => (
                             <div className="rule-form-row" key={`email-${i}`}>
@@ -315,12 +333,33 @@ export function ContactsModal({contacts, onChanged, onClose}: ContactsModalProps
                                         onClick={() => set('phones', form.phones.filter((_, j) => j !== i))}>&times;</button>
                             </div>
                         ))}
+                        {form.addresses.map((ad, i) => (
+                            <div className="rule-form-row" key={`address-${i}`}>
+                                <input className="tag-name-input" placeholder="label (e.g. home)" value={ad.label}
+                                       onChange={(e) => set('addresses', form.addresses.map((x, j) => j === i ? {...x, label: e.target.value} : x))}/>
+                                <input className="tag-name-input" placeholder="street" value={ad.street}
+                                       onChange={(e) => set('addresses', form.addresses.map((x, j) => j === i ? {...x, street: e.target.value} : x))}/>
+                                <input className="tag-name-input" placeholder="city" value={ad.locality}
+                                       onChange={(e) => set('addresses', form.addresses.map((x, j) => j === i ? {...x, locality: e.target.value} : x))}/>
+                                <input className="tag-name-input" placeholder="region" value={ad.region}
+                                       onChange={(e) => set('addresses', form.addresses.map((x, j) => j === i ? {...x, region: e.target.value} : x))}/>
+                                <input className="tag-name-input" placeholder="postal code" value={ad.postalCode}
+                                       onChange={(e) => set('addresses', form.addresses.map((x, j) => j === i ? {...x, postalCode: e.target.value} : x))}/>
+                                <input className="tag-name-input" placeholder="country" value={ad.country}
+                                       onChange={(e) => set('addresses', form.addresses.map((x, j) => j === i ? {...x, country: e.target.value} : x))}/>
+                                <button className="account-action delete" aria-label="Remove address" title="Remove address"
+                                        onClick={() => set('addresses', form.addresses.filter((_, j) => j !== i))}>&times;</button>
+                            </div>
+                        ))}
                         <div className="rule-form-row">
                             <button className="btn" onClick={() => set('emails', [...form.emails, {label: '', address: ''}])}>
                                 Add email
                             </button>
                             <button className="btn" onClick={() => set('phones', [...form.phones, {label: '', number: ''}])}>
                                 Add phone
+                            </button>
+                            <button className="btn" onClick={() => set('addresses', [...form.addresses, {label: '', street: '', locality: '', region: '', postalCode: '', country: ''}])}>
+                                Add address
                             </button>
                         </div>
                         <textarea className="tag-name-input" placeholder="Notes" value={form.note} rows={3}

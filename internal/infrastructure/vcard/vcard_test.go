@@ -19,10 +19,12 @@ func TestRoundTrip(t *testing.T) {
 	e1, _ := domain.NewContactEmail("work", "jo@work.example.com")
 	e2, _ := domain.NewContactEmail("home", "jo@home.example.com")
 	ph, _ := domain.NewContactPhone("cell", "+441234567890")
+	adr, _ := domain.NewContactAddress("home", "1 High St", "London", "Greater London", "E1 1AA", "UK")
 	original, err := domain.NewContact(domain.ContactInput{
 		ID: "uid-123", UID: "uid-123", FormattedName: "Jo Bloggs", GivenName: "Jo", FamilyName: "Bloggs",
-		Organization: "Acme", Title: "Engineer", Note: "a note",
+		Organization: "Acme", Title: "Engineer", Note: "a note", Birthday: "1990-05-17",
 		Emails: []domain.ContactEmail{e1, e2}, Phones: []domain.ContactPhone{ph},
+		Addresses: []domain.ContactAddress{adr},
 	})
 	if err != nil {
 		t.Fatalf("build contact: %v", err)
@@ -53,6 +55,32 @@ func TestRoundTrip(t *testing.T) {
 	}
 	if len(c.Phones()) != 1 || c.Phones()[0].Number() != "+441234567890" || c.Phones()[0].Label() != "cell" {
 		t.Errorf("phones not preserved: %+v", c.Phones())
+	}
+	if c.Birthday() != "1990-05-17" {
+		t.Errorf("birthday not preserved: %q", c.Birthday())
+	}
+	if len(c.Addresses()) != 1 {
+		t.Fatalf("addresses not preserved: %+v", c.Addresses())
+	}
+	a := c.Addresses()[0]
+	if a.Label() != "home" || a.Street() != "1 High St" || a.Locality() != "London" ||
+		a.Region() != "Greater London" || a.PostalCode() != "E1 1AA" || a.Country() != "UK" {
+		t.Errorf("address components not preserved: %+v", a)
+	}
+}
+
+func TestDecodeSkipsEmptyAddress(t *testing.T) {
+	// An ADR whose structured components are all empty must be dropped, just as an invalid email is.
+	data := card(
+		"BEGIN:VCARD", "VERSION:4.0", "UID:a1", "FN:Has Address",
+		"ADR:;;;;;;", "ADR;TYPE=home:;;1 High St;London;;E1 1AA;UK", "END:VCARD",
+	)
+	got, err := New().Decode(data)
+	if err != nil {
+		t.Fatalf("Decode: %v", err)
+	}
+	if len(got) != 1 || len(got[0].Addresses()) != 1 || got[0].Addresses()[0].Street() != "1 High St" {
+		t.Errorf("expected only the non-empty address, got %+v", got[0].Addresses())
 	}
 }
 

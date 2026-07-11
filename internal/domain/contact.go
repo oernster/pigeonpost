@@ -48,6 +48,59 @@ func (p ContactPhone) Label() string { return p.label }
 // Number returns the phone number.
 func (p ContactPhone) Number() string { return p.number }
 
+// ContactAddress is one labelled postal address on a contact. The label is optional free text,
+// mirroring the vCard ADR TYPE parameter, and the five components map to the vCard ADR structured
+// value (street, locality, region, postal code, country). Each component is optional on its own; only
+// the address as a whole must carry something.
+type ContactAddress struct {
+	label      string
+	street     string
+	locality   string
+	region     string
+	postalCode string
+	country    string
+}
+
+// NewContactAddress validates and constructs a labelled postal address. Every component is trimmed; the
+// label is optional. An address whose components are all empty after trimming is rejected with
+// ErrEmptyAddress so an empty row is never stored.
+func NewContactAddress(label, street, locality, region, postalCode, country string) (ContactAddress, error) {
+	street = strings.TrimSpace(street)
+	locality = strings.TrimSpace(locality)
+	region = strings.TrimSpace(region)
+	postalCode = strings.TrimSpace(postalCode)
+	country = strings.TrimSpace(country)
+	if street == "" && locality == "" && region == "" && postalCode == "" && country == "" {
+		return ContactAddress{}, ErrEmptyAddress
+	}
+	return ContactAddress{
+		label:      strings.TrimSpace(label),
+		street:     street,
+		locality:   locality,
+		region:     region,
+		postalCode: postalCode,
+		country:    country,
+	}, nil
+}
+
+// Label returns the optional label, which may be empty.
+func (a ContactAddress) Label() string { return a.label }
+
+// Street returns the optional street component.
+func (a ContactAddress) Street() string { return a.street }
+
+// Locality returns the optional locality (city) component.
+func (a ContactAddress) Locality() string { return a.locality }
+
+// Region returns the optional region (state or province) component.
+func (a ContactAddress) Region() string { return a.region }
+
+// PostalCode returns the optional postal-code component.
+func (a ContactAddress) PostalCode() string { return a.postalCode }
+
+// Country returns the optional country component.
+func (a ContactAddress) Country() string { return a.country }
+
 // ContactInput carries the fields for constructing a Contact. Only ID and FormattedName are required;
 // the rest are optional.
 type ContactInput struct {
@@ -59,8 +112,10 @@ type ContactInput struct {
 	Organization  string
 	Title         string
 	Note          string
+	Birthday      string
 	Emails        []ContactEmail
 	Phones        []ContactPhone
+	Addresses     []ContactAddress
 }
 
 // Contact is a single address-book entry. It is immutable once constructed; the slice getters return
@@ -76,8 +131,10 @@ type Contact struct {
 	organization  string
 	title         string
 	note          string
+	birthday      string
 	emails        []ContactEmail
 	phones        []ContactPhone
+	addresses     []ContactAddress
 }
 
 // NewContact validates and constructs a contact from its input.
@@ -99,8 +156,10 @@ func NewContact(in ContactInput) (Contact, error) {
 		organization:  strings.TrimSpace(in.Organization),
 		title:         strings.TrimSpace(in.Title),
 		note:          strings.TrimSpace(in.Note),
+		birthday:      strings.TrimSpace(in.Birthday),
 		emails:        cloneEmails(in.Emails),
 		phones:        clonePhones(in.Phones),
+		addresses:     cloneAddresses(in.Addresses),
 	}, nil
 }
 
@@ -128,11 +187,17 @@ func (c Contact) Title() string { return c.title }
 // Note returns the optional free-text note.
 func (c Contact) Note() string { return c.note }
 
+// Birthday returns the optional birthday as free text (vCard BDAY), which may be empty.
+func (c Contact) Birthday() string { return c.birthday }
+
 // Emails returns a copy of the contact's labelled email addresses.
 func (c Contact) Emails() []ContactEmail { return cloneEmails(c.emails) }
 
 // Phones returns a copy of the contact's labelled phone numbers.
 func (c Contact) Phones() []ContactPhone { return clonePhones(c.phones) }
+
+// Addresses returns a copy of the contact's labelled postal addresses.
+func (c Contact) Addresses() []ContactAddress { return cloneAddresses(c.addresses) }
 
 // PrimaryEmail returns the first email address, or the zero EmailAddress when the contact has none.
 func (c Contact) PrimaryEmail() EmailAddress {
@@ -159,6 +224,16 @@ func clonePhones(in []ContactPhone) []ContactPhone {
 		return nil
 	}
 	out := make([]ContactPhone, len(in))
+	copy(out, in)
+	return out
+}
+
+// cloneAddresses returns an independent copy of the addresses, or nil when there are none.
+func cloneAddresses(in []ContactAddress) []ContactAddress {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]ContactAddress, len(in))
 	copy(out, in)
 	return out
 }

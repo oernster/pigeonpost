@@ -124,6 +124,15 @@ export interface ContactPhoneInput {
     number: string
 }
 
+export interface ContactAddressInput {
+    label: string
+    street: string
+    locality: string
+    region: string
+    postalCode: string
+    country: string
+}
+
 export interface ContactInput {
     id: string
     uid: string
@@ -133,8 +142,10 @@ export interface ContactInput {
     organization: string
     title: string
     note: string
+    birthday: string
     emails: ContactEmailInput[]
     phones: ContactPhoneInput[]
+    addresses: ContactAddressInput[]
 }
 
 export interface ContactGroupInput {
