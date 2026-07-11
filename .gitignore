@@ -39,6 +39,8 @@ go.work.sum
 # Node / frontend
 node_modules/
 frontend/dist/
+# Vitest coverage output
+frontend/coverage/
 # Wails npm dependency-hash cache (regenerated on every build)
 frontend/package.json.md5
 
@@ -47,5 +49,6 @@ build/bin/
 
 # Local scratch
 NOTES.md
+FRONTEND_PLAN.md
 *.db
 *.db-*
