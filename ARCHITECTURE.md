@@ -249,6 +249,18 @@ custom error types beyond sentinels.
 - Structural AST tests enforce layering, domain purity, the module-size limit and the composition
   root whitelist.
 
+## Styles (frontend)
+
+`frontend/src/App.css` is a manifest: nothing but `@import` lines pointing at per-concern files under
+`frontend/src/styles/`, listed in the order the sections had in the original single stylesheet so the
+cascade is unchanged. The split is by concern, not by component, because shared globals (`.btn`, `.modal`,
+`.icon-btn`, the theme variables and the focus/hover rules) belong to no single component.
+
+Rule for new styles: add a file under `frontend/src/styles/` and `@import` it from `App.css` in the right
+place. Keep `App.css` a manifest (only `@import` lines); never inline component rules back into it or let a
+per-component file own a shared global. Split a concern file over ~500 lines again at a top-level comment
+boundary, keeping the import order intact.
+
 ## Calendar and contacts (0.7.0)
 
 Shipped in 0.7.0. This section records the shape of the address book and calendar; each piece is held to

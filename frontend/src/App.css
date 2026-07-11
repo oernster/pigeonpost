@@ -1,6 +1,12 @@
 /* App.css is a manifest. The stylesheet is split by concern into ./styles/*, imported here in the exact
    source order the sections had in the original single file, so the cascade is identical. Each file opens
-   with the section comment describing what it covers. */
+   with the section comment describing what it covers.
+
+   Adding styles (the go-forward rule): put them in a file under ./styles/ and @import it here in the
+   right place. Keep THIS file a manifest, only @import lines; never inline rules back into it. The split
+   is by concern, not by component, so shared globals (.btn, .modal, .icon-btn, the theme variables and
+   the focus/hover rules) stay shared. Split a concern file over ~500 lines again at a top-level comment
+   boundary, keeping the import order intact. See ARCHITECTURE.md (Styles). */
 @import './styles/base-and-panes.css';
 @import './styles/list-rows.css';
 @import './styles/reader.css';
