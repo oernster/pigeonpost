@@ -31,6 +31,7 @@ import {emlFilename, escapeHtml, neighbourAfterRemoval, subjectWithPrefix} from 
 import {matchesShortcut} from './shortcuts'
 import {printDocument, printFrameId} from './print'
 import {focusRingElements, focusRingRoot, stepFocusRing, trapTab} from './focusRing'
+import {useMessageStore} from './hooks/useMessageStore'
 
 // autoSyncIntervalMs is how often the folder on screen is refreshed from the server in the background,
 // so new mail in the open folder appears without a manual sync.
@@ -44,8 +45,16 @@ function App() {
     const [folders, setFolders] = useState<Folder[]>([])
     const [unreadCounts, setUnreadCounts] = useState<UnreadCountsResult>({total: 0, byAccount: {}})
     const [selectedFolder, setSelectedFolder] = useState<string>('')
-    const [messages, setMessages] = useState<Message[]>([])
-    const [selectedMessage, setSelectedMessage] = useState<Message | null>(null)
+    // The coupled core of the mail views (the folder list, the search results, the reader tabs and the
+    // active message) lives in one hook, so an action updates a message wherever it appears. The three
+    // lists are never split apart.
+    const {
+        messages, setMessages,
+        searchResults, setSearchResults,
+        tabs, setTabs,
+        selectedMessage, setSelectedMessage,
+        applyToAllLists, removeFromAllLists,
+    } = useMessageStore()
     const [error, setError] = useState<string>('')
     const [syncingAccounts, setSyncingAccounts] = useState<Set<string>>(() => new Set<string>())
     const [outbox, setOutbox] = useState<OutboxItem[]>([])
@@ -94,7 +103,6 @@ function App() {
     const [messageBody, setMessageBody] = useState<MessageBody | null>(null)
     const [bodyLoading, setBodyLoading] = useState<boolean>(false)
     const [searchQuery, setSearchQuery] = useState<string>('')
-    const [searchResults, setSearchResults] = useState<Message[]>([])
     const [messageToDelete, setMessageToDelete] = useState<Message | null>(null)
     const [deletingMessage, setDeletingMessage] = useState<boolean>(false)
     const [messageToPurge, setMessageToPurge] = useState<Message | null>(null)
@@ -108,7 +116,6 @@ function App() {
     const [bulkDeleting, setBulkDeleting] = useState<boolean>(false)
     const [bulkToPurge, setBulkToPurge] = useState<Message[] | null>(null)
     const [bulkPurging, setBulkPurging] = useState<boolean>(false)
-    const [tabs, setTabs] = useState<Message[]>([])
     // previewEnabled controls the right-hand reading pane. When off, the message list is full-width and
     // a message is read by double-clicking it, which opens it full-width (readingFull) with a Back button.
     const [previewEnabled, setPreviewEnabled] = useState<boolean>(() => {
@@ -975,14 +982,11 @@ function App() {
         setError('')
         try {
             await api.moveMessage(messageId, destFolderId)
-            setMessages((prev) => prev.filter((m) => m.id !== messageId))
-            setSearchResults((prev) => prev.filter((m) => m.id !== messageId))
-            setTabs((prev) => prev.filter((m) => m.id !== messageId))
-            setSelectedMessage((prev) => (prev?.id === messageId ? null : prev))
+            removeFromAllLists(new Set([messageId]))
         } catch (e) {
             setError(String(e))
         }
-    }, [])
+    }, [removeFromAllLists])
 
     const moveMessage = useCallback(
         (message: Message, destFolderId: string) => moveMessageById(message.id, destFolderId),
@@ -1280,30 +1284,23 @@ function App() {
     // setReadState sets a message's read flag on the server and optimistically in the on-screen lists,
     // so it bolds or un-bolds at once. Used by the Mark submenu (explicit read/unread) and on view.
     const setReadState = useCallback(async (message: Message, read: boolean) => {
-        const apply = (m: Message): Message => (m.id === message.id ? {...m, read} : m)
-        setMessages((prev) => prev.map(apply))
-        setSearchResults((prev) => prev.map(apply))
-        setTabs((prev) => prev.map(apply))
-        setSelectedMessage((prev) => (prev && prev.id === message.id ? {...prev, read} : prev))
+        applyToAllLists((m) => (m.id === message.id ? {...m, read} : m))
         try {
             await api.markRead(message.id, read)
             await loadUnread()
         } catch (e) {
             setError(String(e))
         }
-    }, [loadUnread])
+    }, [applyToAllLists, loadUnread])
 
     // removeIdsFromLists drops a set of message ids from every on-screen list and the selection after a
     // bulk delete or move, and clears the active message if it was among them. All the setters are stable,
     // so it needs no dependencies.
     const removeIdsFromLists = useCallback((ids: Set<string>) => {
-        setMessages((prev) => prev.filter((m) => !ids.has(m.id)))
-        setSearchResults((prev) => prev.filter((m) => !ids.has(m.id)))
-        setTabs((prev) => prev.filter((m) => !ids.has(m.id)))
-        setSelectedMessage((prev) => (prev && ids.has(prev.id) ? null : prev))
+        removeFromAllLists(ids)
         setMarkedIds(new Set())
         setAnchorId(null)
-    }, [])
+    }, [removeFromAllLists])
 
     // bulkMoveIds moves several messages into a folder in ONE batched backend call (grouped by source
     // folder on the server), rather than a request per message, so a large Gmail selection stays under
@@ -1383,11 +1380,7 @@ function App() {
     // toggling, so a mixed selection ends up uniform.
     const bulkSetRead = useCallback(async (targets: Message[], read: boolean) => {
         const ids = new Set(targets.map((t) => t.id))
-        const apply = (m: Message): Message => (ids.has(m.id) ? {...m, read} : m)
-        setMessages((prev) => prev.map(apply))
-        setSearchResults((prev) => prev.map(apply))
-        setTabs((prev) => prev.map(apply))
-        setSelectedMessage((prev) => (prev && ids.has(prev.id) ? {...prev, read} : prev))
+        applyToAllLists((m) => (ids.has(m.id) ? {...m, read} : m))
         let failed = 0
         for (const t of targets) {
             try {

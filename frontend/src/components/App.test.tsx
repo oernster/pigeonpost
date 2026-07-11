@@ -233,3 +233,38 @@ describe('App: deleting a message', () => {
         await waitFor(() => expect(screen.queryByText('Weekly report')).not.toBeInTheDocument())
     })
 })
+
+// These two pin the coupled-lists behaviour that Phase 3.1 moves into useMessageStore: an in-place field
+// change flows to the message wherever it appears (applyToAllLists) and a removal drops it from the lists
+// (removeFromAllLists). The extraction must keep both identical.
+describe('App: the coupled message lists', () => {
+    it('marks a message read when it is opened, updating the row in step (applyToAllLists)', async () => {
+        apiSpies.listAccounts.mockResolvedValue([makeAccount()])
+        apiSpies.listFolders.mockResolvedValue([makeFolder('inbox', 'Inbox', 'inbox')])
+        apiSpies.listMessages.mockResolvedValue([makeMessage({subject: 'Weekly report', read: false})])
+        const {container} = render(<App/>)
+        fireEvent.click(await screen.findByText('Weekly report'))
+        await waitFor(() => expect(apiSpies.markRead).toHaveBeenCalledWith('m1', true))
+        await waitFor(() => expect(container.querySelector('[data-mid="m1"]')).not.toHaveClass('unread'))
+    })
+
+    it('bulk-deletes the selected messages, dropping them from the list (removeFromAllLists)', async () => {
+        apiSpies.listAccounts.mockResolvedValue([makeAccount()])
+        apiSpies.listFolders.mockResolvedValue([makeFolder('inbox', 'Inbox', 'inbox')])
+        apiSpies.listMessages.mockResolvedValue([
+            makeMessage({id: 'm1', subject: 'Weekly report'}),
+            makeMessage({id: 'm2', subject: 'Second message'}),
+        ])
+        apiSpies.deleteMessages.mockResolvedValue({ids: ['m1', 'm2'], failed: 0, error: ''})
+        render(<App/>)
+        fireEvent.click(await screen.findByText('Weekly report'))
+        // A Ctrl-click adds the second message, so the multi-selection summary replaces the reader.
+        fireEvent.click(screen.getByText('Second message'), {ctrlKey: true})
+        fireEvent.click(await screen.findByRole('button', {name: 'Delete'}))
+        const dialog = await screen.findByRole('alertdialog', {name: 'Delete messages'})
+        fireEvent.click(within(dialog).getByRole('button', {name: 'Delete 2'}))
+        await waitFor(() => expect(apiSpies.deleteMessages).toHaveBeenCalledWith(['m1', 'm2']))
+        await waitFor(() => expect(screen.queryByText('Weekly report')).not.toBeInTheDocument())
+        expect(screen.queryByText('Second message')).not.toBeInTheDocument()
+    })
+})
