@@ -10,6 +10,7 @@ import {Reader} from './components/Reader'
 import {EmailViewerModal} from './components/EmailViewerModal'
 import {TitleBar} from './components/TitleBar'
 import {WelcomeScreen} from './components/WelcomeScreen'
+import {SelectionSummary} from './components/SelectionSummary'
 import {AboutModal} from './components/AboutModal'
 import {LicenceModal} from './components/LicenceModal'
 import {arrangeByConversation, sortByDate} from './threads'
@@ -861,17 +862,13 @@ function App() {
         />
     )
     const readerEl = multiSelected ? (
-        <section className="pane reader">
-            <div className="empty-state selection-summary">
-                <p className="empty-body">{markedIds.size} messages selected</p>
-                <div className="selection-actions">
-                    <button className="btn danger" onClick={() => setBulkToDelete(selectedMessages)}>Delete</button>
-                    <button className="btn" onClick={() => void bulkSetRead(selectedMessages, true)}>Mark read</button>
-                    <button className="btn" onClick={() => void bulkSetRead(selectedMessages, false)}>Mark unread</button>
-                    <button className="btn" onClick={clearSelection}>Clear selection</button>
-                </div>
-            </div>
-        </section>
+        <SelectionSummary
+            markedIds={markedIds}
+            selectedMessages={selectedMessages}
+            setBulkToDelete={setBulkToDelete}
+            bulkSetRead={bulkSetRead}
+            clearSelection={clearSelection}
+        />
     ) : (
         <Reader
             message={selectedMessage}

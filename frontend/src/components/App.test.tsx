@@ -394,6 +394,25 @@ describe('App: bulk actions', () => {
         await waitFor(() => expect(apiSpies.markRead).toHaveBeenCalledWith('m1', false))
         expect(apiSpies.markRead).toHaveBeenCalledWith('m2', false)
     })
+
+    // The multi-selection placeholder moves into SelectionSummary.tsx (Phase 3.16). The Mark unread path is
+    // pinned above; this pins the count display and the Clear selection button, which returns to the reader.
+    it('shows the selection count and clears it from the summary (SelectionSummary)', async () => {
+        apiSpies.listAccounts.mockResolvedValue([makeAccount()])
+        apiSpies.listFolders.mockResolvedValue([makeFolder('inbox', 'Inbox', 'inbox')])
+        apiSpies.listMessages.mockResolvedValue([
+            makeMessage({id: 'm1', subject: 'Weekly report'}),
+            makeMessage({id: 'm2', subject: 'Second message'}),
+        ])
+        render(<App/>)
+        fireEvent.click(await screen.findByText('Weekly report'))
+        // A Ctrl-click adds the second message, so the multi-selection summary replaces the reader.
+        fireEvent.click(screen.getByText('Second message'), {ctrlKey: true})
+        expect(await screen.findByText(/2 messages selected/)).toBeInTheDocument()
+        fireEvent.click(screen.getByRole('button', {name: 'Clear selection'}))
+        // Clearing drops the summary and returns to the single-message reader.
+        await waitFor(() => expect(screen.queryByText(/2 messages selected/)).not.toBeInTheDocument())
+    })
 })
 
 // The outbox that Phase 3.6 moves into useOutbox: the queue is loaded on mount and, while the selected
