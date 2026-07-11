@@ -1,7 +1,7 @@
 import {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from 'react'
 import './App.css'
 import brandIcon from './assets/pigeonpost.png'
-import {AboutInfo, api, CalendarEvent, Contact, DraftRecoveryResult, EmailView, Message, MessageBody, Rule, UnreadCountsResult} from './api'
+import {AboutInfo, api, CalendarEvent, Contact, EmailView, Message, MessageBody, Rule, UnreadCountsResult} from './api'
 import {OUTBOX_FOLDER_ID, isOutboxMessage, outboxItemToMessage} from './outbox'
 import {applyTheme, loadTheme, Theme} from './theme'
 import {TAG_PALETTE, colourTagId} from './tagColours'
@@ -14,7 +14,7 @@ import {Menu, MenuItem} from './components/Menu'
 import {AboutModal} from './components/AboutModal'
 import {LicenceModal} from './components/LicenceModal'
 import {arrangeByConversation, sortByDate} from './threads'
-import {ComposeInitial, ComposeModal} from './components/ComposeModal'
+import {ComposeModal} from './components/ComposeModal'
 import {MessagePickerDialog} from './components/MessagePickerDialog'
 import {AccountSetupModal} from './components/AccountSetupModal'
 import {ConfirmDialog} from './components/ConfirmDialog'
@@ -25,11 +25,10 @@ import {CalendarModal} from './components/CalendarModal'
 import {ReminderNotifications} from './components/ReminderNotifications'
 import {CloseChoiceDialog} from './components/CloseChoiceDialog'
 import {Splash} from './components/Splash'
-import {useEscapeToClose} from './components/useBackdropDismiss'
 import {Environment, EventsOn} from '../wailsjs/runtime'
 import {emlFilename, escapeHtml} from './messageText'
 import {matchesShortcut} from './shortcuts'
-import {buildForward, buildReply, buildReplyAll, quoteFor, replyFromAddress, sendersFor, signatureHtmlFor} from './replyDraft'
+import {sendersFor} from './replyDraft'
 import {printDocument, printFrameId} from './print'
 import {focusRingElements, focusRingRoot, stepFocusRing, trapTab} from './focusRing'
 import {useMessageStore} from './hooks/useMessageStore'
@@ -42,6 +41,7 @@ import {useFolders} from './hooks/useFolders'
 import {useAccounts} from './hooks/useAccounts'
 import {useSync} from './hooks/useSync'
 import {useTags} from './hooks/useTags'
+import {useComposeLauncher} from './hooks/useComposeLauncher'
 
 function App() {
     const [selectedAccount, setSelectedAccount] = useState<string>('')
@@ -88,14 +88,6 @@ function App() {
     const [launchedEmail, setLaunchedEmail] = useState<EmailView | null>(null)
     const [isWindows, setIsWindows] = useState(false)
     const [closeChoice, setCloseChoice] = useState(false)
-    const [composing, setComposing] = useState<boolean>(false)
-    const [composeInitial, setComposeInitial] = useState<ComposeInitial | undefined>(undefined)
-    // attachPickerOpen shows the message picker for the Attach button's "Attach email" action.
-    const [attachPickerOpen, setAttachPickerOpen] = useState(false)
-    // recovery is a locally autosaved compose snapshot from a previous session, offered for restore once
-    // accounts have loaded; recoveryCheckedRef makes that offer happen once per launch.
-    const [recovery, setRecovery] = useState<DraftRecoveryResult | null>(null)
-    const recoveryCheckedRef = useRef<boolean>(false)
     // The colour-tag palette, the selected message's tags, and the tag-toggle handlers (on the open message
     // and on any message via the context menu) live in useTags.
     const {tags, messageTags, toggleTag, setMessageTagById} = useTags({store, setError})
@@ -145,9 +137,19 @@ function App() {
         return () => window.removeEventListener('focus', claimNeutralFocus)
     }, [])
 
-    // Close the draft-recovery prompt on Escape, matching the other dialogs. It is a plain inline modal, so
-    // it does not use the shared backdrop hook; the active flag registers it only while it is showing.
-    useEscapeToClose(() => setRecovery(null), Boolean(recovery) && !composing)
+    // Opening the composer (reply, reply-all, forward, attach) and the draft-recovery prompt shown on launch
+    // live in useComposeLauncher. The ComposeModal render, the Compose buttons and the recovery dialog stay in
+    // App and consume the state, the setters and signatureHtml it returns.
+    const {
+        composing, setComposing,
+        composeInitial, setComposeInitial,
+        attachPickerOpen, setAttachPickerOpen,
+        recovery, setRecovery,
+        signatureHtml,
+        openReply, openReplyAll, openForward,
+        attachToNewMessage, attachFiles, attachEmails,
+        restoreDraft, discardDraft,
+    } = useComposeLauncher({accounts, selectedAccount, setSelectedAccount, messageBody, setError})
 
     const searchActive = searchQuery.trim() !== ''
     // conversationView groups the folder's messages into conversations; it does not apply to search
@@ -202,52 +204,6 @@ function App() {
             window.clearTimeout(hide)
         }
     }, [])
-
-    // Once accounts have loaded, check for a compose snapshot autosaved in a previous session and offer to
-    // restore it. This runs once per launch. A snapshot whose account has since been removed is stale, so
-    // it is cleared silently rather than offered against an account that no longer exists.
-    useEffect(() => {
-        if (recoveryCheckedRef.current || accounts.length === 0) return
-        recoveryCheckedRef.current = true
-        void (async () => {
-            try {
-                const snapshot = await api.draftRecovery()
-                if (!snapshot.present) return
-                if (accounts.some((account) => account.id === snapshot.accountId)) {
-                    setRecovery(snapshot)
-                } else {
-                    void api.clearDraftRecovery()
-                }
-            } catch {
-                // A recovery check failure is non-fatal; the composer still works without it.
-            }
-        })()
-    }, [accounts])
-
-    // restoreDraft reopens the composer pre-filled from the autosaved snapshot, switching to its account
-    // first so the message is sent from the identity it was written under. The composer's own autosave
-    // then keeps the snapshot current, so it is not cleared here.
-    const restoreDraft = () => {
-        if (!recovery) return
-        if (accounts.some((account) => account.id === recovery.accountId)) {
-            setSelectedAccount(recovery.accountId)
-        }
-        setComposeInitial({
-            to: recovery.to,
-            cc: recovery.cc,
-            bcc: recovery.bcc,
-            subject: recovery.subject,
-            bodyHtml: recovery.bodyHtml,
-        })
-        setComposing(true)
-        setRecovery(null)
-    }
-
-    // discardDraft drops the autosaved snapshot when the user chooses not to restore it.
-    const discardDraft = () => {
-        void api.clearDraftRecovery()
-        setRecovery(null)
-    }
 
     const loadRules = useCallback(async () => {
         try {
@@ -564,81 +520,6 @@ function App() {
             setError(String(e))
         }
     }, [])
-
-    // quoteFor returns the quoted original for reply/forward: the fetched HTML body when available,
-    // otherwise the plain text (or snippet) escaped into a paragraph.
-    // signatureHtml is the selected account's signature (see replyDraft.signatureHtmlFor), inserted into a new
-    // message and above the quoted text on a reply or forward.
-    const signatureHtml = (): string => signatureHtmlFor(accounts.find((a) => a.id === selectedAccount))
-
-    // replyFrom picks which of the account's own addresses a reply is sent from (see replyDraft.replyFromAddress).
-    const replyFrom = (message: Message): string =>
-        replyFromAddress(message, sendersFor(accounts.find((a) => a.id === selectedAccount)))
-
-    const openReply = (message: Message) => {
-        setComposeInitial(buildReply(message, {
-            from: replyFrom(message),
-            signatureHtml: signatureHtml(),
-            quotedHtml: quoteFor(message, messageBody),
-        }))
-        setComposing(true)
-    }
-
-    const openReplyAll = (message: Message) => {
-        setComposeInitial(buildReplyAll(message, selectedAccount, {
-            from: replyFrom(message),
-            signatureHtml: signatureHtml(),
-            quotedHtml: quoteFor(message, messageBody),
-        }))
-        setComposing(true)
-    }
-
-    const openForward = (message: Message) => {
-        setComposeInitial(buildForward(message, {
-            signatureHtml: signatureHtml(),
-            quotedHtml: quoteFor(message, messageBody),
-        }))
-        setComposing(true)
-    }
-
-    // attachToNewMessage opens a fresh composer with the chosen message attached as a .eml; the backend
-    // fetches its raw bytes and adds it as a message/rfc822 part on send.
-    const attachToNewMessage = (message: Message) => {
-        setComposeInitial({
-            messageAttachments: [{id: message.id, name: emlFilename(message.subject || '')}],
-            bodyHtml: signatureHtml() ? `<p></p>${signatureHtml()}` : undefined,
-        })
-        setComposing(true)
-    }
-
-    // attachFiles picks files from the OS then opens a fresh compose with them already attached, for the
-    // Attach button's "Attach file(s)" action. A cancelled picker opens nothing.
-    const attachFiles = async () => {
-        try {
-            const paths = await api.pickAttachments()
-            if (paths.length === 0) {
-                return
-            }
-            setComposeInitial({
-                attachmentPaths: paths,
-                bodyHtml: signatureHtml() ? `<p></p>${signatureHtml()}` : undefined,
-            })
-            setComposing(true)
-        } catch (e) {
-            setError(String(e))
-        }
-    }
-
-    // attachEmails opens a fresh compose with the picked messages attached as .eml files, for the Attach
-    // button's "Attach email" action; the picker closes as it hands them over.
-    const attachEmails = (picked: Message[]) => {
-        setAttachPickerOpen(false)
-        setComposeInitial({
-            messageAttachments: picked.map((m) => ({id: m.id, name: emlFilename(m.subject || '')})),
-            bodyHtml: signatureHtml() ? `<p></p>${signatureHtml()}` : undefined,
-        })
-        setComposing(true)
-    }
 
     const showAbout = useCallback(async () => {
         try {

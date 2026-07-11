@@ -457,3 +457,46 @@ describe('App: tagging', () => {
         await waitFor(() => expect(apiSpies.setMessageTag).toHaveBeenCalledWith('m1', expect.any(String), true))
     })
 })
+
+// The compose launchers that Phase 3.11 moves into useComposeLauncher: opening the composer to reply to the
+// selected message (openReply) and the draft-recovery prompt offered on launch (the recovery effect with
+// restoreDraft and discardDraft). Composing is observable as the ComposeModal ("New message" dialog) appearing.
+describe('App: composing', () => {
+    it('opens the composer to reply to the selected message (openReply)', async () => {
+        apiSpies.listAccounts.mockResolvedValue([makeAccount()])
+        apiSpies.listFolders.mockResolvedValue([makeFolder('inbox', 'Inbox', 'inbox')])
+        apiSpies.listMessages.mockResolvedValue([makeMessage({subject: 'Weekly report'})])
+        const {container} = render(<App/>)
+        fireEvent.click(await screen.findByText('Weekly report'))
+        // The reader's Reply control opens the composer; scope to the reader since the titlebar duplicates it.
+        const reader = container.querySelector('.reader') as HTMLElement
+        fireEvent.click(within(reader).getByRole('button', {name: 'Reply'}))
+        expect(await screen.findByRole('dialog', {name: 'New message'})).toBeInTheDocument()
+    })
+
+    it('offers to restore an autosaved draft on launch, then opens the composer (restoreDraft)', async () => {
+        apiSpies.listAccounts.mockResolvedValue([makeAccount()])
+        apiSpies.draftRecovery.mockResolvedValue({
+            present: true, accountId: 'acc1', to: 'bob@example.com', cc: '', bcc: '',
+            subject: 'Half-written', bodyHtml: '<p>draft</p>', savedMs: 0,
+        })
+        render(<App/>)
+        const dialog = await screen.findByRole('alertdialog', {name: 'Restore unsent message'})
+        expect(dialog).toBeInTheDocument()
+        fireEvent.click(within(dialog).getByRole('button', {name: 'Restore'}))
+        expect(await screen.findByRole('dialog', {name: 'New message'})).toBeInTheDocument()
+    })
+
+    it('discards an autosaved draft, clearing it and dismissing the prompt (discardDraft)', async () => {
+        apiSpies.listAccounts.mockResolvedValue([makeAccount()])
+        apiSpies.draftRecovery.mockResolvedValue({
+            present: true, accountId: 'acc1', to: 'bob@example.com', cc: '', bcc: '',
+            subject: 'Half-written', bodyHtml: '<p>draft</p>', savedMs: 0,
+        })
+        render(<App/>)
+        const dialog = await screen.findByRole('alertdialog', {name: 'Restore unsent message'})
+        fireEvent.click(within(dialog).getByRole('button', {name: 'Discard'}))
+        await waitFor(() => expect(apiSpies.clearDraftRecovery).toHaveBeenCalled())
+        expect(screen.queryByRole('alertdialog', {name: 'Restore unsent message'})).not.toBeInTheDocument()
+    })
+})
