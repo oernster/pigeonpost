@@ -3,10 +3,11 @@ import type {MouseEvent as ReactMouseEvent, RefObject} from 'react'
 import {api, EmailView, Folder, Message, MessageBody, Tag} from '../api'
 import {EmailViewerModal} from './EmailViewerModal'
 import {ReaderToolbar} from './ReaderToolbar'
+import {ReaderAttachments} from './ReaderAttachments'
 import {isOutboxMessage} from '../outbox'
 import {ReaderTabs} from './ReaderTabs'
 import {InviteCard} from './InviteCard'
-import {formatAddress, formatAddressList, formatBytes, readableInk} from '../readerFormat'
+import {formatAddressList, readableInk} from '../readerFormat'
 
 // The reader body is a scrollable focus stop: the arrow keys scroll it so a long email can be read from
 // the keyboard. READER_SCROLL_STEP_PX is one arrow press; PageUp/PageDown move by READER_PAGE_FRACTION of
@@ -61,60 +62,19 @@ interface ReaderProps {
 
 export function Reader({message, onToggleRead, onReply, onReplyAll, onForward, onDelete, onCancelSend, folders, onMove, onCopy, canMoveCopy, messageTags, onToggleTag, body, bodyLoading, tabs, onSelectTab, onCloseTab, onBack, bodyRef, sinkRef}: ReaderProps) {
     const [imagesShown, setImagesShown] = useState(false)
-    const [attachError, setAttachError] = useState('')
     // viewedEmail holds a parsed .eml attachment while the in-app viewer shows it.
     const [viewedEmail, setViewedEmail] = useState<EmailView | null>(null)
     // backButtonRef is the Back button; the reader's neutral sink hands the first Tab to it on a mouse open.
     const backButtonRef = useRef<HTMLButtonElement>(null)
 
-    // saveAttachment writes a received attachment to disk through a native save dialog; its bytes come
-    // from the locally cached body, so it works offline once the message has been opened.
-    const saveAttachment = async (index: number) => {
-        if (!message) return
-        setAttachError('')
-        try {
-            await api.saveAttachment(message.id, index)
-        } catch (e) {
-            setAttachError(String(e))
-        }
-    }
-
-    // openAttachment shows an attached .eml in the in-app viewer (so it never hands off to an external mail
-    // client). Any other file opens with the OS default app after writing it to a temporary file.
-    const openAttachment = async (index: number, filename: string) => {
-        if (!message) return
-        setAttachError('')
-        try {
-            if (filename.toLowerCase().endsWith('.eml')) {
-                setViewedEmail(await api.openEmailAttachment(message.id, index))
-            } else {
-                await api.openAttachment(message.id, index)
-            }
-        } catch (e) {
-            setAttachError(String(e))
-        }
-    }
-
-    // saveAllAttachments writes every attachment into a folder chosen through a native dialog, in one step.
-    const saveAllAttachments = async () => {
-        if (!message) return
-        setAttachError('')
-        try {
-            await api.saveAllAttachments(message.id)
-        } catch (e) {
-            setAttachError(String(e))
-        }
-    }
-
     const tabStrip = tabs.length > 0
         ? <ReaderTabs tabs={tabs} activeMessageId={message?.id ?? ''} onSelectTab={onSelectTab} onCloseTab={onCloseTab}/>
         : null
 
-    // Re-block images and clear any attachment error whenever the selected message changes. The colour
-    // menu's own per-message reset lives in useTagMenu.
+    // Re-block images whenever the selected message changes. The colour menu and the attachments block own
+    // their own per-message resets.
     useEffect(() => {
         setImagesShown(false)
-        setAttachError('')
     }, [message?.id])
 
     if (!message) {
@@ -287,39 +247,11 @@ export function Reader({message, onToggleRead, onReply, onReplyAll, onForward, o
                 )}
             </div>
             {!bodyLoading && body && body.attachments && body.attachments.length > 0 && (
-                <div className="reader-attachments">
-                    <div className="reader-attachments-title">
-                        <span>{body.attachments.length === 1 ? '1 attachment' : `${body.attachments.length} attachments`}</span>
-                        {body.attachments.length > 1 && (
-                            <button type="button" className="btn" onClick={() => void saveAllAttachments()}>
-                                Save all
-                            </button>
-                        )}
-                    </div>
-                    {attachError && <div className="compose-error">{attachError}</div>}
-                    <ul className="attachment-list">
-                        {body.attachments.map((att) => (
-                            <li key={att.index} className="attachment-chip">
-                                <span className="attachment-name" title={att.filename}>{att.filename}</span>
-                                <span className="attachment-size">{formatBytes(att.size)}</span>
-                                <button
-                                    type="button"
-                                    className="btn"
-                                    onClick={() => void openAttachment(att.index, att.filename)}
-                                >
-                                    Open
-                                </button>
-                                <button
-                                    type="button"
-                                    className="btn"
-                                    onClick={() => void saveAttachment(att.index)}
-                                >
-                                    Save
-                                </button>
-                            </li>
-                        ))}
-                    </ul>
-                </div>
+                <ReaderAttachments
+                    message={message}
+                    attachments={body.attachments}
+                    onViewEmail={setViewedEmail}
+                />
             )}
             {viewedEmail && (
                 <EmailViewerModal email={viewedEmail} onClose={() => setViewedEmail(null)}/>
