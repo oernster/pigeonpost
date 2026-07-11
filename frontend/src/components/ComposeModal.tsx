@@ -6,9 +6,10 @@ import Link from '@tiptap/extension-link'
 import {api, ComposeInput} from '../api'
 import {ModalClose} from './ModalClose'
 import {ConfirmDialog} from './ConfirmDialog'
-import {basename, detectSeparatorFix, isValidAddress, normaliseUrl, splitAddresses} from '../composeAddresses'
+import {basename, isValidAddress, normaliseUrl, splitAddresses} from '../composeAddresses'
 import {useLinkEditor} from '../hooks/useLinkEditor'
 import {useDraftAutosave} from '../hooks/useDraftAutosave'
+import {useSeparatorCorrection} from '../hooks/useSeparatorCorrection'
 
 // ComposeInitial pre-fills the compose window, used by reply, reply-all and forward.
 // MessageAttachment is an existing email attached to a new message: its id (fetched and rendered as a
@@ -50,15 +51,6 @@ interface ComposeModalProps {
     onClose: () => void
 }
 
-// Correction is a proposed fix for a wrong address separator: the recipient fields rewritten with their
-// addresses correctly separated, plus a preview of the changed fields for the user to approve.
-interface Correction {
-    to: string
-    cc: string
-    bcc: string
-    preview: string
-}
-
 
 export function ComposeModal({accountId, senders, initial, canSaveDraft, onClose}: ComposeModalProps) {
     const dismiss = useBackdropDismiss(onClose)
@@ -74,9 +66,6 @@ export function ComposeModal({accountId, senders, initial, canSaveDraft, onClose
     const [sending, setSending] = useState(false)
     const [savingDraft, setSavingDraft] = useState(false)
     const [error, setError] = useState('')
-    // correction holds a proposed fix for a wrong address separator, shown for the user to approve before the
-    // message is sent.
-    const [correction, setCorrection] = useState<Correction | null>(null)
 
     // attemptSendRef lets the editor's key handler call the latest attemptSend without recreating the
     // editor: the editor is built once, but attemptSend closes over state that changes each render.
@@ -110,6 +99,13 @@ export function ComposeModal({accountId, senders, initial, canSaveDraft, onClose
 
     // The inline link-editing row is the shared hook, seeded from the current selection's link.
     const link = useLinkEditor(editor, normaliseUrl)
+
+    // The separator-correction safeguard offers to fix a wrong address separator on a send attempt. It reads
+    // the recipient fields; when the fix is approved it writes the corrected addresses back and marks the
+    // draft dirty.
+    const correction = useSeparatorCorrection({
+        to, cc, bcc, setTo, setCc, setBcc, setError, markDirty: autosave.markDirty,
+    })
 
     const buildRequest = (): ComposeInput => {
         const text = editor?.getText() ?? ''
@@ -174,46 +170,12 @@ export function ComposeModal({accountId, senders, initial, canSaveDraft, onClose
     // message that talks about attaching something can prompt a reminder before it is sent.
     const mentionsAttachment = () => /\battach(ed)?\b/i.test(subject + ' ' + (editor?.getText() ?? ''))
 
-    // separatorFix scans the recipient fields for the "wrong separator between valid addresses" mistake. When
-    // it finds one, it returns the fields rewritten with the addresses correctly separated by "; " for the
-    // user to approve. It returns null when nothing needs fixing, so a correctly-typed or a genuinely-invalid
-    // single address is left for the normal send path (and the backend) to handle.
-    const separatorFix = (): Correction | null => {
-        const fixedTo = detectSeparatorFix(to)
-        const fixedCc = detectSeparatorFix(cc)
-        const fixedBcc = detectSeparatorFix(bcc)
-        if (fixedTo === null && fixedCc === null && fixedBcc === null) return null
-        const next = {to: fixedTo ?? to, cc: fixedCc ?? cc, bcc: fixedBcc ?? bcc}
-        const preview = [
-            {value: next.to, changed: fixedTo !== null},
-            {value: next.cc, changed: fixedCc !== null},
-            {value: next.bcc, changed: fixedBcc !== null},
-        ].filter((field) => field.changed).map((field) => field.value).join('\n')
-        return {...next, preview}
-    }
-
-    // applyCorrection accepts the suggested separator fix, writing the corrected addresses back into the
-    // fields so the user can review them and send.
-    const applyCorrection = () => {
-        if (correction === null) return
-        setTo(correction.to)
-        setCc(correction.cc)
-        setBcc(correction.bcc)
-        autosave.markDirty()
-        setCorrection(null)
-        setError('')
-    }
-
     // attemptSend is the single entry point for both the Send button and Ctrl+Enter. It offers to fix a wrong
     // address separator, then warns once when the message mentions an attachment but none is attached,
     // otherwise it sends straight away.
     const attemptSend = () => {
         if (!canSend()) return
-        const fix = separatorFix()
-        if (fix !== null) {
-            setCorrection(fix)
-            return
-        }
+        if (correction.offer()) return
         if (mentionsAttachment() && !hasAttachments()) {
             setAttachWarn(true)
             return
@@ -266,13 +228,13 @@ export function ComposeModal({accountId, senders, initial, canSaveDraft, onClose
                 <ModalClose onClose={onClose}/>
                 <h2 className="modal-title">New message</h2>
                 {error && <div className="compose-error">{error}</div>}
-                {correction && (
+                {correction.pending && (
                     <div className="compose-correction">
                         <div>Addresses should be separated by a comma or semicolon. Did you mean:</div>
-                        <div className="compose-correction-value">{correction.preview}</div>
+                        <div className="compose-correction-value">{correction.pending.preview}</div>
                         <div className="compose-correction-actions">
-                            <button type="button" className="btn" onClick={applyCorrection}>Use this</button>
-                            <button type="button" className="btn" onClick={() => setCorrection(null)}>Dismiss</button>
+                            <button type="button" className="btn" onClick={correction.apply}>Use this</button>
+                            <button type="button" className="btn" onClick={correction.dismiss}>Dismiss</button>
                         </div>
                     </div>
                 )}
