@@ -1,0 +1,313 @@
+/* The left group: the brand and the File, Edit, View and Mail menus, sitting next to the wordmark. */
+.titlebar-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.titlebar-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* A thin vertical rule grouping the title-tray buttons. It stretches to the button height. */
+.titlebar-sep {
+    align-self: stretch;
+    width: 1px;
+    background-color: var(--border);
+    margin: 2px 2px;
+}
+
+/* Icon buttons (reading-pane and theme toggles) share the same box as the text buttons beside them, so
+   they match in size and their glyph sits on an elevated background in the readable text colour. */
+.icon-btn {
+    background-color: var(--bg-elev-2);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 12px;
+    font-size: 14px;
+    cursor: pointer;
+}
+
+/* Immediate hover and focus tooltip for icon and emoji buttons, so their action is discoverable
+   without the slow native title. Set the label with a data-tip attribute. */
+[data-tip] {
+    position: relative;
+}
+[data-tip]:hover::after,
+[data-tip]:focus-visible::after {
+    content: attr(data-tip);
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 50%;
+    transform: translateX(-50%);
+    white-space: nowrap;
+    background-color: var(--bg-elev-2);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 3px 8px;
+    font-size: 12px;
+    line-height: 1.4;
+    z-index: 50;
+    pointer-events: none;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.icon-btn:hover {
+    border-color: var(--border);
+}
+
+.icon-btn:disabled {
+    opacity: 0.4;
+    cursor: default;
+}
+
+/* The Attach email picker: a modal listing the open folder's messages to choose from, its list scrolling
+   inside a fixed height so a full folder does not grow the dialog off screen. */
+.attach-picker {
+    width: 520px;
+    max-width: 90vw;
+}
+
+.attach-picker-search {
+    width: 100%;
+    margin-bottom: 10px;
+}
+
+.attach-picker-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    max-height: 360px;
+    overflow-y: auto;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+}
+
+.attach-picker-item > label {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    cursor: pointer;
+}
+
+.attach-picker-item + .attach-picker-item > label {
+    border-top: 1px solid var(--border);
+}
+
+.attach-picker-item > label:hover {
+    background-color: var(--bg-elev);
+}
+
+.attach-picker-subject {
+    flex: 1;
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.attach-picker-from {
+    flex-shrink: 0;
+    max-width: 40%;
+    color: var(--text-dim);
+    font-size: 12px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.attach-picker-empty {
+    padding: 16px;
+    text-align: center;
+    color: var(--text-dim);
+}
+
+.menubar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.menu {
+    position: relative;
+}
+
+.menu-title {
+    background-color: var(--bg-elev-2);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 16px;
+    cursor: pointer;
+}
+
+.menu-title:hover,
+.menu-title.active {
+    background-color: var(--bg-elev-2);
+    border-color: var(--border);
+}
+
+/* Keyboard focus ring on the title-tray buttons (the menu triggers, Contacts and Calendar, the theme
+   toggle). Without it the first Tab lands on the File menu with nothing visible to show for it. */
+.menu-title:enabled:focus-visible,
+.sync-btn:enabled:focus-visible,
+.icon-btn:enabled:focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+}
+
+.menu-dropdown {
+    position: absolute;
+    right: 0;
+    top: calc(100% + 4px);
+    min-width: 190px;
+    background-color: var(--bg-elev);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+    padding: 4px;
+    z-index: 20;
+}
+
+.menu-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    text-align: left;
+    background: transparent;
+    color: var(--text);
+    border: none;
+    border-radius: 6px;
+    padding: 8px 12px;
+    cursor: pointer;
+}
+
+.menu-item:enabled:hover {
+    background-color: var(--bg-elev-2);
+}
+
+/* Keyboard focus in the dropdown highlights the item the same way hover does and drops the default
+   outline so the highlight is the single, consistent focus cue. */
+.menu-item:enabled:focus-visible {
+    background-color: var(--bg-elev-2);
+    outline: none;
+}
+
+.menu-item:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+
+/* Fixed-width leading columns so a toggle item's tick and an item's emoji line up down the menu. */
+.menu-item-check,
+.menu-item-icon {
+    flex-shrink: 0;
+    width: 1.15em;
+    text-align: center;
+}
+
+/* The accelerator hint, pushed to the right edge of the item and dimmed so the label leads. */
+.menu-item-shortcut {
+    margin-left: auto;
+    padding-left: 24px;
+    color: var(--text-dim);
+    font-size: 12px;
+}
+
+/* A left-aligned dropdown opens rightwards from the trigger's left edge, for the menus on the left of the
+   tray; the default right alignment keeps a right-hand menu (Help) on screen. */
+.menu-dropdown.align-left {
+    left: 0;
+    right: auto;
+}
+
+/* A divider between groups of items. */
+.menu-sep {
+    height: 1px;
+    background-color: var(--border);
+    margin: 4px 6px;
+}
+
+/* A colour square shown before a tag item's label. */
+.menu-item-swatch {
+    flex-shrink: 0;
+    width: 12px;
+    height: 12px;
+    border-radius: 3px;
+    border: 1px solid rgba(0, 0, 0, 0.25);
+}
+
+/* A submenu (flyout) parent and its panel, which opens to the right of the item. The chevron is pushed to
+   the right edge the way a shortcut hint is. */
+.menu-sub-wrap {
+    position: relative;
+}
+
+.menu-sub-arrow {
+    margin-left: auto;
+    padding-left: 24px;
+    color: var(--text-dim);
+    font-size: 11px;
+}
+
+.menu-submenu {
+    position: absolute;
+    left: 100%;
+    top: -5px;
+    min-width: 170px;
+    max-height: 60vh;
+    overflow-y: auto;
+    background-color: var(--bg-elev);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+    padding: 4px;
+    z-index: 21;
+}
+
+.btn {
+    background-color: var(--bg-elev-2);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 16px;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.btn:enabled:hover {
+    border-color: var(--accent);
+}
+
+/* A disabled button shows a red ring so its inactive state is unmistakable, and it is never a teal
+   hover/focus target. The .btn.primary:disabled selector is needed because the .primary rule below has
+   equal specificity and later source order, so without it a disabled primary keeps the teal fill and
+   border; scoping to :disabled restores the neutral fill and the red ring. Native disabled buttons are
+   already removed from the tab order. */
+.btn:disabled,
+.btn.primary:disabled {
+    opacity: 0.55;
+    cursor: default;
+    background-color: var(--bg-elev-2);
+    color: var(--text);
+    border-color: var(--danger);
+}
+
+.btn.primary {
+    background-color: var(--primary);
+    color: var(--primary-ink);
+    border-color: var(--primary);
+}
+
+/* Keep the primary border matching its fill on hover so it does not flip to the accent; the visible
+   hover/focus cue is the teal --ring outline from the base button rule. */
+.btn.primary:enabled:hover {
+    border-color: var(--primary);
+}
+

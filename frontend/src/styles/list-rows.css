@@ -1,0 +1,285 @@
+/* Keyboard focus ring on a folder or account row: a 2px teal inset surround shown whenever the row holds
+   keyboard focus, including the selected row (the list tab stop IS the selected row, so it must show the
+   ring too). The selected fill is a neutral elevation, not the teal accent, so the teal ring stays visible
+   on it. Gated on :focus-visible so it appears for keyboard navigation, not a mouse click. */
+.list-item:focus-visible {
+    outline: none;
+    box-shadow: inset 0 0 0 2px var(--ring);
+}
+
+.item-title {
+    font-weight: 600;
+}
+
+.item-sub {
+    font-size: 12px;
+    color: var(--text-dim);
+}
+
+.list-item.folder {
+    position: relative;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.folder-name {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.folder-icon {
+    font-size: 14px;
+}
+
+.badge {
+    background-color: var(--primary);
+    color: var(--primary-ink);
+    border-radius: 10px;
+    padding: 0 7px;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+/* The per-account unread badge sits in the left gutter of the account row, centred in its slot. */
+.account-badge {
+    flex-shrink: 0;
+}
+
+/* The cross-account total unread badge, next to the PigeonPost wordmark in the titlebar. */
+.titlebar-unread {
+    display: inline-block;
+    margin-left: 8px;
+    background-color: var(--primary);
+    color: var(--primary-ink);
+    border-radius: 10px;
+    padding: 0 7px;
+    font-size: 11px;
+    font-weight: 700;
+    vertical-align: middle;
+}
+
+.message-row {
+    padding: 10px 14px;
+    cursor: pointer;
+    border-bottom: 1px solid var(--border);
+    border-left: 2px solid transparent;
+}
+
+.conversation-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 6px 14px;
+    background-color: var(--bg-elev-2);
+    border-bottom: 1px solid var(--border);
+    font-size: 12px;
+}
+
+.conversation-subject {
+    font-weight: 600;
+    color: var(--text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.conversation-count {
+    color: var(--text-dim);
+    flex-shrink: 0;
+}
+
+.message-row:hover {
+    background-color: var(--bg-elev);
+}
+
+.message-row.selected {
+    background-color: var(--bg-elev-2);
+    border-left-color: var(--accent);
+}
+
+/* The keyboard focus cursor: the row Ctrl arrow navigation is on while it is not itself selected, so
+   moving the cursor over unselected rows to build a selection is visible. A selected row already shows its
+   own fill, so the ring is only drawn where the cursor sits apart from the selection. */
+.message-row.active:not(.selected) {
+    box-shadow: inset 0 0 0 2px var(--ring);
+}
+
+.message-row.unread .message-subject,
+.message-row.unread .message-from {
+    font-weight: 700;
+    color: var(--text-strong);
+}
+
+.message-row-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.message-from {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--text);
+    font-size: 15px;
+}
+
+.message-star {
+    flex-shrink: 0;
+    background: transparent;
+    border: none;
+    padding: 0;
+    font-size: 17px;
+    line-height: 1;
+    cursor: pointer;
+    color: var(--text-dim);
+}
+
+.message-star.on,
+.message-star:hover {
+    color: #e6b800;
+}
+
+.message-date {
+    font-size: 13px;
+    color: var(--text-dim);
+    white-space: nowrap;
+}
+
+/* The tag colour dots on a message row, so a tagged email's colours show in the list at a glance. */
+.message-tags {
+    display: inline-flex;
+    gap: 3px;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+.message-tag-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    border: 1px solid rgba(0, 0, 0, 0.25);
+}
+
+.message-subject {
+    margin-top: 3px;
+    font-size: 14px;
+}
+
+.attach {
+    flex-shrink: 0;
+    font-size: 16px;
+    line-height: 1;
+    color: var(--text-dim);
+}
+
+.message-snippet {
+    margin-top: 3px;
+    font-size: 13px;
+    color: var(--text-dim);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.reader {
+    padding: 20px 24px;
+}
+
+.reader-tabs {
+    display: flex;
+    gap: 2px;
+    overflow-x: auto;
+    margin: -20px -24px 14px -24px;
+    background-color: var(--bg-elev);
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: -20px;
+    z-index: 2;
+}
+
+.reader-tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    max-width: 200px;
+    padding: 7px 10px;
+    cursor: pointer;
+    border-right: 1px solid var(--border);
+    color: var(--text-dim);
+    font-size: 13px;
+    white-space: nowrap;
+}
+
+.reader-tab:hover {
+    background-color: var(--bg-elev-2);
+}
+
+.reader-tab.active {
+    color: var(--text);
+    background-color: var(--bg-elev-2);
+    box-shadow: inset 0 -2px 0 var(--accent);
+}
+
+.reader-tab-title {
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.reader-tab-close {
+    background: transparent;
+    border: none;
+    color: var(--text-dim);
+    cursor: pointer;
+    font-size: 15px;
+    line-height: 1;
+    padding: 0;
+    flex-shrink: 0;
+}
+
+.reader-tab-close:hover {
+    color: var(--danger);
+}
+
+.reader-header {
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 14px;
+}
+
+.reader-toolbar {
+    display: flex;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+
+.reader-subject {
+    margin: 0 0 10px;
+    font-size: 18px;
+}
+
+.reader-meta {
+    display: flex;
+    gap: 10px;
+    font-size: 13px;
+    margin-top: 4px;
+}
+
+.reader-label {
+    color: var(--text-dim);
+    width: 44px;
+    flex-shrink: 0;
+}
+
+.reader-body {
+    padding-top: 16px;
+    line-height: 1.5;
+}
+

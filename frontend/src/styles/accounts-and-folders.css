@@ -1,0 +1,264 @@
+/* Welcome screen (no accounts yet): the card stays centred while a scaled-up brand icon sits in the
+   top-left of the primary background, just below the title bar. */
+.welcome {
+    position: relative;
+}
+
+.welcome-brand {
+    position: absolute;
+    top: 18px;
+    left: 18px;
+    width: 96px;
+    height: 96px;
+    opacity: 0.92;
+    user-select: none;
+    -webkit-user-drag: none;
+}
+
+.empty-card h2 {
+    margin: 0 0 8px;
+    font-size: 20px;
+}
+
+.empty-card p {
+    margin: 0 0 18px;
+    color: var(--text-dim);
+    font-size: 14px;
+    line-height: 1.6;
+}
+
+.list-item.account {
+    position: relative;
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+}
+
+/* The account row lays out as [unread badge] [name and email] [row actions]. The badge sits in a
+   fixed-min gutter on the left so every account's name and email line up whether or not the account has
+   unread mail (an account with none has an empty gutter); the text column takes the rest of the
+   width, keeping the badge clear of the name's truncation. */
+.account-badge-slot {
+    flex-shrink: 0;
+    min-width: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.list-item.account .item-text {
+    flex: 1;
+}
+
+.item-text {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.item-text .item-title,
+.item-text .item-sub {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* The row actions appear as a small toolbar directly below the account on hover or keyboard focus, so it
+   is unambiguous which account they act on. They sit out of the flex flow (absolute) so the name and
+   email keep the full row width. Opacity (not visibility) keeps the buttons in the tab order for the
+   keyboard reorder. Pointer-events are off while hidden so the invisible toolbar cannot block the
+   row beneath it. */
+.account-actions {
+    position: absolute;
+    top: 100%;
+    left: 14px;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    padding: 3px 5px;
+    border-radius: 6px;
+    background-color: var(--bg-elev-2);
+    border: 1px solid var(--ring);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.45);
+    opacity: 0;
+    pointer-events: none;
+}
+
+.list-item.account:hover .account-actions,
+.list-item.account:focus-within .account-actions {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+/* Lift the hovered or focused account above its neighbours so its toolbar paints over the next row
+   instead of behind it. */
+.list-item.account:hover,
+.list-item.account:focus-within {
+    z-index: 1;
+}
+
+/* Custom folder rows carry the same floating action toolbar (rename, delete) as accounts via the shared
+   .account-actions styling, revealed on hover or keyboard focus within the row. The row is
+   position:relative so the absolute toolbar anchors to it; it lifts above its neighbour so the toolbar
+   paints over the row below. */
+.list-item.folder:hover .account-actions,
+.list-item.folder:focus-within .account-actions {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.list-item.folder:hover,
+.list-item.folder:focus-within {
+    z-index: 1;
+}
+
+.account-action {
+    background: transparent;
+    border: none;
+    color: var(--text);
+    font-size: 15px;
+    line-height: 1;
+    width: 22px;
+    height: 22px;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.account-action:enabled:hover {
+    color: var(--accent);
+    background-color: var(--bg-elev-2);
+}
+
+.account-action.delete {
+    font-size: 18px;
+}
+
+.account-action.delete:hover {
+    color: var(--danger);
+}
+
+.account-action:focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 1px;
+    color: var(--accent);
+}
+
+.account-action:disabled {
+    opacity: 0.35;
+    cursor: default;
+}
+
+.account-syncing {
+    margin-top: 2px;
+    font-size: 11px;
+    color: var(--ring);
+}
+
+/* An account row being dragged is dimmed; the row it is dropped onto shows an accent line at its top
+   edge (inset box-shadow, so no layout shift) plus a raised background. */
+.list-item.account.dragging {
+    opacity: 0.5;
+}
+
+.list-item.account.drag-over {
+    background-color: var(--bg-elev-2);
+    box-shadow: inset 0 2px 0 var(--accent);
+}
+
+/* Folder drag-and-drop cues, in teal (--ring) to read as a move rather than the blue --accent selection.
+   A dragged custom folder is dimmed. An into drop (nesting the folder inside the target; also the cue
+   for a message dropped onto a folder) draws a teal box around the whole row. A before or after drop
+   places the folder at the target row's own level, drawn as a teal insertion line indented to that level
+   (left: --row-indent, set per row) so it reads as "drop in at this depth". The line is a pseudo-element
+   with pointer-events off, so it never intercepts the drag. */
+.list-item.folder.dragging {
+    opacity: 0.5;
+}
+
+.list-item.folder.drag-over,
+.list-item.folder.drag-into {
+    background-color: var(--bg-elev-2);
+    box-shadow: inset 0 0 0 2px var(--ring);
+}
+
+.list-item.folder.drag-before::before,
+.list-item.folder.drag-after::after {
+    content: '';
+    position: absolute;
+    left: var(--row-indent);
+    right: 8px;
+    height: 3px;
+    background-color: var(--ring);
+    border-radius: 2px;
+    pointer-events: none;
+}
+
+.list-item.folder.drag-before::before {
+    top: -1px;
+}
+
+.list-item.folder.drag-after::after {
+    bottom: -1px;
+}
+
+.field input.locked {
+    color: var(--text-dim);
+    cursor: not-allowed;
+}
+
+.field-hint {
+    margin: -2px 0 10px 94px;
+    font-size: 11px;
+    color: var(--text-dim);
+}
+
+.btn.danger {
+    background-color: var(--danger);
+    color: #ffffff;
+    border-color: var(--danger);
+}
+
+.btn.danger:enabled:hover {
+    filter: brightness(1.08);
+}
+
+.btn.danger-outline {
+    color: var(--danger);
+}
+
+.move-select {
+    background-color: var(--bg-elev-2);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    /* The value shown is always the short "Move to…"/"Copy to…" placeholder (the select resets to ""),
+       but the browser sizes the box to the widest folder-name option, so cap the width to reclaim the
+       space; the open dropdown still lists the full names. */
+    max-width: 130px;
+    padding: 6px 8px;
+    font-size: 13px;
+    cursor: pointer;
+}
+
+.move-select:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+
+.btn.danger-outline:enabled:hover {
+    border-color: var(--danger);
+}
+
+.modal.confirm {
+    max-width: 420px;
+    text-align: left;
+}
+
+.confirm-message {
+    margin: 0;
+    font-size: 14px;
+    line-height: 1.6;
+    color: var(--text-dim);
+}
+

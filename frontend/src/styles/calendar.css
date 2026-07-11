@@ -1,0 +1,484 @@
+/* Calendar month view */
+/* All three calendar views share one dialog size so switching between month, week and day does not resize
+   it. The explicit height (bounded by the viewport) gives the inner grid a definite box to fill, so the
+   month cells and the week/day time-grid grow to use the space and the modal does not add an outer
+   scrollbar except on a very short viewport. */
+.calendar-modal {
+    max-width: 1000px;
+    width: 96vw;
+    height: min(calc(100vh - 60px), 900px);
+    display: flex;
+    flex-direction: column;
+}
+
+/* The event editor is its own dialog stacked on the calendar, wide enough for the two date fields. */
+.modal.event-form {
+    max-width: 520px;
+    text-align: left;
+}
+
+.cal-toolbar {
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.cal-month {
+    font-weight: 600;
+    min-width: 150px;
+    text-align: center;
+}
+
+.cal-spacer {
+    flex: 1;
+}
+
+.cal-form-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.cal-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    grid-template-rows: auto repeat(6, 1fr);
+    gap: 2px;
+    margin: 12px 0;
+    flex: 1;
+    min-height: 0;
+}
+
+.cal-weekday {
+    text-align: center;
+    font-size: 12px;
+    color: var(--text-dim);
+    padding: 4px 0;
+}
+
+.cal-cell {
+    min-height: 60px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 3px;
+    background: var(--bg-elev);
+    cursor: pointer;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.cal-cell-dim {
+    opacity: 0.5;
+}
+
+.cal-daynum {
+    align-self: flex-start;
+    background: none;
+    border: none;
+    padding: 0;
+    font-size: 12px;
+    color: var(--text-dim);
+    cursor: pointer;
+}
+
+.cal-daynum:enabled:hover {
+    color: var(--accent);
+}
+
+.cal-event {
+    text-align: left;
+    font-size: 11px;
+    background: var(--bg-elev-2);
+    color: var(--text);
+    border: none;
+    border-left: 3px solid var(--accent);
+    border-radius: 3px;
+    padding: 1px 4px;
+    cursor: pointer;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.cal-allday {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: var(--text-dim);
+}
+
+.cal-links {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+}
+
+.cal-join {
+    align-self: flex-start;
+}
+
+.cal-link {
+    color: var(--accent);
+    font-size: 13px;
+    text-decoration: none;
+    cursor: pointer;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.cal-link:hover {
+    text-decoration: underline;
+}
+
+.cal-viewswitch {
+    display: flex;
+    gap: 4px;
+}
+
+.cal-view-btn.active {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+/* Recurrence editor: the friendly RRULE builder inside the event form. */
+.recurrence-editor {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding-top: 8px;
+    border-top: 1px solid var(--border);
+}
+
+.recur-interval {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: var(--text-dim);
+    white-space: nowrap;
+}
+
+.recur-interval-num {
+    width: 64px;
+}
+
+.cal-tz {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--text-dim);
+}
+
+.reminder-toasts {
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    z-index: 3000;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-width: 320px;
+}
+
+.reminder-toast {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 12px 14px;
+    background: var(--bg);
+    border: 1px solid var(--accent);
+    border-radius: 8px;
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.35);
+}
+
+.reminder-toast-body {
+    flex: 1;
+    min-width: 0;
+    display: block;
+    text-align: left;
+    background: transparent;
+    border: none;
+    padding: 0;
+    margin: 0;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+}
+
+.reminder-toast-body:hover .reminder-toast-summary,
+.reminder-toast-body:focus-visible .reminder-toast-summary {
+    text-decoration: underline;
+}
+
+.reminder-toast-title {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--accent);
+}
+
+.reminder-toast-summary {
+    font-weight: 600;
+    color: var(--text);
+    word-break: break-word;
+}
+
+.reminder-toast-when {
+    font-size: 13px;
+    color: var(--text-dim);
+}
+
+.reminders {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding-top: 8px;
+    border-top: 1px solid var(--border);
+}
+
+.reminders-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 13px;
+    color: var(--text-dim);
+}
+
+.reminder-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.reminder-row select {
+    flex: 1;
+}
+
+.meeting-section {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding-top: 8px;
+    border-top: 1px solid var(--border);
+}
+
+.attendee-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.attendee-email {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.attendee-status {
+    font-size: 12px;
+    color: var(--text-dim);
+    white-space: nowrap;
+}
+
+.attendee-add {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.attendee-add input {
+    flex: 1;
+}
+
+.cal-tz select {
+    flex: 1;
+}
+
+.recur-first {
+    align-items: center;
+}
+
+.recur-label {
+    font-size: 13px;
+    color: var(--text-dim);
+    white-space: nowrap;
+}
+
+.recur-weekdays {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.recur-day {
+    min-width: 40px;
+    padding: 4px 8px;
+    font-size: 12px;
+    color: var(--text);
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+.recur-day:enabled:hover {
+    border-color: var(--accent);
+}
+
+.recur-day.active {
+    color: var(--accent);
+    border-color: var(--accent);
+}
+
+.recur-end {
+    align-items: center;
+}
+
+/* Scope chooser: the this / this-and-future / all buttons for a recurring edit or delete. */
+.scope-choices {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin: 12px 0;
+}
+
+.scope-choice {
+    width: 100%;
+    text-align: center;
+}
+
+.tg {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    margin: 12px 0;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.tg-header,
+.tg-allday,
+.tg-grid {
+    display: grid;
+}
+
+/* The header row and all-day strip live inside the scrolling body as a pinned block, so they share the
+   grid's exact width (minus the scrollbar) and their column lines stay aligned with the hour grid. */
+.tg-sticky-top {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: var(--bg);
+}
+
+.tg-header {
+    border-bottom: 1px solid var(--border);
+}
+
+.tg-dayhead {
+    text-align: center;
+    padding: 4px 0;
+    font-size: 12px;
+    color: var(--text-dim);
+    border-left: 1px solid var(--border);
+}
+
+.tg-dnum {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text);
+}
+
+.tg-dayhead.tg-today .tg-dnum {
+    color: var(--accent);
+}
+
+.tg-corner,
+.tg-allday-label {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    color: var(--text-dim);
+}
+
+.tg-allday {
+    border-bottom: 1px solid var(--border);
+    min-height: 22px;
+}
+
+.tg-allday-col {
+    border-left: 1px solid var(--border);
+    padding: 2px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.tg-allday-ev {
+    text-align: left;
+    font-size: 11px;
+    background: var(--bg-elev-2);
+    color: var(--text);
+    border: none;
+    border-left: 3px solid var(--accent);
+    border-radius: 3px;
+    padding: 1px 4px;
+    cursor: pointer;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.tg-body {
+    flex: 1;
+    min-height: 200px;
+    overflow-y: auto;
+}
+
+.tg-hour {
+    font-size: 10px;
+    color: var(--text-dim);
+    text-align: right;
+    padding-right: 4px;
+    box-sizing: border-box;
+    border-top: 1px solid var(--border);
+}
+
+.tg-daycol {
+    position: relative;
+    border-left: 1px solid var(--border);
+    cursor: pointer;
+}
+
+.tg-hourline {
+    box-sizing: border-box;
+    border-top: 1px solid var(--border);
+    pointer-events: none;
+}
+
+.tg-event {
+    position: absolute;
+    overflow: hidden;
+    background: var(--bg-elev-2);
+    color: var(--text);
+    border: none;
+    border-left: 3px solid var(--accent);
+    border-radius: 3px;
+    font-size: 11px;
+    line-height: 1.2;
+    padding: 1px 4px;
+    box-sizing: border-box;
+    text-align: left;
+    cursor: pointer;
+}
+

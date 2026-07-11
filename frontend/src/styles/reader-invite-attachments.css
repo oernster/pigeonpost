@@ -1,0 +1,307 @@
+/* Meeting invite card, shown at the top of the reader body when a message carries an iTIP invitation. */
+.invite-card {
+    background-color: var(--bg-elev-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin-bottom: 16px;
+}
+
+.invite-card-title {
+    font-weight: 600;
+    margin: 0 0 8px 0;
+}
+
+.invite-card-row {
+    display: flex;
+    gap: 8px;
+    margin: 2px 0;
+    font-size: 0.9em;
+}
+
+.invite-card-label {
+    color: var(--text-dim);
+    min-width: 84px;
+}
+
+.invite-card-attendee-status {
+    color: var(--text-dim);
+}
+
+.invite-card-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 12px;
+    flex-wrap: wrap;
+}
+
+.invite-card-note {
+    margin-top: 8px;
+    font-size: 0.9em;
+    color: var(--text-dim);
+}
+
+.modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background-color: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 40;
+}
+
+.modal {
+    position: relative;
+    background-color: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    max-width: 460px;
+    width: calc(100% - 40px);
+    max-height: calc(100vh - 60px);
+    overflow-y: auto;
+}
+
+.modal-close {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    background: transparent;
+    border: none;
+    border-radius: 6px;
+    color: var(--text-dim);
+    font-size: 22px;
+    line-height: 1;
+    cursor: pointer;
+    z-index: 1;
+}
+
+.modal-close:hover {
+    background-color: var(--danger);
+    color: #fff;
+}
+
+.about {
+    text-align: center;
+}
+
+.about-icon {
+    width: 96px;
+    height: 96px;
+    object-fit: contain;
+}
+
+.about-name {
+    margin: 8px 0 2px;
+    font-size: 20px;
+}
+
+.about-tagline {
+    margin: 0 0 14px;
+    color: var(--text-dim);
+    font-size: 13px;
+}
+
+.about-lines {
+    display: inline-block;
+    text-align: left;
+    font-size: 13px;
+    line-height: 1.7;
+}
+
+.about-label {
+    display: inline-block;
+    width: 72px;
+    color: var(--text-dim);
+}
+
+.about-copyright {
+    margin-top: 6px;
+    color: var(--text-dim);
+}
+
+.about-rule {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 16px 0;
+}
+
+.about-credits-title {
+    margin: 0 0 8px;
+    font-size: 13px;
+}
+
+.about-credits {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    text-align: left;
+    font-size: 12px;
+}
+
+.about-credits li {
+    display: flex;
+    justify-content: space-between;
+    padding: 3px 0;
+    border-bottom: 1px solid var(--border);
+}
+
+.credit-licence {
+    color: var(--text-dim);
+}
+
+.about-thanks {
+    margin: 14px 0 0;
+    font-size: 11px;
+    color: var(--text-dim);
+}
+
+.modal-actions {
+    margin-top: 18px;
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+}
+
+.modal-actions.spread {
+    justify-content: space-between;
+}
+
+.compose-send-group {
+    display: flex;
+    gap: 10px;
+}
+
+.modal.compose {
+    max-width: 640px;
+    text-align: left;
+}
+
+.modal-title {
+    margin: 0 0 14px;
+    font-size: 18px;
+}
+
+.modal.licence {
+    width: fit-content;
+    max-width: calc(100% - 40px);
+    text-align: left;
+}
+
+.licence-text {
+    max-height: 60vh;
+    overflow: auto;
+    white-space: pre;
+    font-family: ui-monospace, "SFMono-Regular", "Consolas", monospace;
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--text-dim);
+    background: var(--bg-elev);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px;
+    margin: 0;
+}
+
+.field {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+}
+
+.field span {
+    width: 60px;
+    color: var(--text-dim);
+    font-size: 13px;
+}
+
+.field input {
+    flex: 1;
+    background-color: var(--bg-elev);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 7px 10px;
+}
+
+.compose-body {
+    width: 100%;
+    margin-top: 8px;
+    background-color: var(--bg-elev);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 10px;
+    font-family: inherit;
+    font-size: 14px;
+    resize: vertical;
+}
+
+.field input:focus,
+.compose-body:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+
+.compose-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 8px;
+    padding: 4px;
+    background-color: var(--bg-elev);
+    border: 1px solid var(--border);
+    border-bottom: none;
+    border-radius: 6px 6px 0 0;
+}
+
+.compose-tool {
+    min-width: 28px;
+    height: 28px;
+    padding: 0 6px;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 5px;
+    color: var(--text);
+    font-size: 14px;
+    cursor: pointer;
+}
+
+.compose-tool:hover {
+    background-color: var(--bg-elev-2);
+}
+
+.compose-tool.active {
+    background-color: var(--bg-elev-2);
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+.compose-tool-sep {
+    width: 1px;
+    height: 18px;
+    background-color: var(--border);
+    margin: 0 2px;
+}
+
+.compose-editor .ProseMirror {
+    min-height: 220px;
+    max-height: 40vh;
+    overflow-y: auto;
+    background-color: var(--bg-elev);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 0 0 6px 6px;
+    padding: 10px 12px;
+    font-size: 14px;
+    line-height: 1.5;
+}
+
