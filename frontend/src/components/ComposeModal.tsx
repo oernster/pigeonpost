@@ -7,6 +7,7 @@ import {api, ComposeInput} from '../api'
 import {ModalClose} from './ModalClose'
 import {ConfirmDialog} from './ConfirmDialog'
 import {basename, detectSeparatorFix, isValidAddress, normaliseUrl, splitAddresses} from '../composeAddresses'
+import {useLinkEditor} from '../hooks/useLinkEditor'
 
 // autosaveDelayMs debounces local draft-recovery autosaves, so a snapshot is written a short pause after
 // the user stops typing rather than on every keystroke.
@@ -79,8 +80,6 @@ export function ComposeModal({accountId, senders, initial, canSaveDraft, onClose
     // correction holds a proposed fix for a wrong address separator, shown for the user to approve before the
     // message is sent.
     const [correction, setCorrection] = useState<Correction | null>(null)
-    const [linkOpen, setLinkOpen] = useState(false)
-    const [linkUrl, setLinkUrl] = useState('')
 
     // attemptSendRef lets the editor's key handler call the latest attemptSend without recreating the
     // editor: the editor is built once, but attemptSend closes over state that changes each render.
@@ -117,27 +116,8 @@ export function ComposeModal({accountId, senders, initial, canSaveDraft, onClose
         },
     })
 
-    const openLinkEditor = () => {
-        setLinkUrl((editor?.getAttributes('link').href as string) ?? '')
-        setLinkOpen(true)
-    }
-
-    const applyLink = () => {
-        const href = normaliseUrl(linkUrl)
-        if (href === '') {
-            editor?.chain().focus().extendMarkRange('link').unsetLink().run()
-        } else {
-            editor?.chain().focus().extendMarkRange('link').setLink({href}).run()
-        }
-        setLinkOpen(false)
-        setLinkUrl('')
-    }
-
-    const removeLink = () => {
-        editor?.chain().focus().extendMarkRange('link').unsetLink().run()
-        setLinkOpen(false)
-        setLinkUrl('')
-    }
+    // The inline link-editing row is the shared hook, seeded from the current selection's link.
+    const link = useLinkEditor(editor, normaliseUrl)
 
     const buildRequest = (): ComposeInput => {
         const text = editor?.getText() ?? ''
@@ -383,25 +363,25 @@ export function ComposeModal({accountId, senders, initial, canSaveDraft, onClose
                     {btn(editor?.isActive('orderedList') ?? false, '1.', 'Numbered list', () => editor?.chain().focus().toggleOrderedList().run())}
                     {btn(editor?.isActive('blockquote') ?? false, '”', 'Quote', () => editor?.chain().focus().toggleBlockquote().run())}
                     <span className="compose-tool-sep"/>
-                    {btn(editor?.isActive('link') ?? false, '🔗', 'Link', openLinkEditor)}
+                    {btn(editor?.isActive('link') ?? false, '🔗', 'Link', link.openLink)}
                 </div>
-                {linkOpen && (
+                {link.open && (
                     <div className="compose-link-row">
                         <input
                             className="tag-name-input"
-                            value={linkUrl}
+                            value={link.url}
                             autoFocus
                             placeholder="https://example.com"
-                            onChange={(e) => setLinkUrl(e.target.value)}
+                            onChange={(e) => link.setUrl(e.target.value)}
                             onKeyDown={(e) => {
                                 if (e.key === 'Enter') {
                                     e.preventDefault()
-                                    applyLink()
+                                    link.applyLink()
                                 }
                             }}
                         />
-                        <button className="btn primary" onClick={applyLink}>Apply</button>
-                        <button className="btn" onClick={removeLink}>Remove</button>
+                        <button className="btn primary" onClick={link.applyLink}>Apply</button>
+                        <button className="btn" onClick={link.removeLink}>Remove</button>
                     </div>
                 )}
                 <EditorContent editor={editor} className="compose-editor"/>
