@@ -24,6 +24,7 @@ export default defineConfig({
         'src/accountProviders.ts',
         'src/sidebarDnd.ts',
         'src/calendarModel.ts',
+        'src/replyDraft.ts',
       ],
       thresholds: {lines: 100, functions: 100, statements: 100, branches: 100},
     },

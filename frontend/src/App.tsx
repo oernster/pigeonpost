@@ -1,7 +1,7 @@
 import {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from 'react'
 import './App.css'
 import brandIcon from './assets/pigeonpost.png'
-import {AboutInfo, Account, api, CalendarEvent, Contact, DraftRecoveryResult, EmailView, Message, MessageBody, Rule, UnreadCountsResult} from './api'
+import {AboutInfo, api, CalendarEvent, Contact, DraftRecoveryResult, EmailView, Message, MessageBody, Rule, UnreadCountsResult} from './api'
 import {OUTBOX_FOLDER_ID, isOutboxMessage, outboxItemToMessage} from './outbox'
 import {applyTheme, loadTheme, Theme} from './theme'
 import {TAG_PALETTE, colourTagId} from './tagColours'
@@ -27,8 +27,9 @@ import {CloseChoiceDialog} from './components/CloseChoiceDialog'
 import {Splash} from './components/Splash'
 import {useEscapeToClose} from './components/useBackdropDismiss'
 import {Environment, EventsOn} from '../wailsjs/runtime'
-import {emlFilename, escapeHtml, subjectWithPrefix} from './messageText'
+import {emlFilename, escapeHtml} from './messageText'
 import {matchesShortcut} from './shortcuts'
+import {buildForward, buildReply, buildReplyAll, quoteFor, replyFromAddress, sendersFor, signatureHtmlFor} from './replyDraft'
 import {printDocument, printFrameId} from './print'
 import {focusRingElements, focusRingRoot, stepFocusRing, trapTab} from './focusRing'
 import {useMessageStore} from './hooks/useMessageStore'
@@ -566,83 +567,37 @@ function App() {
 
     // quoteFor returns the quoted original for reply/forward: the fetched HTML body when available,
     // otherwise the plain text (or snippet) escaped into a paragraph.
-    const quoteFor = (message: Message): string => {
-        if (messageBody?.html && messageBody.html.trim() !== '') {
-            return messageBody.html
-        }
-        return `<p>${escapeHtml(messageBody?.plain || message.snippet || '')}</p>`
-    }
+    // signatureHtml is the selected account's signature (see replyDraft.signatureHtmlFor), inserted into a new
+    // message and above the quoted text on a reply or forward.
+    const signatureHtml = (): string => signatureHtmlFor(accounts.find((a) => a.id === selectedAccount))
 
-    // signatureHtml is the selected account's signature as HTML, inserted into a new message and above the
-    // quoted text on a reply or forward. Empty when the account has no signature, so nothing is added.
-    const signatureHtml = (): string => accounts.find((a) => a.id === selectedAccount)?.signature ?? ''
-
-    // sendersFor returns the addresses an account may send from: its primary address first, then its
-    // identities. The compose window offers these in its From dropdown.
-    const sendersFor = (account?: Account): {name: string; address: string}[] =>
-        account ? [{name: account.displayName, address: account.email}, ...account.identities] : []
-
-    // replyFrom picks which of the account's own addresses a reply should be sent from: the one the
-    // original message was delivered to (its To or Cc), so a message to an alias is answered as that
-    // alias. It returns empty (the primary) when none of the account's addresses received it.
-    const replyFrom = (message: Message): string => {
-        const mine = new Set(sendersFor(accounts.find((a) => a.id === selectedAccount)).map((s) => s.address.toLowerCase()))
-        const hit = [...(message.to || []), ...(message.cc || [])].find((a) => mine.has(a.address.toLowerCase()))
-        return hit ? hit.address : ''
-    }
+    // replyFrom picks which of the account's own addresses a reply is sent from (see replyDraft.replyFromAddress).
+    const replyFrom = (message: Message): string =>
+        replyFromAddress(message, sendersFor(accounts.find((a) => a.id === selectedAccount)))
 
     const openReply = (message: Message) => {
-        const when = message.date ? new Date(message.date).toLocaleString() : ''
-        const who = message.fromName || message.fromAddress || 'the sender'
-        const header = when ? `On ${when}, ${who} wrote:` : `${who} wrote:`
-        setComposeInitial({
+        setComposeInitial(buildReply(message, {
             from: replyFrom(message),
-            to: message.fromAddress,
-            subject: subjectWithPrefix('Re:', message.subject),
-            bodyHtml: `<p></p>${signatureHtml()}<p>${escapeHtml(header)}</p><blockquote>${quoteFor(message)}</blockquote>`,
-        })
+            signatureHtml: signatureHtml(),
+            quotedHtml: quoteFor(message, messageBody),
+        }))
         setComposing(true)
     }
 
     const openReplyAll = (message: Message) => {
-        const when = message.date ? new Date(message.date).toLocaleString() : ''
-        const who = message.fromName || message.fromAddress || 'the sender'
-        const header = when ? `On ${when}, ${who} wrote:` : `${who} wrote:`
-        // Address the sender plus everyone on the original To and Cc, dropping our own address and any
-        // duplicates so we never reply to ourselves or twice to the same person.
-        const seen = new Set<string>([selectedAccount.toLowerCase()])
-        const collect = (address: string, into: string[]) => {
-            const key = address.trim().toLowerCase()
-            if (key !== '' && !seen.has(key)) {
-                seen.add(key)
-                into.push(address.trim())
-            }
-        }
-        const toList: string[] = []
-        const ccList: string[] = []
-        collect(message.fromAddress, toList)
-        ;(message.to || []).forEach((a) => collect(a.address, toList))
-        ;(message.cc || []).forEach((a) => collect(a.address, ccList))
-        setComposeInitial({
+        setComposeInitial(buildReplyAll(message, selectedAccount, {
             from: replyFrom(message),
-            to: toList.join(', '),
-            cc: ccList.join(', '),
-            subject: subjectWithPrefix('Re:', message.subject),
-            bodyHtml: `<p></p>${signatureHtml()}<p>${escapeHtml(header)}</p><blockquote>${quoteFor(message)}</blockquote>`,
-        })
+            signatureHtml: signatureHtml(),
+            quotedHtml: quoteFor(message, messageBody),
+        }))
         setComposing(true)
     }
 
     const openForward = (message: Message) => {
-        const who = message.fromName || message.fromAddress || 'unknown sender'
-        setComposeInitial({
-            to: '',
-            subject: subjectWithPrefix('Fwd:', message.subject),
-            bodyHtml:
-                `<p></p>${signatureHtml()}<p>---------- Forwarded message ----------</p>` +
-                `<p>From: ${escapeHtml(who)}<br>Subject: ${escapeHtml(message.subject || '(no subject)')}</p>` +
-                `<blockquote>${quoteFor(message)}</blockquote>`,
-        })
+        setComposeInitial(buildForward(message, {
+            signatureHtml: signatureHtml(),
+            quotedHtml: quoteFor(message, messageBody),
+        }))
         setComposing(true)
     }
 
