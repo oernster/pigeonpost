@@ -2,7 +2,7 @@ import {useEffect, useRef, useState} from 'react'
 import type {MouseEvent as ReactMouseEvent, RefObject} from 'react'
 import {api, EmailView, Folder, Message, MessageBody, Tag} from '../api'
 import {EmailViewerModal} from './EmailViewerModal'
-import {TAG_PALETTE, colourTagId} from '../tagColours'
+import {TagColourMenu} from './TagColourMenu'
 import {isOutboxMessage} from '../outbox'
 import {ReaderTabs} from './ReaderTabs'
 import {InviteCard} from './InviteCard'
@@ -60,17 +60,10 @@ interface ReaderProps {
 }
 
 export function Reader({message, onToggleRead, onReply, onReplyAll, onForward, onDelete, onCancelSend, folders, onMove, onCopy, canMoveCopy, messageTags, onToggleTag, body, bodyLoading, tabs, onSelectTab, onCloseTab, onBack, bodyRef, sinkRef}: ReaderProps) {
-    const [tagMenuOpen, setTagMenuOpen] = useState(false)
     const [imagesShown, setImagesShown] = useState(false)
     const [attachError, setAttachError] = useState('')
     // viewedEmail holds a parsed .eml attachment while the in-app viewer shows it.
     const [viewedEmail, setViewedEmail] = useState<EmailView | null>(null)
-    const menuRef = useRef<HTMLDivElement>(null)
-    // tagButtonRef is the Colour trigger and tagRowRef the swatch row; openedByKeyRef records a keyboard
-    // open so focus lands on the first swatch (a mouse open leaves focus on the trigger).
-    const tagButtonRef = useRef<HTMLButtonElement>(null)
-    const tagRowRef = useRef<HTMLDivElement>(null)
-    const openedByKeyRef = useRef(false)
     // backButtonRef is the Back button; the reader's neutral sink hands the first Tab to it on a mouse open.
     const backButtonRef = useRef<HTMLButtonElement>(null)
 
@@ -117,35 +110,12 @@ export function Reader({message, onToggleRead, onReply, onReplyAll, onForward, o
         ? <ReaderTabs tabs={tabs} activeMessageId={message?.id ?? ''} onSelectTab={onSelectTab} onCloseTab={onCloseTab}/>
         : null
 
+    // Re-block images and clear any attachment error whenever the selected message changes. The colour
+    // menu's own per-message reset lives in useTagMenu.
     useEffect(() => {
-        if (!tagMenuOpen) {
-            return
-        }
-        const onDocClick = (e: MouseEvent) => {
-            if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-                setTagMenuOpen(false)
-            }
-        }
-        document.addEventListener('mousedown', onDocClick)
-        return () => document.removeEventListener('mousedown', onDocClick)
-    }, [tagMenuOpen])
-
-    // Close the tag menu and re-block images whenever the selected message changes.
-    useEffect(() => {
-        setTagMenuOpen(false)
         setImagesShown(false)
         setAttachError('')
     }, [message?.id])
-
-    // When the colour menu opens by keyboard, move focus to the first swatch so Left/Right walk them.
-    useEffect(() => {
-        if (tagMenuOpen && openedByKeyRef.current) {
-            tagRowRef.current?.querySelector<HTMLButtonElement>('.tag-colour')?.focus()
-        }
-        if (!tagMenuOpen) {
-            openedByKeyRef.current = false
-        }
-    }, [tagMenuOpen])
 
     if (!message) {
         return (
@@ -161,8 +131,6 @@ export function Reader({message, onToggleRead, onReply, onReplyAll, onForward, o
         ? `${message.fromName} <${message.fromAddress}>`
         : message.fromAddress || '(unknown sender)'
     const recipients = message.to.map((a) => a.address).filter(Boolean).join(', ')
-
-    const assigned = new Set(messageTags.map((t) => t.id))
 
     // Remote images are parked in data-pp-src at fetch time so they do not load automatically. When the
     // reader asks to load them, restore the src; the block resets when the message changes.
@@ -241,93 +209,11 @@ export function Reader({message, onToggleRead, onReply, onReplyAll, onForward, o
                             </select>
                         </>
                     )}
-                    <div className="tag-menu" ref={menuRef}>
-                        <button
-                            ref={tagButtonRef}
-                            className="btn"
-                            onClick={() => setTagMenuOpen((v) => !v)}
-                            onKeyDown={(e) => {
-                                // Down, Enter or Space drops the swatch menu open and lands on the first
-                                // swatch, from where Left/Right walk them. Up or Escape retracts it.
-                                if (e.key === 'ArrowDown' || e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar') {
-                                    e.preventDefault()
-                                    e.stopPropagation()
-                                    openedByKeyRef.current = true
-                                    setTagMenuOpen(true)
-                                } else if (e.key === 'ArrowUp' || e.key === 'Escape') {
-                                    e.preventDefault()
-                                    e.stopPropagation()
-                                    setTagMenuOpen(false)
-                                }
-                            }}
-                        >
-                            Colour &#9662;
-                        </button>
-                        {tagMenuOpen && (
-                            <div className="tag-menu-dropdown" role="menu">
-                                <div
-                                    className="tag-colour-row"
-                                    role="group"
-                                    aria-label="Tag colour"
-                                    ref={tagRowRef}
-                                    onKeyDown={(e) => {
-                                        // Left/Right walk the swatches, wrapping. Escape or Up closes back to
-                                        // the Colour button. Tab and Shift+Tab are left to bubble so the window
-                                        // ring steps out of the menu (they exit it). Enter/Space toggle a
-                                        // swatch via its own click. Up/Down are swallowed so they never leak to
-                                        // the message list.
-                                        const swatches = Array.from(
-                                            tagRowRef.current?.querySelectorAll<HTMLButtonElement>('.tag-colour') ?? [],
-                                        )
-                                        if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
-                                            e.preventDefault()
-                                            e.stopPropagation()
-                                            if (swatches.length === 0) {
-                                                return
-                                            }
-                                            const at = swatches.indexOf(document.activeElement as HTMLButtonElement)
-                                            const next = e.key === 'ArrowRight'
-                                                ? (at + 1) % swatches.length
-                                                : (at - 1 + swatches.length) % swatches.length
-                                            swatches[next].focus()
-                                        } else if (e.key === 'Escape' || e.key === 'ArrowUp') {
-                                            e.preventDefault()
-                                            e.stopPropagation()
-                                            setTagMenuOpen(false)
-                                            tagButtonRef.current?.focus()
-                                        } else if (e.key === 'ArrowDown') {
-                                            e.preventDefault()
-                                            e.stopPropagation()
-                                        } else if (e.key === 'Tab') {
-                                            // Exit: close the menu and hand focus back to the Colour button,
-                                            // then let the window handler step the ring on from there.
-                                            setTagMenuOpen(false)
-                                            tagButtonRef.current?.focus()
-                                        }
-                                    }}
-                                >
-                                    {TAG_PALETTE.map((c) => {
-                                        const id = colourTagId(c.colour)
-                                        const isOn = assigned.has(id)
-                                        return (
-                                            <button
-                                                key={id}
-                                                className={'tag-colour' + (isOn ? ' selected' : '')}
-                                                role="menuitemcheckbox"
-                                                aria-checked={isOn}
-                                                tabIndex={-1}
-                                                title={c.name}
-                                                style={{backgroundColor: c.colour}}
-                                                onClick={() => onToggleTag(id, !isOn)}
-                                            >
-                                                {isOn ? '✓' : ''}
-                                            </button>
-                                        )
-                                    })}
-                                </div>
-                            </div>
-                        )}
-                    </div>
+                    <TagColourMenu
+                        messageId={message.id}
+                        messageTags={messageTags}
+                        onToggleTag={onToggleTag}
+                    />
                     </>
                     )}
                 </div>
