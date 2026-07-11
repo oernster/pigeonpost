@@ -1,7 +1,7 @@
 import {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from 'react'
 import './App.css'
 import brandIcon from './assets/pigeonpost.png'
-import {AboutInfo, Account, api, CalendarEvent, Contact, DraftRecoveryResult, EmailView, Folder, Message, MessageBody, Rule, Tag, UnreadCountsResult} from './api'
+import {AboutInfo, Account, api, CalendarEvent, Contact, DraftRecoveryResult, EmailView, Message, MessageBody, Rule, Tag, UnreadCountsResult} from './api'
 import {OUTBOX_FOLDER_ID, isOutboxMessage, outboxItemToMessage} from './outbox'
 import {applyTheme, loadTheme, Theme} from './theme'
 import {TAG_PALETTE, colourTagId} from './tagColours'
@@ -37,6 +37,7 @@ import {useMessageActions} from './hooks/useMessageActions'
 import {useBulkActions} from './hooks/useBulkActions'
 import {useReaderTabs} from './hooks/useReaderTabs'
 import {useOutbox} from './hooks/useOutbox'
+import {useFolders} from './hooks/useFolders'
 
 // autoSyncIntervalMs is how often the folder on screen is refreshed from the server in the background,
 // so new mail in the open folder appears without a manual sync.
@@ -46,9 +47,7 @@ const autoSyncIntervalMs = 5 * millisPerMinute
 function App() {
     const [accounts, setAccounts] = useState<Account[]>([])
     const [selectedAccount, setSelectedAccount] = useState<string>('')
-    const [folders, setFolders] = useState<Folder[]>([])
     const [unreadCounts, setUnreadCounts] = useState<UnreadCountsResult>({total: 0, byAccount: {}})
-    const [selectedFolder, setSelectedFolder] = useState<string>('')
     // The coupled core of the mail views (the folder list, the search results, the reader tabs and the
     // active message) lives in one hook, so an action updates a message wherever it appears. The three
     // lists are never split apart.
@@ -61,6 +60,14 @@ function App() {
     } = store
     const [error, setError] = useState<string>('')
     const [syncingAccounts, setSyncingAccounts] = useState<Set<string>>(() => new Set<string>())
+    // The folder list, the selected folder, the folder create/rename/delete/reparent flow and the
+    // selected-folder ref live in useFolders. loadFolderMessages and selectFolder stay in App (below): they
+    // coordinate folder navigation with the outbox view, and selectFolder's Outbox branch reads the queue.
+    const {
+        folders, setFolders, selectedFolder, setSelectedFolder, selectedFolderRef,
+        folderPrompt, setFolderPrompt, folderToDelete, setFolderToDelete, folderBusy,
+        refreshFolders, submitFolderPrompt, confirmDeleteFolder, reparentFolder,
+    } = useFolders({selectedAccount, store, setError})
     // The outbox queue (surfaced as a per-account synthetic Outbox folder), the cancel-send confirm flow
     // and the folder list including that synthetic folder live in useOutbox. The effect that keeps the open
     // Outbox view in step with the queue stays in App below, because it drives folder navigation.
@@ -87,9 +94,6 @@ function App() {
     const [settingUp, setSettingUp] = useState<boolean>(false)
     const [accountToEdit, setAccountToEdit] = useState<Account | null>(null)
     const [accountToDelete, setAccountToDelete] = useState<Account | null>(null)
-    const [folderPrompt, setFolderPrompt] = useState<{mode: 'create' | 'rename'; folder?: Folder} | null>(null)
-    const [folderToDelete, setFolderToDelete] = useState<Folder | null>(null)
-    const [folderBusy, setFolderBusy] = useState<boolean>(false)
     const [deleting, setDeleting] = useState<boolean>(false)
     const [tags, setTags] = useState<Tag[]>([])
     const [messageTags, setMessageTags] = useState<Tag[]>([])
@@ -118,10 +122,6 @@ function App() {
         readerBodyRef, readerSinkRef,
         selectMessage, openInNewTab, closeTab, togglePreview,
     } = useReaderTabs({store})
-    // Tracks the folder currently on screen, so a background refresh only replaces the list when the
-    // user has not navigated away since it started.
-    const selectedFolderRef = useRef<string>('')
-
     // A neutral, offscreen focus anchor. It takes focus on launch so nothing is highlighted, yet the very
     // first Tab has a starting point and enters the ring. The WebView often does not hold keyboard focus
     // at the instant the window first appears, so focusing once on mount is not enough: the window focus
@@ -183,10 +183,6 @@ function App() {
     const [appAuthor, setAppAuthor] = useState<string>('')
     const [splashVisible, setSplashVisible] = useState<boolean>(true)
     const [splashFading, setSplashFading] = useState<boolean>(false)
-
-    useEffect(() => {
-        selectedFolderRef.current = selectedFolder
-    }, [selectedFolder])
 
     // Apply the theme before the browser paints, so a toggle changes the emoji and the colours in the
     // same frame rather than repainting twice (the flash).
@@ -763,73 +759,6 @@ function App() {
             setError(String(e))
         }
     }, [])
-
-    const refreshFolders = useCallback(async () => {
-        if (selectedAccount) {
-            setFolders(await api.listFolders(selectedAccount))
-        }
-    }, [selectedAccount])
-
-    // submitFolderPrompt handles both create and rename from the shared PromptDialog.
-    const submitFolderPrompt = useCallback(async (value: string) => {
-        if (!folderPrompt) {
-            return
-        }
-        setFolderBusy(true)
-        setError('')
-        try {
-            if (folderPrompt.mode === 'create') {
-                await api.createFolder(selectedAccount, value)
-            } else if (folderPrompt.folder) {
-                await api.renameFolder(folderPrompt.folder.id, value)
-            }
-            await refreshFolders()
-            setFolderPrompt(null)
-        } catch (e) {
-            setError(String(e))
-        } finally {
-            setFolderBusy(false)
-        }
-    }, [folderPrompt, selectedAccount, refreshFolders])
-
-    const confirmDeleteFolder = useCallback(async () => {
-        if (!folderToDelete) {
-            return
-        }
-        setFolderBusy(true)
-        setError('')
-        try {
-            await api.deleteFolder(folderToDelete.id)
-            if (folderToDelete.id === selectedFolder) {
-                setSelectedFolder('')
-                setMessages([])
-                setSelectedMessage(null)
-            }
-            await refreshFolders()
-            setFolderToDelete(null)
-        } catch (e) {
-            setError(String(e))
-        } finally {
-            setFolderBusy(false)
-        }
-    }, [folderToDelete, selectedFolder, refreshFolders])
-
-    // reparentFolder moves a folder under newParentId (empty for the top level) on the server, then
-    // refreshes the folder list. Like a rename the folder's server path changes while the open folder and
-    // its messages are left as they are. It backs the folder drag-and-drop; a same-level reorder is a local
-    // display concern handled in the sidebar and never reaches here.
-    const reparentFolder = useCallback(async (folderId: string, newParentId: string) => {
-        setFolderBusy(true)
-        setError('')
-        try {
-            await api.moveFolder(folderId, newParentId)
-            await refreshFolders()
-        } catch (e) {
-            setError(String(e))
-        } finally {
-            setFolderBusy(false)
-        }
-    }, [refreshFolders])
 
     // quoteFor returns the quoted original for reply/forward: the fetched HTML body when available,
     // otherwise the plain text (or snippet) escaped into a paragraph.

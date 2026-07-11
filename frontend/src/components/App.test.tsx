@@ -393,3 +393,21 @@ describe('App: the outbox', () => {
         await waitFor(() => expect(container.querySelector('[data-folder-id="__outbox__"]')).toBeInTheDocument())
     })
 })
+
+// The folder create/rename/delete/reparent flow that Phase 3.7 moves into useFolders. A custom folder's row
+// carries a Delete button; confirming it calls the delete api.
+describe('App: folder management', () => {
+    it('deletes a custom folder through the confirm dialog (useFolders)', async () => {
+        apiSpies.listAccounts.mockResolvedValue([makeAccount()])
+        apiSpies.listFolders.mockResolvedValue([
+            makeFolder('inbox', 'Inbox', 'inbox'),
+            makeFolder('archive', 'Archive', 'custom'),
+        ])
+        render(<App/>)
+        // The custom folder row carries a Delete <name> button; it asks for confirmation before deleting.
+        fireEvent.click(await screen.findByRole('button', {name: 'Delete Archive'}))
+        const dialog = await screen.findByRole('alertdialog', {name: 'Delete folder'})
+        fireEvent.click(within(dialog).getByRole('button', {name: 'Delete folder'}))
+        await waitFor(() => expect(apiSpies.deleteFolder).toHaveBeenCalledWith('archive'))
+    })
+})
