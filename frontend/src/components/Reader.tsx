@@ -2,7 +2,7 @@ import {useEffect, useRef, useState} from 'react'
 import type {MouseEvent as ReactMouseEvent, RefObject} from 'react'
 import {api, EmailView, Folder, Message, MessageBody, Tag} from '../api'
 import {EmailViewerModal} from './EmailViewerModal'
-import {TagColourMenu} from './TagColourMenu'
+import {ReaderToolbar} from './ReaderToolbar'
 import {isOutboxMessage} from '../outbox'
 import {ReaderTabs} from './ReaderTabs'
 import {InviteCard} from './InviteCard'
@@ -158,65 +158,24 @@ export function Reader({message, onToggleRead, onReply, onReplyAll, onForward, o
             )}
             {tabStrip}
             <div className="reader-header">
-                <div className="reader-toolbar">
-                    {onBack && <button ref={backButtonRef} className="btn" onClick={onBack}>&#8592; Back</button>}
-                    {outbox ? (
-                        <button className="btn danger-outline" onClick={() => onCancelSend(message)}>
-                            Cancel send
-                        </button>
-                    ) : (
-                    <>
-                    <button className="btn" onClick={() => onReply(message)}>Reply</button>
-                    {((message.to?.length || 0) + (message.cc?.length || 0)) > 0 && (
-                        <button className="btn" onClick={() => onReplyAll(message)}>Reply all</button>
-                    )}
-                    <button className="btn" onClick={() => onForward(message)}>Forward</button>
-                    <button className="btn" onClick={() => onToggleRead(message)}>
-                        {message.read ? 'Mark as unread' : 'Mark as read'}
-                    </button>
-                    <button className="btn danger-outline" onClick={() => onDelete(message)}>Delete</button>
-                    {canMoveCopy && folders.filter((f) => f.id !== message.folderId).length > 0 && (
-                        <>
-                            <select
-                                className="move-select"
-                                value=""
-                                aria-label="Move to folder"
-                                onChange={(e) => {
-                                    if (e.target.value) {
-                                        onMove(message, e.target.value)
-                                    }
-                                }}
-                            >
-                                <option value="">Move to…</option>
-                                {folders.filter((f) => f.id !== message.folderId).map((f) => (
-                                    <option key={f.id} value={f.id}>{f.name}</option>
-                                ))}
-                            </select>
-                            <select
-                                className="move-select"
-                                value=""
-                                aria-label="Copy to folder"
-                                onChange={(e) => {
-                                    if (e.target.value) {
-                                        onCopy(message, e.target.value)
-                                    }
-                                }}
-                            >
-                                <option value="">Copy to…</option>
-                                {folders.filter((f) => f.id !== message.folderId).map((f) => (
-                                    <option key={f.id} value={f.id}>{f.name}</option>
-                                ))}
-                            </select>
-                        </>
-                    )}
-                    <TagColourMenu
-                        messageId={message.id}
-                        messageTags={messageTags}
-                        onToggleTag={onToggleTag}
-                    />
-                    </>
-                    )}
-                </div>
+                <ReaderToolbar
+                    message={message}
+                    outbox={outbox}
+                    onBack={onBack}
+                    backButtonRef={backButtonRef}
+                    onReply={onReply}
+                    onReplyAll={onReplyAll}
+                    onForward={onForward}
+                    onToggleRead={onToggleRead}
+                    onDelete={onDelete}
+                    onCancelSend={onCancelSend}
+                    folders={folders}
+                    canMoveCopy={canMoveCopy}
+                    onMove={onMove}
+                    onCopy={onCopy}
+                    messageTags={messageTags}
+                    onToggleTag={onToggleTag}
+                />
                 <h2 className="reader-subject">{message.subject || '(no subject)'}</h2>
                 {messageTags.length > 0 && (
                     <div className="reader-tags">
