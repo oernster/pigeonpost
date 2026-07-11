@@ -151,6 +151,17 @@ export function FolderTree(props: FolderTreeProps) {
         scheduleSpring(folder)
     }
 
+    // scheduleFolderSpring spring-loads a collapsed parent during a folder drag, the same as a message drag,
+    // so a dragged folder can be nested into a sub-folder that was hidden. A folder cannot land inside its own
+    // subtree, so the dragged folder and its descendants are never sprung open.
+    const scheduleFolderSpring = (folder: Folder) => {
+        if (!draggedFolder || folder.path === draggedFolder.path || folder.path.startsWith(draggedFolder.path + sep)) {
+            clearSpring()
+            return
+        }
+        scheduleSpring(folder)
+    }
+
     // A dragged folder aims at a zone: the row's middle nests it inside this folder, the top or bottom edge
     // places it at this folder's own level. The cue shows only for a move resolveFolderDrop allows (not onto
     // itself, its own subtree or a change that does nothing).
@@ -158,6 +169,7 @@ export function FolderTree(props: FolderTreeProps) {
         if (!draggedFolder) {
             return
         }
+        scheduleFolderSpring(folder)
         const zone = dropZoneFor(e.clientY, e.currentTarget.getBoundingClientRect())
         if (resolveFolderDrop(draggedFolder, folder, zone, sep, existing, byPath)) {
             e.preventDefault()

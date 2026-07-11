@@ -258,6 +258,29 @@ describe('Sidebar: folder tree', () => {
         }
     })
 
+    it('spring-loads a collapsed parent when a folder is dragged over it', () => {
+        vi.useFakeTimers()
+        try {
+            const folders = [
+                makeFolder('work', 'Work', 'custom'),
+                makeFolder('reports', 'Work/Reports', 'custom'),
+                makeFolder('personal', 'Personal', 'custom'),
+            ]
+            localStorage.setItem(collapseKey('a1'), '["Work"]')
+            const {folderRow} = renderSidebar({folders})
+            expect(folderRow('reports')).toBeNull()
+            fireEvent.dragStart(folderRow('personal')!, {dataTransfer: makeDataTransfer()})
+            fireEvent.dragOver(folderRow('work')!, {dataTransfer: makeDataTransfer({[folderDragType]: 'personal'})})
+            expect(folderRow('reports')).toBeNull()
+            act(() => {
+                vi.advanceTimersByTime(1000)
+            })
+            expect(folderRow('reports')).not.toBeNull()
+        } finally {
+            vi.useRealTimers()
+        }
+    })
+
     it('renames and deletes a custom folder', () => {
         const {getByLabelText, onRenameFolder, onDeleteFolder} = renderSidebar({folders: nested})
         fireEvent.click(getByLabelText('Rename Work'))
