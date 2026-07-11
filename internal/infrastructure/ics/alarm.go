@@ -2,6 +2,7 @@ package ics
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	goical "github.com/emersion/go-ical"
@@ -16,34 +17,48 @@ const (
 	alarmDescription   = "Reminder"
 )
 
-// parseAlarms reads the relative-trigger VALARM children of a VEVENT into modelled reminders. An absolute
-// or unparseable trigger is skipped rather than failing the import.
+// ownedAlarm reports whether a VALARM is one PigeonPost models as an editable reminder: a relative
+// duration trigger with a DISPLAY action (an absent action is treated as DISPLAY). Everything else (an
+// absolute trigger, an EMAIL or AUDIO action) is left unmodelled so the Extra pass-through preserves it
+// verbatim on export rather than stripping it.
+func ownedAlarm(child *goical.Component) bool {
+	if child.Name != goical.CompAlarm {
+		return false
+	}
+	trigger := child.Props.Get(goical.PropTrigger)
+	if trigger == nil {
+		return false
+	}
+	if _, err := trigger.Duration(); err != nil {
+		return false
+	}
+	action := child.Props.Get(goical.PropAction)
+	return action == nil || strings.EqualFold(action.Value, alarmActionDisplay)
+}
+
+// parseAlarms reads the DISPLAY relative-trigger VALARM children of a VEVENT into modelled reminders.
+// Alarms PigeonPost does not model (an absolute trigger, an EMAIL or AUDIO action) are left for the Extra
+// pass-through to carry rather than surfaced as editable reminders.
 func parseAlarms(comp *goical.Component) []domain.Alarm {
 	var alarms []domain.Alarm
 	for _, child := range comp.Children {
-		if child.Name != goical.CompAlarm {
+		if !ownedAlarm(child) {
 			continue
 		}
-		trigger := child.Props.Get(goical.PropTrigger)
-		if trigger == nil {
-			continue
-		}
-		offset, err := trigger.Duration()
-		if err != nil {
-			continue
-		}
+		offset, _ := child.Props.Get(goical.PropTrigger).Duration()
 		alarms = append(alarms, domain.NewAlarm(offset))
 	}
 	return alarms
 }
 
-// setAlarms replaces the VEVENT's VALARM children with one DISPLAY reminder per modelled alarm. Existing
-// VALARMs (including any preserved through Extra) are removed first so nothing is duplicated; this is why
-// an exotic imported alarm (an absolute trigger, an email action) is not preserved.
+// setAlarms re-emits one DISPLAY reminder per modelled alarm while preserving every VALARM PigeonPost
+// does not own. Only the owned DISPLAY reminders are removed first (they are replaced from the model), so
+// an exotic imported alarm carried through Extra (an absolute trigger, an EMAIL or AUDIO action) survives
+// the round-trip instead of being stripped.
 func setAlarms(comp *goical.Component, alarms []domain.Alarm) {
 	var kept []*goical.Component
 	for _, child := range comp.Children {
-		if child.Name != goical.CompAlarm {
+		if !ownedAlarm(child) {
 			kept = append(kept, child)
 		}
 	}

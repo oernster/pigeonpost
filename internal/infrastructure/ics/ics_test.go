@@ -281,6 +281,65 @@ func TestICSAlarmRoundTrip(t *testing.T) {
 	}
 }
 
+func TestICSPreservesExoticAlarms(t *testing.T) {
+	data := cal(
+		"BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//x//EN",
+		"BEGIN:VEVENT", "UID:a2", "DTSTAMP:20260704T090000Z", "DTSTART:20260705T090000Z", "SUMMARY:Standup",
+		"BEGIN:VALARM", "ACTION:DISPLAY", "TRIGGER:-PT15M", "DESCRIPTION:Reminder", "END:VALARM",
+		"BEGIN:VALARM", "ACTION:EMAIL", "TRIGGER:-PT30M", "DESCRIPTION:Mail me", "SUMMARY:Subj",
+		"ATTENDEE:mailto:a@b.example", "END:VALARM",
+		"BEGIN:VALARM", "ACTION:AUDIO", "TRIGGER;VALUE=DATE-TIME:20260705T080000Z", "END:VALARM",
+		"END:VEVENT", "END:VCALENDAR",
+	)
+	events, _, err := New().Decode(data)
+	if err != nil || len(events) != 1 {
+		t.Fatalf("Decode: %v (n=%d)", err, len(events))
+	}
+	// Only the DISPLAY relative alarm surfaces as an editable reminder.
+	if got := events[0].Alarms(); len(got) != 1 || got[0].Offset() != -15*time.Minute {
+		t.Fatalf("modelled alarms = %v, want one -PT15M", got)
+	}
+	s := string(mustEncode(t, events[0]))
+	if !strings.Contains(s, "TRIGGER:-PT15M") {
+		t.Errorf("DISPLAY reminder not re-encoded:\n%s", s)
+	}
+	if !strings.Contains(s, "ACTION:EMAIL") {
+		t.Errorf("EMAIL alarm not preserved:\n%s", s)
+	}
+	if !strings.Contains(s, "ACTION:AUDIO") {
+		t.Errorf("AUDIO alarm not preserved:\n%s", s)
+	}
+	if n := strings.Count(s, "BEGIN:VALARM"); n != 3 {
+		t.Errorf("expected three VALARMs, got %d:\n%s", n, s)
+	}
+}
+
+func TestICSEditKeepsExoticAlarm(t *testing.T) {
+	data := cal(
+		"BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//x//EN",
+		"BEGIN:VEVENT", "UID:a3", "DTSTAMP:20260704T090000Z", "DTSTART:20260705T090000Z", "SUMMARY:Standup",
+		"BEGIN:VALARM", "ACTION:DISPLAY", "TRIGGER:-PT15M", "DESCRIPTION:Reminder", "END:VALARM",
+		"BEGIN:VALARM", "ACTION:AUDIO", "TRIGGER;VALUE=DATE-TIME:20260705T080000Z", "END:VALARM",
+		"END:VEVENT", "END:VCALENDAR",
+	)
+	events, _, err := New().Decode(data)
+	if err != nil || len(events) != 1 {
+		t.Fatalf("Decode: %v (n=%d)", err, len(events))
+	}
+	// The user changes the on-screen reminder from 15 to 5 minutes.
+	edited := events[0].WithAlarms([]domain.Alarm{domain.NewAlarm(-5 * time.Minute)})
+	s := string(mustEncode(t, edited))
+	if !strings.Contains(s, "TRIGGER:-PT5M") {
+		t.Errorf("edited reminder not written:\n%s", s)
+	}
+	if strings.Contains(s, "TRIGGER:-PT15M") {
+		t.Errorf("old reminder should have been replaced:\n%s", s)
+	}
+	if !strings.Contains(s, "ACTION:AUDIO") {
+		t.Errorf("exotic AUDIO alarm dropped after edit:\n%s", s)
+	}
+}
+
 func mustEncode(t *testing.T, events ...domain.Event) []byte {
 	t.Helper()
 	out, err := New().Encode(events, nil)
