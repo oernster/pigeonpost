@@ -13,6 +13,17 @@ const schemaV30 = `
 DELETE FROM message_body;
 `
 
+// schemaV31 adds the message-template table: reusable {name, subject, body} skeletons the user inserts
+// while composing. The body is HTML.
+const schemaV31 = `
+CREATE TABLE IF NOT EXISTS template (
+    id      TEXT PRIMARY KEY,
+    name    TEXT NOT NULL,
+    subject TEXT NOT NULL,
+    body    TEXT NOT NULL
+);
+`
+
 // migrations is the ordered list of schema steps. Index i upgrades the database from version i to
 // version i+1, so a fresh database applies them all and an existing one applies only what it lacks.
-var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15, schemaV16, schemaV17, schemaV18, schemaV19, schemaV20, schemaV21, schemaV22, schemaV23, schemaV24, schemaV25, schemaV26, schemaV27, schemaV28, schemaV29, schemaV30}
+var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15, schemaV16, schemaV17, schemaV18, schemaV19, schemaV20, schemaV21, schemaV22, schemaV23, schemaV24, schemaV25, schemaV26, schemaV27, schemaV28, schemaV29, schemaV30, schemaV31}

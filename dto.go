@@ -136,6 +136,26 @@ func toTagDTOs(tags []domain.Tag) []TagDTO {
 	return out
 }
 
+// TemplateDTO is the JSON-serialisable view of a message template. The body is HTML.
+type TemplateDTO struct {
+	ID      string `json:"id"`
+	Name    string `json:"name"`
+	Subject string `json:"subject"`
+	Body    string `json:"body"`
+}
+
+func toTemplateDTO(t domain.Template) TemplateDTO {
+	return TemplateDTO{ID: t.ID(), Name: t.Name(), Subject: t.Subject(), Body: t.Body()}
+}
+
+func toTemplateDTOs(templates []domain.Template) []TemplateDTO {
+	out := make([]TemplateDTO, 0, len(templates))
+	for _, t := range templates {
+		out = append(out, toTemplateDTO(t))
+	}
+	return out
+}
+
 func toAccountDTO(a domain.Account) AccountDTO {
 	return AccountDTO{
 		ID:          a.ID(),

@@ -42,6 +42,8 @@ export function DeleteRule(arg1:string):Promise<void>;
 
 export function DeleteTag(arg1:string):Promise<void>;
 
+export function DeleteTemplate(arg1:string):Promise<void>;
+
 export function DraftRecovery():Promise<main.DraftRecoveryDTO>;
 
 export function ExportContactsToFile(arg1:string):Promise<boolean>;
@@ -83,6 +85,8 @@ export function ListOutbox():Promise<Array<main.OutboxItemDTO>>;
 export function ListRules():Promise<Array<main.RuleDTO>>;
 
 export function ListTags():Promise<Array<main.TagDTO>>;
+
+export function ListTemplates():Promise<Array<main.TemplateDTO>>;
 
 export function ListThreads(arg1:string):Promise<Array<main.ThreadDTO>>;
 
@@ -151,6 +155,8 @@ export function SaveMessageAs(arg1:string,arg2:string):Promise<void>;
 export function SaveRule(arg1:main.RuleRequest):Promise<void>;
 
 export function SaveTag(arg1:main.TagRequest):Promise<void>;
+
+export function SaveTemplate(arg1:main.TemplateRequest):Promise<void>;
 
 export function SearchMessages(arg1:string):Promise<Array<main.MessageDTO>>;
 

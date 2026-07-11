@@ -3,7 +3,7 @@ import {useBackdropDismiss} from './useBackdropDismiss'
 import {EditorContent, useEditor} from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Link from '@tiptap/extension-link'
-import {api, ComposeInput} from '../api'
+import {api, ComposeInput, Template} from '../api'
 import {ModalClose} from './ModalClose'
 import {ConfirmDialog} from './ConfirmDialog'
 import {basename, isValidAddress, normaliseUrl, splitAddresses} from '../composeAddresses'
@@ -66,6 +66,10 @@ export function ComposeModal({accountId, senders, initial, canSaveDraft, onClose
     const [sending, setSending] = useState(false)
     const [savingDraft, setSavingDraft] = useState(false)
     const [error, setError] = useState('')
+    // The message-template picker: the loaded templates and whether its dropdown is open. Templates are
+    // fetched the first time the picker is opened so an unused compose window makes no call.
+    const [templates, setTemplates] = useState<Template[]>([])
+    const [templatePicker, setTemplatePicker] = useState(false)
 
     // attemptSendRef lets the editor's key handler call the latest attemptSend without recreating the
     // editor: the editor is built once, but attemptSend closes over state that changes each render.
@@ -199,6 +203,35 @@ export function ComposeModal({accountId, senders, initial, canSaveDraft, onClose
         }
     }
 
+    // openTemplatePicker toggles the template dropdown, loading the templates on first open so the list is
+    // current without fetching until it is wanted.
+    const openTemplatePicker = async () => {
+        if (templatePicker) {
+            setTemplatePicker(false)
+            return
+        }
+        try {
+            setTemplates(await api.listTemplates())
+            setTemplatePicker(true)
+        } catch (e) {
+            setError(String(e))
+        }
+    }
+
+    // insertTemplate applies a chosen template: it fills the subject when it is still empty (so a template
+    // never overwrites a subject already typed) and inserts the template body HTML at the cursor, then marks
+    // the draft dirty so the change is autosaved.
+    const insertTemplate = (t: Template) => {
+        setTemplatePicker(false)
+        if (subject.trim() === '' && t.subject !== '') {
+            setSubject(t.subject)
+        }
+        if (t.body !== '') {
+            editor?.chain().focus().insertContent(t.body).run()
+        }
+        autosave.markDirty()
+    }
+
     const btn = (active: boolean, label: string, title: string, onClick: () => void) => (
         <button
             type="button"
@@ -291,7 +324,42 @@ export function ComposeModal({accountId, senders, initial, canSaveDraft, onClose
                     {btn(editor?.isActive('blockquote') ?? false, '”', 'Quote', () => editor?.chain().focus().toggleBlockquote().run())}
                     <span className="compose-tool-sep"/>
                     {btn(editor?.isActive('link') ?? false, '🔗', 'Link', link.openLink)}
+                    <span className="compose-tool-sep"/>
+                    <button
+                        type="button"
+                        className={'compose-tool' + (templatePicker ? ' active' : '')}
+                        title="Insert template"
+                        aria-label="Insert template"
+                        aria-pressed={templatePicker}
+                        aria-haspopup="menu"
+                        aria-expanded={templatePicker}
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => void openTemplatePicker()}
+                    >
+                        Template
+                    </button>
                 </div>
+                {templatePicker && (
+                    <div className="compose-template-picker" role="menu" aria-label="Message templates">
+                        {templates.length === 0 ? (
+                            <div className="compose-template-empty">No templates yet.</div>
+                        ) : (
+                            templates.map((t) => (
+                                <button
+                                    key={t.id}
+                                    type="button"
+                                    role="menuitem"
+                                    className="compose-template-option"
+                                    onMouseDown={(e) => e.preventDefault()}
+                                    onClick={() => insertTemplate(t)}
+                                >
+                                    <span className="compose-template-name">{t.name}</span>
+                                    <span className="compose-template-subject">{t.subject || '(no subject)'}</span>
+                                </button>
+                            ))
+                        )}
+                    </div>
+                )}
                 {link.open && (
                     <div className="compose-link-row">
                         <input

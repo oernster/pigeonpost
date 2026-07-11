@@ -1,6 +1,6 @@
 import {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from 'react'
 import './App.css'
-import {AboutInfo, api, CalendarEvent, Contact, Message, MessageBody, Rule, UnreadCountsResult} from './api'
+import {AboutInfo, api, CalendarEvent, Contact, Message, MessageBody, Rule, Template, UnreadCountsResult} from './api'
 import {OUTBOX_FOLDER_ID, isOutboxMessage, outboxItemToMessage} from './outbox'
 import {applyTheme, loadTheme, Theme} from './theme'
 import {Sidebar} from './components/Sidebar'
@@ -21,6 +21,7 @@ import {AccountSetupModal} from './components/AccountSetupModal'
 import {ConfirmDialog} from './components/ConfirmDialog'
 import {PromptDialog} from './components/PromptDialog'
 import {RuleManagerModal} from './components/RuleManagerModal'
+import {TemplateManagerModal} from './components/TemplateManagerModal'
 import {ContactsModal} from './components/ContactsModal'
 import {CalendarModal} from './components/CalendarModal'
 import {ReminderNotifications} from './components/ReminderNotifications'
@@ -90,6 +91,8 @@ function App() {
     const {tags, messageTags, toggleTag, setMessageTagById} = useTags({store, setError})
     const [rules, setRules] = useState<Rule[]>([])
     const [managingRules, setManagingRules] = useState<boolean>(false)
+    const [templates, setTemplates] = useState<Template[]>([])
+    const [managingTemplates, setManagingTemplates] = useState<boolean>(false)
     const [contacts, setContacts] = useState<Contact[]>([])
     const [managingContacts, setManagingContacts] = useState<boolean>(false)
     const [events, setEvents] = useState<CalendarEvent[]>([])
@@ -210,6 +213,18 @@ function App() {
     useEffect(() => {
         void loadRules()
     }, [loadRules])
+
+    const loadTemplates = useCallback(async () => {
+        try {
+            setTemplates(await api.listTemplates())
+        } catch (e) {
+            setError(String(e))
+        }
+    }, [])
+
+    useEffect(() => {
+        void loadTemplates()
+    }, [loadTemplates])
 
     const loadContacts = useCallback(async () => {
         try {
@@ -583,7 +598,7 @@ function App() {
     useMessageListKeyboard({
         searchActive, searchResults, displayMessages, selectedMessage, setSelectedMessage,
         markedIds, setMarkedIds, anchorId, setAnchorId, setReadingFull,
-        splashVisible, composing, settingUp, accountToEdit, managingRules, managingContacts, managingCalendar,
+        splashVisible, composing, settingUp, accountToEdit, managingRules, managingTemplates, managingContacts, managingCalendar,
         about, licence, folderPrompt, messageToCancelSend, messageToDelete, accountToDelete, folderToDelete,
         messageToPurge, contextMenu, bulkToDelete, bulkToPurge, folders,
         requestDelete, openInNewTab, setMessageToPurge, setBulkToPurge, setBulkToDelete, setFolderToDelete,
@@ -683,7 +698,7 @@ function App() {
     const {fileMenu, editMenu, viewMenu, mailMenu, helpMenu} = useMenus({
         activeMessage, activeOutbox, canMailAct, canReplyAll, isPop3, selectedAccount, accountSyncing,
         isWindows, conversationView, previewEnabled, folders, messageTags,
-        saveMessageAs, printMessage, setManagingRules, toggleConversationView, togglePreview,
+        saveMessageAs, printMessage, setManagingRules, setManagingTemplates, toggleConversationView, togglePreview,
         signatureHtml, setComposeInitial, setComposing, setSettingUp, sync, openInNewTab,
         openReply, openReplyAll, openForward, attachToNewMessage, setReadState, toggleFlag, toggleTag,
         moveMessage, copyMessage, markJunk, setMessageToCancelSend, requestDelete, setMessageToPurge,
@@ -856,6 +871,13 @@ function App() {
             )}
             {managingRules && (
                 <RuleManagerModal rules={rules} onChanged={() => void loadRules()} onClose={() => setManagingRules(false)}/>
+            )}
+            {managingTemplates && (
+                <TemplateManagerModal
+                    templates={templates}
+                    onChanged={() => void loadTemplates()}
+                    onClose={() => setManagingTemplates(false)}
+                />
             )}
             {messageToCancelSend && (
                 <ConfirmDialog

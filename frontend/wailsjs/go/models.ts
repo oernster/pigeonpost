@@ -1000,6 +1000,42 @@ export namespace main {
 	        this.colour = source["colour"];
 	    }
 	}
+	export class TemplateDTO {
+	    id: string;
+	    name: string;
+	    subject: string;
+	    body: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new TemplateDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.subject = source["subject"];
+	        this.body = source["body"];
+	    }
+	}
+	export class TemplateRequest {
+	    id: string;
+	    name: string;
+	    subject: string;
+	    body: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new TemplateRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.subject = source["subject"];
+	        this.body = source["body"];
+	    }
+	}
 	export class ThreadDTO {
 	    subject: string;
 	    count: number;

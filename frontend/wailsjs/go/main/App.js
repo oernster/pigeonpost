@@ -82,6 +82,10 @@ export function DeleteTag(arg1) {
   return window['go']['main']['App']['DeleteTag'](arg1);
 }
 
+export function DeleteTemplate(arg1) {
+  return window['go']['main']['App']['DeleteTemplate'](arg1);
+}
+
 export function DraftRecovery() {
   return window['go']['main']['App']['DraftRecovery']();
 }
@@ -164,6 +168,10 @@ export function ListRules() {
 
 export function ListTags() {
   return window['go']['main']['App']['ListTags']();
+}
+
+export function ListTemplates() {
+  return window['go']['main']['App']['ListTemplates']();
 }
 
 export function ListThreads(arg1) {
@@ -300,6 +308,10 @@ export function SaveRule(arg1) {
 
 export function SaveTag(arg1) {
   return window['go']['main']['App']['SaveTag'](arg1);
+}
+
+export function SaveTemplate(arg1) {
+  return window['go']['main']['App']['SaveTemplate'](arg1);
 }
 
 export function SearchMessages(arg1) {

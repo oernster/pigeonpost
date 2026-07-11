@@ -105,6 +105,7 @@ func run() error {
 	actionService := application.NewMessageActionService(store, store, mailSource)
 	folderService := application.NewFolderService(store, store, imapSource, imapSource)
 	ruleService := application.NewRuleService(store, newRuleID)
+	templateService := application.NewTemplateService(store, newTemplateID)
 	contactService := application.NewContactService(store, newContactID)
 	calendarService := application.NewCalendarService(store, newCalendarID, recurrence.New())
 	// The scheduling service reads incoming meeting invites and replies (the ICS codec also implements
@@ -127,7 +128,7 @@ func run() error {
 	// rather than waiting for the poll; it authenticates through the same keychain vault as fetches.
 	watcher := imap.NewWatcher(vault, tokenManager)
 
-	app = NewApp(store.Close, overlay, flasher, tray, watcher, accountService, setupService, microsoftSetupService, mailboxService, syncService, composeService, tagService, bodyService, actionService, folderService, ruleService, contactService, calendarService, schedulingService)
+	app = NewApp(store.Close, overlay, flasher, tray, watcher, accountService, setupService, microsoftSetupService, mailboxService, syncService, composeService, tagService, bodyService, actionService, folderService, ruleService, templateService, contactService, calendarService, schedulingService)
 	app.title = windowTitle
 
 	err = wails.Run(&options.App{

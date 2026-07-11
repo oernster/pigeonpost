@@ -27,6 +27,11 @@ func newRuleID() string {
 	return uuid.NewString()
 }
 
+// newTemplateID produces a unique identifier for a message template.
+func newTemplateID() string {
+	return uuid.NewString()
+}
+
 // newContactID produces a unique identifier for a contact or group created in the app.
 func newContactID() string {
 	return uuid.NewString()

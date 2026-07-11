@@ -29,6 +29,7 @@ import {
     DeleteEvent,
     DeleteFolder,
     DeleteRule,
+    DeleteTemplate,
     ExportContactsToFile,
     ExportEventsToFile,
     GetContact,
@@ -47,6 +48,7 @@ import {
     ListEvents,
     ListEventInstances,
     ListRules,
+    ListTemplates,
     SaveCalendar,
     SaveContact,
     SaveContactGroup,
@@ -58,6 +60,7 @@ import {
     MoveMessages,
     RenameFolder,
     SaveRule,
+    SaveTemplate,
     CancelOutboxItem,
     ListOutbox,
     OpenExternal,
@@ -100,6 +103,7 @@ export type Message = Omit<main.MessageDTO, 'convertValues'>
 export type AboutInfo = main.AboutDTO
 export type Tag = main.TagDTO
 export type Rule = main.RuleDTO
+export type Template = main.TemplateDTO
 // MessageBody drops the generated convertValues helper so an outbox message's body can be built as a
 // plain object literal; the nested AttachmentDTO array carries no helper of its own.
 export type MessageBody = Omit<main.MessageBodyDTO, 'convertValues'>
@@ -213,6 +217,13 @@ export interface TagInput {
     id: string
     name: string
     colour: string
+}
+
+export interface TemplateInput {
+    id: string
+    name: string
+    subject: string
+    body: string
 }
 
 export interface ComposeInput {
@@ -356,6 +367,9 @@ export const api = {
     listRules: (): Promise<Rule[]> => ListRules(),
     saveRule: (req: RuleInput): Promise<void> => SaveRule(main.RuleRequest.createFrom(req)),
     deleteRule: (ruleId: string): Promise<void> => DeleteRule(ruleId),
+    listTemplates: (): Promise<Template[]> => ListTemplates(),
+    saveTemplate: (req: TemplateInput): Promise<void> => SaveTemplate(main.TemplateRequest.createFrom(req)),
+    deleteTemplate: (templateId: string): Promise<void> => DeleteTemplate(templateId),
     about: (): Promise<AboutInfo> => About(),
     licence: (): Promise<string> => LicenceText(),
     version: (): Promise<string> => Version(),

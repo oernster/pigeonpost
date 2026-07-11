@@ -23,6 +23,7 @@ export interface MessageListKeyboardDeps {
     settingUp: boolean
     accountToEdit: Account | null
     managingRules: boolean
+    managingTemplates: boolean
     managingContacts: boolean
     managingCalendar: boolean
     about: AboutInfo | null
@@ -55,7 +56,7 @@ export function useMessageListKeyboard(deps: MessageListKeyboardDeps): void {
     const {
         searchActive, searchResults, displayMessages, selectedMessage, setSelectedMessage,
         markedIds, setMarkedIds, anchorId, setAnchorId, setReadingFull,
-        splashVisible, composing, settingUp, accountToEdit, managingRules, managingContacts, managingCalendar,
+        splashVisible, composing, settingUp, accountToEdit, managingRules, managingTemplates, managingContacts, managingCalendar,
         about, licence, folderPrompt, messageToCancelSend, messageToDelete, accountToDelete, folderToDelete,
         messageToPurge, contextMenu, bulkToDelete, bulkToPurge, folders,
         requestDelete, openInNewTab, setMessageToPurge, setBulkToPurge, setBulkToDelete, setFolderToDelete,
@@ -69,7 +70,7 @@ export function useMessageListKeyboard(deps: MessageListKeyboardDeps): void {
     useEffect(() => {
         const overlayOpen =
             splashVisible || composing || settingUp || Boolean(accountToEdit) ||
-            managingRules || managingContacts || managingCalendar || Boolean(about) || Boolean(licence) || Boolean(folderPrompt) ||
+            managingRules || managingTemplates || managingContacts || managingCalendar || Boolean(about) || Boolean(licence) || Boolean(folderPrompt) ||
             Boolean(messageToCancelSend) ||
             Boolean(messageToDelete) || Boolean(accountToDelete) || Boolean(folderToDelete) ||
             Boolean(messageToPurge) || Boolean(contextMenu) || Boolean(bulkToDelete) || Boolean(bulkToPurge)
@@ -303,7 +304,7 @@ export function useMessageListKeyboard(deps: MessageListKeyboardDeps): void {
         return () => window.removeEventListener('keydown', onKeyDown)
     }, [
         searchActive, searchResults, displayMessages, selectedMessage, requestDelete, markedIds, anchorId,
-        splashVisible, composing, settingUp, accountToEdit, managingRules, managingContacts, managingCalendar, about,
+        splashVisible, composing, settingUp, accountToEdit, managingRules, managingTemplates, managingContacts, managingCalendar, about,
         licence, folderPrompt, messageToDelete, accountToDelete, folderToDelete, messageToPurge,
         contextMenu, messageToCancelSend, bulkToDelete, bulkToPurge, togglePreview, folders,
     ])

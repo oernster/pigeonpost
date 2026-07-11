@@ -158,6 +158,13 @@ type RuleStore interface {
 	DeleteRule(ctx context.Context, id string) error
 }
 
+// TemplateStore persists user-defined message templates, inserted while composing.
+type TemplateStore interface {
+	ListTemplates(ctx context.Context) ([]domain.Template, error)
+	SaveTemplate(ctx context.Context, template domain.Template) error
+	DeleteTemplate(ctx context.Context, id string) error
+}
+
 // ContactStore persists address-book contacts and groups (mailing lists). Groups reference contacts by
 // id; the store owns how that association is held.
 type ContactStore interface {

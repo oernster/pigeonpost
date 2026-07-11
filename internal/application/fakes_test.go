@@ -765,6 +765,40 @@ func (f *fakeRuleStore) DeleteRule(_ context.Context, id string) error {
 	return nil
 }
 
+// fakeTemplateStore is a hand-written in-memory TemplateStore with error-injection fields.
+type fakeTemplateStore struct {
+	templates []domain.Template
+	listErr   error
+	saveErr   error
+	deleteErr error
+	saved     []domain.Template
+	deleted   []string
+}
+
+func (f *fakeTemplateStore) ListTemplates(context.Context) ([]domain.Template, error) {
+	if f.listErr != nil {
+		return nil, f.listErr
+	}
+	return f.templates, nil
+}
+
+func (f *fakeTemplateStore) SaveTemplate(_ context.Context, template domain.Template) error {
+	if f.saveErr != nil {
+		return f.saveErr
+	}
+	f.saved = append(f.saved, template)
+	f.templates = append(f.templates, template)
+	return nil
+}
+
+func (f *fakeTemplateStore) DeleteTemplate(_ context.Context, id string) error {
+	if f.deleteErr != nil {
+		return f.deleteErr
+	}
+	f.deleted = append(f.deleted, id)
+	return nil
+}
+
 // fakeClock is a hand-written domain.Clock returning a fixed instant.
 type fakeClock struct{ now time.Time }
 

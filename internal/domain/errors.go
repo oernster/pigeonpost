@@ -30,6 +30,8 @@ var (
 	ErrInvalidRuleField    = errors.New("rule field is not valid")
 	ErrInvalidRuleOperator = errors.New("rule operator is not valid")
 	ErrInvalidRuleAction   = errors.New("rule action is not valid")
+	ErrEmptyTemplateID     = errors.New("template id is empty")
+	ErrEmptyTemplateName   = errors.New("template name is empty")
 	ErrEmptyAttachmentName = errors.New("attachment filename is empty")
 
 	ErrEmptyContactID        = errors.New("contact id is empty")

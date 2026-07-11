@@ -29,6 +29,7 @@ export interface MenusDeps {
     printMessage: (message: Message) => Promise<void>
     // Edit menu.
     setManagingRules: Dispatch<SetStateAction<boolean>>
+    setManagingTemplates: Dispatch<SetStateAction<boolean>>
     // View menu.
     toggleConversationView: () => void
     togglePreview: () => void
@@ -74,7 +75,7 @@ export function useMenus(deps: MenusDeps): Menus {
     const {
         activeMessage, activeOutbox, canMailAct, canReplyAll, isPop3, selectedAccount, accountSyncing,
         isWindows, conversationView, previewEnabled, folders, messageTags,
-        saveMessageAs, printMessage, setManagingRules, toggleConversationView, togglePreview,
+        saveMessageAs, printMessage, setManagingRules, setManagingTemplates, toggleConversationView, togglePreview,
         signatureHtml, setComposeInitial, setComposing, setSettingUp, sync, openInNewTab,
         openReply, openReplyAll, openForward, attachToNewMessage, setReadState, toggleFlag, toggleTag,
         moveMessage, copyMessage, markJunk, setMessageToCancelSend, requestDelete, setMessageToPurge,
@@ -125,6 +126,11 @@ export function useMenus(deps: MenusDeps): Menus {
             label: 'Rules',
             icon: '\u{1F4CF}',
             onClick: () => setManagingRules(true),
+        },
+        {
+            label: 'Templates',
+            icon: '\u{1F4C4}',
+            onClick: () => setManagingTemplates(true),
         },
     ]
     const viewMenu: MenuItem[] = [
