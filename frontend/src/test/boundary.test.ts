@@ -13,6 +13,8 @@ import {describe, expect, it} from 'vitest'
 const PURE_MODULES = [
     'tz', 'folderPaths', 'threads', 'outbox', 'tagColours',
     'messageText', 'shortcuts', 'print',
+    'readerFormat', 'composeAddresses', 'accountProviders', 'sidebarDnd',
+    'calendarModel',
 ]
 
 // The raw source of every src/*.ts, read at build time by Vite (no node:fs, so the frontend

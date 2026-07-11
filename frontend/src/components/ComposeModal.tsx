@@ -6,19 +6,11 @@ import Link from '@tiptap/extension-link'
 import {api, ComposeInput} from '../api'
 import {ModalClose} from './ModalClose'
 import {ConfirmDialog} from './ConfirmDialog'
+import {basename, detectSeparatorFix, isValidAddress, normaliseUrl, splitAddresses} from '../composeAddresses'
 
 // autosaveDelayMs debounces local draft-recovery autosaves, so a snapshot is written a short pause after
 // the user stops typing rather than on every keystroke.
 const autosaveDelayMs = 1500
-
-// normaliseUrl gives a bare host a scheme so the link is absolute rather than treated as relative.
-function normaliseUrl(url: string): string {
-    const trimmed = url.trim()
-    if (trimmed === '' || /^(https?:|mailto:)/i.test(trimmed)) {
-        return trimmed
-    }
-    return `https://${trimmed}`
-}
 
 // ComposeInitial pre-fills the compose window, used by reply, reply-all and forward.
 // MessageAttachment is an existing email attached to a new message: its id (fetched and rendered as a
@@ -60,19 +52,6 @@ interface ComposeModalProps {
     onClose: () => void
 }
 
-function splitAddresses(value: string): string[] {
-    // Accept both comma and semicolon between addresses, so a list pasted from a client that uses ";"
-    // (such as Outlook) is split the same as a comma-separated one.
-    return value.split(/[,;]/).map((part) => part.trim()).filter(Boolean)
-}
-
-// EMAIL_TOKEN finds an address-like run anywhere in a string; EMAIL_EXACT tests that a whole string is
-// one. Both stop at the punctuation a user might wrongly place between addresses (a colon, a slash, a space
-// and so on), so a mistyped separator leaves the addresses on either side intact to be found and re-joined.
-// Neither is a full RFC validator; the backend stays the source of truth.
-const EMAIL_TOKEN = /[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}/g
-const EMAIL_EXACT = /^[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}$/
-
 // Correction is a proposed fix for a wrong address separator: the recipient fields rewritten with their
 // addresses correctly separated, plus a preview of the changed fields for the user to approve.
 interface Correction {
@@ -82,28 +61,6 @@ interface Correction {
     preview: string
 }
 
-function isValidAddress(value: string): boolean {
-    return EMAIL_EXACT.test(value)
-}
-
-// detectSeparatorFix returns a corrected version of one recipient field when its only problem is a wrong
-// separator between two or more otherwise-valid addresses, re-joining the addresses it finds with "; ". It
-// returns null when the field is already correctly separated or holds a single address (valid or not), so a
-// genuine typo is never silently rewritten and is left for the backend to reject.
-function detectSeparatorFix(value: string): string | null {
-    const found = value.match(EMAIL_TOKEN) ?? []
-    if (found.length < 2) return null
-    const tokens = splitAddresses(value)
-    if (tokens.length === found.length && tokens.every(isValidAddress)) return null
-    return found.join('; ')
-}
-
-// basename returns the final path segment of a file path, handling both Windows and POSIX separators,
-// so an attachment chip shows the filename rather than the full path.
-function basename(path: string): string {
-    const parts = path.split(/[\\/]/)
-    return parts[parts.length - 1] || path
-}
 
 export function ComposeModal({accountId, senders, initial, canSaveDraft, onClose}: ComposeModalProps) {
     const dismiss = useBackdropDismiss(onClose)

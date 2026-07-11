@@ -1,0 +1,62 @@
+import {describe, expect, it} from 'vitest'
+import {
+    DEFAULT_IN_PORT,
+    DEFAULT_IN_PORT_POP3,
+    PROTOCOL_OPTIONS,
+    PROVIDERS,
+    SECURITY_OPTIONS,
+    domainOf,
+    incomingHostPrefix,
+    normaliseSigUrl,
+} from './accountProviders'
+
+describe('normaliseSigUrl', () => {
+    it('returns an empty string unchanged', () => {
+        expect(normaliseSigUrl('  ')).toBe('')
+    })
+
+    it('leaves a scheme-qualified url unchanged', () => {
+        expect(normaliseSigUrl('https://example.com')).toBe('https://example.com')
+    })
+
+    it('adds https to a bare host', () => {
+        expect(normaliseSigUrl('example.com')).toBe('https://example.com')
+    })
+})
+
+describe('incomingHostPrefix', () => {
+    it('uses pop for POP3', () => {
+        expect(incomingHostPrefix('pop3')).toBe('pop')
+    })
+
+    it('uses imap for anything else', () => {
+        expect(incomingHostPrefix('imap')).toBe('imap')
+    })
+})
+
+describe('domainOf', () => {
+    it('returns the domain part of an address', () => {
+        expect(domainOf('user@example.com')).toBe('example.com')
+    })
+
+    it('returns an empty string when there is no @', () => {
+        expect(domainOf('not-an-address')).toBe('')
+    })
+})
+
+describe('preset data', () => {
+    it('exposes the generic endpoint defaults', () => {
+        expect(DEFAULT_IN_PORT).toBe(993)
+        expect(DEFAULT_IN_PORT_POP3).toBe(995)
+    })
+
+    it('lists the protocol and security options', () => {
+        expect(PROTOCOL_OPTIONS.map((o) => o.value)).toEqual(['imap', 'pop3'])
+        expect(SECURITY_OPTIONS.map((o) => o.value)).toEqual(['tls', 'starttls', 'none'])
+    })
+
+    it('includes the known provider presets', () => {
+        expect(PROVIDERS.map((p) => p.id)).toContain('gmail')
+        expect(PROVIDERS.every((p) => p.inHost !== '' && p.outHost !== '')).toBe(true)
+    })
+})
