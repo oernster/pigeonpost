@@ -580,3 +580,27 @@ describe('App: menus', () => {
         await waitFor(() => expect(apiSpies.saveMessageAs).toHaveBeenCalledWith('m1', expect.any(String)))
     })
 })
+
+// The header that Phase 3.14 moves into TitleBar.tsx. The Sync button (already covered by the syncing test)
+// and the menus stay wired through props; these pin two titlebar controls with no prior coverage: the theme
+// toggle and the titlebar Compose icon button.
+describe('App: titlebar', () => {
+    it('toggles the theme from the titlebar (TitleBar)', () => {
+        const {container} = render(<App/>)
+        const toggle = container.querySelector('.theme-toggle') as HTMLElement
+        const before = toggle.getAttribute('aria-label')
+        fireEvent.click(toggle)
+        // The toggle relabels itself to the opposite mode, so its accessible name flips.
+        expect(toggle.getAttribute('aria-label')).not.toBe(before)
+    })
+
+    it('opens the composer from the titlebar Compose button (TitleBar)', async () => {
+        apiSpies.listAccounts.mockResolvedValue([makeAccount()])
+        apiSpies.listFolders.mockResolvedValue([makeFolder('inbox', 'Inbox', 'inbox')])
+        render(<App/>)
+        // The Compose button is gated on a selected account, so wait for the auto-select.
+        await waitFor(() => expect(apiSpies.listFolders).toHaveBeenCalledWith('acc1'))
+        fireEvent.click(screen.getByRole('button', {name: 'Compose'}))
+        expect(await screen.findByRole('dialog', {name: 'New message'})).toBeInTheDocument()
+    })
+})
