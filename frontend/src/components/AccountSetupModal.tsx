@@ -6,6 +6,7 @@ import {Account, AccountSetupInput, Identity, api} from '../api'
 import {useBackdropDismiss} from './useBackdropDismiss'
 import {ModalClose} from './ModalClose'
 import {RichTextField} from './RichTextField'
+import {ProviderChooser} from './ProviderChooser'
 import {
     DEFAULT_IN_PORT,
     DEFAULT_IN_PORT_POP3,
@@ -13,7 +14,6 @@ import {
     DEFAULT_OUT_PORT,
     DEFAULT_OUT_SECURITY,
     PROTOCOL_OPTIONS,
-    PROVIDERS,
     SECURITY_OPTIONS,
     domainOf,
     incomingHostPrefix,
@@ -215,28 +215,14 @@ export function AccountSetupModal({account, onClose, onSaved}: AccountSetupModal
 
     if (step === 'provider') {
         return (
-            <div className="modal-backdrop" {...dismiss}>
-                <div className="modal setup" role="dialog" aria-label="Add account" onClick={(e) => e.stopPropagation()}>
-                    <ModalClose onClose={onClose}/>
-                    <h2 className="modal-title">Add account</h2>
-                    <p className="setup-hint">Choose your email provider, or set the servers up yourself.</p>
-                    {error && <div className="compose-error">{error}</div>}
-                    <div className="provider-grid">
-                        <button className="provider-btn" onClick={chooseMicrosoft} disabled={msSigningIn}>
-                            Microsoft
-                        </button>
-                        {PROVIDERS.map((p) => (
-                            <button key={p.id} className="provider-btn" onClick={() => chooseProvider(p)} disabled={msSigningIn}>
-                                {p.name}
-                            </button>
-                        ))}
-                    </div>
-                    <button className="btn manual-btn" onClick={chooseManual} disabled={msSigningIn}>Set up manually (other provider)</button>
-                    <div className="modal-actions">
-                        <button className="btn" onClick={onClose} disabled={msSigningIn}>Cancel</button>
-                    </div>
-                </div>
-            </div>
+            <ProviderChooser
+                error={error}
+                busy={msSigningIn}
+                onClose={onClose}
+                onChooseMicrosoft={chooseMicrosoft}
+                onChooseProvider={chooseProvider}
+                onChooseManual={chooseManual}
+            />
         )
     }
 
