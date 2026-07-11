@@ -35,6 +35,7 @@ import {useMessageStore} from './hooks/useMessageStore'
 import {rangeIds, toggleId, useSelection} from './hooks/useSelection'
 import {useMessageActions} from './hooks/useMessageActions'
 import {useBulkActions} from './hooks/useBulkActions'
+import {useReaderTabs} from './hooks/useReaderTabs'
 
 // autoSyncIntervalMs is how often the folder on screen is refreshed from the server in the background,
 // so new mail in the open folder appears without a manual sync.
@@ -42,7 +43,6 @@ const millisPerMinute = 60 * 1000
 const autoSyncIntervalMs = 5 * millisPerMinute
 
 function App() {
-    const READING_PANE_KEY = 'pigeonpost.readingPane'
     const [accounts, setAccounts] = useState<Account[]>([])
     const [selectedAccount, setSelectedAccount] = useState<string>('')
     const [folders, setFolders] = useState<Folder[]>([])
@@ -111,26 +111,14 @@ function App() {
     // lives in its own hook. Empty marks mean single-select mode, where selectedMessage alone is selected.
     const selection = useSelection()
     const {markedIds, setMarkedIds, anchorId, setAnchorId, clear: clearSelection} = selection
-    // previewEnabled controls the right-hand reading pane. When off, the message list is full-width and
-    // a message is read by double-clicking it, which opens it full-width (readingFull) with a Back button.
-    const [previewEnabled, setPreviewEnabled] = useState<boolean>(() => {
-        try {
-            return localStorage.getItem(READING_PANE_KEY) !== 'off'
-        } catch {
-            return true
-        }
-    })
-    const [readingFull, setReadingFull] = useState<boolean>(false)
-    // emailOpenTick bumps each time an email is opened; the effect below then moves focus onto the opened
-    // email's close cross. readerBodyRef points at the reader's scrollable body (a keyboard scroll stop).
-    const [emailOpenTick, setEmailOpenTick] = useState<number>(0)
-    // listReturnTick bumps when an email is closed, so the effect below returns focus to the message list.
-    const [listReturnTick, setListReturnTick] = useState<number>(0)
-    const readerBodyRef = useRef<HTMLDivElement>(null)
-    // readerSinkRef is a neutral anchor at the top of the full-width reader; openSourceRef records whether
-    // the last open was by keyboard or mouse.
-    const readerSinkRef = useRef<HTMLSpanElement>(null)
-    const openSourceRef = useRef<'keyboard' | 'mouse'>('keyboard')
+    // The reading-pane mode, the full-width reader and the reader-tab interaction (open, close and the
+    // focus choreography when an email is opened or closed) live in useReaderTabs. The reader tabs and the
+    // active message themselves stay in the message store; this hook drives how they are shown.
+    const {
+        previewEnabled, readingFull, setReadingFull,
+        readerBodyRef, readerSinkRef,
+        selectMessage, openInNewTab, closeTab, togglePreview,
+    } = useReaderTabs({store})
     // Tracks the folder currently on screen, so a background refresh only replaces the list when the
     // user has not navigated away since it started.
     const selectedFolderRef = useRef<string>('')
@@ -735,13 +723,6 @@ function App() {
 
     const closeContextMenu = useCallback(() => setContextMenu(null), [])
 
-    // selectMessage highlights a message. With the reading pane on it shows in the preview (and the view
-    // effect marks it read); with the pane off it only highlights the row and stays on the list.
-    const selectMessage = useCallback((message: Message) => {
-        setSelectedMessage(message)
-        setReadingFull(false)
-    }, [])
-
     // activateRow applies the standard list-selection gestures to a row click. A plain click selects the
     // one row and opens it; Ctrl (or Cmd) click toggles the row in or out of the selection; Shift click
     // selects the contiguous range from the anchor. The clicked row always becomes the active one shown in
@@ -765,59 +746,6 @@ function App() {
         setAnchorId(message.id)
         selectMessage(message)
     }, [searchActive, searchResults, displayMessages, anchorId, selectedMessage, selectMessage])
-
-    // openInNewTab pins a message as a reader tab (if not already open) and shows it. With the reading
-    // pane off this opens the message full-width (readingFull); with it on the tab appears in the pane.
-    const openInNewTab = useCallback((message: Message, fromKeyboard = true) => {
-        setTabs((prev) => (prev.some((t) => t.id === message.id) ? prev : [...prev, message]))
-        setSelectedMessage(message)
-        setReadingFull(true)
-        // Record how the email was opened and signal the focus effect below.
-        openSourceRef.current = fromKeyboard ? 'keyboard' : 'mouse'
-        setEmailOpenTick((n) => n + 1)
-    }, [])
-
-    // When an email is opened (emailOpenTick bumped), move focus into the reader so the keyboard does not
-    // fall back to the start of the ring (which made the next Tab land on File). Focus lands on the active
-    // tab's close cross, the first stop within an open email, so it can be shut with one key; a following
-    // Tab moves on to the toolbar then the body.
-    useEffect(() => {
-        if (emailOpenTick === 0) {
-            return
-        }
-        document.querySelector<HTMLElement>('.reader-tab.active .reader-tab-close')?.focus()
-    }, [emailOpenTick])
-
-    // After an email is closed, put focus on the topmost message header so the keyboard returns to the list
-    // rather than being stranded on the now-gone reader controls.
-    useEffect(() => {
-        if (listReturnTick === 0) {
-            return
-        }
-        document.querySelector<HTMLElement>('.message-list .message-row')?.focus()
-    }, [listReturnTick])
-
-    // togglePreview flips the reading pane and returns to the list, so toggling never strands the user in
-    // the full-width reader.
-    const togglePreview = useCallback(() => {
-        setPreviewEnabled((v) => !v)
-        setReadingFull(false)
-    }, [])
-
-    // closeTab removes a tab; if it was the message on screen, selection moves to the neighbouring tab
-    // (or clears when none remain).
-    const closeTab = useCallback((id: string) => {
-        setTabs((prev) => {
-            const idx = prev.findIndex((t) => t.id === id)
-            const next = prev.filter((t) => t.id !== id)
-            setSelectedMessage((sel) => (sel?.id === id ? (next[Math.min(idx, next.length - 1)] ?? null) : sel))
-            return next
-        })
-        // Closing an email returns to the message list; the effect keyed on listReturnTick lands focus on
-        // the topmost header once the list has re-rendered.
-        setReadingFull(false)
-        setListReturnTick((n) => n + 1)
-    }, [])
 
     // openContextMenu opens the action menu at the cursor without selecting the message. A right-click is
     // not "reading" the message, so it is not shown in the reader and not auto-marked read, which would
@@ -1153,15 +1081,6 @@ function App() {
         bulkToPurge, setBulkToPurge, bulkPurging,
         runBulkDelete, bulkSetRead, bulkSetFlag, bulkMove, dropMessageOnFolder,
     } = useBulkActions({store, selection, loadUnread, refreshFolders, setError})
-
-    // Persist the reading-pane preference so it survives a restart.
-    useEffect(() => {
-        try {
-            localStorage.setItem(READING_PANE_KEY, previewEnabled ? 'on' : 'off')
-        } catch {
-            // A storage failure just means the preference is not remembered; the UI still works.
-        }
-    }, [previewEnabled])
 
     // A message shown in the reader (the preview pane, or the full-width reader when the pane is off)
     // counts as read, so viewing or double-clicking a message un-bolds it. Auto-read fires once per

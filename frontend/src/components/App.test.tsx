@@ -215,6 +215,25 @@ describe('App: reading a message', () => {
         await waitFor(() => expect(container.querySelector('.panes.no-preview')).toBeInTheDocument())
         expect(localStorage.getItem('pigeonpost.readingPane')).toBe('off')
     })
+
+    // useReaderTabs (Phase 3.5) also owns opening a message in its own reader tab and closing it. The
+    // reading-pane toggle above already pins togglePreview and the persisted preference; this pins the tab
+    // open and close path.
+    it('opens a message in a reader tab and closes it (openInNewTab / closeTab)', async () => {
+        apiSpies.listAccounts.mockResolvedValue([makeAccount()])
+        apiSpies.listFolders.mockResolvedValue([makeFolder('inbox', 'Inbox', 'inbox')])
+        apiSpies.listMessages.mockResolvedValue([makeMessage({subject: 'Weekly report'})])
+        render(<App/>)
+        fireEvent.click(await screen.findByText('Weekly report'))
+        // Open in new tab pins the message as a reader tab, whose close cross is labelled Close <subject>.
+        fireEvent.click(screen.getByRole('button', {name: 'Mail'}))
+        fireEvent.click(screen.getByRole('menuitem', {name: 'Open in new tab'}))
+        const closeButton = await screen.findByRole('button', {name: 'Close Weekly report'})
+        expect(closeButton).toBeInTheDocument()
+        // Closing the tab removes it from the strip.
+        fireEvent.click(closeButton)
+        await waitFor(() => expect(screen.queryByRole('button', {name: 'Close Weekly report'})).not.toBeInTheDocument())
+    })
 })
 
 describe('App: deleting a message', () => {
