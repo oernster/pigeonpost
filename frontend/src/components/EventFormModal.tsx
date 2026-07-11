@@ -361,13 +361,16 @@ export function EventFormModal({
                         )}
                         <input className="tag-name-input" placeholder="Location" value={form.location}
                                onChange={(e) => set('location', e.target.value)}/>
-                        <select className="tag-name-input" aria-label="Category" value={form.category}
-                                onChange={(e) => set('category', e.target.value)}>
-                            <option value="">None</option>
-                            {EVENT_CATEGORIES.map((c) => (
-                                <option key={c.value} value={c.value}>{`${c.emoji} ${c.label}`}</option>
-                            ))}
-                        </select>
+                        <label className="cal-category">
+                            Category
+                            <select className="tag-name-input" aria-label="Category" value={form.category}
+                                    onChange={(e) => set('category', e.target.value)}>
+                                <option value="">None</option>
+                                {EVENT_CATEGORIES.map((c) => (
+                                    <option key={c.value} value={c.value}>{`${c.emoji} ${c.label}`}</option>
+                                ))}
+                            </select>
+                        </label>
                         <textarea className="tag-name-input" placeholder="Description" rows={2} value={form.description}
                                   onChange={(e) => set('description', e.target.value)}/>
                         {(joinUrl || otherLinks.length > 0) && (

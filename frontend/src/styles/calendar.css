@@ -167,7 +167,8 @@
     width: 64px;
 }
 
-.cal-tz {
+.cal-tz,
+.cal-category {
     display: flex;
     align-items: center;
     gap: 8px;
@@ -297,7 +298,8 @@
     flex: 1;
 }
 
-.cal-tz select {
+.cal-tz select,
+.cal-category select {
     flex: 1;
 }
 
