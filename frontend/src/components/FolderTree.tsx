@@ -1,4 +1,4 @@
-import {useState, type CSSProperties, type DragEvent as ReactDragEvent} from 'react'
+import {useEffect, useRef, useState, type CSSProperties, type DragEvent as ReactDragEvent} from 'react'
 import {Folder} from '../api'
 import {messageDragType} from './MessageList'
 import {
@@ -38,6 +38,10 @@ const folderIcon: Record<string, string> = {
 // so a folder at depth d sits at (d + 1) steps. The same value drives the drag insertion line's indent.
 const FOLDER_INDENT_STEP_PX = 14
 
+// SPRING_DELAY_MS is how long a message must hover a collapsed parent folder before it auto-expands
+// (spring-loaded folders): long enough not to fire on a quick pass-over, short enough to feel responsive.
+const SPRING_DELAY_MS = 700
+
 // FolderTree renders the folders as a nested, collapsible tree derived from their paths. Custom folders can
 // be dragged to reparent them (a server move) or reorder amongst their siblings (a local, persisted order).
 // Both the collapsed state and the local order are kept per account in localStorage, so they survive
@@ -45,7 +49,7 @@ const FOLDER_INDENT_STEP_PX = 14
 // this component.
 export function FolderTree(props: FolderTreeProps) {
     const {folders, selectedFolder, selectedAccount} = props
-    const {collapsed, order, toggle, persistOrder} = usePersistedFolderState(selectedAccount)
+    const {collapsed, order, toggle, persistOrder, expand} = usePersistedFolderState(selectedAccount)
     // dragOverId marks the folder a message is being dragged onto (an into cue). draggingFolderId is the
     // custom folder currently being dragged to move it. folderDrop marks the row and zone a dragged
     // folder is aimed at, driving the drop cue: a box for an into (child) drop, an insertion line for a
@@ -53,6 +57,16 @@ export function FolderTree(props: FolderTreeProps) {
     const [dragOverId, setDragOverId] = useState<string>('')
     const [draggingFolderId, setDraggingFolderId] = useState<string>('')
     const [folderDrop, setFolderDrop] = useState<{folderId: string; zone: FolderDropZone} | null>(null)
+    // springTimer holds the pending auto-expand for the collapsed parent a message is hovering (see
+    // scheduleSpring). It is a ref, not state, because it must not trigger a re-render on every dragover.
+    const springTimer = useRef<{folderId: string; timer: number} | null>(null)
+    useEffect(() => {
+        return () => {
+            if (springTimer.current) {
+                clearTimeout(springTimer.current.timer)
+            }
+        }
+    }, [])
 
     const paths = folders.map((f) => f.path)
     const sep = detectSeparator(paths)
@@ -102,11 +116,39 @@ export function FolderTree(props: FolderTreeProps) {
     // cannot affect the other: a message dropped onto it (moved into the folder) and a custom folder dragged
     // onto it (reparented or reordered). onRowDragOver and onRowDrop only dispatch by the drag's MIME type.
 
-    // A message drag highlights the folder it is over as the drop target.
-    const handleMessageDragOver = (e: ReactDragEvent<HTMLLIElement>, folderId: string) => {
+    // clearSpring cancels any pending auto-expand.
+    const clearSpring = () => {
+        if (springTimer.current) {
+            clearTimeout(springTimer.current.timer)
+            springTimer.current = null
+        }
+    }
+
+    // scheduleSpring spring-loads a collapsed parent during a message drag: after hovering it for
+    // SPRING_DELAY_MS the folder auto-expands so its sub-folders appear and the message can be dropped into
+    // one of them. Hovering a leaf, an already-expanded folder or a different row resets the pending expand.
+    const scheduleSpring = (folder: Folder) => {
+        if (!(hasChildren(folder.path) && collapsed.has(folder.path))) {
+            clearSpring()
+            return
+        }
+        if (springTimer.current?.folderId === folder.id) {
+            return
+        }
+        clearSpring()
+        const timer = window.setTimeout(() => {
+            springTimer.current = null
+            expand(folder.path)
+        }, SPRING_DELAY_MS)
+        springTimer.current = {folderId: folder.id, timer}
+    }
+
+    // A message drag highlights the folder it is over as the drop target and spring-loads a collapsed parent.
+    const handleMessageDragOver = (e: ReactDragEvent<HTMLLIElement>, folder: Folder) => {
         e.preventDefault()
         e.dataTransfer.dropEffect = 'move'
-        setDragOverId(folderId)
+        setDragOverId(folder.id)
+        scheduleSpring(folder)
     }
 
     // A dragged folder aims at a zone: the row's middle nests it inside this folder, the top or bottom edge
@@ -128,7 +170,7 @@ export function FolderTree(props: FolderTreeProps) {
 
     const onRowDragOver = (e: ReactDragEvent<HTMLLIElement>, folder: Folder) => {
         if (e.dataTransfer.types.includes(messageDragType)) {
-            handleMessageDragOver(e, folder.id)
+            handleMessageDragOver(e, folder)
         } else if (e.dataTransfer.types.includes(folderDragType)) {
             handleFolderDragOver(e, folder)
         }
@@ -149,6 +191,7 @@ export function FolderTree(props: FolderTreeProps) {
 
     const onRowDrop = (e: ReactDragEvent<HTMLLIElement>, folder: Folder) => {
         e.preventDefault()
+        clearSpring()
         setDragOverId('')
         setFolderDrop(null)
         const messageId = e.dataTransfer.getData(messageDragType)
@@ -252,6 +295,7 @@ export function FolderTree(props: FolderTreeProps) {
                             e.dataTransfer.effectAllowed = 'move'
                         }}
                         onDragEnd={() => {
+                            clearSpring()
                             setDraggingFolderId('')
                             setDragOverId('')
                             setFolderDrop(null)
@@ -260,6 +304,9 @@ export function FolderTree(props: FolderTreeProps) {
                         onDragLeave={() => {
                             setDragOverId((id) => (id === folder.id ? '' : id))
                             setFolderDrop((cur) => (cur?.folderId === folder.id ? null : cur))
+                            if (springTimer.current?.folderId === folder.id) {
+                                clearSpring()
+                            }
                         }}
                         onDrop={(e) => onRowDrop(e, folder)}
                     >

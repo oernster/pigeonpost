@@ -6,7 +6,7 @@
 // the proof each extraction preserved behaviour. The sidebar makes no api calls, so nothing is mocked; the
 // drag math is exercised through the real sidebarDnd and folderPaths modules.
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
-import {cleanup, fireEvent, render, within} from '@testing-library/react'
+import {act, cleanup, fireEvent, render, within} from '@testing-library/react'
 import type {ComponentProps} from 'react'
 import {Sidebar} from './Sidebar'
 import type {Account, Folder} from '../api'
@@ -237,6 +237,25 @@ describe('Sidebar: folder tree', () => {
         expect(folderRow('reports')).toBeNull()
         fireEvent.keyDown(folderRow('work')!, {key: 'ArrowRight'})
         expect(folderRow('reports')).not.toBeNull()
+    })
+
+    it('spring-loads a collapsed parent when a message is dragged over it', () => {
+        vi.useFakeTimers()
+        try {
+            localStorage.setItem(collapseKey('a1'), '["Work"]')
+            const {folderRow} = renderSidebar({folders: nested})
+            expect(folderRow('reports')).toBeNull()
+            fireEvent.dragOver(folderRow('work')!, {dataTransfer: makeDataTransfer({[messageDragType]: 'm1'})})
+            // Still collapsed until the hover delay elapses.
+            expect(folderRow('reports')).toBeNull()
+            act(() => {
+                vi.advanceTimersByTime(1000)
+            })
+            // The parent auto-expanded, so its sub-folder is now visible to drop into.
+            expect(folderRow('reports')).not.toBeNull()
+        } finally {
+            vi.useRealTimers()
+        }
     })
 
     it('renames and deletes a custom folder', () => {

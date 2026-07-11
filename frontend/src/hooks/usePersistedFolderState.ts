@@ -63,5 +63,23 @@ export function usePersistedFolderState(accountId: string) {
         }
     }
 
-    return {collapsed, order, toggle, persistOrder}
+    // expand removes a folder path from the collapsed set (idempotent: expanding an already-open folder is a
+    // no-op). It backs the drag-to-open spring-loading, which must open a folder without ever collapsing one.
+    const expand = (path: string) => {
+        setCollapsed((prev) => {
+            if (!prev.has(path)) {
+                return prev
+            }
+            const next = new Set(prev)
+            next.delete(path)
+            try {
+                localStorage.setItem(collapseKey(accountId), JSON.stringify([...next]))
+            } catch {
+                // A storage failure just means the state is not remembered; the UI still works.
+            }
+            return next
+        })
+    }
+
+    return {collapsed, order, toggle, persistOrder, expand}
 }
