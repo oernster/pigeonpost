@@ -104,6 +104,7 @@ func eventFromICS(e goical.Event) (domain.Event, bool) {
 		Summary:      summary,
 		Description:  eventDescription(e.Props),
 		Location:     descriptionText(text(e.Props, goical.PropLocation)),
+		Category:     primaryCategory(e.Props),
 		Start:        start,
 		End:          end,
 		AllDay:       allDay,
@@ -248,6 +249,7 @@ func eventToComponent(ev domain.Event) *goical.Component {
 	}
 	setOrDel(comp, goical.PropDescription, ev.Description())
 	setOrDel(comp, goical.PropLocation, ev.Location())
+	setCategory(comp, ev.Category())
 	if ev.Recurrence() != "" {
 		rrule := goical.NewProp(goical.PropRecurrenceRule)
 		rrule.Value = ev.Recurrence()

@@ -190,6 +190,9 @@ export interface CalendarEventInput {
     summary: string
     description: string
     location: string
+    // category is the optional short lowercase category value (the primary iCalendar CATEGORIES value);
+    // empty means no category.
+    category: string
     start: string
     end: string
     allDay: boolean

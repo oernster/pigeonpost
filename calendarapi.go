@@ -37,6 +37,7 @@ type EventDTO struct {
 	Summary     string        `json:"summary"`
 	Description string        `json:"description"`
 	Location    string        `json:"location"`
+	Category    string        `json:"category"`
 	Start       string        `json:"start"`
 	End         string        `json:"end"`
 	AllDay      bool          `json:"allDay"`
@@ -59,6 +60,7 @@ type EventRequest struct {
 	Summary     string        `json:"summary"`
 	Description string        `json:"description"`
 	Location    string        `json:"location"`
+	Category    string        `json:"category"`
 	Start       string        `json:"start"`
 	End         string        `json:"end"`
 	AllDay      bool          `json:"allDay"`
@@ -155,6 +157,7 @@ func eventInputFromRequest(req EventRequest) (application.EventInput, error) {
 		Summary:     req.Summary,
 		Description: req.Description,
 		Location:    req.Location,
+		Category:    req.Category,
 		Start:       start,
 		End:         end,
 		AllDay:      req.AllDay,
@@ -279,6 +282,7 @@ func toEventDTO(e domain.Event) EventDTO {
 		Summary:     e.Summary(),
 		Description: e.Description(),
 		Location:    e.Location(),
+		Category:    e.Category(),
 		Start:       e.Start().Format(time.RFC3339),
 		End:         end,
 		AllDay:      e.AllDay(),

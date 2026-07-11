@@ -34,8 +34,9 @@ func TestNewEventFullRoundTrip(t *testing.T) {
 	end := start.Add(time.Hour)
 	e, err := NewEvent(EventInput{
 		ID: "  e1 ", UID: "  uid-1 ", CalendarID: " cal1 ", Summary: "  Standup ",
-		Description: " daily ", Location: " Room 1 ", Start: start, End: end, TimeZone: " Europe/London ",
-		AllDay: false, Recurrence: " FREQ=DAILY ", Alarms: []Alarm{NewAlarm(-15 * time.Minute)},
+		Description: " daily ", Location: " Room 1 ", Category: "  WORK  ", Start: start, End: end,
+		TimeZone: " Europe/London ",
+		AllDay:   false, Recurrence: " FREQ=DAILY ", Alarms: []Alarm{NewAlarm(-15 * time.Minute)},
 		Extra: "BEGIN:VEVENT\r\nCATEGORIES:WORK\r\nEND:VEVENT\r\n",
 	})
 	if err != nil {
@@ -45,6 +46,10 @@ func TestNewEventFullRoundTrip(t *testing.T) {
 		e.Description() != "daily" || e.Location() != "Room 1" || e.Recurrence() != "FREQ=DAILY" ||
 		e.TimeZone() != "Europe/London" {
 		t.Errorf("fields not trimmed/exposed: %+v", e)
+	}
+	// Category is trimmed and lowercased so it is a stable key for the emoji map.
+	if e.Category() != "work" {
+		t.Errorf("category = %q, want %q", e.Category(), "work")
 	}
 	if alarms := e.Alarms(); len(alarms) != 1 || alarms[0].Offset() != -15*time.Minute {
 		t.Errorf("alarms not exposed: %v", e.Alarms())
@@ -65,6 +70,10 @@ func TestNewEventAllowsNoEnd(t *testing.T) {
 	}
 	if e.HasEnd() {
 		t.Errorf("expected no end")
+	}
+	// An event with no category input exposes an empty category.
+	if e.Category() != "" {
+		t.Errorf("category = %q, want empty", e.Category())
 	}
 	if e.Duration() != 0 {
 		t.Errorf("no-end duration = %v, want 0", e.Duration())

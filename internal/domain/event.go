@@ -14,6 +14,7 @@ type EventInput struct {
 	Summary     string
 	Description string
 	Location    string
+	Category    string
 	Start       time.Time
 	End         time.Time
 	AllDay      bool
@@ -53,6 +54,7 @@ type Event struct {
 	summary      string
 	description  string
 	location     string
+	category     string
 	start        time.Time
 	end          time.Time
 	allDay       bool
@@ -91,6 +93,7 @@ func NewEvent(in EventInput) (Event, error) {
 		summary:      summary,
 		description:  strings.TrimSpace(in.Description),
 		location:     strings.TrimSpace(in.Location),
+		category:     strings.ToLower(strings.TrimSpace(in.Category)),
 		start:        in.Start,
 		end:          in.End,
 		allDay:       in.AllDay,
@@ -159,6 +162,10 @@ func (e Event) Description() string { return e.description }
 
 // Location returns the optional location.
 func (e Event) Location() string { return e.location }
+
+// Category returns the optional category, a short lowercased label (the primary iCalendar CATEGORIES
+// value), or an empty string when the event has none.
+func (e Event) Category() string { return e.category }
 
 // Start returns the event start time.
 func (e Event) Start() time.Time { return e.start }

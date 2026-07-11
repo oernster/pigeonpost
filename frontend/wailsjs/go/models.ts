@@ -593,6 +593,7 @@ export namespace main {
 	    summary: string;
 	    description: string;
 	    location: string;
+	    category: string;
 	    start: string;
 	    end: string;
 	    allDay: boolean;
@@ -615,6 +616,7 @@ export namespace main {
 	        this.summary = source["summary"];
 	        this.description = source["description"];
 	        this.location = source["location"];
+	        this.category = source["category"];
 	        this.start = source["start"];
 	        this.end = source["end"];
 	        this.allDay = source["allDay"];
@@ -687,6 +689,7 @@ export namespace main {
 	    summary: string;
 	    description: string;
 	    location: string;
+	    category: string;
 	    start: string;
 	    end: string;
 	    allDay: boolean;
@@ -709,6 +712,7 @@ export namespace main {
 	        this.summary = source["summary"];
 	        this.description = source["description"];
 	        this.location = source["location"];
+	        this.category = source["category"];
 	        this.start = source["start"];
 	        this.end = source["end"];
 	        this.allDay = source["allDay"];

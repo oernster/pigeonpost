@@ -91,8 +91,10 @@ func TestICSPreservesUnmodelledProperties(t *testing.T) {
 	}
 	s := string(out)
 	// VALARM is now a modelled property, re-emitted from the alarm model, so it is covered by the alarm
-	// round-trip test rather than asserted verbatim here.
-	for _, want := range []string{"CATEGORIES:WORK", "STATUS:CONFIRMED", "PRIORITY:1", "X-CUSTOM-FLAG:keepme"} {
+	// round-trip test rather than asserted verbatim here. CATEGORIES is likewise modelled now: its primary
+	// value is re-emitted normalised (lowercased), so it is asserted in its normalised form here and
+	// covered fully by the dedicated category tests.
+	for _, want := range []string{"CATEGORIES:work", "STATUS:CONFIRMED", "PRIORITY:1", "X-CUSTOM-FLAG:keepme"} {
 		if !strings.Contains(s, want) {
 			t.Errorf("re-encoded ICS dropped %q:\n%s", want, s)
 		}
@@ -114,9 +116,11 @@ func TestICSEditPreservesUnmodelledProperties(t *testing.T) {
 		t.Fatalf("Decode: %v (n=%d)", err, len(events))
 	}
 	orig := events[0]
-	// Simulate an in-app edit: same event, a new summary, Extra carried through unchanged.
+	// Simulate an in-app edit: same event, a new summary, its modelled category carried through (the form
+	// loads and re-saves it), and Extra carried through unchanged.
 	edited, err := domain.NewEvent(domain.EventInput{
-		ID: orig.ID(), UID: orig.UID(), Summary: "New title", Start: orig.Start(), Extra: orig.Extra(),
+		ID: orig.ID(), UID: orig.UID(), Summary: "New title", Start: orig.Start(),
+		Category: orig.Category(), Extra: orig.Extra(),
 	})
 	if err != nil {
 		t.Fatalf("edit: %v", err)
@@ -128,8 +132,9 @@ func TestICSEditPreservesUnmodelledProperties(t *testing.T) {
 	if strings.Contains(s, "Old title") {
 		t.Errorf("old summary should have been overwritten:\n%s", s)
 	}
-	if !strings.Contains(s, "X-KEEP:yes") || !strings.Contains(s, "CATEGORIES:PERSONAL") {
-		t.Errorf("unmodelled props dropped on edit:\n%s", s)
+	// X-KEEP is unmodelled and survives verbatim; CATEGORIES is modelled now, re-emitted normalised.
+	if !strings.Contains(s, "X-KEEP:yes") || !strings.Contains(s, "CATEGORIES:personal") {
+		t.Errorf("props dropped on edit:\n%s", s)
 	}
 }
 
@@ -337,6 +342,91 @@ func TestICSEditKeepsExoticAlarm(t *testing.T) {
 	}
 	if !strings.Contains(s, "ACTION:AUDIO") {
 		t.Errorf("exotic AUDIO alarm dropped after edit:\n%s", s)
+	}
+}
+
+func TestICSImportPrimaryCategoryLowercased(t *testing.T) {
+	data := cal(
+		"BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//x//EN",
+		"BEGIN:VEVENT", "UID:c1", "DTSTAMP:20260704T090000Z", "DTSTART:20260704T100000Z",
+		"SUMMARY:Review", "CATEGORIES:WORK", "END:VEVENT", "END:VCALENDAR",
+	)
+	events, _, err := New().Decode(data)
+	if err != nil || len(events) != 1 {
+		t.Fatalf("Decode: %v (n=%d)", err, len(events))
+	}
+	if events[0].Category() != "work" {
+		t.Errorf("category = %q, want %q", events[0].Category(), "work")
+	}
+	// Re-encoding writes the modelled primary category back.
+	if s := string(mustEncode(t, events[0])); !strings.Contains(s, "CATEGORIES:work") {
+		t.Errorf("re-encoded ICS lost the category:\n%s", s)
+	}
+}
+
+func TestICSEditKeepsExtraCategories(t *testing.T) {
+	data := cal(
+		"BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//x//EN",
+		"BEGIN:VEVENT", "UID:c2", "DTSTAMP:20260704T090000Z", "DTSTART:20260704T100000Z",
+		"SUMMARY:Review", "CATEGORIES:WORK,IMPORTANT", "END:VEVENT", "END:VCALENDAR",
+	)
+	events, _, err := New().Decode(data)
+	if err != nil || len(events) != 1 {
+		t.Fatalf("Decode: %v (n=%d)", err, len(events))
+	}
+	orig := events[0]
+	if orig.Category() != "work" {
+		t.Errorf("primary category = %q, want %q", orig.Category(), "work")
+	}
+	// Simulate an in-app edit that sets the primary category to meeting, the same way the application
+	// rebuilds an event through EventInput while carrying its preserved ICS unchanged.
+	edited, err := domain.NewEvent(domain.EventInput{
+		ID: orig.ID(), UID: orig.UID(), Summary: orig.Summary(), Start: orig.Start(),
+		Category: "meeting", Extra: orig.Extra(),
+	})
+	if err != nil {
+		t.Fatalf("edit: %v", err)
+	}
+	s := string(mustEncode(t, edited))
+	// The primary slot becomes meeting; the extra IMPORTANT value is preserved (lossless multi-value).
+	if !strings.Contains(s, "CATEGORIES:meeting,IMPORTANT") {
+		t.Errorf("multi-value CATEGORIES not preserved on edit:\n%s", s)
+	}
+}
+
+func TestICSFreshEventWritesCategory(t *testing.T) {
+	ev, err := domain.NewEvent(domain.EventInput{
+		ID: "c3", UID: "c3", Summary: "Lunch", Start: time.Date(2026, 7, 4, 12, 0, 0, 0, time.UTC),
+		Category: "personal",
+	})
+	if err != nil {
+		t.Fatalf("event: %v", err)
+	}
+	if s := string(mustEncode(t, ev)); !strings.Contains(s, "CATEGORIES:personal") {
+		t.Errorf("fresh event did not write CATEGORIES:personal:\n%s", s)
+	}
+}
+
+func TestICSEditToEmptyCategoryDropsProperty(t *testing.T) {
+	data := cal(
+		"BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//x//EN",
+		"BEGIN:VEVENT", "UID:c4", "DTSTAMP:20260704T090000Z", "DTSTART:20260704T100000Z",
+		"SUMMARY:Review", "CATEGORIES:WORK", "END:VEVENT", "END:VCALENDAR",
+	)
+	events, _, err := New().Decode(data)
+	if err != nil || len(events) != 1 {
+		t.Fatalf("Decode: %v (n=%d)", err, len(events))
+	}
+	orig := events[0]
+	// The user clears the category: the single-value CATEGORIES is dropped from the export.
+	cleared, err := domain.NewEvent(domain.EventInput{
+		ID: orig.ID(), UID: orig.UID(), Summary: orig.Summary(), Start: orig.Start(), Extra: orig.Extra(),
+	})
+	if err != nil {
+		t.Fatalf("clear: %v", err)
+	}
+	if s := string(mustEncode(t, cleared)); strings.Contains(s, "CATEGORIES") {
+		t.Errorf("cleared category should drop CATEGORIES:\n%s", s)
 	}
 }
 

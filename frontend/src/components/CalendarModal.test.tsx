@@ -49,6 +49,7 @@ const NOON_TODAY = (() => {
 function makeEvent(overrides: Partial<CalendarEvent> = {}): CalendarEvent {
     return {
         id: 'evt-1', uid: 'uid-1', calendarId: '', summary: 'Standup', description: '', location: '',
+        category: '',
         start: NOON_TODAY, end: '', allDay: false, recurrence: '', timeZone: '', reminders: [], extra: '',
         organizer: {address: '', commonName: ''}, attendees: [],
         ...overrides,

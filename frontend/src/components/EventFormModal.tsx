@@ -1,6 +1,7 @@
 import {useRef, useState} from 'react'
 import type {Dispatch, SetStateAction} from 'react'
 import {api, Calendar, CalendarEventInput, EventScope} from '../api'
+import {EVENT_CATEGORIES} from '../categories'
 import {zonedWallToISO, zoneOptions} from '../tz'
 import {ModalClose} from './ModalClose'
 import {ConfirmDialog} from './ConfirmDialog'
@@ -35,6 +36,8 @@ export interface EventForm {
     summary: string
     description: string
     location: string
+    // category is the optional event category value (empty means none); it is picked from EVENT_CATEGORIES.
+    category: string
     allDay: boolean
     start: string
     end: string
@@ -163,7 +166,8 @@ export function EventFormModal({
             const organizerName = form.organizerAddress ? form.organizerName : (hasAttendees ? accountName : '')
             const req: CalendarEventInput = {
                 id: form.id, uid: form.uid, calendarId: form.calendarId, summary: form.summary,
-                description: form.description, location: form.location, allDay: form.allDay,
+                description: form.description, location: form.location, category: form.category,
+                allDay: form.allDay,
                 start: startISO, end: endISO, timeZone: form.allDay ? '' : form.timeZone,
                 reminders: form.reminders, recurrence: form.recurrence, extra: form.extra,
                 organizer: {address: organizerAddress, commonName: organizerName},
@@ -357,6 +361,13 @@ export function EventFormModal({
                         )}
                         <input className="tag-name-input" placeholder="Location" value={form.location}
                                onChange={(e) => set('location', e.target.value)}/>
+                        <select className="tag-name-input" aria-label="Category" value={form.category}
+                                onChange={(e) => set('category', e.target.value)}>
+                            <option value="">None</option>
+                            {EVENT_CATEGORIES.map((c) => (
+                                <option key={c.value} value={c.value}>{`${c.emoji} ${c.label}`}</option>
+                            ))}
+                        </select>
                         <textarea className="tag-name-input" placeholder="Description" rows={2} value={form.description}
                                   onChange={(e) => set('description', e.target.value)}/>
                         {(joinUrl || otherLinks.length > 0) && (

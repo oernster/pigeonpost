@@ -1,5 +1,6 @@
 import {useState} from 'react'
 import {api, CalendarEvent, CalendarEventInstance, EventScope} from '../api'
+import {categoryEmoji} from '../categories'
 import {browserZone, instantToZonedWall} from '../tz'
 import {ModalClose} from './ModalClose'
 import {ScopeChooser} from './ScopeChooser'
@@ -101,6 +102,7 @@ export function CalendarModal({events, accountId, accountEmail, accountName, ini
         end.setHours(10, 0, 0, 0)
         setForm({
             id: '', uid: '', calendarId: defaultCalendarId(), summary: '', description: '', location: '',
+            category: '',
             allDay: false, start: dateTimeInput(start), end: dateTimeInput(end), timeZone: browserZone(),
             reminders: [], recurrence: '', extra: '', organizerAddress: '', organizerName: '', attendees: [],
             scope: null, occurrence: '', series: false,
@@ -116,6 +118,7 @@ export function CalendarModal({events, accountId, accountEmail, accountName, ini
         end.setHours(start.getHours() + HOURS_PER_EVENT)
         setForm({
             id: '', uid: '', calendarId: defaultCalendarId(), summary: '', description: '', location: '',
+            category: '',
             allDay: false, start: dateTimeInput(start), end: dateTimeInput(end), timeZone: browserZone(),
             reminders: [], recurrence: '', extra: '', organizerAddress: '', organizerName: '', attendees: [],
             scope: null, occurrence: '', series: false,
@@ -143,7 +146,7 @@ export function CalendarModal({events, accountId, accountEmail, accountName, ini
         const endWall = endISO ? (ev.allDay ? dateInput(new Date(endISO)) : instantToZonedWall(endISO, zone)) : ''
         setForm({
             id: ev.id, uid: ev.uid, calendarId: ev.calendarId, summary: ev.summary,
-            description: ev.description, location: ev.location, allDay: ev.allDay,
+            description: ev.description, location: ev.location, category: ev.category, allDay: ev.allDay,
             start: startWall, end: endWall, timeZone: zone,
             reminders: [...ev.reminders], recurrence: ev.recurrence, extra: ev.extra,
             organizerAddress: ev.organizer.address, organizerName: ev.organizer.commonName,
@@ -271,7 +274,7 @@ export function CalendarModal({events, accountId, accountEmail, accountName, ini
                                                     ev.stopPropagation()
                                                     openInstance(p.i)
                                                 }}>
-                                            {p.i.event.allDay ? '' : `${pad(p.start.getHours())}:${pad(p.start.getMinutes())} `}{p.i.event.summary}
+                                            {p.i.event.allDay ? '' : `${pad(p.start.getHours())}:${pad(p.start.getMinutes())} `}{categoryEmoji(p.i.event.category) && `${categoryEmoji(p.i.event.category)} `}{p.i.event.summary}
                                         </button>
                                     ))}
                                 </div>

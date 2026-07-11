@@ -25,6 +25,7 @@ type EventInput struct {
 	Summary     string
 	Description string
 	Location    string
+	Category    string
 	Start       time.Time
 	End         time.Time
 	AllDay      bool
@@ -148,6 +149,7 @@ func (s *CalendarService) SaveEvent(ctx context.Context, in EventInput) (string,
 		Summary:     in.Summary,
 		Description: in.Description,
 		Location:    in.Location,
+		Category:    in.Category,
 		Start:       in.Start,
 		End:         in.End,
 		AllDay:      in.AllDay,
