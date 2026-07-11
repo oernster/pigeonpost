@@ -27,12 +27,13 @@ import {CloseChoiceDialog} from './components/CloseChoiceDialog'
 import {Splash} from './components/Splash'
 import {useEscapeToClose} from './components/useBackdropDismiss'
 import {Environment, EventsOn} from '../wailsjs/runtime'
-import {emlFilename, escapeHtml, neighbourAfterRemoval, subjectWithPrefix} from './messageText'
+import {emlFilename, escapeHtml, subjectWithPrefix} from './messageText'
 import {matchesShortcut} from './shortcuts'
 import {printDocument, printFrameId} from './print'
 import {focusRingElements, focusRingRoot, stepFocusRing, trapTab} from './focusRing'
 import {useMessageStore} from './hooks/useMessageStore'
 import {rangeIds, toggleId, useSelection} from './hooks/useSelection'
+import {useMessageActions} from './hooks/useMessageActions'
 
 // autoSyncIntervalMs is how often the folder on screen is refreshed from the server in the background,
 // so new mail in the open folder appears without a manual sync.
@@ -49,13 +50,14 @@ function App() {
     // The coupled core of the mail views (the folder list, the search results, the reader tabs and the
     // active message) lives in one hook, so an action updates a message wherever it appears. The three
     // lists are never split apart.
+    const store = useMessageStore()
     const {
         messages, setMessages,
         searchResults, setSearchResults,
         tabs, setTabs,
         selectedMessage, setSelectedMessage,
         applyToAllLists, removeFromAllLists,
-    } = useMessageStore()
+    } = store
     const [error, setError] = useState<string>('')
     const [syncingAccounts, setSyncingAccounts] = useState<Set<string>>(() => new Set<string>())
     const [outbox, setOutbox] = useState<OutboxItem[]>([])
@@ -104,10 +106,6 @@ function App() {
     const [messageBody, setMessageBody] = useState<MessageBody | null>(null)
     const [bodyLoading, setBodyLoading] = useState<boolean>(false)
     const [searchQuery, setSearchQuery] = useState<string>('')
-    const [messageToDelete, setMessageToDelete] = useState<Message | null>(null)
-    const [deletingMessage, setDeletingMessage] = useState<boolean>(false)
-    const [messageToPurge, setMessageToPurge] = useState<Message | null>(null)
-    const [purgingMessage, setPurgingMessage] = useState<boolean>(false)
     const [contextMenu, setContextMenu] = useState<{message: Message; x: number; y: number} | null>(null)
     // The multi-selection built by Ctrl and Shift gestures (the marked ids and the Shift-range anchor)
     // lives in its own hook. Empty marks mean single-select mode, where selectedMessage alone is selected.
@@ -359,6 +357,15 @@ function App() {
     useEffect(() => {
         void loadUnread()
     }, [loadUnread])
+
+    // The single-message actions (delete, move, flag, read, junk, copy) and their single-delete confirm
+    // state live in useMessageActions, wired to the message store and the loaders they need.
+    const {
+        messageToDelete, setMessageToDelete, deletingMessage,
+        messageToPurge, setMessageToPurge, purgingMessage,
+        requestDelete, deleteMessage, deletePermanent, toggleFlag, moveMessage, markJunk, copyMessage,
+        setReadState, toggleRead, markReadOnView,
+    } = useMessageActions({store, displayMessages, searchActive, selectedFolder, loadUnread, setError})
 
     // Ensure the fixed colour palette exists as tags, so a colour can be applied and its swatch shown. The
     // writes are sequential and only fill in missing colours, because SQLite is single-writer and firing
@@ -729,63 +736,6 @@ function App() {
         }
     }, [accountToDelete, selectedAccount, loadAccounts])
 
-    const deleteMessage = useCallback(async () => {
-        if (!messageToDelete) {
-            return
-        }
-        const id = messageToDelete.id
-        const list = searchActive ? searchResults : displayMessages
-        const next = neighbourAfterRemoval(list, id)
-        setDeletingMessage(true)
-        setError('')
-        try {
-            await api.deleteMessage(id)
-            setMessages((prev) => prev.filter((m) => m.id !== id))
-            setSearchResults((prev) => prev.filter((m) => m.id !== id))
-            setTabs((prev) => prev.filter((m) => m.id !== id))
-            setSelectedMessage((prev) => (prev?.id === id ? next : prev))
-            setMessageToDelete(null)
-            await loadUnread()
-        } catch (e) {
-            setError(String(e))
-        } finally {
-            setDeletingMessage(false)
-        }
-    }, [messageToDelete, searchActive, searchResults, displayMessages, loadUnread])
-
-    // deletePermanent is the confirmed, irreversible delete behind Shift+Delete: it removes the message
-    // from the server without moving it to Trash, then advances the selection.
-    const deletePermanent = useCallback(async () => {
-        if (!messageToPurge) {
-            return
-        }
-        const id = messageToPurge.id
-        const list = searchActive ? searchResults : displayMessages
-        const next = neighbourAfterRemoval(list, id)
-        setPurgingMessage(true)
-        setError('')
-        try {
-            await api.deleteMessagePermanent(id)
-            setMessages((prev) => prev.filter((m) => m.id !== id))
-            setSearchResults((prev) => prev.filter((m) => m.id !== id))
-            setTabs((prev) => prev.filter((m) => m.id !== id))
-            setSelectedMessage((prev) => (prev?.id === id ? next : prev))
-            setMessageToPurge(null)
-            await loadUnread()
-        } catch (e) {
-            setError(String(e))
-        } finally {
-            setPurgingMessage(false)
-        }
-    }, [messageToPurge, searchActive, searchResults, displayMessages, loadUnread])
-
-    // requestDelete always asks for confirmation before deleting. The confirmed delete moves the
-    // message to Trash where the account has one, or removes it permanently otherwise (the dialog says
-    // which). Shared by the Delete key and the context menu.
-    const requestDelete = useCallback((message: Message) => {
-        setMessageToDelete(message)
-    }, [])
-
     const closeContextMenu = useCallback(() => setContextMenu(null), [])
 
     // selectMessage highlights a message. With the reading pane on it shows in the preview (and the view
@@ -935,67 +885,6 @@ function App() {
             }
             document.body.appendChild(frame)
             frame.srcdoc = doc
-        } catch (e) {
-            setError(String(e))
-        }
-    }, [])
-
-    const toggleFlag = useCallback(async (message: Message) => {
-        const next = !message.flagged
-        setError('')
-        try {
-            await api.markFlagged(message.id, next)
-            const apply = (m: Message): Message => (m.id === message.id ? {...m, flagged: next} : m)
-            setMessages((prev) => prev.map(apply))
-            setSearchResults((prev) => prev.map(apply))
-            setSelectedMessage((prev) => (prev && prev.id === message.id ? {...prev, flagged: next} : prev))
-        } catch (e) {
-            setError(String(e))
-        }
-    }, [])
-
-    // moveMessageById moves a message to a folder by id, used by both the menu (via moveMessage) and
-    // drag-and-drop. A no-op when the message is dropped on the folder it already lives in.
-    const moveMessageById = useCallback(async (messageId: string, destFolderId: string) => {
-        setError('')
-        try {
-            await api.moveMessage(messageId, destFolderId)
-            removeFromAllLists(new Set([messageId]))
-        } catch (e) {
-            setError(String(e))
-        }
-    }, [removeFromAllLists])
-
-    const moveMessage = useCallback(
-        (message: Message, destFolderId: string) => moveMessageById(message.id, destFolderId),
-        [moveMessageById],
-    )
-
-    // markJunk files a message into the account's Junk folder and removes it from the current view,
-    // advancing the selection and refreshing the unread counts as a move out of the inbox does.
-    const markJunk = useCallback(async (message: Message) => {
-        const id = message.id
-        const list = searchActive ? searchResults : displayMessages
-        const next = neighbourAfterRemoval(list, id)
-        setError('')
-        try {
-            await api.markJunk(id)
-            setMessages((prev) => prev.filter((m) => m.id !== id))
-            setSearchResults((prev) => prev.filter((m) => m.id !== id))
-            setTabs((prev) => prev.filter((m) => m.id !== id))
-            setSelectedMessage((prev) => (prev?.id === id ? next : prev))
-            await loadUnread()
-        } catch (e) {
-            setError(String(e))
-        }
-    }, [searchActive, searchResults, displayMessages, loadUnread])
-
-    // Copy leaves the original in place; the duplicate appears in the destination folder on next sync,
-    // so there is no local list change to make here.
-    const copyMessage = useCallback(async (message: Message, destFolderId: string) => {
-        setError('')
-        try {
-            await api.copyMessage(message.id, destFolderId)
         } catch (e) {
             setError(String(e))
         }
@@ -1259,18 +1148,6 @@ function App() {
         return () => off()
     }, [loadEvents])
 
-    // setReadState sets a message's read flag on the server and optimistically in the on-screen lists,
-    // so it bolds or un-bolds at once. Used by the Mark submenu (explicit read/unread) and on view.
-    const setReadState = useCallback(async (message: Message, read: boolean) => {
-        applyToAllLists((m) => (m.id === message.id ? {...m, read} : m))
-        try {
-            await api.markRead(message.id, read)
-            await loadUnread()
-        } catch (e) {
-            setError(String(e))
-        }
-    }, [applyToAllLists, loadUnread])
-
     // removeIdsFromLists drops a set of message ids from every on-screen list and the selection after a
     // bulk delete or move, and clears the active message if it was among them. All the setters are stable,
     // so it needs no dependencies.
@@ -1405,13 +1282,6 @@ function App() {
         void bulkMoveIds(ids, destFolderId)
     }, [bulkMoveIds])
 
-    // markReadOnView marks a message read when it is displayed, unless it already is.
-    const markReadOnView = useCallback((message: Message) => {
-        if (!message.read) {
-            void setReadState(message, true)
-        }
-    }, [setReadState])
-
     // Persist the reading-pane preference so it survives a restart.
     useEffect(() => {
         try {
@@ -1439,19 +1309,6 @@ function App() {
             void markReadOnView(selectedMessage)
         }
     }, [selectedMessage, previewEnabled, readingFull, markReadOnView])
-
-    const toggleRead = useCallback(async (message: Message) => {
-        try {
-            await api.markRead(message.id, !message.read)
-            if (selectedFolder) {
-                const refreshed = await api.listMessages(selectedFolder)
-                setMessages(refreshed)
-                setSelectedMessage(refreshed.find((m) => m.id === message.id) ?? null)
-            }
-        } catch (e) {
-            setError(String(e))
-        }
-    }, [selectedFolder])
 
     // Keyboard control for the message list: Arrow Up/Down move the selection, Delete asks to delete
     // the selected message (to Trash where possible), and Shift+Delete asks to delete it permanently.

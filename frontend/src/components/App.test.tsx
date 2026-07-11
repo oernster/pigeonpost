@@ -288,3 +288,47 @@ describe('App: multi-selection gestures', () => {
         expect(await screen.findByText('3 messages selected')).toBeInTheDocument()
     })
 })
+
+// The single-message actions that Phase 3.3 moves into useMessageActions. Delete and read are already
+// covered above; these pin flag, move and junk.
+describe('App: single-message actions', () => {
+    it('stars a message from its row (toggleFlag)', async () => {
+        apiSpies.listAccounts.mockResolvedValue([makeAccount()])
+        apiSpies.listFolders.mockResolvedValue([makeFolder('inbox', 'Inbox', 'inbox')])
+        apiSpies.listMessages.mockResolvedValue([makeMessage({subject: 'Weekly report', flagged: false})])
+        render(<App/>)
+        await screen.findByText('Weekly report')
+        // The row star toggles the flag without selecting the message.
+        fireEvent.click(screen.getByRole('button', {name: 'Add star'}))
+        await waitFor(() => expect(apiSpies.markFlagged).toHaveBeenCalledWith('m1', true))
+    })
+
+    it('moves a message via the Mail menu Move to submenu (moveMessage)', async () => {
+        apiSpies.listAccounts.mockResolvedValue([makeAccount()])
+        apiSpies.listFolders.mockResolvedValue([
+            makeFolder('inbox', 'Inbox', 'inbox'),
+            makeFolder('archive', 'Archive', 'custom'),
+        ])
+        apiSpies.listMessages.mockResolvedValue([makeMessage({subject: 'Weekly report'})])
+        render(<App/>)
+        fireEvent.click(await screen.findByText('Weekly report'))
+        fireEvent.click(screen.getByRole('button', {name: 'Mail'}))
+        // Enter opens the Move to flyout, then its Archive child fires the move.
+        fireEvent.keyDown(screen.getByRole('menuitem', {name: 'Move to'}), {key: 'Enter'})
+        fireEvent.click(screen.getByRole('menuitem', {name: 'Archive'}))
+        await waitFor(() => expect(apiSpies.moveMessage).toHaveBeenCalledWith('m1', 'archive'))
+        await waitFor(() => expect(screen.queryByText('Weekly report')).not.toBeInTheDocument())
+    })
+
+    it('marks a message as junk from the Mail menu (markJunk)', async () => {
+        apiSpies.listAccounts.mockResolvedValue([makeAccount()])
+        apiSpies.listFolders.mockResolvedValue([makeFolder('inbox', 'Inbox', 'inbox')])
+        apiSpies.listMessages.mockResolvedValue([makeMessage({subject: 'Weekly report'})])
+        render(<App/>)
+        fireEvent.click(await screen.findByText('Weekly report'))
+        fireEvent.click(screen.getByRole('button', {name: 'Mail'}))
+        fireEvent.click(screen.getByRole('menuitem', {name: 'Mark as junk'}))
+        await waitFor(() => expect(apiSpies.markJunk).toHaveBeenCalledWith('m1'))
+        await waitFor(() => expect(screen.queryByText('Weekly report')).not.toBeInTheDocument())
+    })
+})
