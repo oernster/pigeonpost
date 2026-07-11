@@ -164,6 +164,20 @@ describe('App: mount and splash', () => {
         )
         expect(screen.getByText(/Add a mail account to start/)).toBeInTheDocument()
     })
+
+    // The welcome empty state moves into WelcomeScreen.tsx (Phase 3.15). The render is pinned above; this pins
+    // its one action, the Add account button, which opens account setup. It is scoped to the welcome card
+    // because the titlebar also carries an Add account control.
+    it('opens account setup from the welcome Add account button (WelcomeScreen)', async () => {
+        const {container} = render(<App/>)
+        await waitFor(
+            () => expect(screen.getByText('Welcome to PigeonPost')).toBeInTheDocument(),
+            {timeout: 3000},
+        )
+        const card = container.querySelector('.empty-card') as HTMLElement
+        fireEvent.click(within(card).getByRole('button', {name: 'Add account'}))
+        expect(await screen.findByRole('dialog', {name: 'Add account'})).toBeInTheDocument()
+    })
 })
 
 describe('App: account and folder cascade', () => {

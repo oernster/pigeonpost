@@ -1,6 +1,5 @@
 import {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from 'react'
 import './App.css'
-import brandIcon from './assets/pigeonpost.png'
 import {AboutInfo, api, CalendarEvent, Contact, Message, MessageBody, Rule, UnreadCountsResult} from './api'
 import {OUTBOX_FOLDER_ID, isOutboxMessage, outboxItemToMessage} from './outbox'
 import {applyTheme, loadTheme, Theme} from './theme'
@@ -10,6 +9,7 @@ import {MessageContextMenu} from './components/MessageContextMenu'
 import {Reader} from './components/Reader'
 import {EmailViewerModal} from './components/EmailViewerModal'
 import {TitleBar} from './components/TitleBar'
+import {WelcomeScreen} from './components/WelcomeScreen'
 import {AboutModal} from './components/AboutModal'
 import {LicenceModal} from './components/LicenceModal'
 import {arrangeByConversation, sortByDate} from './threads'
@@ -978,14 +978,7 @@ function App() {
             />
             {error && <div className="error-bar" role="alert">{error}</div>}
             {accounts.length === 0 && !splashVisible ? (
-                <div className="empty-state welcome">
-                    <img className="welcome-brand" src={brandIcon} alt="" aria-hidden="true"/>
-                    <div className="empty-card">
-                        <h2>Welcome to PigeonPost</h2>
-                        <p>Add a mail account to start reading and sending messages.</p>
-                        <button className="btn primary" onClick={() => setSettingUp(true)}>Add account</button>
-                    </div>
-                </div>
+                <WelcomeScreen setSettingUp={setSettingUp}/>
             ) : (
             <div className={'panes' + (previewEnabled ? '' : ' no-preview')}>
                 <Sidebar
