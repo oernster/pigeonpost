@@ -1,5 +1,5 @@
 import {useEffect, useRef, useState} from 'react'
-import {api, Calendar, CalendarEvent, CalendarEventInput, CalendarEventInstance, EventScope} from '../api'
+import {api, CalendarEvent, CalendarEventInput, CalendarEventInstance, EventScope} from '../api'
 import {browserZone, instantToZonedWall, zonedWallToISO, zoneOptions} from '../tz'
 import {ModalClose} from './ModalClose'
 import {ConfirmDialog} from './ConfirmDialog'
@@ -33,6 +33,8 @@ import {
     type ViewMode,
 } from '../calendarModel'
 import {useEventInstances} from '../hooks/useEventInstances'
+import {useCalendars} from '../hooks/useCalendars'
+import {CalendarsManager} from './CalendarsManager'
 
 
 // AttendeeRow is one invited party held in the edit form. It mirrors the fields the backend persists so a
@@ -116,10 +118,12 @@ export function CalendarModal({events, accountId, accountEmail, accountName, ini
     const [error, setError] = useState('')
     const [status, setStatus] = useState('')
     const [busy, setBusy] = useState(false)
-    const [calendars, setCalendars] = useState<Calendar[]>([])
-    const [managingCals, setManagingCals] = useState(false)
-    const [calForm, setCalForm] = useState<{id: string; name: string; colour: string} | null>(null)
-    const [pendingCalDelete, setPendingCalDelete] = useState<Calendar | null>(null)
+    // The calendars sub-feature (the list, the manager's open state, the calendar being edited and the one
+    // pending deletion, plus save and delete) is its own hook; the list colours events and seeds a new event.
+    const {
+        calendars, managingCals, setManagingCals, calForm, setCalForm, saveCal,
+        pendingCalDelete, setPendingCalDelete, confirmCalDelete,
+    } = useCalendars({setError, setBusy, onChanged})
     // pendingOpenId is an event whose dialog should open once its occurrence has loaded, set when the
     // calendar is opened from a reminder. It is cleared once the dialog opens.
     const [pendingOpenId, setPendingOpenId] = useState<string | null>(initialEventId ?? null)
@@ -133,50 +137,11 @@ export function CalendarModal({events, accountId, accountEmail, accountName, ini
     useEscapeToClose(() => setForm(null), form !== null)
     useEscapeToClose(() => setManagingCals(false), managingCals)
 
-    const reloadCalendars = () =>
-        void api.listCalendars().then(setCalendars).catch((e) => setError(String(e)))
-    useEffect(() => {
-        reloadCalendars()
-    }, [])
-
     // colourOf resolves an event's colour from its calendar, falling back to the default for events with
     // no calendar. The map is rebuilt each render, which is cheap for the handful of calendars a user has.
     const colourById = new Map(calendars.map((c) => [c.id, c.colour || DEFAULT_EVENT_COLOUR]))
     const colourOf = (e: CalendarEvent) => colourById.get(e.calendarId) ?? DEFAULT_EVENT_COLOUR
     const defaultCalendarId = () => calendars[0]?.id ?? ''
-
-    const saveCal = async () => {
-        if (!calForm || calForm.name.trim() === '') return
-        setBusy(true)
-        setError('')
-        try {
-            await api.saveCalendar({id: calForm.id, name: calForm.name.trim(), colour: calForm.colour})
-            setCalForm(null)
-            reloadCalendars()
-        } catch (e) {
-            setError(String(e))
-        } finally {
-            setBusy(false)
-        }
-    }
-
-    const confirmCalDelete = async () => {
-        if (!pendingCalDelete) return
-        setBusy(true)
-        setError('')
-        try {
-            // Deleting a calendar deletes its events too, so refresh the event list as well.
-            await api.deleteCalendar(pendingCalDelete.id)
-            if (calForm && calForm.id === pendingCalDelete.id) setCalForm(null)
-            setPendingCalDelete(null)
-            reloadCalendars()
-            onChanged()
-        } catch (e) {
-            setError(String(e))
-        } finally {
-            setBusy(false)
-        }
-    }
 
     const cells = monthCells(viewDate)
     const datedInstances = instances.map((i) => ({i, start: new Date(i.start)}))
@@ -852,74 +817,19 @@ export function CalendarModal({events, accountId, accountEmail, accountName, ini
             )}
 
             {managingCals && (
-                <div className="modal-backdrop">
-                    <div className="modal event-form" role="dialog" aria-label="Calendars"
-                         onClick={(e) => e.stopPropagation()}>
-                        <ModalClose onClose={() => {
-                            setManagingCals(false)
-                            setCalForm(null)
-                        }}/>
-                        <h2 className="modal-title">Calendars</h2>
-                        <p className="setup-hint">Calendars group your events and colour them across every view.</p>
-                        <div className="cg-bar">
-                            {calendars.map((c) => (
-                                <button key={c.id} className="cg-chip"
-                                        onClick={() => setCalForm({id: c.id, name: c.name, colour: c.colour || DEFAULT_EVENT_COLOUR})}>
-                                    <span className="cal-swatch" style={{background: c.colour || DEFAULT_EVENT_COLOUR}}/>
-                                    {c.name}
-                                </button>
-                            ))}
-                            <button className="cg-chip"
-                                    onClick={() => setCalForm({id: '', name: '', colour: DEFAULT_EVENT_COLOUR})}>
-                                + New calendar
-                            </button>
-                        </div>
-                        {calForm && (
-                            <div className="rule-form">
-                                <div className="rule-form-row">
-                                    <input type="color" className="cal-colour" aria-label="Calendar colour"
-                                           value={calForm.colour}
-                                           onChange={(e) => setCalForm((cf) => cf ? {...cf, colour: e.target.value} : cf)}/>
-                                    <input className="tag-name-input" placeholder="Calendar name" value={calForm.name}
-                                           autoFocus
-                                           onChange={(e) => setCalForm((cf) => cf ? {...cf, name: e.target.value} : cf)}/>
-                                </div>
-                                <div className="modal-actions spread">
-                                    <span>
-                                        {calForm.id && (
-                                            <button className="btn danger" onClick={() => {
-                                                const c = calendars.find((x) => x.id === calForm.id)
-                                                if (c) setPendingCalDelete(c)
-                                            }}>Delete</button>
-                                        )}
-                                    </span>
-                                    <span className="cal-form-actions">
-                                        <button className="btn" onClick={() => setCalForm(null)}>Cancel</button>
-                                        <button className="btn primary" onClick={() => void saveCal()}
-                                                disabled={busy || calForm.name.trim() === ''}>
-                                            {busy ? 'Saving…' : (calForm.id ? 'Save calendar' : 'Add calendar')}
-                                        </button>
-                                    </span>
-                                </div>
-                            </div>
-                        )}
-                        {!calForm && (
-                            <div className="modal-actions spread">
-                                <button className="btn" onClick={() => setManagingCals(false)}>Done</button>
-                            </div>
-                        )}
-                    </div>
-                </div>
-            )}
-
-            {pendingCalDelete && (
-                <ConfirmDialog
-                    title="Delete calendar"
-                    message={`Delete the calendar "${pendingCalDelete.name}"? Its events are deleted too. This cannot be undone.`}
-                    confirmLabel="Delete"
+                <CalendarsManager
+                    calendars={calendars}
+                    calForm={calForm}
+                    setCalForm={setCalForm}
+                    pendingCalDelete={pendingCalDelete}
+                    setPendingCalDelete={setPendingCalDelete}
+                    saveCal={saveCal}
+                    confirmCalDelete={confirmCalDelete}
+                    onClose={() => {
+                        setManagingCals(false)
+                        setCalForm(null)
+                    }}
                     busy={busy}
-                    onConfirm={() => void confirmCalDelete()}
-                    onCancel={() => setPendingCalDelete(null)}
                 />
             )}
         </div>
