@@ -552,3 +552,31 @@ describe('App: backend events', () => {
         expect(apiSpies.unreadCounts).toHaveBeenCalled()
     })
 })
+
+// The menu definitions and the accelerator effect that Phase 3.13 moves into useMenus. The menu-item onClick
+// paths are already characterized (Move to, Mark as junk, Tag with colour, Reading pane); these pin the two
+// pieces unique to this step: the Ctrl+N accelerator (menuShortcutsRef + matchesShortcut) and an uncovered
+// File-menu item.
+describe('App: menus', () => {
+    it('opens the composer via the Ctrl+N menu accelerator (useMenus)', async () => {
+        apiSpies.listAccounts.mockResolvedValue([makeAccount()])
+        apiSpies.listFolders.mockResolvedValue([makeFolder('inbox', 'Inbox', 'inbox')])
+        render(<App/>)
+        // Wait for the account to auto-select so the Compose accelerator is enabled (it needs a selected account).
+        await waitFor(() => expect(apiSpies.listFolders).toHaveBeenCalledWith('acc1'))
+        fireEvent.keyDown(document.body, {key: 'n', ctrlKey: true})
+        expect(await screen.findByRole('dialog', {name: 'New message'})).toBeInTheDocument()
+    })
+
+    it('saves the selected message as .eml from the File menu (useMenus)', async () => {
+        apiSpies.listAccounts.mockResolvedValue([makeAccount()])
+        apiSpies.listFolders.mockResolvedValue([makeFolder('inbox', 'Inbox', 'inbox')])
+        apiSpies.listMessages.mockResolvedValue([makeMessage({subject: 'Weekly report'})])
+        render(<App/>)
+        // Save as is gated on a selected message, so open one first.
+        fireEvent.click(await screen.findByText('Weekly report'))
+        fireEvent.click(screen.getByRole('button', {name: 'File'}))
+        fireEvent.click(screen.getByRole('menuitem', {name: 'Save as...'}))
+        await waitFor(() => expect(apiSpies.saveMessageAs).toHaveBeenCalledWith('m1', expect.any(String)))
+    })
+})

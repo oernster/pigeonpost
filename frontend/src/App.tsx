@@ -4,13 +4,12 @@ import brandIcon from './assets/pigeonpost.png'
 import {AboutInfo, api, CalendarEvent, Contact, Message, MessageBody, Rule, UnreadCountsResult} from './api'
 import {OUTBOX_FOLDER_ID, isOutboxMessage, outboxItemToMessage} from './outbox'
 import {applyTheme, loadTheme, Theme} from './theme'
-import {TAG_PALETTE, colourTagId} from './tagColours'
 import {Sidebar} from './components/Sidebar'
 import {MessageList} from './components/MessageList'
 import {MessageContextMenu} from './components/MessageContextMenu'
 import {Reader} from './components/Reader'
 import {EmailViewerModal} from './components/EmailViewerModal'
-import {Menu, MenuItem} from './components/Menu'
+import {Menu} from './components/Menu'
 import {AboutModal} from './components/AboutModal'
 import {LicenceModal} from './components/LicenceModal'
 import {arrangeByConversation, sortByDate} from './threads'
@@ -26,7 +25,6 @@ import {ReminderNotifications} from './components/ReminderNotifications'
 import {CloseChoiceDialog} from './components/CloseChoiceDialog'
 import {Splash} from './components/Splash'
 import {emlFilename, escapeHtml} from './messageText'
-import {matchesShortcut} from './shortcuts'
 import {sendersFor} from './replyDraft'
 import {printDocument, printFrameId} from './print'
 import {focusRingElements, focusRingRoot, stepFocusRing, trapTab} from './focusRing'
@@ -42,6 +40,7 @@ import {useSync} from './hooks/useSync'
 import {useTags} from './hooks/useTags'
 import {useComposeLauncher} from './hooks/useComposeLauncher'
 import {useAppEvents} from './hooks/useAppEvents'
+import {useMenus} from './hooks/useMenus'
 
 function App() {
     const [selectedAccount, setSelectedAccount] = useState<string>('')
@@ -117,9 +116,6 @@ function App() {
     // listener reclaims the anchor when the WebView gains focus (and only while nothing else holds it, so
     // it never steals focus once the user has started navigating).
     const neutralFocusRef = useRef<HTMLSpanElement>(null)
-    // menuShortcutsRef holds the current menu items so the global accelerator handler always sees the
-    // latest labels, enabled state and callbacks without re-binding its listener on every render.
-    const menuShortcutsRef = useRef<MenuItem[]>([])
     useEffect(() => {
         const claimNeutralFocus = () => {
             const active = document.activeElement
@@ -824,27 +820,6 @@ function App() {
         contextMenu, messageToCancelSend, bulkToDelete, bulkToPurge, togglePreview, folders,
     ])
 
-    // Menu accelerators (Compose, Sync, the reading pane and any others defined on the menus) fire from
-    // anywhere in the main window, driven by the same item definitions the menus render so an item's hint
-    // and its wired key never drift. They are suppressed while a dialog or the context menu is open, so a
-    // shortcut never acts behind one. A disabled item (Compose with no account selected, say) is skipped.
-    useEffect(() => {
-        const onKey = (e: KeyboardEvent) => {
-            if (document.querySelector('.modal, .context-menu') !== null) {
-                return
-            }
-            for (const item of menuShortcutsRef.current) {
-                if (item.shortcut && !item.disabled && item.onClick && matchesShortcut(e, item.shortcut)) {
-                    e.preventDefault()
-                    item.onClick()
-                    return
-                }
-            }
-        }
-        window.addEventListener('keydown', onKey)
-        return () => window.removeEventListener('keydown', onKey)
-    }, [])
-
     // A POP3 account has a single downloaded inbox with no server-side folders, message moves or draft
     // mailbox, so those actions are hidden and a delete is permanent rather than a move to Trash.
     const activeAccount = accounts.find((a) => a.id === selectedAccount)
@@ -935,148 +910,19 @@ function App() {
     const canReplyAll = canMailAct && activeMessage
         ? ((activeMessage.to?.length ?? 0) + (activeMessage.cc?.length ?? 0)) > 0
         : false
-    const mailMoveTargets = activeMessage ? folders.filter((f) => f.id !== activeMessage.folderId) : []
-    const appliedTagIds = new Set(messageTags.map((t) => t.id))
-    const fileMenu: MenuItem[] = [
-        {
-            label: 'Save as...',
-            disabled: !canMailAct,
-            onClick: () => activeMessage && void saveMessageAs(activeMessage),
-        },
-        {
-            label: 'Print...',
-            disabled: !canMailAct,
-            onClick: () => activeMessage && void printMessage(activeMessage),
-        },
-    ]
-    const editMenu: MenuItem[] = [
-        {
-            label: 'Rules',
-            icon: '\u{1F4CF}',
-            onClick: () => setManagingRules(true),
-        },
-    ]
-    const viewMenu: MenuItem[] = [
-        {
-            label: 'Conversation view',
-            checked: conversationView,
-            onClick: toggleConversationView,
-        },
-        {
-            label: 'Reading pane',
-            shortcut: 'F8',
-            checked: previewEnabled,
-            onClick: togglePreview,
-        },
-    ]
-    const mailMenu: MenuItem[] = [
-        {
-            label: 'Compose',
-            shortcut: 'Ctrl+N',
-            disabled: !selectedAccount,
-            onClick: () => {
-                const sig = signatureHtml()
-                setComposeInitial(sig ? {bodyHtml: `<p></p>${sig}`} : undefined)
-                setComposing(true)
-            },
-        },
-        {
-            label: 'Add account',
-            onClick: () => setSettingUp(true),
-        },
-        {
-            label: accountSyncing ? 'Synchronising…' : 'Sync',
-            shortcut: 'F9',
-            disabled: !selectedAccount || accountSyncing,
-            onClick: () => void sync(),
-        },
-        ...(isWindows
-            ? [{
-                label: 'Set as default for .eml...',
-                icon: '\u{1F4CC}',
-                onClick: () => void api.showDefaultAppSettings(),
-            }]
-            : []),
-        {label: '', separator: true},
-        {label: 'Open in new tab', disabled: !canMailAct, onClick: () => activeMessage && openInNewTab(activeMessage)},
-        {label: '', separator: true},
-        {
-            label: 'Respond',
-            icon: '\u{21A9}\u{FE0F}',
-            disabled: !canMailAct,
-            submenu: [
-                {label: 'Reply', icon: '\u{21A9}\u{FE0F}', disabled: !canMailAct, onClick: () => activeMessage && openReply(activeMessage)},
-                {label: 'Reply all', icon: '\u{1F465}', disabled: !canReplyAll, onClick: () => activeMessage && openReplyAll(activeMessage)},
-                {label: 'Forward', icon: '\u{21AA}\u{FE0F}', disabled: !canMailAct, onClick: () => activeMessage && openForward(activeMessage)},
-                {
-                    label: 'Attach to new message',
-                    icon: '\u{1F4CE}',
-                    disabled: !canMailAct,
-                    onClick: () => activeMessage && attachToNewMessage(activeMessage),
-                },
-            ],
-        },
-        {label: '', separator: true},
-        {
-            label: activeMessage?.read ? 'Mark as unread' : 'Mark as read',
-            disabled: !canMailAct,
-            onClick: () => activeMessage && void setReadState(activeMessage, !activeMessage.read),
-        },
-        {
-            label: activeMessage?.flagged ? 'Remove star' : 'Add star',
-            disabled: !canMailAct,
-            onClick: () => activeMessage && void toggleFlag(activeMessage),
-        },
-        {
-            label: 'Tag with colour',
-            disabled: !canMailAct,
-            submenu: TAG_PALETTE.map((c) => {
-                const id = colourTagId(c.colour)
-                const on = appliedTagIds.has(id)
-                return {label: c.name, swatch: c.colour, checked: on, onClick: () => void toggleTag(id, !on)}
-            }),
-        },
-        {label: '', separator: true},
-        {
-            label: 'Move to',
-            disabled: !canMailAct || isPop3 || mailMoveTargets.length === 0,
-            submenu: mailMoveTargets.map((f) => ({
-                label: f.name,
-                onClick: () => activeMessage && void moveMessage(activeMessage, f.id),
-            })),
-        },
-        {
-            label: 'Copy to',
-            disabled: !canMailAct || isPop3 || mailMoveTargets.length === 0,
-            submenu: mailMoveTargets.map((f) => ({
-                label: f.name,
-                onClick: () => activeMessage && void copyMessage(activeMessage, f.id),
-            })),
-        },
-        {
-            label: 'Mark as junk',
-            disabled: !canMailAct || isPop3,
-            onClick: () => activeMessage && void markJunk(activeMessage),
-        },
-        {label: '', separator: true},
-        {
-            label: 'Cancel send',
-            disabled: !activeOutbox,
-            onClick: () => activeMessage && setMessageToCancelSend(activeMessage),
-        },
-        {label: 'Delete', disabled: !canMailAct, onClick: () => activeMessage && requestDelete(activeMessage)},
-        {
-            label: 'Delete permanently',
-            disabled: !canMailAct,
-            onClick: () => activeMessage && setMessageToPurge(activeMessage),
-        },
-    ]
-    const helpMenu: MenuItem[] = [
-        {label: 'About PigeonPost', onClick: () => void showAbout()},
-        {label: 'Licence', onClick: () => void showLicence()},
-        {label: 'Check for Updates', onClick: checkUpdates},
-    ]
-    menuShortcutsRef.current = [...fileMenu, ...editMenu, ...viewMenu, ...mailMenu, ...helpMenu]
+    // The five menu-bar definitions and the keyboard accelerators that fire the same items from anywhere in
+    // the window live in useMenus. It takes the derived gating flags (shared with the titlebar) plus every
+    // action handler, and returns the arrays the Menu components render. mailMoveTargets and the applied-tag
+    // set are computed inside it.
+    const {fileMenu, editMenu, viewMenu, mailMenu, helpMenu} = useMenus({
+        activeMessage, activeOutbox, canMailAct, canReplyAll, isPop3, selectedAccount, accountSyncing,
+        isWindows, conversationView, previewEnabled, folders, messageTags,
+        saveMessageAs, printMessage, setManagingRules, toggleConversationView, togglePreview,
+        signatureHtml, setComposeInitial, setComposing, setSettingUp, sync, openInNewTab,
+        openReply, openReplyAll, openForward, attachToNewMessage, setReadState, toggleFlag, toggleTag,
+        moveMessage, copyMessage, markJunk, setMessageToCancelSend, requestDelete, setMessageToPurge,
+        showAbout, showLicence, checkUpdates,
+    })
 
     return (
         <div className="app">
