@@ -11,6 +11,7 @@ import {EmailViewerModal} from './components/EmailViewerModal'
 import {TitleBar} from './components/TitleBar'
 import {WelcomeScreen} from './components/WelcomeScreen'
 import {SelectionSummary} from './components/SelectionSummary'
+import {DraftRecoveryDialog} from './components/DraftRecoveryDialog'
 import {AboutModal} from './components/AboutModal'
 import {LicenceModal} from './components/LicenceModal'
 import {arrangeByConversation, sortByDate} from './threads'
@@ -1047,20 +1048,12 @@ function App() {
                 />
             )}
             {recovery && !composing && (
-                <div className="modal-backdrop" onClick={() => setRecovery(null)}>
-                    <div className="modal confirm" role="alertdialog" aria-label="Restore unsent message"
-                         onClick={(e) => e.stopPropagation()}>
-                        <h2 className="modal-title">Restore unsent message?</h2>
-                        <p className="confirm-message">
-                            An unsent message{recovery.subject.trim() ? ` "${recovery.subject.trim()}"` : ''} was
-                            left open when PigeonPost last closed. Restore it to keep writing, or discard it.
-                        </p>
-                        <div className="modal-actions spread">
-                            <button className="btn danger" onClick={discardDraft}>Discard</button>
-                            <button className="btn primary" onClick={restoreDraft} autoFocus>Restore</button>
-                        </div>
-                    </div>
-                </div>
+                <DraftRecoveryDialog
+                    recovery={recovery}
+                    setRecovery={setRecovery}
+                    discardDraft={discardDraft}
+                    restoreDraft={restoreDraft}
+                />
             )}
             {settingUp && (
                 <AccountSetupModal onClose={() => setSettingUp(false)} onSaved={(email) => void onAccountSaved(email)}/>

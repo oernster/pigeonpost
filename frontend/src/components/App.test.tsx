@@ -532,6 +532,19 @@ describe('App: composing', () => {
         await waitFor(() => expect(apiSpies.clearDraftRecovery).toHaveBeenCalled())
         expect(screen.queryByRole('alertdialog', {name: 'Restore unsent message'})).not.toBeInTheDocument()
     })
+
+    // The recovery modal moves into DraftRecoveryDialog.tsx (Phase 3.17); the Restore and Discard paths are
+    // pinned above. This pins its one bit of render logic, quoting the saved subject in the prompt.
+    it('names the unsent message subject in the recovery prompt (DraftRecoveryDialog)', async () => {
+        apiSpies.listAccounts.mockResolvedValue([makeAccount()])
+        apiSpies.draftRecovery.mockResolvedValue({
+            present: true, accountId: 'acc1', to: 'bob@example.com', cc: '', bcc: '',
+            subject: 'Half-written', bodyHtml: '<p>draft</p>', savedMs: 0,
+        })
+        render(<App/>)
+        const dialog = await screen.findByRole('alertdialog', {name: 'Restore unsent message'})
+        expect(within(dialog).getByText(/An unsent message "Half-written" was/)).toBeInTheDocument()
+    })
 })
 
 // The backend-event wiring that Phase 3.12 moves into useAppEvents: the tray menu and app:close-request, the
