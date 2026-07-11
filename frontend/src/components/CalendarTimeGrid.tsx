@@ -1,5 +1,6 @@
 import {useEffect, useRef} from 'react'
 import {CalendarEvent, CalendarEventInstance} from '../api'
+import {categoryEmoji} from '../categories'
 
 const HOURS_IN_DAY = 24
 const MINUTES_IN_HOUR = 60
@@ -144,7 +145,7 @@ export function CalendarTimeGrid({days, instances, colourOf, onNewAt, onEdit}: C
                                 {allDayFor(d, instances).map((inst) => (
                                     <button key={occurrenceKey(inst)} className="tg-allday-ev" title={inst.event.summary}
                                             style={{borderLeft: `3px solid ${colourOf(inst.event)}`}}
-                                            onClick={() => onEdit(inst)}>{inst.event.summary}</button>
+                                            onClick={() => onEdit(inst)}>{categoryEmoji(inst.event.category) && `${categoryEmoji(inst.event.category)} `}{inst.event.summary}</button>
                                 ))}
                             </div>
                         ))}
@@ -177,7 +178,7 @@ export function CalendarTimeGrid({days, instances, colourOf, onNewAt, onEdit}: C
                                                     evt.stopPropagation()
                                                     onEdit(p.inst)
                                                 }}>
-                                            {hhmm(p.startMin)} {p.inst.event.summary}
+                                            {hhmm(p.startMin)} {categoryEmoji(p.inst.event.category) && `${categoryEmoji(p.inst.event.category)} `}{p.inst.event.summary}
                                         </button>
                                     )
                                 })}
