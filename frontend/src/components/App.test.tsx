@@ -12,7 +12,7 @@
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 import {cleanup, fireEvent, render, screen, waitFor, within} from '@testing-library/react'
 import App from '../App'
-import type {Account, Folder, Message} from '../api'
+import type {Account, Folder, Message, OutboxItem} from '../api'
 
 const apiSpies = vi.hoisted(() => ({
     version: vi.fn(), author: vi.fn(),
@@ -78,6 +78,14 @@ function makeMessage(overrides: Partial<Message> = {}): Message {
         hasAttachments: false, snippet: 'A short snippet', tagColours: [],
         ...overrides,
     } as Message
+}
+
+function makeOutboxItem(overrides: Partial<OutboxItem> = {}): OutboxItem {
+    return {
+        id: 'ob1', accountId: 'acc1', to: ['bob@example.com'], subject: 'Queued note',
+        body: 'Body text', failed: false, failure: '', createdMs: 0,
+        ...overrides,
+    } as OutboxItem
 }
 
 // Fill every mount-fired method with a safe default. selectAccount opens the first account's inbox on load,
@@ -371,5 +379,17 @@ describe('App: bulk actions', () => {
         fireEvent.click(await screen.findByRole('button', {name: 'Mark unread'}))
         await waitFor(() => expect(apiSpies.markRead).toHaveBeenCalledWith('m1', false))
         expect(apiSpies.markRead).toHaveBeenCalledWith('m2', false)
+    })
+})
+
+// The outbox that Phase 3.6 moves into useOutbox: the queue is loaded on mount and, while the selected
+// account has queued mail, a synthetic Outbox folder (id __outbox__) appears in the sidebar.
+describe('App: the outbox', () => {
+    it('surfaces a synthetic Outbox folder when the account has queued mail (useOutbox)', async () => {
+        apiSpies.listAccounts.mockResolvedValue([makeAccount()])
+        apiSpies.listFolders.mockResolvedValue([makeFolder('inbox', 'Inbox', 'inbox')])
+        apiSpies.listOutbox.mockResolvedValue([makeOutboxItem({accountId: 'acc1'})])
+        const {container} = render(<App/>)
+        await waitFor(() => expect(container.querySelector('[data-folder-id="__outbox__"]')).toBeInTheDocument())
     })
 })

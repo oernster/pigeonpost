@@ -1,7 +1,7 @@
 import {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from 'react'
 import './App.css'
 import brandIcon from './assets/pigeonpost.png'
-import {AboutInfo, Account, api, CalendarEvent, Contact, DraftRecoveryResult, EmailView, Folder, Message, MessageBody, OutboxItem, Rule, Tag, UnreadCountsResult} from './api'
+import {AboutInfo, Account, api, CalendarEvent, Contact, DraftRecoveryResult, EmailView, Folder, Message, MessageBody, Rule, Tag, UnreadCountsResult} from './api'
 import {OUTBOX_FOLDER_ID, isOutboxMessage, outboxItemToMessage} from './outbox'
 import {applyTheme, loadTheme, Theme} from './theme'
 import {TAG_PALETTE, colourTagId} from './tagColours'
@@ -36,6 +36,7 @@ import {rangeIds, toggleId, useSelection} from './hooks/useSelection'
 import {useMessageActions} from './hooks/useMessageActions'
 import {useBulkActions} from './hooks/useBulkActions'
 import {useReaderTabs} from './hooks/useReaderTabs'
+import {useOutbox} from './hooks/useOutbox'
 
 // autoSyncIntervalMs is how often the folder on screen is refreshed from the server in the background,
 // so new mail in the open folder appears without a manual sync.
@@ -60,15 +61,13 @@ function App() {
     } = store
     const [error, setError] = useState<string>('')
     const [syncingAccounts, setSyncingAccounts] = useState<Set<string>>(() => new Set<string>())
-    const [outbox, setOutbox] = useState<OutboxItem[]>([])
-    const [messageToCancelSend, setMessageToCancelSend] = useState<Message | null>(null)
-    const [cancellingSend, setCancellingSend] = useState<boolean>(false)
-    // outboxForAccount is the queued items belonging to the selected account, shown under its Outbox
-    // folder. Memoised so the derived message rows and the folder's presence are stable per render.
-    const outboxForAccount = useMemo(
-        () => outbox.filter((item) => item.accountId === selectedAccount),
-        [outbox, selectedAccount],
-    )
+    // The outbox queue (surfaced as a per-account synthetic Outbox folder), the cancel-send confirm flow
+    // and the folder list including that synthetic folder live in useOutbox. The effect that keeps the open
+    // Outbox view in step with the queue stays in App below, because it drives folder navigation.
+    const {
+        outbox, outboxForAccount, refreshOutbox, sidebarFolders,
+        messageToCancelSend, setMessageToCancelSend, cancellingSend, cancelSend,
+    } = useOutbox({selectedAccount, folders, setError})
     const [theme, setTheme] = useState<Theme>(loadTheme())
     const [about, setAbout] = useState<AboutInfo | null>(null)
     const [licence, setLicence] = useState<string | null>(null)
@@ -558,16 +557,6 @@ function App() {
         }
     }, [accounts, selectedAccount, selectAccount])
 
-    // refreshOutbox reloads the queue of outgoing operations waiting to be sent. The queue is surfaced
-    // as a per-account Outbox folder, so the full item list is kept, not just a count.
-    const refreshOutbox = useCallback(async () => {
-        try {
-            setOutbox(await api.listOutbox())
-        } catch {
-            // A queue read failing must not disrupt the UI; leave the last known value.
-        }
-    }, [])
-
     // Keep the Outbox view live while it is open: re-map the rows when the queue changes, drop a
     // selection whose item was cancelled or sent, and fall back to the inbox once the queue is empty
     // (the synthetic folder then disappears from the sidebar).
@@ -593,42 +582,6 @@ function App() {
         setSelectedMessage((prev) =>
             prev && isOutboxMessage(prev) && !outboxForAccount.some((o) => o.id === prev.id) ? null : prev)
     }, [outboxForAccount, selectedFolder, folders, loadFolderMessages])
-
-    // sidebarFolders is the account's real folders plus a synthetic Outbox folder, shown only while the
-    // account has queued mail. The count rides on the unread field so it appears as the folder's badge.
-    const sidebarFolders = useMemo<Folder[]>(() => {
-        if (outboxForAccount.length === 0) {
-            return folders
-        }
-        const outboxFolder: Folder = {
-            id: OUTBOX_FOLDER_ID,
-            accountId: selectedAccount,
-            path: 'Outbox',
-            name: 'Outbox',
-            kind: 'outbox',
-            unread: outboxForAccount.length,
-            total: outboxForAccount.length,
-        }
-        return [...folders, outboxFolder]
-    }, [folders, outboxForAccount, selectedAccount])
-
-    // cancelSend discards the queued outbox item behind the confirmation dialog.
-    const cancelSend = useCallback(async () => {
-        if (!messageToCancelSend) {
-            return
-        }
-        setCancellingSend(true)
-        setError('')
-        try {
-            await api.cancelOutboxItem(messageToCancelSend.id)
-            setMessageToCancelSend(null)
-            await refreshOutbox()
-        } catch (e) {
-            setError(String(e))
-        } finally {
-            setCancellingSend(false)
-        }
-    }, [messageToCancelSend, refreshOutbox])
 
     const sync = useCallback(async () => {
         if (!selectedAccount) {
@@ -661,10 +614,6 @@ function App() {
     // accountSyncing is true while the selected account's mailbox sync is running, so the Sync control
     // disables and relabels for that account only; other accounts stay syncable one by one.
     const accountSyncing = selectedAccount !== '' && syncingAccounts.has(selectedAccount)
-
-    useEffect(() => {
-        void refreshOutbox()
-    }, [refreshOutbox])
 
     // Periodic light refresh of the folder on screen: syncs only that folder (not the whole account)
     // and reloads it, so new mail in the open folder appears without a manual sync.
