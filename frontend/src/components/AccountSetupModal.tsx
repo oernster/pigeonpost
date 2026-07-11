@@ -1,10 +1,11 @@
 import {useState} from 'react'
-import {EditorContent, useEditor} from '@tiptap/react'
+import {useEditor} from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Link from '@tiptap/extension-link'
 import {Account, AccountSetupInput, Identity, api} from '../api'
 import {useBackdropDismiss} from './useBackdropDismiss'
 import {ModalClose} from './ModalClose'
+import {RichTextField} from './RichTextField'
 import {
     DEFAULT_IN_PORT,
     DEFAULT_IN_PORT_POP3,
@@ -16,7 +17,6 @@ import {
     SECURITY_OPTIONS,
     domainOf,
     incomingHostPrefix,
-    normaliseSigUrl,
     type Provider,
 } from '../accountProviders'
 
@@ -61,8 +61,6 @@ export function AccountSetupModal({account, onClose, onSaved}: AccountSetupModal
     const updateIdentity = (index: number, field: 'name' | 'address', value: string) =>
         setIdentities(identities.map((id, i) => (i === index ? {...id, [field]: value} : id)))
     const removeIdentity = (index: number) => setIdentities(identities.filter((_, i) => i !== index))
-    const [sigLinkOpen, setSigLinkOpen] = useState(false)
-    const [sigLinkUrl, setSigLinkUrl] = useState('')
 
     // The signature is edited as rich text (HTML), matching the composer. An empty editor is stored as ''
     // so a new message gets no signature block; a non-empty one is inserted above the quote on reply.
@@ -70,36 +68,6 @@ export function AccountSetupModal({account, onClose, onSaved}: AccountSetupModal
         extensions: [StarterKit, Link.configure({openOnClick: false, autolink: true, linkOnPaste: true})],
         content: account?.signature ?? '',
     })
-
-    const openSigLink = () => {
-        setSigLinkUrl((sigEditor?.getAttributes('link').href as string) ?? '')
-        setSigLinkOpen(true)
-    }
-
-    const applySigLink = () => {
-        const href = normaliseSigUrl(sigLinkUrl)
-        if (href === '') {
-            sigEditor?.chain().focus().extendMarkRange('link').unsetLink().run()
-        } else {
-            sigEditor?.chain().focus().extendMarkRange('link').setLink({href}).run()
-        }
-        setSigLinkOpen(false)
-        setSigLinkUrl('')
-    }
-
-    const sigBtn = (active: boolean, label: string, title: string, onClick: () => void) => (
-        <button
-            type="button"
-            className={'compose-tool' + (active ? ' active' : '')}
-            title={title}
-            aria-label={title}
-            aria-pressed={active}
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={onClick}
-        >
-            {label}
-        </button>
-    )
 
     const chooseProvider = (p: Provider) => {
         setProvider(p)
@@ -427,30 +395,7 @@ export function AccountSetupModal({account, onClose, onSaved}: AccountSetupModal
                         <fieldset className="setup-group">
                             <legend>Signature</legend>
                             <p className="field-hint">Added to new messages and above the quoted text on a reply.</p>
-                            <div className="compose-toolbar">
-                                {sigBtn(sigEditor?.isActive('bold') ?? false, 'B', 'Bold', () => sigEditor?.chain().focus().toggleBold().run())}
-                                {sigBtn(sigEditor?.isActive('italic') ?? false, 'I', 'Italic', () => sigEditor?.chain().focus().toggleItalic().run())}
-                                {sigBtn(sigEditor?.isActive('link') ?? false, '🔗', 'Link', openSigLink)}
-                            </div>
-                            {sigLinkOpen && (
-                                <div className="compose-link-row">
-                                    <input
-                                        className="tag-name-input"
-                                        value={sigLinkUrl}
-                                        autoFocus
-                                        placeholder="https://example.com"
-                                        onChange={(e) => setSigLinkUrl(e.target.value)}
-                                        onKeyDown={(e) => {
-                                            if (e.key === 'Enter') {
-                                                e.preventDefault()
-                                                applySigLink()
-                                            }
-                                        }}
-                                    />
-                                    <button className="btn primary" onClick={applySigLink}>Apply</button>
-                                </div>
-                            )}
-                            <EditorContent editor={sigEditor} className="compose-editor signature-editor"/>
+                            <RichTextField editor={sigEditor}/>
                         </fieldset>
                     </>
                 )}

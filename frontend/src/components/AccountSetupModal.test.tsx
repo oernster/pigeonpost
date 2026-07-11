@@ -208,6 +208,15 @@ describe('AccountSetupModal: manual add', () => {
         expect(screen.getByRole('button', {name: 'Italic'})).toBeInTheDocument()
         expect(screen.getByRole('button', {name: 'Link'})).toBeInTheDocument()
     })
+
+    it('opens the signature link row and closes it on apply', () => {
+        startManual()
+        expect(screen.queryByPlaceholderText('https://example.com')).toBeNull()
+        fireEvent.click(screen.getByRole('button', {name: 'Link'}))
+        setValue(screen.getByPlaceholderText('https://example.com'), 'example.com')
+        fireEvent.click(screen.getByRole('button', {name: 'Apply'}))
+        expect(screen.queryByPlaceholderText('https://example.com')).toBeNull()
+    })
 })
 
 describe('AccountSetupModal: editing', () => {
