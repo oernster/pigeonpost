@@ -10,16 +10,8 @@ import {
     orderFolders,
     placeAdjacent,
 } from '../folderPaths'
-import {
-    accountDragType,
-    dropZoneFor,
-    folderDragType,
-    moveId,
-    resolveFolderDrop,
-    swapId,
-    type FolderDropAction,
-    type FolderDropZone,
-} from '../sidebarDnd'
+import {dropZoneFor, folderDragType, resolveFolderDrop, type FolderDropZone} from '../sidebarDnd'
+import {AccountList} from './AccountList'
 import {usePersistedFolderState} from '../hooks/usePersistedFolderState'
 
 interface SidebarProps {
@@ -87,169 +79,19 @@ export function Sidebar(props: SidebarProps) {
 }
 
 function SidebarContent(props: SidebarProps) {
-    const {accounts, selectedAccount, unreadByAccount, folders, selectedFolder} = props
-    // dragId is the account being dragged; dragOverId is the row it is currently over. Both drive the
-    // visual cue while a reorder drag is in flight.
-    const [dragId, setDragId] = useState('')
-    const [dragOverId, setDragOverId] = useState('')
-    const accountIds = accounts.map((a) => a.id)
-    // Reordering is only meaningful with more than one account, so the drag and the up/down buttons are
-    // enabled only then.
-    const canReorder = accounts.length > 1
-    // The account list is a single focus-ring stop: only one row is tabbable (the selected account,
-    // otherwise the first when none is selected). Up/Down move between accounts, wrapping at the ends.
-    const accountTabStopId = selectedAccount || (accounts.length > 0 ? accounts[0].id : '')
+    const {selectedAccount, folders, selectedFolder} = props
     return (
         <>
-            <div className="section-label">Accounts</div>
-            <ul className="list" data-account-list="">
-                {accounts.map((account, index) => (
-                    <li
-                        key={account.id}
-                        data-account-id={account.id}
-                        tabIndex={account.id === accountTabStopId ? 0 : -1}
-                        className={
-                            'list-item account' +
-                            (account.id === selectedAccount ? ' selected' : '') +
-                            (account.id === dragOverId ? ' drag-over' : '') +
-                            (account.id === dragId ? ' dragging' : '')
-                        }
-                        draggable={canReorder}
-                        onClick={() => props.onSelectAccount(account.id)}
-                        onKeyDown={(e) => {
-                            // Only the row itself drives selection and Up/Down; a key on a child action
-                            // button (edit, remove, reorder) is left to that button.
-                            if (e.target !== e.currentTarget) {
-                                return
-                            }
-                            if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar') {
-                                e.preventDefault()
-                                props.onSelectAccount(account.id)
-                                return
-                            }
-                            // Up/Down move between accounts within this one focus-ring stop, wrapping at the
-                            // ends. Left/Right bubble to the window handler, which steps the focus ring.
-                            if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-                                e.preventDefault()
-                                e.stopPropagation()
-                                const li = e.currentTarget
-                                const parent = li.parentElement
-                                let sibling = e.key === 'ArrowDown' ? li.nextElementSibling : li.previousElementSibling
-                                if (!sibling && parent) {
-                                    sibling = e.key === 'ArrowDown' ? parent.firstElementChild : parent.lastElementChild
-                                }
-                                if (sibling instanceof HTMLElement) {
-                                    sibling.focus()
-                                    const id = sibling.getAttribute('data-account-id')
-                                    if (id) {
-                                        props.onSelectAccount(id)
-                                    }
-                                }
-                            }
-                        }}
-                        onDragStart={(e) => {
-                            setDragId(account.id)
-                            e.dataTransfer.setData(accountDragType, account.id)
-                            e.dataTransfer.effectAllowed = 'move'
-                        }}
-                        onDragEnd={() => {
-                            setDragId('')
-                            setDragOverId('')
-                        }}
-                        onDragOver={(e) => {
-                            if (e.dataTransfer.types.includes(accountDragType)) {
-                                e.preventDefault()
-                                e.dataTransfer.dropEffect = 'move'
-                                setDragOverId(account.id)
-                            }
-                        }}
-                        onDragLeave={() => setDragOverId((id) => (id === account.id ? '' : id))}
-                        onDrop={(e) => {
-                            e.preventDefault()
-                            const from = e.dataTransfer.getData(accountDragType)
-                            setDragId('')
-                            setDragOverId('')
-                            if (from && from !== account.id) {
-                                props.onReorderAccounts(moveId(accountIds, from, account.id))
-                            }
-                        }}
-                    >
-                        <span className="account-badge-slot">
-                            {(unreadByAccount[account.id] ?? 0) > 0 && (
-                                <span
-                                    className="badge account-badge"
-                                    title={`${unreadByAccount[account.id]} unread`}
-                                >
-                                    {unreadByAccount[account.id]}
-                                </span>
-                            )}
-                        </span>
-                        <span className="item-text">
-                            <span className="item-title" title={account.displayName}>{account.displayName}</span>
-                            <span className="item-sub" title={account.email}>{account.email}</span>
-                            {props.syncingAccountIds.has(account.id) && (
-                                <span className="account-syncing">Synchronising…</span>
-                            )}
-                        </span>
-                        <span className="account-actions">
-                            {canReorder && (
-                                <>
-                                    <button
-                                        className="account-action"
-                                        tabIndex={account.id === accountTabStopId ? 0 : -1}
-                                        aria-label={`Move ${account.email} up`}
-                                        title="Move up"
-                                        disabled={index === 0}
-                                        onClick={(e) => {
-                                            e.stopPropagation()
-                                            props.onReorderAccounts(swapId(accountIds, index, index - 1))
-                                        }}
-                                    >
-                                        &#8593;
-                                    </button>
-                                    <button
-                                        className="account-action"
-                                        tabIndex={account.id === accountTabStopId ? 0 : -1}
-                                        aria-label={`Move ${account.email} down`}
-                                        title="Move down"
-                                        disabled={index === accounts.length - 1}
-                                        onClick={(e) => {
-                                            e.stopPropagation()
-                                            props.onReorderAccounts(swapId(accountIds, index, index + 1))
-                                        }}
-                                    >
-                                        &#8595;
-                                    </button>
-                                </>
-                            )}
-                            <button
-                                className="account-action"
-                                tabIndex={account.id === accountTabStopId ? 0 : -1}
-                                aria-label={`Edit ${account.email}`}
-                                title="Edit account"
-                                onClick={(e) => {
-                                    e.stopPropagation()
-                                    props.onEditAccount(account)
-                                }}
-                            >
-                                &#9998;
-                            </button>
-                            <button
-                                className="account-action delete"
-                                tabIndex={account.id === accountTabStopId ? 0 : -1}
-                                aria-label={`Remove ${account.email}`}
-                                title="Remove account"
-                                onClick={(e) => {
-                                    e.stopPropagation()
-                                    props.onDeleteAccount(account)
-                                }}
-                            >
-                                &times;
-                            </button>
-                        </span>
-                    </li>
-                ))}
-            </ul>
+            <AccountList
+                accounts={props.accounts}
+                selectedAccount={selectedAccount}
+                syncingAccountIds={props.syncingAccountIds}
+                unreadByAccount={props.unreadByAccount}
+                onSelectAccount={props.onSelectAccount}
+                onEditAccount={props.onEditAccount}
+                onDeleteAccount={props.onDeleteAccount}
+                onReorderAccounts={props.onReorderAccounts}
+            />
 
             {selectedAccount && (
                 <>
