@@ -10,7 +10,7 @@
 // tagColours, theme, focusRing) are real and run as-is. Every method fired on mount is given a safe default
 // in beforeEach, so a test overrides only what it exercises; without those defaults App throws on mount.
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
-import {cleanup, fireEvent, render, screen, waitFor, within} from '@testing-library/react'
+import {act, cleanup, fireEvent, render, screen, waitFor, within} from '@testing-library/react'
 import App from '../App'
 import type {Account, Folder, Message, OutboxItem} from '../api'
 
@@ -498,5 +498,57 @@ describe('App: composing', () => {
         fireEvent.click(within(dialog).getByRole('button', {name: 'Discard'}))
         await waitFor(() => expect(apiSpies.clearDraftRecovery).toHaveBeenCalled())
         expect(screen.queryByRole('alertdialog', {name: 'Restore unsent message'})).not.toBeInTheDocument()
+    })
+})
+
+// The backend-event wiring that Phase 3.12 moves into useAppEvents: the tray menu and app:close-request, the
+// OS-handed .eml (eml:open), the mail:new poll refresh and calendar:changed. These fire from the backend, so
+// the tests capture the EventsOn handlers as they register, then invoke them.
+describe('App: backend events', () => {
+    // captureEvents makes EventsOn record each handler by event name, so a test can drive a backend event.
+    function captureEvents(): Record<string, (arg: unknown) => void> {
+        const handlers: Record<string, (arg: unknown) => void> = {}
+        runtimeSpies.EventsOn.mockImplementation((event: string, cb: (arg: unknown) => void) => {
+            handlers[event] = cb
+            return () => undefined
+        })
+        return handlers
+    }
+
+    it('shows an OS-handed .eml in the viewer on eml:open (useAppEvents)', async () => {
+        const handlers = captureEvents()
+        apiSpies.listAccounts.mockResolvedValue([makeAccount()])
+        render(<App/>)
+        await waitFor(() => expect(handlers['eml:open']).toBeInstanceOf(Function))
+        act(() => handlers['eml:open']({
+            subject: 'Handed over', from: 'sender@example.com', to: 'me@example.com',
+            date: '2026-07-11', html: '', plain: 'Body of the handed-over email',
+        }))
+        expect(await screen.findByRole('dialog', {name: 'Attached email'})).toBeInTheDocument()
+        expect(screen.getByText('Handed over')).toBeInTheDocument()
+    })
+
+    it('offers minimise-or-quit on app:close-request (useAppEvents)', async () => {
+        const handlers = captureEvents()
+        apiSpies.listAccounts.mockResolvedValue([makeAccount()])
+        render(<App/>)
+        await waitFor(() => expect(handlers['app:close-request']).toBeInstanceOf(Function))
+        act(() => handlers['app:close-request'](undefined))
+        expect(await screen.findByRole('alertdialog', {name: 'Close PigeonPost'})).toBeInTheDocument()
+    })
+
+    it('refreshes the unread counts and the open folder on mail:new (useAppEvents)', async () => {
+        const handlers = captureEvents()
+        apiSpies.listAccounts.mockResolvedValue([makeAccount()])
+        apiSpies.listFolders.mockResolvedValue([makeFolder('inbox', 'Inbox', 'inbox')])
+        apiSpies.listMessages.mockResolvedValue([makeMessage({subject: 'Weekly report'})])
+        render(<App/>)
+        // Wait for the inbox to open so mail:new closes over selectedFolder, then clear the mount-time calls.
+        expect(await screen.findByText('Weekly report')).toBeInTheDocument()
+        apiSpies.listMessages.mockClear()
+        apiSpies.unreadCounts.mockClear()
+        act(() => handlers['mail:new'](undefined))
+        await waitFor(() => expect(apiSpies.listMessages).toHaveBeenCalledWith('inbox'))
+        expect(apiSpies.unreadCounts).toHaveBeenCalled()
     })
 })

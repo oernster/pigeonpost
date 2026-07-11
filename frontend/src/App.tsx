@@ -1,7 +1,7 @@
 import {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from 'react'
 import './App.css'
 import brandIcon from './assets/pigeonpost.png'
-import {AboutInfo, api, CalendarEvent, Contact, EmailView, Message, MessageBody, Rule, UnreadCountsResult} from './api'
+import {AboutInfo, api, CalendarEvent, Contact, Message, MessageBody, Rule, UnreadCountsResult} from './api'
 import {OUTBOX_FOLDER_ID, isOutboxMessage, outboxItemToMessage} from './outbox'
 import {applyTheme, loadTheme, Theme} from './theme'
 import {TAG_PALETTE, colourTagId} from './tagColours'
@@ -25,7 +25,6 @@ import {CalendarModal} from './components/CalendarModal'
 import {ReminderNotifications} from './components/ReminderNotifications'
 import {CloseChoiceDialog} from './components/CloseChoiceDialog'
 import {Splash} from './components/Splash'
-import {Environment, EventsOn} from '../wailsjs/runtime'
 import {emlFilename, escapeHtml} from './messageText'
 import {matchesShortcut} from './shortcuts'
 import {sendersFor} from './replyDraft'
@@ -42,6 +41,7 @@ import {useAccounts} from './hooks/useAccounts'
 import {useSync} from './hooks/useSync'
 import {useTags} from './hooks/useTags'
 import {useComposeLauncher} from './hooks/useComposeLauncher'
+import {useAppEvents} from './hooks/useAppEvents'
 
 function App() {
     const [selectedAccount, setSelectedAccount] = useState<string>('')
@@ -83,11 +83,6 @@ function App() {
     const [theme, setTheme] = useState<Theme>(loadTheme())
     const [about, setAbout] = useState<AboutInfo | null>(null)
     const [licence, setLicence] = useState<string | null>(null)
-    // launchedEmail holds a .eml the OS handed to PigeonPost (a double-click on the file) while the in-app
-    // viewer shows it; isWindows gates the Windows-only "Set as default for .eml" menu item.
-    const [launchedEmail, setLaunchedEmail] = useState<EmailView | null>(null)
-    const [isWindows, setIsWindows] = useState(false)
-    const [closeChoice, setCloseChoice] = useState(false)
     // The colour-tag palette, the selected message's tags, and the tag-toggle handlers (on the open message
     // and on any message via the context menu) live in useTags.
     const {tags, messageTags, toggleTag, setMessageTagById} = useTags({store, setError})
@@ -541,55 +536,19 @@ function App() {
         void api.openReleases()
     }, [])
 
-    // The Windows tray context menu mirrors the Help menu: its items emit these events from the backend,
-    // which open the same dialogs the in-window Help menu does. The close button emits close-request so
-    // the choice of minimise-to-tray or quit uses the app's own themed dialog rather than a native one.
-    useEffect(() => {
-        const off = [
-            EventsOn('menu:about', () => void showAbout()),
-            EventsOn('menu:licence', () => void showLicence()),
-            EventsOn('menu:check-updates', () => checkUpdates()),
-            EventsOn('app:close-request', () => setCloseChoice(true)),
-        ]
-        return () => off.forEach((unsubscribe) => unsubscribe())
-    }, [showAbout, showLicence, checkUpdates])
-
-    // Detect Windows so the Mail menu can offer "Set as default for .eml", which deep-links to a Windows-only
-    // settings page. The default is off, so the item stays hidden on other platforms.
-    useEffect(() => {
-        void Environment().then((env) => setIsWindows(env.platform === 'windows')).catch(() => undefined)
-    }, [])
-
-    // A .eml the OS handed to PigeonPost (double-clicked once PigeonPost is the registered handler) arrives as
-    // an event from the backend, which has already revealed the window; show the parsed email in the in-app
-    // viewer or surface a parse failure in the error bar rather than doing nothing.
-    useEffect(() => {
-        const off = [
-            EventsOn('eml:open', (email) => setLaunchedEmail(email as EmailView)),
-            EventsOn('eml:open-error', (message) => setError(String(message))),
-        ]
-        return () => off.forEach((unsubscribe) => unsubscribe())
-    }, [])
-
-    // The background mail poller emits mail:new when it brings in newly arrived messages (the same event
-    // that raises the desktop notification), so refresh the unread counts and the folder on screen to show
-    // the arrivals without waiting for the next on-screen sync.
-    useEffect(() => {
-        const off = EventsOn('mail:new', () => {
-            void loadUnread()
-            if (selectedFolder) {
-                void api.listMessages(selectedFolder).then(setMessages).catch(() => undefined)
-            }
-        })
-        return () => off()
-    }, [selectedFolder, loadUnread])
-
-    // The poller emits calendar:changed after auto-applying an incoming meeting reply or cancellation, so
-    // reload the events for the calendar view to reflect the updated attendee status or removed meeting.
-    useEffect(() => {
-        const off = EventsOn('calendar:changed', () => void loadEvents())
-        return () => off()
-    }, [loadEvents])
+    // The backend-event wiring (the Windows tray menu and app:close-request, an OS-handed .eml, and the poll
+    // events that refresh the unread counts and the open folder or the calendar) plus the Windows platform
+    // detect live in useAppEvents. It owns launchedEmail, isWindows and closeChoice, which App's render feeds
+    // to the EmailViewer, the Mail menu and the CloseChoice dialog.
+    const {
+        launchedEmail, setLaunchedEmail,
+        isWindows,
+        closeChoice, setCloseChoice,
+    } = useAppEvents({
+        showAbout, showLicence, checkUpdates,
+        selectedFolder, setMessages,
+        loadUnread, loadEvents, setError,
+    })
 
     // The bulk actions over a multi-selection (bulk delete, permanent delete, move, read, flag), the
     // drag-and-drop-onto-folder handler and the bulk-delete confirm state live in useBulkActions, wired to
