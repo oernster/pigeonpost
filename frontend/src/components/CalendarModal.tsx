@@ -32,6 +32,7 @@ import {
     weekDays,
     type ViewMode,
 } from '../calendarModel'
+import {useEventInstances} from '../hooks/useEventInstances'
 
 
 // AttendeeRow is one invited party held in the edit form. It mirrors the fields the backend persists so a
@@ -119,14 +120,12 @@ export function CalendarModal({events, accountId, accountEmail, accountName, ini
     const [managingCals, setManagingCals] = useState(false)
     const [calForm, setCalForm] = useState<{id: string; name: string; colour: string} | null>(null)
     const [pendingCalDelete, setPendingCalDelete] = useState<Calendar | null>(null)
-    // instances are the concrete occurrences shown for the visible range, expanded from recurring events by
-    // the backend. reloadKey forces a refetch after a local change even if the parent's events prop is stable.
-    const [instances, setInstances] = useState<CalendarEventInstance[]>([])
-    const [reloadKey, setReloadKey] = useState(0)
     // pendingOpenId is an event whose dialog should open once its occurrence has loaded, set when the
     // calendar is opened from a reminder. It is cleared once the dialog opens.
     const [pendingOpenId, setPendingOpenId] = useState<string | null>(initialEventId ?? null)
-    const bumpReload = () => setReloadKey((k) => k + 1)
+    // instances are the concrete occurrences shown for the visible range, expanded from the recurring events
+    // by the backend and refetched by the application hook; bumpReload forces a refetch after a local change.
+    const {instances, bumpReload} = useEventInstances({viewDate, viewMode, events, setError})
 
     // The event form and the calendars manager are nested modals that are deliberately not dismissed by a
     // backdrop click (so edits are not dropped), so give each its own Escape close. The active flags mean
@@ -139,34 +138,6 @@ export function CalendarModal({events, accountId, accountEmail, accountName, ini
     useEffect(() => {
         reloadCalendars()
     }, [])
-
-    // visibleRange is the inclusive [from, to] window of the active view, used to expand recurring events
-    // into just the occurrences on screen.
-    const visibleRange = (): {from: string; to: string} => {
-        const days = viewMode === 'month' ? monthCells(viewDate)
-            : viewMode === 'week' ? weekDays(viewDate) : [viewDate]
-        const first = new Date(days[0])
-        first.setHours(0, 0, 0, 0)
-        const last = new Date(days[days.length - 1])
-        last.setHours(23, 59, 59, 0)
-        return {from: first.toISOString(), to: last.toISOString()}
-    }
-
-    useEffect(() => {
-        const {from, to} = visibleRange()
-        let active = true
-        api.listEventInstances(from, to)
-            .then((xs) => {
-                if (active) setInstances(xs)
-            })
-            .catch((e) => {
-                if (active) setError(String(e))
-            })
-        return () => {
-            active = false
-        }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [viewDate, viewMode, reloadKey, events])
 
     // colourOf resolves an event's colour from its calendar, falling back to the default for events with
     // no calendar. The map is rebuilt each render, which is cheap for the handful of calendars a user has.
