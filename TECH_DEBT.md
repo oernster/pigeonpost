@@ -4,18 +4,15 @@ A standing reference to the project's outstanding technical debt. It records wha
 
 ---
 
-## 1. Open decision: the FetchBody port tuple
+## 1. Looks like debt, not worth touching
 
-`application.MailSource.FetchBody` returns a four-value tuple `(plain, html, invite, attachments, err)` that both adapters return, the router re-threads and `application/body.go` unpacks. A small body struct would remove the destructure-and-re-thread. The return is an application-owned port contract, so its shape (and whether to change it at all) belongs at the application layer rather than in a mechanical refactor. A four-value return is idiomatic Go, not a bug or a drift hazard, so this is genuinely optional.
-
-## 2. Looks like debt, not worth touching
-
+- The `application.MailSource.FetchBody` four-value return `(plain, html, invite, attachments, err)` could be reshaped into a body struct to save the destructure-and-re-thread; a four-value return is idiomatic Go and the port shape is fine as it stands, so it is left.
 - The three enum parsers (`ParseRole`, `ParseParticipationStatus`, `ParseMethod`) look triplicated but differ in empty-handling (only `ParseMethod` treats an empty string as invalid), so a generic helper would need special-casing that trades three clear functions for a fiddlier abstraction.
 - The application error-prefix convention is already consistent within each package (`imap:`, `smtp:`, `folders:`); forcing a single global convention would churn coverage-gated error strings for near-zero benefit.
 - The domain `calendar_passthrough` trim guard would change validation for whitespace-only input, so it is a behaviour decision rather than a refactor; it stays unless that behaviour change is intended.
 - The remaining discretionary nits: the domain slice-copy idioms and the `close` builtin shadow; the `MailStore` 15-method interface (a cohesive local-cache abstraction worth revisiting only if it grows); the codec-level clones (`generatedID` and `locationOf` across `ics`, `vcard`, `csv` and `recurrence`, whose dedup would couple otherwise-independent packages); the `csv` `[3]` phone-slot literal; the `schema`/`migrations` split; and the installer and genicons cosmetic nits.
 
-## 3. Intentionally left: groupByFolder for DeleteMany / MoveMany
+## 2. Intentionally left: groupByFolder for DeleteMany / MoveMany
 
 `DeleteMany` and `MoveMany` share batch-by-folder scaffolding. A shared helper looks tempting but is ruled out: collapsing them would change error aggregation from one-per-folder to one overall, an observable behaviour change.
 
