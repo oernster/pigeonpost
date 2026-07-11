@@ -426,3 +426,16 @@ describe('App: account management', () => {
         await waitFor(() => expect(apiSpies.removeAccount).toHaveBeenCalledWith('acc1'))
     })
 })
+
+// The mailbox sync that Phase 3.9 moves into useSync. The titlebar Sync button syncs the selected account.
+describe('App: syncing', () => {
+    it('syncs the selected account from the titlebar Sync button (useSync)', async () => {
+        apiSpies.listAccounts.mockResolvedValue([makeAccount()])
+        apiSpies.listFolders.mockResolvedValue([makeFolder('inbox', 'Inbox', 'inbox')])
+        render(<App/>)
+        // Wait for the account to auto-select so the Sync control is enabled.
+        await waitFor(() => expect(apiSpies.listFolders).toHaveBeenCalledWith('acc1'))
+        fireEvent.click(screen.getByRole('button', {name: 'Sync'}))
+        await waitFor(() => expect(apiSpies.syncAccount).toHaveBeenCalledWith('acc1'))
+    })
+})
