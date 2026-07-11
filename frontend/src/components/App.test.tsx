@@ -650,3 +650,35 @@ describe('App: titlebar', () => {
         expect(await screen.findByRole('dialog', {name: 'New message'})).toBeInTheDocument()
     })
 })
+
+// The ~240-line window keydown effect that Phase 3.19 moves into useMessageListKeyboard. Its message-list
+// actions are suppressed while any overlay is open, including the splash, so each test waits for the splash
+// (a 2s timer) to clear before pressing a key. These pin two branches: Ctrl+A select-all and Delete.
+describe('App: message-list keyboard', () => {
+    it('selects every message with Ctrl+A, showing the count (useMessageListKeyboard)', async () => {
+        apiSpies.listAccounts.mockResolvedValue([makeAccount()])
+        apiSpies.listFolders.mockResolvedValue([makeFolder('inbox', 'Inbox', 'inbox')])
+        apiSpies.listMessages.mockResolvedValue([
+            makeMessage({id: 'm1', subject: 'Weekly report'}),
+            makeMessage({id: 'm2', subject: 'Second message'}),
+        ])
+        const {container} = render(<App/>)
+        await screen.findByText('Weekly report')
+        await waitFor(() => expect(container.querySelector('.splash')).toBeNull(), {timeout: 3000})
+        fireEvent.keyDown(document.body, {key: 'a', ctrlKey: true})
+        // Ctrl+A marks every message in the view, so the multi-selection summary shows the count.
+        expect(await screen.findByText(/2 messages selected/)).toBeInTheDocument()
+    })
+
+    it('deletes the selected message with the Delete key (useMessageListKeyboard)', async () => {
+        apiSpies.listAccounts.mockResolvedValue([makeAccount()])
+        apiSpies.listFolders.mockResolvedValue([makeFolder('inbox', 'Inbox', 'inbox')])
+        apiSpies.listMessages.mockResolvedValue([makeMessage({id: 'm1', subject: 'Weekly report'})])
+        const {container} = render(<App/>)
+        fireEvent.click(await screen.findByText('Weekly report'))
+        await waitFor(() => expect(container.querySelector('.splash')).toBeNull(), {timeout: 3000})
+        fireEvent.keyDown(document.body, {key: 'Delete'})
+        // Delete on the selected message asks for confirmation before removing it.
+        expect(await screen.findByRole('alertdialog', {name: 'Delete message'})).toBeInTheDocument()
+    })
+})
