@@ -1,0 +1,235 @@
+// Characterization test for App at its stable outer interface. App is the root component and takes no
+// props, so its interface is purely its observable behaviour: what it renders and which api calls fire in
+// response to mount and the core user gestures. This suite pins that behaviour BEFORE Phase 3 decomposes App
+// into hooks and sub-components (useMessageStore, useSelection, useFolders, useAccounts, TitleBar, AppModals
+// and the rest). None of those extractions change what App does on screen, so this suite staying green is the
+// proof each one preserved behaviour, exactly as the modal characterization tests were the proof in Phase 2.
+//
+// ../api is stubbed (the one Wails seam) and ../wailsjs/runtime is stubbed for Environment and EventsOn (the
+// only two runtime bindings the tree reads). The pure modules (messageText, shortcuts, threads, outbox,
+// tagColours, theme, focusRing) are real and run as-is. Every method fired on mount is given a safe default
+// in beforeEach, so a test overrides only what it exercises; without those defaults App throws on mount.
+import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
+import {cleanup, fireEvent, render, screen, waitFor, within} from '@testing-library/react'
+import App from '../App'
+import type {Account, Folder, Message} from '../api'
+
+const apiSpies = vi.hoisted(() => ({
+    version: vi.fn(), author: vi.fn(),
+    listAccounts: vi.fn(), reorderAccounts: vi.fn(),
+    draftRecovery: vi.fn(), clearDraftRecovery: vi.fn(),
+    listRules: vi.fn(), listContacts: vi.fn(), listEvents: vi.fn(),
+    unreadCounts: vi.fn(), listTags: vi.fn(), saveTag: vi.fn(),
+    messageTags: vi.fn(), messageBody: vi.fn(), searchMessages: vi.fn(),
+    setMessageTag: vi.fn(), listMessages: vi.fn(), syncFolder: vi.fn(),
+    listFolders: vi.fn(), listOutbox: vi.fn(), cancelOutboxItem: vi.fn(),
+    syncAccount: vi.fn(), replayOutbox: vi.fn(), removeAccount: vi.fn(),
+    deleteMessage: vi.fn(), deleteMessagePermanent: vi.fn(), saveMessageAs: vi.fn(),
+    markFlagged: vi.fn(), moveMessage: vi.fn(), markJunk: vi.fn(), copyMessage: vi.fn(),
+    createFolder: vi.fn(), renameFolder: vi.fn(), deleteFolder: vi.fn(), moveFolder: vi.fn(),
+    pickAttachments: vi.fn(), about: vi.fn(), licence: vi.fn(), openReleases: vi.fn(),
+    markRead: vi.fn(), moveMessages: vi.fn(), deleteMessagesPermanent: vi.fn(),
+    deleteMessages: vi.fn(), showDefaultAppSettings: vi.fn(), minimiseToTray: vi.fn(),
+    requestQuit: vi.fn(),
+}))
+
+// The runtime seam: Environment resolves the platform (App reads env.platform) and EventsOn subscribes to a
+// backend event and MUST return an unsubscribe function, because every listener effect calls it on cleanup
+// (and ReminderNotifications returns EventsOn(...) directly as its cleanup).
+const runtimeSpies = vi.hoisted(() => ({
+    Environment: vi.fn(),
+    EventsOn: vi.fn(),
+}))
+
+// EventScope is provided with its real integer values because App imports CalendarModal (which reads the
+// enum), even though the calendar is never opened in these tests.
+vi.mock('../api', () => ({
+    api: apiSpies,
+    EventScope: {This: 0, Future: 1, All: 2},
+}))
+// The runtime lives at frontend/wailsjs/runtime, which App reaches as ../wailsjs/runtime from src/; from
+// this test one level deeper it is ../../wailsjs/runtime, the same absolute module both App and
+// ReminderNotifications import.
+vi.mock('../../wailsjs/runtime', () => ({
+    Environment: runtimeSpies.Environment,
+    EventsOn: runtimeSpies.EventsOn,
+}))
+
+function makeAccount(overrides: Partial<Account> = {}): Account {
+    return {
+        id: 'acc1', displayName: 'Me', email: 'me@example.com', protocol: 'imap',
+        inHost: 'imap.example.com', inPort: 993, inSecurity: 'tls',
+        outHost: 'smtp.example.com', outPort: 587, outSecurity: 'starttls',
+        signature: '', auth: 'password', identities: [],
+        ...overrides,
+    } as Account
+}
+
+function makeFolder(id: string, name: string, kind: string, overrides: Partial<Folder> = {}): Folder {
+    return {id, accountId: 'acc1', path: name, name, kind, unread: 0, total: 0, ...overrides}
+}
+
+function makeMessage(overrides: Partial<Message> = {}): Message {
+    return {
+        id: 'm1', folderId: 'inbox', subject: 'Weekly report',
+        fromName: 'Alice Example', fromAddress: 'alice@example.com',
+        to: [{name: 'Me', address: 'me@example.com'}], cc: [],
+        date: '2026-07-11T10:00:00.000Z', size: 1024, read: false, flagged: false,
+        hasAttachments: false, snippet: 'A short snippet', tagColours: [],
+        ...overrides,
+    } as Message
+}
+
+// Fill every mount-fired method with a safe default. selectAccount opens the first account's inbox on load,
+// so listFolders and listMessages are given empty defaults here and overridden per test where the cascade
+// matters.
+beforeEach(() => {
+    localStorage.clear()
+    apiSpies.version.mockReset().mockResolvedValue('1.0.0')
+    apiSpies.author.mockReset().mockResolvedValue('Oliver')
+    apiSpies.listAccounts.mockReset().mockResolvedValue([])
+    apiSpies.reorderAccounts.mockReset().mockResolvedValue(undefined)
+    apiSpies.draftRecovery.mockReset().mockResolvedValue({
+        present: false, accountId: '', to: '', cc: '', bcc: '', subject: '', bodyHtml: '', savedMs: 0,
+    })
+    apiSpies.clearDraftRecovery.mockReset().mockResolvedValue(undefined)
+    apiSpies.listRules.mockReset().mockResolvedValue([])
+    apiSpies.listContacts.mockReset().mockResolvedValue([])
+    apiSpies.listEvents.mockReset().mockResolvedValue([])
+    apiSpies.unreadCounts.mockReset().mockResolvedValue({total: 0, byAccount: {}})
+    apiSpies.listTags.mockReset().mockResolvedValue([])
+    apiSpies.saveTag.mockReset().mockResolvedValue(undefined)
+    apiSpies.messageTags.mockReset().mockResolvedValue([])
+    apiSpies.messageBody.mockReset().mockResolvedValue({plain: '', html: '', hasInvite: false, attachments: []})
+    apiSpies.searchMessages.mockReset().mockResolvedValue([])
+    apiSpies.setMessageTag.mockReset().mockResolvedValue(undefined)
+    apiSpies.listMessages.mockReset().mockResolvedValue([])
+    apiSpies.syncFolder.mockReset().mockResolvedValue(undefined)
+    apiSpies.listFolders.mockReset().mockResolvedValue([])
+    apiSpies.listOutbox.mockReset().mockResolvedValue([])
+    apiSpies.cancelOutboxItem.mockReset().mockResolvedValue(undefined)
+    apiSpies.syncAccount.mockReset().mockResolvedValue(undefined)
+    apiSpies.replayOutbox.mockReset().mockResolvedValue(0)
+    apiSpies.removeAccount.mockReset().mockResolvedValue(undefined)
+    apiSpies.deleteMessage.mockReset().mockResolvedValue(undefined)
+    apiSpies.deleteMessagePermanent.mockReset().mockResolvedValue(undefined)
+    apiSpies.saveMessageAs.mockReset().mockResolvedValue(undefined)
+    apiSpies.markFlagged.mockReset().mockResolvedValue(undefined)
+    apiSpies.moveMessage.mockReset().mockResolvedValue(undefined)
+    apiSpies.markJunk.mockReset().mockResolvedValue(undefined)
+    apiSpies.copyMessage.mockReset().mockResolvedValue(undefined)
+    apiSpies.createFolder.mockReset().mockResolvedValue(undefined)
+    apiSpies.renameFolder.mockReset().mockResolvedValue(undefined)
+    apiSpies.deleteFolder.mockReset().mockResolvedValue(undefined)
+    apiSpies.moveFolder.mockReset().mockResolvedValue(undefined)
+    apiSpies.pickAttachments.mockReset().mockResolvedValue([])
+    apiSpies.about.mockReset().mockResolvedValue({})
+    apiSpies.licence.mockReset().mockResolvedValue('')
+    apiSpies.openReleases.mockReset().mockResolvedValue(undefined)
+    apiSpies.markRead.mockReset().mockResolvedValue(undefined)
+    apiSpies.moveMessages.mockReset().mockResolvedValue({ids: [], failed: 0, error: ''})
+    apiSpies.deleteMessagesPermanent.mockReset().mockResolvedValue({ids: [], failed: 0, error: ''})
+    apiSpies.deleteMessages.mockReset().mockResolvedValue({ids: [], failed: 0, error: ''})
+    apiSpies.showDefaultAppSettings.mockReset().mockResolvedValue(undefined)
+    apiSpies.minimiseToTray.mockReset().mockResolvedValue(undefined)
+    apiSpies.requestQuit.mockReset().mockResolvedValue(undefined)
+    runtimeSpies.Environment.mockReset().mockResolvedValue({platform: 'windows'})
+    runtimeSpies.EventsOn.mockReset().mockReturnValue(() => undefined)
+})
+
+afterEach(() => cleanup())
+
+describe('App: mount and splash', () => {
+    it('renders the titlebar and shows the splash on launch', () => {
+        const {container} = render(<App/>)
+        expect(container.querySelector('.splash')).toBeInTheDocument()
+        expect(screen.getByRole('button', {name: 'Mail'})).toBeInTheDocument()
+        expect(apiSpies.listAccounts).toHaveBeenCalled()
+    })
+
+    it('shows the welcome empty-state after the splash when there are no accounts', async () => {
+        render(<App/>)
+        // The empty-state is gated on the splash having gone (a 2s timer), so wait past it.
+        await waitFor(
+            () => expect(screen.getByText('Welcome to PigeonPost')).toBeInTheDocument(),
+            {timeout: 3000},
+        )
+        expect(screen.getByText(/Add a mail account to start/)).toBeInTheDocument()
+    })
+})
+
+describe('App: account and folder cascade', () => {
+    it('auto-selects the first account on load and opens its inbox', async () => {
+        apiSpies.listAccounts.mockResolvedValue([makeAccount()])
+        apiSpies.listFolders.mockResolvedValue([makeFolder('inbox', 'Inbox', 'inbox')])
+        apiSpies.listMessages.mockResolvedValue([makeMessage({subject: 'Weekly report'})])
+        render(<App/>)
+        await waitFor(() => expect(apiSpies.listFolders).toHaveBeenCalledWith('acc1'))
+        expect(await screen.findByText('Weekly report')).toBeInTheDocument()
+        expect(apiSpies.listMessages).toHaveBeenCalledWith('inbox')
+        expect(apiSpies.syncFolder).toHaveBeenCalledWith('inbox')
+    })
+
+    it('loads a folder\'s messages when a different folder is selected', async () => {
+        apiSpies.listAccounts.mockResolvedValue([makeAccount()])
+        apiSpies.listFolders.mockResolvedValue([
+            makeFolder('inbox', 'Inbox', 'inbox'),
+            makeFolder('archive', 'Archive', 'custom'),
+        ])
+        apiSpies.listMessages.mockImplementation((id: string) =>
+            Promise.resolve(id === 'archive'
+                ? [makeMessage({id: 'a1', folderId: 'archive', subject: 'Archived item'})]
+                : [makeMessage({subject: 'Weekly report'})]))
+        const {container} = render(<App/>)
+        expect(await screen.findByText('Weekly report')).toBeInTheDocument()
+        fireEvent.click(container.querySelector('[data-folder-id="archive"]')!)
+        await waitFor(() => expect(apiSpies.listMessages).toHaveBeenCalledWith('archive'))
+        expect(await screen.findByText('Archived item')).toBeInTheDocument()
+    })
+})
+
+describe('App: reading a message', () => {
+    it('fetches and shows the body when a message is selected (reading pane on)', async () => {
+        apiSpies.listAccounts.mockResolvedValue([makeAccount()])
+        apiSpies.listFolders.mockResolvedValue([makeFolder('inbox', 'Inbox', 'inbox')])
+        apiSpies.listMessages.mockResolvedValue([makeMessage({subject: 'Weekly report'})])
+        const {container} = render(<App/>)
+        fireEvent.click(await screen.findByText('Weekly report'))
+        await waitFor(() => expect(apiSpies.messageBody).toHaveBeenCalledWith('m1'))
+        // The reading pane on the right shows the selected message, so its reply control appears. Scope to
+        // the reader pane, since the titlebar also carries a Reply control with the same accessible name.
+        const reader = container.querySelector('.reader') as HTMLElement
+        expect(within(reader).getByRole('button', {name: 'Reply'})).toBeInTheDocument()
+        expect(apiSpies.messageTags).toHaveBeenCalledWith('m1')
+    })
+
+    it('toggles the reading pane off from the View menu', async () => {
+        apiSpies.listAccounts.mockResolvedValue([makeAccount()])
+        apiSpies.listFolders.mockResolvedValue([makeFolder('inbox', 'Inbox', 'inbox')])
+        apiSpies.listMessages.mockResolvedValue([makeMessage({subject: 'Weekly report'})])
+        const {container} = render(<App/>)
+        await screen.findByText('Weekly report')
+        expect(container.querySelector('.panes.no-preview')).not.toBeInTheDocument()
+        fireEvent.click(screen.getByRole('button', {name: 'View'}))
+        fireEvent.click(screen.getByRole('menuitemcheckbox', {name: 'Reading pane'}))
+        await waitFor(() => expect(container.querySelector('.panes.no-preview')).toBeInTheDocument())
+        expect(localStorage.getItem('pigeonpost.readingPane')).toBe('off')
+    })
+})
+
+describe('App: deleting a message', () => {
+    it('confirms before deleting the selected message, then calls the delete api', async () => {
+        apiSpies.listAccounts.mockResolvedValue([makeAccount()])
+        apiSpies.listFolders.mockResolvedValue([makeFolder('inbox', 'Inbox', 'inbox')])
+        apiSpies.listMessages.mockResolvedValue([makeMessage({subject: 'Weekly report'})])
+        render(<App/>)
+        fireEvent.click(await screen.findByText('Weekly report'))
+        // The reader's Delete control asks for confirmation rather than deleting straight away.
+        fireEvent.click(await screen.findByRole('button', {name: 'Delete'}))
+        const dialog = await screen.findByRole('alertdialog', {name: 'Delete message'})
+        expect(dialog).toBeInTheDocument()
+        fireEvent.click(within(dialog).getByRole('button', {name: 'Delete'}))
+        await waitFor(() => expect(apiSpies.deleteMessage).toHaveBeenCalledWith('m1'))
+        await waitFor(() => expect(screen.queryByText('Weekly report')).not.toBeInTheDocument())
+    })
+})
