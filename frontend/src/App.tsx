@@ -32,6 +32,7 @@ import {matchesShortcut} from './shortcuts'
 import {printDocument, printFrameId} from './print'
 import {focusRingElements, focusRingRoot, stepFocusRing, trapTab} from './focusRing'
 import {useMessageStore} from './hooks/useMessageStore'
+import {rangeIds, toggleId, useSelection} from './hooks/useSelection'
 
 // autoSyncIntervalMs is how often the folder on screen is refreshed from the server in the background,
 // so new mail in the open folder appears without a manual sync.
@@ -108,10 +109,9 @@ function App() {
     const [messageToPurge, setMessageToPurge] = useState<Message | null>(null)
     const [purgingMessage, setPurgingMessage] = useState<boolean>(false)
     const [contextMenu, setContextMenu] = useState<{message: Message; x: number; y: number} | null>(null)
-    // markedIds is the multi-selection built by Ctrl and Shift clicking. Empty means single-select mode,
-    // where selectedMessage alone is the selection. anchorId is the pivot a Shift-click ranges from.
-    const [markedIds, setMarkedIds] = useState<Set<string>>(new Set())
-    const [anchorId, setAnchorId] = useState<string | null>(null)
+    // The multi-selection built by Ctrl and Shift gestures (the marked ids and the Shift-range anchor)
+    // lives in its own hook. Empty marks mean single-select mode, where selectedMessage alone is selected.
+    const {markedIds, setMarkedIds, anchorId, setAnchorId, clear: clearSelection} = useSelection()
     const [bulkToDelete, setBulkToDelete] = useState<Message[] | null>(null)
     const [bulkDeleting, setBulkDeleting] = useState<boolean>(false)
     const [bulkToPurge, setBulkToPurge] = useState<Message[] | null>(null)
@@ -795,13 +795,6 @@ function App() {
         setReadingFull(false)
     }, [])
 
-    // clearSelection drops the multi-selection back to single-select mode. The active message (shown in
-    // the reader) is left as it is, so clearing a selection does not close the message on screen.
-    const clearSelection = useCallback(() => {
-        setMarkedIds(new Set())
-        setAnchorId(null)
-    }, [])
-
     // activateRow applies the standard list-selection gestures to a row click. A plain click selects the
     // one row and opens it; Ctrl (or Cmd) click toggles the row in or out of the selection; Shift click
     // selects the contiguous range from the anchor. The clicked row always becomes the active one shown in
@@ -809,28 +802,13 @@ function App() {
     const activateRow = useCallback((message: Message, mods: {ctrl: boolean; shift: boolean}) => {
         const list = searchActive ? searchResults : displayMessages
         if (mods.shift && anchorId) {
-            const from = list.findIndex((m) => m.id === anchorId)
-            const to = list.findIndex((m) => m.id === message.id)
-            if (from !== -1 && to !== -1) {
-                const [lo, hi] = from <= to ? [from, to] : [to, from]
-                setMarkedIds(new Set(list.slice(lo, hi + 1).map((m) => m.id)))
-            } else {
-                setMarkedIds(new Set([message.id]))
-            }
+            setMarkedIds(rangeIds(list, anchorId, message.id))
             setSelectedMessage(message)
             setReadingFull(false)
             return
         }
         if (mods.ctrl) {
-            setMarkedIds((prev) => {
-                const base = prev.size ? new Set(prev) : new Set<string>(selectedMessage ? [selectedMessage.id] : [])
-                if (base.has(message.id)) {
-                    base.delete(message.id)
-                } else {
-                    base.add(message.id)
-                }
-                return base
-            })
+            setMarkedIds((prev) => toggleId(prev, message.id, selectedMessage?.id ?? null))
             setAnchorId(message.id)
             setSelectedMessage(message)
             setReadingFull(false)

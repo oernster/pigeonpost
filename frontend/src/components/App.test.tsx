@@ -268,3 +268,23 @@ describe('App: the coupled message lists', () => {
         expect(screen.queryByText('Second message')).not.toBeInTheDocument()
     })
 })
+
+// The Ctrl-toggle gesture (toggleId) is exercised by the bulk-delete test above. This pins the other half,
+// the Shift range (rangeIds), the behaviour Phase 3.2 moves into useSelection.
+describe('App: multi-selection gestures', () => {
+    it('Shift-click selects the contiguous range from the anchor (rangeIds)', async () => {
+        apiSpies.listAccounts.mockResolvedValue([makeAccount()])
+        apiSpies.listFolders.mockResolvedValue([makeFolder('inbox', 'Inbox', 'inbox')])
+        // Distinct descending dates fix the newest-first list order at [m1, m2, m3].
+        apiSpies.listMessages.mockResolvedValue([
+            makeMessage({id: 'm1', subject: 'First', date: '2026-07-11T10:03:00.000Z'}),
+            makeMessage({id: 'm2', subject: 'Second', date: '2026-07-11T10:02:00.000Z'}),
+            makeMessage({id: 'm3', subject: 'Third', date: '2026-07-11T10:01:00.000Z'}),
+        ])
+        render(<App/>)
+        // Click the first row to set the anchor, then Shift-click the third to range across all three.
+        fireEvent.click(await screen.findByText('First'))
+        fireEvent.click(screen.getByText('Third'), {shiftKey: true})
+        expect(await screen.findByText('3 messages selected')).toBeInTheDocument()
+    })
+})
