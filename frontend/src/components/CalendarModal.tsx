@@ -1,4 +1,4 @@
-import {useEffect, useRef, useState} from 'react'
+import {useRef, useState} from 'react'
 import {api, CalendarEvent, CalendarEventInput, CalendarEventInstance, EventScope} from '../api'
 import {browserZone, instantToZonedWall, zonedWallToISO, zoneOptions} from '../tz'
 import {ModalClose} from './ModalClose'
@@ -34,6 +34,7 @@ import {
 } from '../calendarModel'
 import {useEventInstances} from '../hooks/useEventInstances'
 import {useCalendars} from '../hooks/useCalendars'
+import {useOpenFromReminder} from '../hooks/useOpenFromReminder'
 import {CalendarsManager} from './CalendarsManager'
 
 
@@ -124,9 +125,6 @@ export function CalendarModal({events, accountId, accountEmail, accountName, ini
         calendars, managingCals, setManagingCals, calForm, setCalForm, saveCal,
         pendingCalDelete, setPendingCalDelete, confirmCalDelete,
     } = useCalendars({setError, setBusy, onChanged})
-    // pendingOpenId is an event whose dialog should open once its occurrence has loaded, set when the
-    // calendar is opened from a reminder. It is cleared once the dialog opens.
-    const [pendingOpenId, setPendingOpenId] = useState<string | null>(initialEventId ?? null)
     // instances are the concrete occurrences shown for the visible range, expanded from the recurring events
     // by the backend and refetched by the application hook; bumpReload forces a refetch after a local change.
     const {instances, bumpReload} = useEventInstances({viewDate, viewMode, events, setError})
@@ -220,41 +218,13 @@ export function CalendarModal({events, accountId, accountEmail, accountName, ini
         setEditScope(null)
     }
 
-    // A reminder can be clicked while the calendar is already open, so sync the pending id from the prop
-    // rather than only from the mount initialiser, so it opens the newly requested event too.
-    useEffect(() => {
-        if (initialEventId) {
-            setPendingOpenId(initialEventId)
-        }
-    }, [initialEventId])
-
-    // When opened from a reminder, jump the month view to the target event so its occurrence is expanded
-    // into range. Re-runs when the events prop arrives, so a jump still happens if the list loaded after
-    // the pending id was set. The early return once the id is cleared stops it after the dialog opens.
-    useEffect(() => {
-        if (!pendingOpenId) {
-            return
-        }
-        const ev = events.find((e) => e.id === pendingOpenId)
-        if (ev && ev.start) {
-            setViewDate(new Date(ev.start))
-        }
-    }, [pendingOpenId, events])
-
-    // Once the target event's occurrence is present in the loaded range, open its dialog and clear the
-    // pending id so it opens only once. A recurring event opens at series scope so a save reaches the
+    // A clicked reminder lands on the event it is about: the hook jumps the view to the event and reveals its
+    // dialog once the occurrence has loaded. A recurring event opens at series scope so a save reaches the
     // master; a one-off opens directly.
-    useEffect(() => {
-        if (!pendingOpenId) {
-            return
-        }
-        const inst = instances.find((i) => i.event.id === pendingOpenId)
-        if (inst) {
-            openForm(inst, isSeries(inst) ? EventScope.All : null)
-            setPendingOpenId(null)
-        }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [pendingOpenId, instances])
+    useOpenFromReminder({
+        initialEventId, events, instances, setViewDate,
+        onReveal: (inst) => openForm(inst, isSeries(inst) ? EventScope.All : null),
+    })
 
     const chooseEditScope = (scope: EventScope) => {
         if (editScope) openForm(editScope, scope)
