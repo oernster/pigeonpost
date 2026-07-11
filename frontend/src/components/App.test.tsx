@@ -439,3 +439,21 @@ describe('App: syncing', () => {
         await waitFor(() => expect(apiSpies.syncAccount).toHaveBeenCalledWith('acc1'))
     })
 })
+
+// The colour-tagging that Phase 3.10 moves into useTags. The load of a message's tags is already covered by
+// the reading-a-message test (it asserts api.messageTags); this pins the toggle path (toggleTag).
+describe('App: tagging', () => {
+    it('tags the selected message from the Mail menu colour submenu (useTags)', async () => {
+        apiSpies.listAccounts.mockResolvedValue([makeAccount()])
+        apiSpies.listFolders.mockResolvedValue([makeFolder('inbox', 'Inbox', 'inbox')])
+        apiSpies.listMessages.mockResolvedValue([makeMessage({subject: 'Weekly report'})])
+        render(<App/>)
+        fireEvent.click(await screen.findByText('Weekly report'))
+        fireEvent.click(screen.getByRole('button', {name: 'Mail'}))
+        // Tag with colour is a submenu; Enter opens it, then a colour applies that tag to the open message.
+        fireEvent.keyDown(screen.getByRole('menuitem', {name: 'Tag with colour'}), {key: 'Enter'})
+        // The colour items carry a checked state, so they render as menuitemcheckbox, not menuitem.
+        fireEvent.click(screen.getByRole('menuitemcheckbox', {name: 'Red'}))
+        await waitFor(() => expect(apiSpies.setMessageTag).toHaveBeenCalledWith('m1', expect.any(String), true))
+    })
+})
