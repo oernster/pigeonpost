@@ -38,6 +38,7 @@ import {useBulkActions} from './hooks/useBulkActions'
 import {useReaderTabs} from './hooks/useReaderTabs'
 import {useOutbox} from './hooks/useOutbox'
 import {useFolders} from './hooks/useFolders'
+import {useAccounts} from './hooks/useAccounts'
 
 // autoSyncIntervalMs is how often the folder on screen is refreshed from the server in the background,
 // so new mail in the open folder appears without a manual sync.
@@ -45,7 +46,6 @@ const millisPerMinute = 60 * 1000
 const autoSyncIntervalMs = 5 * millisPerMinute
 
 function App() {
-    const [accounts, setAccounts] = useState<Account[]>([])
     const [selectedAccount, setSelectedAccount] = useState<string>('')
     const [unreadCounts, setUnreadCounts] = useState<UnreadCountsResult>({total: 0, byAccount: {}})
     // The coupled core of the mail views (the folder list, the search results, the reader tabs and the
@@ -75,6 +75,14 @@ function App() {
         outbox, outboxForAccount, refreshOutbox, sidebarFolders,
         messageToCancelSend, setMessageToCancelSend, cancellingSend, cancelSend,
     } = useOutbox({selectedAccount, folders, setError})
+    // The account list, the add/edit/remove dialog state and the load/reorder/remove operations live in
+    // useAccounts. selectAccount and the auto-select effect stay in App (below): account selection cascades
+    // into the folders, the store, the selection and the reader, and it needs loadFolderMessages.
+    const {
+        accounts, settingUp, setSettingUp, accountToEdit, setAccountToEdit,
+        accountToDelete, setAccountToDelete, deleting,
+        loadAccounts, reorderAccounts, removeAccount,
+    } = useAccounts({selectedAccount, setSelectedAccount, store, setFolders, setSelectedFolder, setError})
     const [theme, setTheme] = useState<Theme>(loadTheme())
     const [about, setAbout] = useState<AboutInfo | null>(null)
     const [licence, setLicence] = useState<string | null>(null)
@@ -91,10 +99,6 @@ function App() {
     // accounts have loaded; recoveryCheckedRef makes that offer happen once per launch.
     const [recovery, setRecovery] = useState<DraftRecoveryResult | null>(null)
     const recoveryCheckedRef = useRef<boolean>(false)
-    const [settingUp, setSettingUp] = useState<boolean>(false)
-    const [accountToEdit, setAccountToEdit] = useState<Account | null>(null)
-    const [accountToDelete, setAccountToDelete] = useState<Account | null>(null)
-    const [deleting, setDeleting] = useState<boolean>(false)
     const [tags, setTags] = useState<Tag[]>([])
     const [messageTags, setMessageTags] = useState<Tag[]>([])
     const [rules, setRules] = useState<Rule[]>([])
@@ -200,38 +204,6 @@ function App() {
             window.clearTimeout(hide)
         }
     }, [])
-
-    const loadAccounts = useCallback(async () => {
-        try {
-            setAccounts(await api.listAccounts())
-        } catch (e) {
-            setError(String(e))
-        }
-    }, [])
-
-    useEffect(() => {
-        void loadAccounts()
-    }, [loadAccounts])
-
-    // reorderAccounts applies the new sidebar order optimistically (so the move is instant) and persists
-    // it. On failure it shows the error and reloads the canonical order from the store, so a rejected
-    // reorder does not leave the UI out of step with what is saved.
-    const reorderAccounts = useCallback(
-        async (orderedIds: string[]) => {
-            const byId = new Map(accounts.map((a) => [a.id, a]))
-            const next = orderedIds
-                .map((id) => byId.get(id))
-                .filter((a): a is Account => a !== undefined)
-            setAccounts(next)
-            try {
-                await api.reorderAccounts(orderedIds)
-            } catch (e) {
-                setError(String(e))
-                await loadAccounts()
-            }
-        },
-        [accounts, loadAccounts],
-    )
 
     // Once accounts have loaded, check for a compose snapshot autosaved in a previous session and offer to
     // restore it. This runs once per launch. A snapshot whose account has since been removed is stale, so
@@ -641,30 +613,6 @@ function App() {
         await loadAccounts()
         await selectAccount(email)
     }, [loadAccounts, selectAccount])
-
-    const removeAccount = useCallback(async () => {
-        if (!accountToDelete) {
-            return
-        }
-        setDeleting(true)
-        setError('')
-        try {
-            await api.removeAccount(accountToDelete.id)
-            if (accountToDelete.id === selectedAccount) {
-                setSelectedAccount('')
-                setFolders([])
-                setSelectedFolder('')
-                setMessages([])
-                setSelectedMessage(null)
-            }
-            await loadAccounts()
-            setAccountToDelete(null)
-        } catch (e) {
-            setError(String(e))
-        } finally {
-            setDeleting(false)
-        }
-    }, [accountToDelete, selectedAccount, loadAccounts])
 
     const closeContextMenu = useCallback(() => setContextMenu(null), [])
 

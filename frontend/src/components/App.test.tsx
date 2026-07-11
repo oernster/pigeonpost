@@ -411,3 +411,18 @@ describe('App: folder management', () => {
         await waitFor(() => expect(apiSpies.deleteFolder).toHaveBeenCalledWith('archive'))
     })
 })
+
+// The account list and the load/reorder/remove operations that Phase 3.8 moves into useAccounts. An account
+// row carries a Remove button; confirming it calls the remove api.
+describe('App: account management', () => {
+    it('removes an account through the confirm dialog (useAccounts)', async () => {
+        apiSpies.listAccounts.mockResolvedValue([makeAccount()])
+        apiSpies.listFolders.mockResolvedValue([makeFolder('inbox', 'Inbox', 'inbox')])
+        render(<App/>)
+        // The account row carries a Remove <email> button; it asks for confirmation before removing.
+        fireEvent.click(await screen.findByRole('button', {name: 'Remove me@example.com'}))
+        const dialog = await screen.findByRole('alertdialog', {name: 'Remove account'})
+        fireEvent.click(within(dialog).getByRole('button', {name: 'Remove account'}))
+        await waitFor(() => expect(apiSpies.removeAccount).toHaveBeenCalledWith('acc1'))
+    })
+})
