@@ -81,7 +81,8 @@ two-way CalDAV/CardDAV. See [DESIGN_PLAN.md](DESIGN_PLAN.md) for the full roadma
 
 ```
 wails dev        # run the app in development
-go test ./...    # run the test suite
+go test ./...    # run the Go test suite
+cd frontend && npx vitest run   # run the front-end test suite
 ./build.ps1      # build the app exe and the installer (Windows)
 ```
 

@@ -121,3 +121,28 @@ rules, not review conventions:
 - only the composition root wires both the application and infrastructure layers.
 
 A violation fails `go test`, the same as any other test.
+
+## Front-end tests
+
+The React front end has its own suite under `frontend/`, run with Vitest on jsdom:
+
+```
+cd frontend
+npx vitest run              # run the front-end suite once
+npx vitest                  # watch mode
+npx vitest run --coverage   # enforce the pure-module coverage gate
+```
+
+- **Pure modules gated to 100%.** The pure logic modules (`messageText`, `shortcuts`, `print`,
+  `readerFormat`, `composeAddresses`, `accountProviders`, `sidebarDnd`, `calendarModel`, `replyDraft`)
+  carry a v8 coverage gate at 100% lines, functions, statements and branches, listed in `vite.config.ts`
+  under `coverage.include`. Hooks and components are tested but not gated: a React hook fuses logic with
+  framework plumbing, so a blanket 100% there buys brittle tests, not correctness.
+- **Structural boundary test.** `src/test/boundary.test.ts` scans the top-level `src/*.ts` modules and
+  keeps the gated pure modules pure, the front-end analogue of `boundary_test.go`.
+- **Characterization-first.** The `App.tsx` and component decomposition was done test-first: each
+  extraction was preceded by a characterization test pinning the behaviour on the un-extracted code, so
+  every move was behaviour-preserving by construction. `App.test.tsx` characterizes App at its outer
+  interface (what it renders and which `api` calls fire); the one Wails seam (`../api`) and the runtime
+  bindings are stubbed while the pure modules run for real.
+- The Go `./test.ps1` gate and this front-end suite are separate; run both to verify the whole app.

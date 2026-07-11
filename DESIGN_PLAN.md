@@ -3,7 +3,7 @@
 Cross-platform desktop email, calendar and address book client. Go core, React front end,
 local-first. Delivered as a signed download at https://www.pigeonpost.ink.
 
-Status: design locked; 0.12.0 complete on main (VERSION 0.12.0, schema v30); 0.11.0 released (tagged v0.11.0, schema v30); 0.10.0 released
+Status: design locked; 0.13.0 in progress on main (the front-end decomposition; VERSION 0.13.0, schema v30); 0.12.0 shipped (tagged v0.12.0, the backend cleanup); 0.11.0 released (tagged v0.11.0, schema v30); 0.10.0 released
 (tagged v0.10.0, schema v30); 0.9.0 released (tagged v0.9.0, schema v27); 0.8.0 released (tagged v0.8.0, schema v23); 0.7.0 cut at schema v15;
 0.6.0 released
 (tagged v0.6.0). The 0.5.0 release
@@ -341,8 +341,9 @@ external dependency; it costs nothing to run.
   throwaway GreenMail/Dovecot container in CI.
 - Structural: boundary direction, domain purity (no IO/time/network in domain), composition-root
   whitelist, module-size limit; `tests/structural/boundary_test.go` AST scan.
-- Frontend: component tests for three-pane interactions and drag/move; avoid fragile pixel
-  assertions.
+- Frontend: Vitest and jsdom component and hook tests, a coverage gate on the pure modules and a
+  structural boundary test; characterization-first for the App.tsx and component decomposition. Avoid
+  fragile pixel assertions.
 - Read results by exit code, not console text.
 
 ---

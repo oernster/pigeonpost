@@ -3,8 +3,8 @@
 A standing reference to the project's outstanding technical debt, not a work order. It lists what is still open, weighs whether each item is worth doing and records the rationale. Nothing here proposes reverting a feature or changing any UI or UX behaviour: every item is a behaviour-preserving internal refactor.
 
 - **Scope:** the whole repository (Go core plus the React front end), read against the documented design and the structural tests.
-- **Status:** the backend cleanup from the original review has landed; the whole Go module is staticcheck-clean and the 100% domain and application coverage gate holds. What is left is collected below.
-- **Last updated:** 2026-07-10.
+- **Status:** the backend cleanup and the front-end decomposition have both landed. The Go module is staticcheck-clean with the 100% domain and application gate holding; the React front end is now decomposed (`App.tsx` broken into hooks and focused components behind a Vitest test net, `App.css` split into a per-concern manifest). What little is left is collected below.
+- **Last updated:** 2026-07-11.
 
 ---
 
@@ -12,7 +12,7 @@ A standing reference to the project's outstanding technical debt, not a work ord
 
 - **One backend decision left**: whether to reshape the `FetchBody` port tuple into a struct. The actionable backend cleanup is otherwise complete. See section 3.
 - **One item deliberately left**: `groupByFolder` for `DeleteMany`/`MoveMany`, because it would change observable error aggregation. See section 4.
-- **The front end**, almost entirely `App.tsx`: a 2,519-line god component that is the one genuine concentration of debt. Deferred behind a front-end test net. Nothing in `frontend/` has been touched. See section 5.
+- **The front end is now decomposed** (it was the one genuine concentration of debt). `App.tsx` went from a 2,519-line god component to 986 lines across fourteen custom hooks and four focused components, on a Vitest and jsdom test net with a coverage gate on the pure modules. `App.css` went from 3,070 lines to a per-concern `@import` manifest. Nothing material remains open on the front end. See section 5.
 
 ---
 
@@ -22,14 +22,14 @@ The early architectural decisions have compounded well, for a structural reason 
 
 The backend is now essentially clean: the near-duplicate blocks and magic numbers that were the original findings have been collapsed or named behind the coverage gate, leaving only one optional port-shape decision (the `FetchBody` tuple). None of it is structural rot.
 
-The invariants reached every part of the code except one, which is where the material debt sits: **the React front end, almost entirely `App.tsx`**. The structural scan explicitly excludes `frontend/`, there is no 400-line cap there and there are no automated front-end tests at all, so the front end grew a 2,519-line god component holding 66 pieces of state while the Go core stayed clean. That asymmetry is the single most useful finding in this document.
+The invariants reached every part of the code except one, which is where the material debt used to sit: **the React front end, almost entirely `App.tsx`**. The structural scan excluded `frontend/`, there was no 400-line cap there and there were no automated front-end tests, so the front end had grown a 2,519-line god component holding 66 pieces of state while the Go core stayed clean. That asymmetry, the single most useful finding in this document, has since been closed: the front end now carries its own Vitest test net (a v8 coverage gate on the pure modules plus a structural boundary test), and `App.tsx` was decomposed staged and test-guarded down to 986 lines. See section 5.
 
 ---
 
 ## 2. How to read the recommendations
 
 - **Verdict** is one of: **Do** (clear win, low risk), **Consider** (real value but weigh the effort or risk), **Leave** (looks like debt, is not worth touching).
-- Two constraints frame every recommendation. No feature is ever reverted and no UI or UX behaviour changes. The safety net is also asymmetric: the Go core is protected by the 100% domain and application coverage gate plus the structural tests, so backend refactors are verifiable and safe, while the front end has no automated tests, so any change there rests on manual verification alone. That is why the safe work is nearly all in the backend and why `App.tsx`, despite being the biggest single target, is the riskiest to touch.
+- Two constraints frame every recommendation. No feature is ever reverted and no UI or UX behaviour changes. The safety net was, at the time of the original review, asymmetric: the Go core is protected by the 100% domain and application coverage gate plus the structural tests, so backend refactors are verifiable and safe, while the front end had no automated tests, so any change there rested on manual verification alone. That asymmetry is why the safe work was nearly all in the backend and why `App.tsx` was the riskiest target. It has since been closed by adding the front-end test net first (see section 5), which is exactly how the `App.tsx` decomposition was then done safely.
 
 ---
 
@@ -53,54 +53,31 @@ The actionable backend cleanup is complete. What is left is one boundary decisio
 
 ---
 
-## 5. The front end (the one material concentration of debt)
+## 5. The front end (RESOLVED, 2026-07-11)
 
-#### A1. `App.tsx` (2,519 lines): the headline
+This was the one material concentration of debt: the ungated, untested React front end, almost entirely a 2,519-line `App.tsx` holding 66 `useState` declarations and orchestrating every concern (data loading, account and folder CRUD, single and bulk message operations, multi-select, compose, search, the outbox, reader tabs, ~fifteen modal flags, a ~230-line global keyboard effect and a ~390-line render tree). It has since been paid down exactly as the original verdict prescribed, staged and test-first, with no UI or UX change.
 
-**State:** one component holds **66 `useState` declarations** and about **95** further hooks (`useEffect`, `useCallback`, `useMemo`, `useRef`). It owns every concern: data loading for accounts, folders, messages, tags, rules, contacts and events; account and folder CRUD; single and bulk message operations; multi-select with Ctrl and Shift; compose orchestration (reply, reply-all, forward, attach, restore); search; the outbox; reader tabs; the reading-pane toggle; printing; roughly fifteen modal flags; a ~230-line global keyboard effect with a ~28-entry dependency array; about 140 lines of inline menu configuration; and a ~390-line render tree.
+#### A0. The prerequisite, done first: a front-end test net
 
-This is not spaghetti. The comments are excellent, the pure helpers are already lifted to module scope (`escapeHtml`, `subjectWithPrefix`, `emlFilename`, `neighbourAfterRemoval`, `matchesShortcut`, the focus-ring helpers) and the view is genuinely decomposed into child components. What was never extracted is the **state and the orchestration**. Two duplication patterns are visible inside it: the "apply an optimistic change to every list" block (`setMessages` then `setSearchResults` then `setTabs` then `setSelectedMessage`) appears in five handlers; the "remove ids from every list" block appears in four single-item handlers even though `removeIdsFromLists` already generalises it for the bulk path.
+`frontend/` gained a Vitest + jsdom harness with a v8 coverage gate on the pure logic modules and a structural boundary test that scans `src/*.ts` (the same role `boundary_test.go` plays for Go). Every decomposition step was preceded by a characterization test pinning the behaviour on the un-extracted code, so each move was behaviour-preserving by construction. This converted the riskiest refactor in the codebase into a verifiable one.
 
-**Refactor pros:**
-- Cuts the single largest maintenance surface in the codebase into testable units (custom hooks such as `useAccounts`, `useFolders`, `useMessageActions`, `useSelection`, `useCompose`, `useKeyboardNav`, `useWailsEvents`).
-- Shrinks the giant dependency arrays and the re-render blast radius, so a change to one concern stops forcing the whole app to reason about the rest.
-- Collapses the fan-out-to-lists duplication into one helper, removing the drift risk where a new list is added and one handler forgets it.
-- Makes the intricate keyboard and selection logic isolatable and unit-testable for the first time.
+#### A1. `App.tsx`, 2,519 to 986 lines (RESOLVED)
 
-**Refactor cons:**
-- **This is the highest-risk change in the review.** The keyboard, focus-ring, multi-select and reading-pane behaviours are subtle, interdependent and exactly the UX that must not change, with **no automated front-end tests** to catch a regression.
-- The surface is large: a full extraction touches most of the file and is hard to review as one diff.
-- Behaviour-preserving refactors of stateful React are easy to get subtly wrong (stale closures, effect timing, dependency arrays).
+The state and orchestration that had never been extracted were lifted into fourteen custom hooks (`useMessageStore`, `useSelection`, `useMessageActions`, `useBulkActions`, `useReaderTabs`, `useOutbox`, `useFolders`, `useAccounts`, `useSync`, `useTags`, `useComposeLauncher`, `useAppEvents`, `useMenus`, `useMessageListKeyboard`) plus pure modules (`replyDraft` and the earlier text/shortcut/print/focus-ring helpers), and the render tree into four more components (`TitleBar`, `WelcomeScreen`, `SelectionSummary`, `DraftRecoveryDialog`). The fan-out-to-lists and remove-from-lists duplications collapsed into `useMessageStore`. The one deliberate leaf is the modal stack (`AppModals`): it wires already-componentised modals to App's state and a wrapper would need ~90 props, which displaces coupling rather than reducing it, so App stays its composition root.
 
-**Verdict: Consider, staged and behind tests.** A big-bang rewrite is the wrong approach; the safe path is incremental and test-guarded: (1) add a front-end test runner and characterization tests for the load-bearing flows (keyboard navigation, multi-select ranges, delete and move, compose pre-fill) so there is a net; (2) extract the lowest-risk, purely-derived pieces first (the menu definitions to a module, the list-mutation helpers into one function); (3) only then lift cohesive state clusters into custom hooks one at a time, verifying the UI after each. Each step is independently shippable and reversible. This is the one item where the effort and risk are real enough that "judiciously, if at all" is the right frame: the value is high, though it is the only place a slip could break the UX.
+#### A2. `App.css`, 3,070 lines to a manifest (RESOLVED)
 
-#### A2. `App.css` (3,070 lines)
+Split by concern into eleven files under `src/styles/`, imported by a thin `App.css` manifest in the exact original source order, so the cascade is unchanged. Chosen over the component-ownership split (murky ownership, order-sensitive, unverifiable). Proven byte-neutral three ways: the parts concatenate to the original, the build validates every file, and the bundled CSS content-hash is unchanged. See ARCHITECTURE.md (Styles) for the go-forward rule.
 
-Large but genuinely disciplined: **zero `!important`**, only **6 hardcoded hex colours** against **325 `var(--…)`** references and sectioned feature-by-feature with descriptive comments (reading pane, focus ring, menus, calendar views, recurrence editor, contacts). It is not rotting; the only debt is that one file carries the whole app's styling.
+#### A3 and A4. The big components, also decomposed (RESOLVED)
 
-- **Refactor pros:** splitting into per-feature stylesheets (or CSS modules) would improve navigability and make ownership of a feature's styles obvious.
-- **Refactor cons:** CSS is order and specificity sensitive, so splitting risks subtle cascade changes to a UI that must not change, for a modest navigability gain; the file is already comment-navigable. Churn without much payoff.
-- **Verdict: Leave** (optional low-priority split at most). If `App.tsx` is broken into feature hooks, co-locating each feature's CSS at that point is the natural, low-risk moment to do it.
+The earlier phases split the calendar (`CalendarModal` into `EventFormModal`, `useEventInstances`, `useCalendars` / `CalendarsManager`, `useOpenFromReminder`), the sidebar (`AccountList`, `FolderTree`, `useAccountReorder`, `usePersistedFolderState`), the account-setup modal (`ProviderChooser`, `AccountDetailsForm`, `useAccountForm`, `RichTextField`, `useLinkEditor`), the compose window (`useDraftAutosave`, `useSeparatorCorrection`, the shared `useLinkEditor`) and the reader (`ReaderToolbar`, `ReaderAttachments`, `TagColourMenu` / `useTagMenu`), each behind its own characterization tests.
 
-#### A3. `CalendarModal.tsx` (1,061 lines)
+#### A5. The front-end test gap (CLOSED)
 
-The second-largest front-end file but well organised: named constants throughout (`DAYS_IN_WEEK`, `REMINDER_PRESETS`, `DEFAULT_REMINDER_MINUTES`, weekday and month tables, attendee-status labels), pure helpers (`extractUrls`, `meetingProvider`), typed form interfaces and delegation to `CalendarTimeGrid`, `RecurrenceEditor`, `ScopeChooser` and `PickerButton`. Its size is inherent: month, week and day views plus an event editor plus recurrence plus attendees plus timezones.
+The gap that made A1 risky is closed: the harness plus characterization tests for the keyboard, selection, delete/move and compose flows went in first, as the prerequisite, and grew alongside every extraction.
 
-- **Refactor pros:** the event-editor form could split from the calendar grid and views, giving two smaller, single-purpose components.
-- **Refactor cons:** calendar state (selected date, view mode, the open event) is genuinely shared across those pieces, so the split adds prop-threading; moderate risk against no automated tests; modest benefit since the file is already constant-clean and sub-component-backed.
-- **Verdict: Consider (low priority).** A good candidate only once a front-end test net exists and `App.tsx` itself has been dealt with.
-
-#### A4. The other front-end components
-
-`Sidebar` (705), `AccountSetupModal` (554), `Reader` (523), `ComposeModal` (520), `api.ts` (415), `ContactsModal` (396), `RecurrenceEditor` (335), `MessageContextMenu` (327), `Menu` (308) and the fifteen-odd small dialogs. These are the correctly-scoped extractions, each a single responsibility receiving props. Their existence is precisely why `App.tsx` is 2,519 lines rather than 6,000. `api.ts` is a flat typed wrapper mirroring the Go facade one-to-one, which is the expected shape.
-
-- **Verdict: Leave.** This is the decomposition done right. Pros of touching them: negligible. Cons: churn for no benefit.
-
-#### A5. The front-end test gap (a Gap, not a refactor)
-
-There are no `.test`/`.spec` files and no component-test setup, though the design plan lists front-end component tests as the strategy. This is not itself "debt" in the refactor sense; it is the reason `App.tsx` is risky to touch, so it belongs here.
-
-- **Recommendation:** a front-end test harness plus characterization tests for the keyboard, selection, delete/move and compose flows are the **prerequisite** for A1, not a separate nicety. They convert the riskiest refactor in the codebase into a safe one.
+**Verdict: DONE.** The value was high and the risk was real; both were handled by putting the test net in first and moving in small, independently-shippable, verified steps. The one asymmetry this document opened with is closed: the front end now has the same kind of executable safety net as the Go core.
 
 ---
 
@@ -120,6 +97,6 @@ These look like candidates but are correct as they stand; changing them would re
 
 ## 7. Closing
 
-The structural evidence is consistent: the decisions compounded because the important invariants were made executable, so they held under speed. The backend is not clean by accident; it is clean because the gates make the bad states unrepresentable. The actionable backend tidy-ups are now done; what remains is one optional port-shape decision and the front end.
+The structural evidence is consistent: the decisions compounded because the important invariants were made executable, so they held under speed. The backend is not clean by accident; it is clean because the gates make the bad states unrepresentable. The actionable backend tidy-ups are done, and the front-end decomposition that was the one remaining concentration of debt has now landed; what is left is one optional backend port-shape decision.
 
-The one genuine concentration of debt is where the invariants never reached: the ungated, untested front end, almost entirely `App.tsx`. It is the file to weigh most carefully, both because it is the highest-value and highest-risk target and because it is the one place a careless change could break the UX. It should be handled last, backed by tests first and staged.
+The front end that was the one genuine concentration of debt, where the invariants never reached, has been handled exactly as prescribed: highest-value and highest-risk, so a front-end test net went in first and `App.tsx` was decomposed in small staged, verified steps rather than a big-bang rewrite. The front end now carries the same executable safety net as the Go core.

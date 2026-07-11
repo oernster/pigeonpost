@@ -92,8 +92,9 @@ go run ./tools/genicons
 Run the tests (see [TESTING.md](TESTING.md) for detail):
 
 ```
-go test ./...
-./test.ps1        # with the coverage gate
+go test ./...                    # Go suite
+./test.ps1                       # Go suite with the coverage gate
+cd frontend && npx vitest run    # front-end suite (Vitest + jsdom)
 ```
 
 ## Building
