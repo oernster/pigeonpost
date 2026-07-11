@@ -27,6 +27,9 @@ import {CloseChoiceDialog} from './components/CloseChoiceDialog'
 import {Splash} from './components/Splash'
 import {useEscapeToClose} from './components/useBackdropDismiss'
 import {Environment, EventsOn} from '../wailsjs/runtime'
+import {emlFilename, escapeHtml, neighbourAfterRemoval, subjectWithPrefix} from './messageText'
+import {matchesShortcut} from './shortcuts'
+import {printDocument, printFrameId} from './print'
 
 // focusRingRoot is the container the ring is scoped to: the topmost open modal when one is showing (so
 // focus stays trapped within the dialog), otherwise the whole document.
@@ -106,78 +109,10 @@ function trapTab(e: KeyboardEvent) {
     }
 }
 
-function escapeHtml(s: string): string {
-    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-}
-
-// subjectWithPrefix adds "Re:"/"Fwd:" unless the subject already starts with it.
-function subjectWithPrefix(prefix: string, subject: string): string {
-    const s = subject || '(no subject)'
-    return s.toLowerCase().startsWith(prefix.toLowerCase()) ? s : `${prefix} ${s}`
-}
-
-// emlFilename builds a safe .eml filename from a message subject, replacing characters a filesystem
-// rejects and falling back to a default when the subject is empty.
-function emlFilename(subject: string): string {
-    const cleaned = subject.replace(/[\\/:*?"<>|\x00-\x1f]/g, '-').trim()
-    return `${cleaned || 'message'}.eml`
-}
-
-// printFrameId identifies the hidden iframe used for printing, so a previous one is removed before a
-// new print rather than accumulating frames.
-const printFrameId = 'pp-print-frame'
-
 // autoSyncIntervalMs is how often the folder on screen is refreshed from the server in the background,
 // so new mail in the open folder appears without a manual sync.
 const millisPerMinute = 60 * 1000
 const autoSyncIntervalMs = 5 * millisPerMinute
-
-// printDocument renders a standalone HTML document for printing one message: a short header (subject,
-// sender, date) followed by the message body. The body HTML is already sanitised server-side, so it is
-// safe to inline here as it is in the reader.
-function printDocument(subject: string, sender: string, date: string, contentHtml: string): string {
-    const head =
-        '<!doctype html><html><head><meta charset="utf-8">' +
-        `<title>${subject}</title>` +
-        '<style>body{font-family:sans-serif;color:#000;padding:24px}' +
-        '.print-head{margin-bottom:16px;border-bottom:1px solid #ccc;padding-bottom:8px}' +
-        '.print-subject{font-size:20px;font-weight:600;margin-bottom:6px}' +
-        '.print-meta{color:#444;font-size:13px}img{max-width:100%}</style></head><body>'
-    const header =
-        `<div class="print-head"><div class="print-subject">${subject}</div>` +
-        `<div class="print-meta">From: ${sender}</div>` +
-        (date ? `<div class="print-meta">Date: ${date}</div>` : '') +
-        '</div>'
-    return `${head}${header}${contentHtml}</body></html>`
-}
-
-// neighbourAfterRemoval returns the message that selection should land on once the message with
-// removedId is deleted from list: the following message, or the preceding one when it was last, or
-// null when it was the only message. This keeps keyboard triage moving without a manual re-select.
-function neighbourAfterRemoval(list: Message[], removedId: string): Message | null {
-    const idx = list.findIndex((m) => m.id === removedId)
-    if (idx === -1) {
-        return null
-    }
-    if (idx + 1 < list.length) {
-        return list[idx + 1]
-    }
-    if (idx - 1 >= 0) {
-        return list[idx - 1]
-    }
-    return null
-}
-
-// matchesShortcut reports whether a keyboard event is the accelerator named by a shortcut string such as
-// "Ctrl+N", "F9" or "Ctrl+Shift+K". Ctrl matches the Cmd key too, so the same strings work on macOS.
-function matchesShortcut(e: KeyboardEvent, shortcut: string): boolean {
-    const parts = shortcut.toLowerCase().split('+').map((part) => part.trim())
-    const key = parts[parts.length - 1]
-    return parts.includes('ctrl') === (e.ctrlKey || e.metaKey) &&
-        parts.includes('shift') === e.shiftKey &&
-        parts.includes('alt') === e.altKey &&
-        e.key.toLowerCase() === key
-}
 
 function App() {
     const READING_PANE_KEY = 'pigeonpost.readingPane'
