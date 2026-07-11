@@ -332,3 +332,25 @@ describe('App: single-message actions', () => {
         await waitFor(() => expect(screen.queryByText('Weekly report')).not.toBeInTheDocument())
     })
 })
+
+// The bulk actions over a multi-selection that Phase 3.4 moves into useBulkActions. Bulk delete is already
+// covered above (the removeFromAllLists test); this pins the bulk read/unread path (bulkSetRead).
+describe('App: bulk actions', () => {
+    it('bulk-marks the selected messages unread from the summary (bulkSetRead)', async () => {
+        apiSpies.listAccounts.mockResolvedValue([makeAccount()])
+        apiSpies.listFolders.mockResolvedValue([makeFolder('inbox', 'Inbox', 'inbox')])
+        apiSpies.listMessages.mockResolvedValue([
+            makeMessage({id: 'm1', subject: 'Weekly report'}),
+            makeMessage({id: 'm2', subject: 'Second message'}),
+        ])
+        render(<App/>)
+        fireEvent.click(await screen.findByText('Weekly report'))
+        // A Ctrl-click adds the second message, so the multi-selection summary replaces the reader.
+        fireEvent.click(screen.getByText('Second message'), {ctrlKey: true})
+        // Mark unread persists read=false for each selected message. Opening a message auto-marks it read
+        // (always true), so asserting the false calls pins the bulk action rather than that auto-read.
+        fireEvent.click(await screen.findByRole('button', {name: 'Mark unread'}))
+        await waitFor(() => expect(apiSpies.markRead).toHaveBeenCalledWith('m1', false))
+        expect(apiSpies.markRead).toHaveBeenCalledWith('m2', false)
+    })
+})
