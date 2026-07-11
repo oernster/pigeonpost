@@ -16,6 +16,7 @@ import {
     extractUrls,
     meetingProvider,
 } from '../calendarModel'
+import type {Banners} from '../hooks/useBanners'
 
 // AttendeeRow is one invited party held in the edit form. It mirrors the fields the backend persists so a
 // loaded meeting round-trips its attendees' roles and reply statuses unchanged.
@@ -70,12 +71,7 @@ interface EventFormModalProps {
     setAttendeeDraft: Dispatch<SetStateAction<string>>
     cancelledSent: boolean
     setCancelledSent: Dispatch<SetStateAction<boolean>>
-    busy: boolean
-    setBusy: Dispatch<SetStateAction<boolean>>
-    error: string
-    status: string
-    setError: Dispatch<SetStateAction<string>>
-    setStatus: Dispatch<SetStateAction<string>>
+    banners: Banners
     onChanged: () => void
     bumpReload: () => void
 }
@@ -87,8 +83,9 @@ interface EventFormModalProps {
 // scope decision for a recurring edit is made before the form opens, in the calendar.
 export function EventFormModal({
     form, setForm, calendars, accountId, accountEmail, accountName, attendeeDraft, setAttendeeDraft,
-    cancelledSent, setCancelledSent, busy, setBusy, error, status, setError, setStatus, onChanged, bumpReload,
+    cancelledSent, setCancelledSent, banners, onChanged, bumpReload,
 }: EventFormModalProps) {
+    const {error, status, busy, setError, setStatus, setBusy} = banners
     const startRef = useRef<HTMLInputElement>(null)
     const endRef = useRef<HTMLInputElement>(null)
     const [cancelMeeting, setCancelMeeting] = useState(false)

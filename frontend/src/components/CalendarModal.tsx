@@ -27,6 +27,7 @@ import {useCalendars} from '../hooks/useCalendars'
 import {useOpenFromReminder} from '../hooks/useOpenFromReminder'
 import {CalendarsManager} from './CalendarsManager'
 import {EventFormModal, type EventForm} from './EventFormModal'
+import {useBanners} from '../hooks/useBanners'
 
 
 interface CalendarModalProps {
@@ -58,9 +59,10 @@ export function CalendarModal({events, accountId, accountEmail, accountName, ini
     // resend actions are disabled: a withdrawn meeting must not be cancelled again or re-invited.
     const [cancelledSent, setCancelledSent] = useState(false)
     const [editScope, setEditScope] = useState<CalendarEventInstance | null>(null)
-    const [error, setError] = useState('')
-    const [status, setStatus] = useState('')
-    const [busy, setBusy] = useState(false)
+    // error, status and busy are the shared user-feedback banners, owned in one hook and read and driven by
+    // the calendar shell, the event form and the calendars manager alike.
+    const banners = useBanners()
+    const {error, status, busy, setError, setStatus, setBusy} = banners
     // The calendars sub-feature (the list, the manager's open state, the calendar being edited and the one
     // pending deletion, plus save and delete) is its own hook; the list colours events and seeds a new event.
     const {
@@ -304,12 +306,7 @@ export function CalendarModal({events, accountId, accountEmail, accountName, ini
                     setAttendeeDraft={setAttendeeDraft}
                     cancelledSent={cancelledSent}
                     setCancelledSent={setCancelledSent}
-                    busy={busy}
-                    setBusy={setBusy}
-                    error={error}
-                    status={status}
-                    setError={setError}
-                    setStatus={setStatus}
+                    banners={banners}
                     onChanged={onChanged}
                     bumpReload={bumpReload}
                 />
