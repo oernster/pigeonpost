@@ -23,6 +23,17 @@
     word-break: break-word;
 }
 
+/* The message HTML renders inside a sandboxed iframe (EmailHtmlFrame) so it keeps its own styling while
+   staying isolated from the app. The frame sizes itself to its content height, so it carries no border and
+   shows no inner scrollbar; the reader pane scrolls. The white backing matches the frame's own paper surface
+   so there is no dark flash before the document paints. */
+.reader-html-frame {
+    display: block;
+    width: 100%;
+    border: 0;
+    background: #ffffff;
+}
+
 .images-blocked-bar {
     display: flex;
     align-items: center;

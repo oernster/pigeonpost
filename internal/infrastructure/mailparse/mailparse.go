@@ -33,10 +33,85 @@ var htmlSanitizer = buildSanitizer()
 // blockedImageAttr holds a remote image's original src while it is prevented from loading.
 const blockedImageAttr = "data-pp-src"
 
+// visualStyleProperties are the inline-CSS properties the sanitiser keeps so an email renders with its
+// intended fonts, colours, spacing, borders and layout. bluemonday drops any property not listed here, so
+// the set is deliberately comprehensive. It is safe to keep this much styling because the reader shows the
+// result inside a sandboxed, CSP-locked iframe (see the frontend EmailHtmlFrame), which is the real
+// security boundary: CSS there cannot run scripts, cannot fetch remote resources and cannot reach the app.
+var visualStyleProperties = []string{
+	"color", "opacity", "visibility", "cursor", "outline",
+	"background", "background-color", "background-image", "background-position",
+	"background-repeat", "background-size", "background-clip", "background-origin", "background-attachment",
+	"font", "font-family", "font-size", "font-weight", "font-style", "font-variant",
+	"line-height", "letter-spacing", "word-spacing", "text-align", "text-decoration",
+	"text-transform", "text-indent", "text-overflow", "text-shadow", "white-space",
+	"vertical-align", "direction", "word-break", "overflow-wrap",
+	"margin", "margin-top", "margin-right", "margin-bottom", "margin-left",
+	"padding", "padding-top", "padding-right", "padding-bottom", "padding-left",
+	"border", "border-width", "border-style", "border-color",
+	"border-top", "border-right", "border-bottom", "border-left",
+	"border-top-width", "border-top-style", "border-top-color",
+	"border-right-width", "border-right-style", "border-right-color",
+	"border-bottom-width", "border-bottom-style", "border-bottom-color",
+	"border-left-width", "border-left-style", "border-left-color",
+	"border-radius", "border-top-left-radius", "border-top-right-radius",
+	"border-bottom-right-radius", "border-bottom-left-radius", "border-collapse", "border-spacing",
+	"width", "min-width", "max-width", "height", "min-height", "max-height",
+	"display", "float", "clear", "overflow", "overflow-x", "overflow-y",
+	"box-sizing", "box-shadow", "table-layout",
+	"list-style", "list-style-type", "list-style-position", "list-style-image",
+	"flex", "flex-direction", "flex-wrap", "flex-flow", "align-items", "align-content",
+	"justify-content", "gap", "row-gap", "column-gap",
+}
+
+// presentationalAlignElements are the elements an align attribute is kept on. Legacy email layouts lean on
+// align (and the table attributes allowed in buildSanitizer) rather than CSS, so keeping them preserves the
+// intended column and cell alignment.
+var presentationalAlignElements = []string{
+	"table", "thead", "tbody", "tfoot", "tr", "td", "th", "col", "colgroup",
+	"div", "p", "img", "h1", "h2", "h3", "h4", "h5", "h6", "center", "caption", "font",
+}
+
+// cssValueMatcher accepts the characters that make up ordinary CSS values (words, whitespace, hex colours,
+// percentages, decimals, value lists, functions such as rgb()/calc()/url(), quoted font stacks, data: URIs
+// and !important). It exists only so bluemonday keeps a declaration rather than applying its strict
+// built-in per-property handler, which rejects common email values like the shorthand "18px 24px".
+var cssValueMatcher = regexp.MustCompile(`^[\w\s#%.,:;!+*/()'"=-]*$`)
+
+// keepCSSValue is the permissive value handler bluemonday runs for every allowed visual property. Strict
+// validation is unnecessary because the CSP-locked iframe (not this sanitiser) is the security boundary, so
+// it keeps any value made of ordinary CSS characters and rejects only ones no real value uses. Remote
+// url() targets are already neutralised by prepareHTML before sanitising, so a surviving url() is a data:
+// or cid: reference the CSP still permits.
+func keepCSSValue(value string) bool {
+	return cssValueMatcher.MatchString(value)
+}
+
+// buildSanitizer builds the policy that cleans message HTML. It starts from bluemonday's UGCPolicy (which
+// strips <script>, <iframe>, <object>, event-handler attributes and javascript: URLs) and then relaxes it
+// to preserve visual styling, since the sandboxed, CSP-locked iframe the reader renders into is the real
+// security boundary. The script, frame, object and handler protections are all kept.
 func buildSanitizer() *bluemonday.Policy {
 	policy := bluemonday.UGCPolicy()
 	policy.AllowAttrs(blockedImageAttr).OnElements("img")
 	policy.AllowDataURIImages()
+
+	// Keep inline styles, the class attribute and the presentational table attributes real emails use for
+	// layout. Style values pass through keepCSSValue so faithful (lax) email CSS survives.
+	policy.AllowStyling()
+	policy.AllowStyles(visualStyleProperties...).MatchingHandler(keepCSSValue).Globally()
+	policy.AllowAttrs("bgcolor").OnElements("body", "table", "tr", "td", "th")
+	policy.AllowAttrs("align").OnElements(presentationalAlignElements...)
+	policy.AllowAttrs("valign").OnElements("table", "thead", "tbody", "tfoot", "tr", "td", "th", "col", "colgroup")
+	policy.AllowAttrs("width", "height").OnElements("table", "tr", "td", "th", "img", "col", "colgroup")
+	policy.AllowAttrs("cellpadding", "cellspacing", "border").OnElements("table")
+
+	// Keep <style> blocks so class-based and media-query styling renders. AllowUnsafe lets the CSS text of
+	// an allowed <style> pass through unescaped; it does NOT re-admit <script>, <iframe> or <object>, which
+	// stay in bluemonday's skip-content set and are never allowed elements, so they and their content are
+	// still removed (verified against bluemonday v1.0.27 and pinned by the sanitiser tests).
+	policy.AllowElements("style")
+	policy.AllowUnsafe(true)
 	return policy
 }
 

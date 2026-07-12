@@ -1,6 +1,7 @@
 import {useEffect, useRef, useState} from 'react'
-import type {MouseEvent as ReactMouseEvent, RefObject} from 'react'
+import type {RefObject} from 'react'
 import {api, EmailView, Folder, Message, MessageBody, Tag} from '../api'
+import {EmailHtmlFrame} from './EmailHtmlFrame'
 import {EmailViewerModal} from './EmailViewerModal'
 import {ReaderToolbar} from './ReaderToolbar'
 import {ReaderAttachments} from './ReaderAttachments'
@@ -15,17 +16,10 @@ import {formatAddressList, readableInk} from '../readerFormat'
 const READER_SCROLL_STEP_PX = 40
 const READER_PAGE_FRACTION = 0.9
 
-// handleBodyClick opens links from rendered message HTML in the external browser rather than letting
-// them navigate the app's own webview. The HTML is sanitised server-side, so anchors are safe.
-function handleBodyClick(e: ReactMouseEvent<HTMLDivElement>) {
-    const anchor = (e.target as HTMLElement).closest('a')
-    if (anchor) {
-        e.preventDefault()
-        const href = anchor.getAttribute('href')
-        if (href) {
-            void api.openExternal(href)
-        }
-    }
+// openLinkExternally opens a link from a rendered email in the OS browser rather than letting it navigate
+// the app's own webview. EmailHtmlFrame has already restricted this to http, https and mailto hrefs.
+function openLinkExternally(href: string) {
+    void api.openExternal(href)
 }
 
 interface ReaderProps {
@@ -232,10 +226,10 @@ export function Reader({message, onToggleRead, onReply, onReplyAll, onForward, o
                                 <button className="btn" onClick={() => setImagesShown(true)}>Load images</button>
                             </div>
                         )}
-                        <div
-                            className="reader-html"
-                            onClick={handleBodyClick}
-                            dangerouslySetInnerHTML={{__html: renderedHtml}}
+                        <EmailHtmlFrame
+                            html={renderedHtml}
+                            imagesShown={imagesShown}
+                            onOpenLink={openLinkExternally}
                         />
                     </>
                 ) : body && body.plain.trim() !== '' ? (

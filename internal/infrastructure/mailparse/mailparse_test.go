@@ -470,3 +470,76 @@ func TestDecodeHeader(t *testing.T) {
 		}
 	}
 }
+
+func TestParseBodyPreservesInlineStyle(t *testing.T) {
+	// The sanitiser keeps a comprehensive set of visual CSS so an email renders faithfully inside the
+	// reader's sandboxed iframe. A representative inline style (size, colour, background, radius, shorthand
+	// padding) must survive ParseBody with its properties intact.
+	raw := "MIME-Version: 1.0\r\n" +
+		"Content-Type: text/html; charset=utf-8\r\n" +
+		"\r\n" +
+		`<div style="font-size:32px;color:#0F0F0D;background-color:#FFFFFF;border-radius:12px;padding:18px 24px">Styled</div>` + "\r\n"
+
+	parsed, err := ParseBody([]byte(raw))
+	if err != nil {
+		t.Fatalf("ParseBody: %v", err)
+	}
+	html := parsed.HTML
+	for _, want := range []string{
+		"font-size", "32px", "color", "#0F0F0D", "background-color", "#FFFFFF",
+		"border-radius", "12px", "padding", "18px 24px",
+	} {
+		if !strings.Contains(html, want) {
+			t.Errorf("inline style should survive ParseBody, missing %q: %s", want, html)
+		}
+	}
+}
+
+func TestParseBodyKeepsStyleBlockAndClassButStripsScriptAndHandlers(t *testing.T) {
+	// Preserving styling must not weaken the script or event-handler protections. A <style> block and a
+	// class hook survive so class-based styling renders, while an inline <script> and an onclick handler are
+	// still removed even though AllowUnsafe lets the <style> CSS text through.
+	raw := "MIME-Version: 1.0\r\n" +
+		"Content-Type: text/html; charset=utf-8\r\n" +
+		"\r\n" +
+		`<style>.btn{color:#ffffff;background:#000000}</style>` +
+		`<a class="btn" href="https://example.com" onclick="evil()">Go</a>` +
+		`<script>alert(1)</script>` + "\r\n"
+
+	parsed, err := ParseBody([]byte(raw))
+	if err != nil {
+		t.Fatalf("ParseBody: %v", err)
+	}
+	html := parsed.HTML
+	for _, want := range []string{"<style>", ".btn", "#000000", `class="btn"`} {
+		if !strings.Contains(html, want) {
+			t.Errorf("style block and class hook should survive, missing %q: %s", want, html)
+		}
+	}
+	for _, banned := range []string{"<script", "alert(", "onclick"} {
+		if strings.Contains(strings.ToLower(html), banned) {
+			t.Errorf("dangerous content should still be removed, found %q: %s", banned, html)
+		}
+	}
+}
+
+func TestParseBodyKeepsBackgroundColourButDropsRemoteImageURL(t *testing.T) {
+	// The relaxed sanitiser keeps background styling, but the remote-url stripping in prepareHTML must still
+	// neutralise a CSS url() tracker end to end: the colour survives, the tracker host does not.
+	raw := "MIME-Version: 1.0\r\n" +
+		"Content-Type: text/html; charset=utf-8\r\n" +
+		"\r\n" +
+		`<div style="background-color:#123456;background-image:url('http://tracker.example/bg.png')">hi</div>` + "\r\n"
+
+	parsed, err := ParseBody([]byte(raw))
+	if err != nil {
+		t.Fatalf("ParseBody: %v", err)
+	}
+	html := parsed.HTML
+	if !strings.Contains(html, "#123456") {
+		t.Errorf("background colour should survive: %s", html)
+	}
+	if strings.Contains(html, "tracker.example") {
+		t.Errorf("remote CSS url should not survive sanitising: %s", html)
+	}
+}
