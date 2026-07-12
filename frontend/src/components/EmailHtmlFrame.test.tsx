@@ -104,6 +104,24 @@ describe('EmailHtmlFrame: dark mode', () => {
         expect(srcdoc).not.toContain('[background],')
         expect(srcdoc).not.toContain('[style*="background-image"]{')
     })
+
+    it('renders a dark-mode-aware email natively, without inverting it', () => {
+        const {frame} = renderFrame({
+            dark: true,
+            html: '<style>@media (prefers-color-scheme:dark){body{background:#181a1a;color:#fff}}</style><p>Hi</p>',
+        })
+        const srcdoc = frame.getAttribute('srcdoc') ?? ''
+        // The message darkens itself, so the frame must not invert it (that would flip it back to light); it
+        // renders on a dark paper and the message's own prefers-color-scheme:dark rules apply.
+        expect(srcdoc).not.toContain('invert(1)')
+        expect(srcdoc).toContain('background:#1a1a1a;color:#e6e6e6')
+    })
+
+    it('still inverts a light-only email that has no dark-mode styling', () => {
+        const {frame} = renderFrame({dark: true, html: '<p>plain light email</p>'})
+        const srcdoc = frame.getAttribute('srcdoc') ?? ''
+        expect(srcdoc).toContain('html{filter:invert(1) hue-rotate(180deg);}')
+    })
 })
 
 describe('EmailHtmlFrame: link interception', () => {

@@ -1,23 +1,31 @@
 import {useEffect, useRef} from 'react'
 
-// The email renders on its own white paper surface with readable defaults, independent of the app's dark
-// theme, because virtually all HTML email is designed for a light background. These are the design tokens
-// for that surface, named rather than inlined so the base stylesheet carries no bare magic numbers.
+// The email renders on a paper surface with readable defaults. Most HTML email is authored only for a light
+// background, so the default surface is white and the app darkens it by inverting the whole document (see
+// darkModeStyle). An email that ships its own dark-mode styling is the exception: it renders natively on a
+// dark paper instead, because inverting an already-dark email would turn it light again. These are the design
+// tokens for both surfaces, named rather than inlined so the base stylesheet carries no bare magic numbers.
 const PAPER_BACKGROUND = '#ffffff'
 const PAPER_INK = '#1a1a1a'
+const PAPER_BACKGROUND_DARK = '#1a1a1a'
+const PAPER_INK_DARK = '#e6e6e6'
 const FRAME_PADDING_PX = 12
 const FRAME_FONT_SIZE_PX = 14
 const FRAME_LINE_HEIGHT = 1.55
 const FRAME_FONT_STACK = "-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif"
 
-// baseStyle gives the email a white page with readable defaults and stops a wide image or table overflowing
-// the reader. The message's own inline styles and <style> blocks layer on top of it. In dark mode the whole
-// surface is inverted on top of this same light base (see darkModeStyle), so the base is authored once for
-// light and reused.
-const baseStyle =
-    `html,body{margin:0;padding:${FRAME_PADDING_PX}px;background:${PAPER_BACKGROUND};color:${PAPER_INK};` +
-    `font:${FRAME_FONT_SIZE_PX}px/${FRAME_LINE_HEIGHT} ${FRAME_FONT_STACK};overflow-wrap:break-word;}` +
-    'img{max-width:100%;height:auto;}table{max-width:100%;}'
+// paperStyle gives the email a page with readable defaults and stops a wide image or table overflowing the
+// reader. The message's own inline styles and <style> blocks layer on top of it. It is authored once and
+// reused for the light paper, the inverted-dark base and the native-dark paper.
+function paperStyle(background: string, ink: string): string {
+    return (
+        `html,body{margin:0;padding:${FRAME_PADDING_PX}px;background:${background};color:${ink};` +
+        `font:${FRAME_FONT_SIZE_PX}px/${FRAME_LINE_HEIGHT} ${FRAME_FONT_STACK};overflow-wrap:break-word;}` +
+        'img{max-width:100%;height:auto;}table{max-width:100%;}'
+    )
+}
+const baseStyle = paperStyle(PAPER_BACKGROUND, PAPER_INK)
+const baseStyleDark = paperStyle(PAPER_BACKGROUND_DARK, PAPER_INK_DARK)
 
 // darkModeStyle renders the email dark when the app theme is dark. Virtually all HTML email is authored for a
 // light background and never anticipates dark mode, so the only technique that darkens an arbitrary message
@@ -66,19 +74,42 @@ interface EmailHtmlFrameProps {
     // has asked for images, the parent passes the proxy-resolved HTML whose remote images are inlined as data:
     // URIs; otherwise it passes the parked HTML, which shows no images.
     html: string
-    // dark renders the email dark to match the app's dark theme, by inverting the light-designed document
-    // inside the frame. It is false in the light theme, where the email keeps its faithful white surface.
+    // dark renders the email to match the app's dark theme. A light-designed message is inverted inside the
+    // frame; a message that carries its own dark-mode styling is left to render natively on a dark paper. It
+    // is false in the light theme, where the email keeps its faithful white surface.
     dark: boolean
     // onOpenLink receives an http/https/mailto href when a link inside the email is clicked; the parent
     // opens it in the external browser rather than letting it navigate the frame or the app.
     onOpenLink: (href: string) => void
 }
 
+// EMAIL_DARK_MODE_SIGNAL detects an email that ships its own dark-mode styling. A prefers-color-scheme:dark
+// media query is the reliable, standards-based signal, used heavily by large senders such as Amazon. When it
+// is present the frame lets the message darken itself (the frame reports the app's dark scheme, so the
+// message's own dark rules apply) and skips the invert: inverting an email that has already darkened itself
+// flips it back to light, its dark background becoming a light page with dark text and a forced-white product
+// tile becoming black.
+const EMAIL_DARK_MODE_SIGNAL = /prefers-color-scheme\s*:\s*dark/i
+
+// htmlSupportsDarkMode reports whether the message carries its own dark-mode styling, so the frame can let it
+// render natively rather than inverting it.
+function htmlSupportsDarkMode(html: string): boolean {
+    return EMAIL_DARK_MODE_SIGNAL.test(html)
+}
+
 // buildSrcDoc assembles the self-contained document the iframe renders through its srcdoc attribute. It is a
 // full HTML document so the CSP meta tag governs the message; the sanitised body is dropped in verbatim. The
-// dark inversion layers on top of the same light base so only the theme decides the surface, not the body.
+// theme decides the surface, not the body: a light message is inverted to darken it, while a message that
+// carries its own dark mode renders natively on a dark paper.
 function buildSrcDoc(html: string, dark: boolean): string {
-    const surfaceStyle = dark ? baseStyle + darkModeStyle : baseStyle
+    let surfaceStyle: string
+    if (!dark) {
+        surfaceStyle = baseStyle
+    } else if (htmlSupportsDarkMode(html)) {
+        surfaceStyle = baseStyleDark
+    } else {
+        surfaceStyle = baseStyle + darkModeStyle
+    }
     return '<!doctype html><html><head><meta charset="utf-8">' +
         `<meta http-equiv="Content-Security-Policy" content="${CONTENT_SECURITY_POLICY}">` +
         `<style>${surfaceStyle}</style></head><body>${html}</body></html>`
