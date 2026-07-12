@@ -132,3 +132,113 @@ export function weekDays(viewDate: Date): Date[] {
     }
     return days
 }
+
+export const MS_PER_DAY = 86400000
+// MONTH_MAX_LANES caps how many stacked event rows a month cell shows before the rest collapse into a
+// "+N more" affordance, so a busy day cannot push the six week rows past the dialog height.
+export const MONTH_MAX_LANES = 3
+
+// dayIndex maps a date to an integer day number (whole local days since the epoch), so day spans and week
+// columns become integer arithmetic. It reads the date's own midnight, and Math.round absorbs the sub-day
+// shift a daylight-saving change introduces so consecutive local days always differ by exactly one.
+export function dayIndex(d: Date): number {
+    const midnight = new Date(d.getFullYear(), d.getMonth(), d.getDate())
+    return Math.round(midnight.getTime() / MS_PER_DAY)
+}
+
+// eventDaySpan returns the inclusive first and last day indices an event occupies. An event that ends
+// exactly at midnight does not occupy the day it ends on, so the last day is taken from the final instant
+// (one millisecond before the end); a zero-length or reversed range still occupies its start day.
+export function eventDaySpan(startMs: number, endMs: number): {firstDay: number; lastDay: number} {
+    const firstDay = dayIndex(new Date(startMs))
+    const lastInstant = endMs > startMs ? endMs - 1 : startMs
+    const lastDay = Math.max(firstDay, dayIndex(new Date(lastInstant)))
+    return {firstDay, lastDay}
+}
+
+// MonthBarInput is one event reduced to the inclusive day range it covers, keyed so the caller can map the
+// placed bar back to its instance.
+export interface MonthBarInput {
+    key: string
+    firstDay: number
+    lastDay: number
+}
+
+// MonthBar is a placed event within one week row: the column range it spans (0 to 6 inclusive), the lane it
+// sits in and whether the week boundary clips it, so the caller can square that end and drop the title on a
+// continuation.
+export interface MonthBar {
+    key: string
+    startCol: number
+    endCol: number
+    lane: number
+    continuesLeft: boolean
+    continuesRight: boolean
+}
+
+// WeekLayout is the placement for one week row: the bars that fit within maxLanes, the number of lanes used
+// and the per-column count of events that did not fit (each rendered as "+N more").
+export interface WeekLayout {
+    bars: MonthBar[]
+    lanes: number
+    overflow: number[]
+}
+
+// layoutWeek places every event that intersects the seven-day week starting at weekStartDay into a column
+// span and a lane. Events are ordered by start then longest-first, so a multi-day bar takes a low lane above
+// the shorter events it spans, and each is given the lowest lane free across its whole span. Events past
+// maxLanes are dropped from the bars and counted into overflow for each day they cover, so a busy day shows
+// a "+N more" rather than growing without bound.
+export function layoutWeek(weekStartDay: number, events: MonthBarInput[], maxLanes: number): WeekLayout {
+    const weekEndDay = weekStartDay + DAYS_IN_WEEK - 1
+    const inWeek = events
+        .filter((e) => e.lastDay >= weekStartDay && e.firstDay <= weekEndDay)
+        .sort((a, b) => (a.firstDay - b.firstDay) || ((b.lastDay - b.firstDay) - (a.lastDay - a.firstDay)))
+    const laneEnds: number[] = []
+    const bars: MonthBar[] = []
+    const overflow = new Array<number>(DAYS_IN_WEEK).fill(0)
+    for (const e of inWeek) {
+        const startCol = Math.max(0, e.firstDay - weekStartDay)
+        const endCol = Math.min(DAYS_IN_WEEK - 1, e.lastDay - weekStartDay)
+        let lane = 0
+        while (lane < laneEnds.length && laneEnds[lane] >= startCol) {
+            lane++
+        }
+        laneEnds[lane] = endCol
+        if (lane < maxLanes) {
+            bars.push({
+                key: e.key, startCol, endCol, lane,
+                continuesLeft: e.firstDay < weekStartDay,
+                continuesRight: e.lastDay > weekEndDay,
+            })
+        } else {
+            for (let c = startCol; c <= endCol; c++) {
+                overflow[c]++
+            }
+        }
+    }
+    return {bars, lanes: Math.min(laneEnds.length, maxLanes), overflow}
+}
+
+const DARK_INK = '#0b1220'
+const LIGHT_INK = '#ffffff'
+// LUMA_THRESHOLD is the mid perceived-luminance (0 to 255) at which a fill flips from wanting dark ink to
+// light ink over it.
+const LUMA_THRESHOLD = 140
+
+// contrastInk returns a dark or light ink for a label laid over the given hex fill, so a multi-day event bar
+// keeps its title legible whatever colour its calendar uses. It compares the fill's perceived luminance (the
+// Rec. 601 weighting of red, green and blue) against a mid threshold and falls back to the dark ink for an
+// unparseable colour.
+export function contrastInk(hex: string): string {
+    const match = /^#?([0-9a-f]{6})$/i.exec(hex.trim())
+    if (!match) {
+        return DARK_INK
+    }
+    const value = parseInt(match[1], 16)
+    const red = (value >> 16) & 0xff
+    const green = (value >> 8) & 0xff
+    const blue = value & 0xff
+    const luma = (red * 299 + green * 587 + blue * 114) / 1000
+    return luma > LUMA_THRESHOLD ? DARK_INK : LIGHT_INK
+}

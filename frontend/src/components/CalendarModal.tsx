@@ -12,14 +12,18 @@ import {
     HOURS_PER_EVENT,
     MONTHS,
     MONTHS_SHORT,
+    MONTH_MAX_LANES,
     VIEW_MODES,
     WEEKDAYS,
     WEEKDAYS_FULL,
+    contrastInk,
     dateInput,
     dateTimeInput,
+    dayIndex,
+    eventDaySpan,
+    layoutWeek,
     monthCells,
     pad,
-    sameDay,
     weekDays,
     type ViewMode,
 } from '../calendarModel'
@@ -87,7 +91,15 @@ export function CalendarModal({events, accountId, accountEmail, accountName, ini
     const defaultCalendarId = () => calendars[0]?.id ?? ''
 
     const cells = monthCells(viewDate)
-    const datedInstances = instances.map((i) => ({i, start: new Date(i.start)}))
+    // spanned reduces each occurrence to the inclusive day range it covers, so the month grid can lay a
+    // multi-day event out as one bar across those days rather than a mark on its start day alone.
+    const spanned = instances.map((i) => {
+        const start = new Date(i.start)
+        const {firstDay, lastDay} = eventDaySpan(start.getTime(), new Date(i.end).getTime())
+        return {i, start, firstDay, lastDay, key: `${i.event.id}@${i.start}`}
+    })
+    const barInputs = spanned.map((s) => ({key: s.key, firstDay: s.firstDay, lastDay: s.lastDay}))
+    const spannedByKey = new Map(spanned.map((s) => [s.key, s]))
     // isSeries reports whether an occurrence belongs to a recurring series, so an edit or delete asks how
     // far it should reach. A one-off event carries neither a rule nor a recurrence id.
     const isSeries = (i: CalendarEventInstance) => i.recurrenceId !== '' || i.event.recurrence !== ''
@@ -257,26 +269,58 @@ export function CalendarModal({events, accountId, accountEmail, accountName, ini
                 {viewMode === 'month' ? (
                     <div className="cal-grid">
                         {WEEKDAYS.map((w) => (<div key={w} className="cal-weekday">{w}</div>))}
-                        {cells.map((day, i) => {
-                            const dayEvents = datedInstances.filter((p) => sameDay(p.start, day))
-                            const inMonth = day.getMonth() === viewDate.getMonth()
+                        {Array.from({length: cells.length / DAYS_IN_WEEK}, (_, wi) => {
+                            const week = cells.slice(wi * DAYS_IN_WEEK, wi * DAYS_IN_WEEK + DAYS_IN_WEEK)
+                            const {bars, lanes, overflow} = layoutWeek(dayIndex(week[0]), barInputs, MONTH_MAX_LANES)
+                            const hasMore = overflow.some((n) => n > 0)
+                            const gridTemplateRows =
+                                `auto repeat(${lanes}, var(--cal-lane))${hasMore ? ' var(--cal-lane)' : ''} 1fr`
                             return (
-                                <div key={i} className={'cal-cell' + (inMonth ? '' : ' cal-cell-dim')} onClick={() => openNew(day)}>
-                                    <button className="cal-daynum" title="Open day view"
-                                            onClick={(ev) => {
-                                                ev.stopPropagation()
-                                                openDay(day)
-                                            }}>{day.getDate()}</button>
-                                    {dayEvents.map((p) => (
-                                        <button key={`${p.i.event.id}@${p.i.start}`} className="cal-event" title={p.i.event.summary}
-                                                style={{borderLeft: `3px solid ${colourOf(p.i.event)}`}}
+                                <div key={wi} className="cal-week" style={{gridTemplateRows}}>
+                                    {week.map((day, di) => (
+                                        <div key={`c${di}`}
+                                             className={'cal-cell' + (day.getMonth() === viewDate.getMonth() ? '' : ' cal-cell-dim')}
+                                             style={{gridColumn: di + 1, gridRow: '1 / -1'}}
+                                             onClick={() => openNew(day)}/>
+                                    ))}
+                                    {week.map((day, di) => (
+                                        <button key={`d${di}`} className="cal-daynum" title="Open day view"
+                                                style={{gridColumn: di + 1, gridRow: 1}}
                                                 onClick={(ev) => {
                                                     ev.stopPropagation()
-                                                    openInstance(p.i)
-                                                }}>
-                                            {p.i.event.allDay ? '' : `${pad(p.start.getHours())}:${pad(p.start.getMinutes())} `}{categoryEmoji(p.i.event.category) && `${categoryEmoji(p.i.event.category)} `}{p.i.event.summary}
-                                        </button>
+                                                    openDay(day)
+                                                }}>{day.getDate()}</button>
                                     ))}
+                                    {bars.map((b) => {
+                                        const s = spannedByKey.get(b.key)!
+                                        const ev = s.i.event
+                                        const colour = colourOf(ev)
+                                        const isSpan = b.startCol !== b.endCol || b.continuesLeft || b.continuesRight
+                                        const showTime = !ev.allDay && !b.continuesLeft
+                                        const cls = 'cal-bar ' + (isSpan ? 'cal-bar-span' : 'cal-bar-chip') +
+                                            (b.continuesLeft ? ' cont-left' : '') + (b.continuesRight ? ' cont-right' : '')
+                                        const gc = `${b.startCol + 1} / ${b.endCol + 2}`
+                                        return (
+                                            <button key={b.key} className={cls} title={ev.summary}
+                                                    style={isSpan
+                                                        ? {gridColumn: gc, gridRow: b.lane + 2, background: colour, color: contrastInk(colour)}
+                                                        : {gridColumn: gc, gridRow: b.lane + 2, borderLeft: `3px solid ${colour}`}}
+                                                    onClick={(evt) => {
+                                                        evt.stopPropagation()
+                                                        openInstance(s.i)
+                                                    }}>
+                                                {showTime ? `${pad(s.start.getHours())}:${pad(s.start.getMinutes())} ` : ''}{categoryEmoji(ev.category) && `${categoryEmoji(ev.category)} `}{ev.summary}
+                                            </button>
+                                        )
+                                    })}
+                                    {overflow.map((n, di) => (n > 0 ? (
+                                        <button key={`m${di}`} className="cal-more"
+                                                style={{gridColumn: di + 1, gridRow: lanes + 2}}
+                                                onClick={(ev) => {
+                                                    ev.stopPropagation()
+                                                    openDay(week[di])
+                                                }}>+{n} more</button>
+                                    ) : null))}
                                 </div>
                             )
                         })}
