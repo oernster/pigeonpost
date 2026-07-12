@@ -467,7 +467,7 @@
 
     <section class="shot">
         <div class="shot-frame">
-            <img src="screenshots/screenshot1.png"
+            <img src="screenshots/add-account.png"
                  alt="PigeonPost in dark mode: the add-account provider chooser over the main window, whose toolbar includes Contacts and Calendar."/>
         </div>
         <p class="shot-cap">Adding an account, over the main window. The same toolbar carries mail, contacts
@@ -522,10 +522,10 @@
             <div class="card">
                 <div class="ico">🔁</div>
                 <h3>Your calendar and contacts move both ways</h3>
-                <p>Calendars import and export as .ics (RFC 5545). Contacts import and export as vCard or CSV.
-                    Both round-trip with Outlook and Thunderbird, so what comes in can always go back out. A
-                    .eml file opens straight in the app and on Windows PigeonPost can be your default .eml
-                    handler.</p>
+                <p>Calendars import and export as .ics (RFC 5545) and round-trip with Outlook and
+                    Thunderbird. Contacts export as vCard at full fidelity (postal addresses and birthdays
+                    included) or as CSV for names, emails and phone numbers. A .eml file opens straight in
+                    the app and on Windows PigeonPost can be your default .eml handler.</p>
             </div>
         </div>
 
@@ -535,9 +535,9 @@
         <div class="steps">
             <div class="step">
                 <span class="n">1</span>
-                <h3>Download and open</h3>
-                <p>Grab the Windows build and launch it. There is no runtime to install and no account to
-                    create first.</p>
+                <h3>Download and install</h3>
+                <p>Run the Windows installer. There is no PigeonPost account to create, so once it is
+                    installed you go straight to adding your mailbox.</p>
             </div>
             <div class="step">
                 <span class="n">2</span>
@@ -583,8 +583,8 @@
             </div>
             <div class="item">
                 <p class="q">Is my Microsoft password safe?</p>
-                <p class="a">You sign in through Microsoft in your own browser. PigeonPost keeps only a
-                    refresh token in your OS keychain, never your password.</p>
+                <p class="a">You sign in through Microsoft in your own browser, so PigeonPost never sees
+                    your password. It keeps your Microsoft sign-in token in your OS keychain.</p>
             </div>
             <div class="item">
                 <p class="q">Can opening a message track me?</p>
@@ -630,9 +630,32 @@
             <div class="card">
                 <div class="ico">🔐</div>
                 <h3>Private by the way it is built</h3>
-                <p>Passwords live in your OS keychain, never in a database. Microsoft sign-in keeps only
-                    a refresh token there. No PigeonPost cloud sits in the path; your mail is on your server
-                    and on your machine.</p>
+                <p>Passwords live in your OS keychain, never in a database. Microsoft sign-in stores a
+                    token there instead of a password. No PigeonPost cloud sits in the path; your mail is on
+                    your server and on your machine.</p>
+            </div>
+        </div>
+    </section>
+
+    <section class="section" id="look">
+        <h2>A look inside</h2>
+        <p class="lead">The everyday windows you actually work in, in the dark theme.</p>
+        <div class="grid two">
+            <div>
+                <div class="shot-frame">
+                    <img src="screenshots/compose.png"
+                         alt="The New message window: To, Cc, Bcc and Subject fields, a rich-text toolbar with a Template button, a signature in the body, plus Attach files, Save draft and Send buttons."/>
+                </div>
+                <p class="shot-cap">Writing a message: rich text with a signature, reusable templates and
+                    file attachments.</p>
+            </div>
+            <div>
+                <div class="shot-frame">
+                    <img src="screenshots/calendar.png"
+                         alt="The calendar month view for July 2026, showing a multi-day Vacation event as one continuous bar spanning 13 to 22 July across two week rows, alongside single-day events with emoji categories."/>
+                </div>
+                <p class="shot-cap">The calendar: a multi-day event spans its days as one bar, alongside
+                    month, week and day views, reminders and emoji categories.</p>
             </div>
         </div>
     </section>
@@ -661,7 +684,9 @@
                 <ul>
                     <li>Month, week and day views</li>
                     <li>Recurring events with per-event time zones</li>
-                    <li>On-screen reminders and nine emoji categories</li>
+                    <li>Nine emoji event categories that label each event across the month, week and day
+                        views, so your week reads at a glance</li>
+                    <li>On-screen reminders when an event is due</li>
                     <li>.ics round-trip with Outlook and Thunderbird</li>
                     <li>Meeting invites over iTIP and iMIP with accept, tentative and decline</li>
                     <li>Teams, Meet, Zoom and Webex join links open in your browser</li>
@@ -671,8 +696,10 @@
                 <h3>📇 Contacts</h3>
                 <ul>
                     <li>A local address book with postal addresses and birthdays</li>
-                    <li>vCard and CSV import and export</li>
-                    <li>Round-trips with Outlook and Thunderbird</li>
+                    <li>vCard import and export at full fidelity, keeping postal addresses and birthdays
+                        (round-trips with Thunderbird; single contacts with Outlook)</li>
+                    <li>CSV import and export for names, emails and phone numbers, the fields Outlook's
+                        bulk CSV carries</li>
                 </ul>
             </div>
         </div>
@@ -760,7 +787,7 @@
                     </tr>
                     <tr>
                         <td class="rowlabel">Cost of leaving</td>
-                        <td class="pp">None, your mail stays on your server</td>
+                        <td class="pp">None for IMAP, your mail stays on your server</td>
                         <td>Low, standard protocols</td>
                         <td>Account based</td>
                     </tr>
