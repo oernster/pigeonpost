@@ -255,27 +255,59 @@ func TestParseBodyRemovesHiddenPreheader(t *testing.T) {
 }
 
 func TestParseBodyKeepsFontSizeZeroLayoutWrapper(t *testing.T) {
-	// Email frameworks such as MJML wrap content cells in font-size:0 to collapse the whitespace between
-	// inline-block columns; the real text inside re-sets its own size. Such a wrapper has element children,
-	// so it must not be mistaken for a hidden preheader or the whole visible body is deleted (the blank
-	// render seen for MJML-built transactional mail such as the Claude sign-in email).
+	// Email frameworks such as MJML nest the whole body inside font-size:0 wrapper cells to collapse the
+	// whitespace between inline-block columns; the real text inside re-sets its own size. Every such wrapper
+	// has element children, so none may be mistaken for a hidden preheader or the entire visible body is
+	// deleted, the blank render seen for MJML-built transactional mail such as the Claude sign-in email.
+	// This body mirrors that message's structure (token-free): heading, sub-line, button and footer, each
+	// wrapped in a font-size:0 cell whose child re-sets the size.
 	raw := "MIME-Version: 1.0\r\n" +
 		"Content-Type: text/html; charset=utf-8\r\n" +
 		"\r\n" +
-		`<div style="font-size:0px;direction:ltr;display:inline-block;width:100%;text-align:left;">` +
-		`<div style="font-family:Helvetica;font-size:32px;color:#0F0F0D;">Let's get you signed in</div>` +
-		`<a href="https://example.com/signin" style="font-size:18px;color:#fff;">Sign in to Claude</a>` +
-		`</div>` + "\r\n"
+		`<body style="background-color:#FAF9F5;"><div style="margin:0px auto;max-width:600px;">` +
+		`<table role="presentation" style="width:100%;"><tbody><tr>` +
+		`<td style="direction:ltr;font-size:0px;padding:20px 32px;text-align:center;">` +
+		`<div class="auth-centered-content" style="font-size:0px;display:inline-block;width:100%;text-align:left;">` +
+		`<table role="presentation" width="100%"><tbody>` +
+		`<tr><td align="left" style="font-size:0px;padding:10px 25px;word-break:break-word;">` +
+		`<div style="font-family:Helvetica,sans-serif;font-size:32px;color:#0F0F0D;">Lets get you signed in</div></td></tr>` +
+		`<tr><td align="left" style="font-size:0px;padding:10px 25px;word-break:break-word;">` +
+		`<div style="font-family:Helvetica,sans-serif;font-size:18px;color:#3D3929;">Sign in with the secure link below</div></td></tr>` +
+		`<tr><td align="center" style="font-size:0px;padding:10px 25px;word-break:break-word;">` +
+		`<p style="display:inline-block;background:#000000;color:#ffffff;">` +
+		`<a href="https://example.com/magic-link" style="color:white;font-size:18px;">Sign in to Claude.ai</a></p></td></tr>` +
+		`<tr><td align="left" style="font-size:0px;padding:0px 32px;word-break:break-word;">` +
+		`<div style="font-family:Arial;font-size:14px;color:#737163;">If you did not request this email, you can safely ignore it.</div></td></tr>` +
+		`</tbody></table></div></td></tr></tbody></table></div></body>` + "\r\n"
 
 	parsed, err := ParseBody([]byte(raw))
 	if err != nil {
 		t.Fatalf("ParseBody: %v", err)
 	}
-	// Substrings without the apostrophe, which html.Render escapes to &#39; in the output.
-	for _, kept := range []string{"get you signed in", "Sign in to Claude"} {
+	for _, kept := range []string{
+		"get you signed in", "Sign in with the secure link below",
+		"Sign in to Claude.ai", "you can safely ignore it",
+	} {
 		if !strings.Contains(parsed.HTML, kept) {
-			t.Errorf("font-size:0 layout wrapper content should survive, missing %q: %s", kept, parsed.HTML)
+			t.Errorf("font-size:0 wrapper content should survive, missing %q: %s", kept, parsed.HTML)
 		}
+	}
+}
+
+func TestParseBodyKeepsMsoHideOnlyContent(t *testing.T) {
+	// mso-hide:all hides content in Outlook only; every other client is meant to show it. An element that
+	// carries only mso-hide:all (a fallback block for non-Outlook clients) must therefore survive.
+	raw := "MIME-Version: 1.0\r\n" +
+		"Content-Type: text/html; charset=utf-8\r\n" +
+		"\r\n" +
+		`<div style="mso-hide:all">Shown everywhere except Outlook</div>` + "\r\n"
+
+	parsed, err := ParseBody([]byte(raw))
+	if err != nil {
+		t.Fatalf("ParseBody: %v", err)
+	}
+	if !strings.Contains(parsed.HTML, "Shown everywhere except Outlook") {
+		t.Errorf("mso-hide:all content should survive, got: %s", parsed.HTML)
 	}
 }
 

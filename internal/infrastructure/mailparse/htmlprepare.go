@@ -53,12 +53,14 @@ func prepareHTML(source string, inline map[string]inlineImage) string {
 	return b.String()
 }
 
-// hiddenStyleRe matches the inline CSS senders use to hide preheader / preview text: an off display, an
-// invisible or zero-opacity box or a collapsed height. Numeric values are anchored to a declaration
-// terminator (optionally through !important) so a visible opacity:0.9 is not caught. A zero font size is
-// handled separately (tinyFontStyleRe) because it hides only an element's own text, not element children
-// that re-set their size.
-var hiddenStyleRe = regexp.MustCompile(`(?i)(?:display\s*:\s*none|visibility\s*:\s*hidden|mso-hide\s*:\s*all|opacity\s*:\s*0(?:\.0+)?(?:\s*!important)?\s*(?:;|$)|(?:^|[;{\s])(?:max-)?height\s*:\s*0(?:px)?(?:\s*!important)?\s*(?:;|$))`)
+// hiddenStyleRe matches the inline CSS senders use to hide preheader / preview text from every client: an
+// off display, an invisible or zero-opacity box or a collapsed height. Numeric values are anchored to a
+// declaration terminator (optionally through !important) so a visible opacity:0.9 is not caught. Two
+// declarations are handled elsewhere. A zero font size (tinyFontStyleRe) hides only an element's own text,
+// not element children that re-set their size. mso-hide:all is deliberately not matched: it hides content
+// in Outlook only, so every other client (this one included) is meant to show it; treating it as hidden
+// would drop content the sender intended to be visible.
+var hiddenStyleRe = regexp.MustCompile(`(?i)(?:display\s*:\s*none|visibility\s*:\s*hidden|opacity\s*:\s*0(?:\.0+)?(?:\s*!important)?\s*(?:;|$)|(?:^|[;{\s])(?:max-)?height\s*:\s*0(?:px)?(?:\s*!important)?\s*(?:;|$))`)
 
 // tinyFontStyleRe matches a zero or 1px font size. This hides an element's own text, so it marks a leaf
 // preheader (a "<span style=font-size:0>preview</span>"); it is NOT a whole-subtree hide: email
