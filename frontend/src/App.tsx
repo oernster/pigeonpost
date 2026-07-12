@@ -593,7 +593,9 @@ function App() {
 
     // printMessage prints one message by rendering it into a hidden iframe and invoking the browser's
     // print dialog on that frame, so only the message (not the whole app window) is printed. Remote
-    // images, parked in the reader for privacy, are restored for the printed copy.
+    // images, parked in the reader for privacy, are restored for the printed copy. The frame is pinned to a
+    // light colour scheme (it otherwise inherits the app's dark scheme) so an email's own dark-mode CSS does
+    // not render white text that prints blank on white paper once the printer drops backgrounds.
     const printMessage = useCallback(async (message: Message) => {
         try {
             const body = await api.messageBody(message.id)
@@ -607,7 +609,7 @@ function App() {
             const frame = document.createElement('iframe')
             frame.id = printFrameId
             frame.setAttribute('aria-hidden', 'true')
-            frame.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0'
+            frame.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;color-scheme:light'
             frame.onload = () => {
                 const win = frame.contentWindow
                 if (!win) {

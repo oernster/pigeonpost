@@ -7,12 +7,15 @@ export const printFrameId = 'pp-print-frame'
 
 // printDocument renders a standalone HTML document for printing one message: a short header (subject,
 // sender, date) followed by the message body. The body HTML is already sanitised server-side, so it is
-// safe to inline here as it is in the reader.
+// safe to inline here as it is in the reader. The document is pinned to a light colour scheme: an email
+// that ships its own dark-mode CSS (a prefers-color-scheme:dark block, common with large senders) would
+// otherwise render white text, which prints blank on white paper once the printer drops backgrounds.
 export function printDocument(subject: string, sender: string, date: string, contentHtml: string): string {
     const head =
         '<!doctype html><html><head><meta charset="utf-8">' +
+        '<meta name="color-scheme" content="light">' +
         `<title>${subject}</title>` +
-        '<style>body{font-family:sans-serif;color:#000;padding:24px}' +
+        '<style>:root{color-scheme:light}body{font-family:sans-serif;color:#000;padding:24px}' +
         '.print-head{margin-bottom:16px;border-bottom:1px solid #ccc;padding-bottom:8px}' +
         '.print-subject{font-size:20px;font-weight:600;margin-bottom:6px}' +
         '.print-meta{color:#444;font-size:13px}img{max-width:100%}</style></head><body>'
