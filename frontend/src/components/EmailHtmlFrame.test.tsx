@@ -78,8 +78,17 @@ describe('EmailHtmlFrame: dark mode', () => {
         // The same filter on media double-inverts it back to its original colours; a plain background-colour
         // is deliberately not matched, so a coloured box keeps its inverted dark fill.
         expect(srcdoc).toContain(
-            'img,picture,video,svg,canvas,[background]:empty,[style*="background-image"]:empty{filter:invert(1) hue-rotate(180deg);}',
+            'img,picture,video,svg,canvas,[background]:empty,[style*="background-image"]:empty{filter:invert(1) hue-rotate(180deg);border:1px solid #808080;box-sizing:border-box;}',
         )
+    })
+
+    it('frames re-inverted media so a dark image keeps contrast against the inverted-dark surround', () => {
+        const {frame} = renderFrame({dark: true})
+        const srcdoc = frame.getAttribute('srcdoc') ?? ''
+        // A mid-grey hairline rides the re-inverted media so a dark cover cannot read as a dark block on a
+        // dark cell (the Amazon book-cover contrast bug); box-sizing keeps it from reflowing a sized image.
+        expect(srcdoc).toContain('border:1px solid #808080')
+        expect(srcdoc).toContain('box-sizing:border-box')
     })
 
     it('does not re-invert a content-bearing background container, which would flip its subtree back to light', () => {

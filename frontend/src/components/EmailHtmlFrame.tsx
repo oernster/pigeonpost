@@ -36,8 +36,17 @@ const baseStyle =
 // wrapper. A plain background-colour is never matched, so a coloured box keeps its inverted dark fill.
 const DARK_INVERT_FILTER = 'invert(1) hue-rotate(180deg)'
 const DARK_MEDIA_SELECTOR = 'img,picture,video,svg,canvas,[background]:empty,[style*="background-image"]:empty'
+// DARK_MEDIA_FRAME is a hairline drawn around re-inverted media in dark mode. Keeping media at its true
+// colour is right for a photo. A genuinely dark image (a book cover, a dark logo) was designed to sit on the
+// sender's light page, so once the surround inverts to dark it has no contrast and reads as a dark block on
+// a dark cell; the frame guarantees separation. The colour is authored mid-grey and rides the media element,
+// so the media's own re-invert leaves it a mid-grey line against both the dark image and the dark surround.
+// box-sizing keeps the border from growing the declared image size, so a fixed-size image does not reflow. A
+// faint frame also appears on a spacer or tracking image, an accepted cost for readable covers.
+const DARK_MEDIA_FRAME = '1px solid #808080'
 const darkModeStyle =
-    `html{filter:${DARK_INVERT_FILTER};}${DARK_MEDIA_SELECTOR}{filter:${DARK_INVERT_FILTER};}`
+    `html{filter:${DARK_INVERT_FILTER};}` +
+    `${DARK_MEDIA_SELECTOR}{filter:${DARK_INVERT_FILTER};border:${DARK_MEDIA_FRAME};box-sizing:border-box;}`
 
 // The iframe is the security boundary. Its Content-Security-Policy grants no script-src (so no JavaScript runs
 // even if some slipped past the sanitiser), blocks every default source and permits only inline styles, data:
