@@ -300,6 +300,24 @@ describe('App: the coupled message lists', () => {
         await waitFor(() => expect(container.querySelector('[data-mid="m1"]')).not.toHaveClass('unread'))
     })
 
+    it('toggling read from the reader flips it in place without reloading the folder (toggleRead)', async () => {
+        apiSpies.listAccounts.mockResolvedValue([makeAccount()])
+        apiSpies.listFolders.mockResolvedValue([makeFolder('inbox', 'Inbox', 'inbox')])
+        apiSpies.listMessages.mockResolvedValue([makeMessage({id: 'm1', subject: 'Weekly report', read: false})])
+        // syncFolder rejects so the initial load is the only folder fetch; the read toggle must not add one.
+        apiSpies.syncFolder.mockReset().mockRejectedValue(new Error('offline'))
+        const {container} = render(<App/>)
+        // Opening the message auto-marks it read, so the toolbar toggle then reads "Mark as unread".
+        fireEvent.click(await screen.findByText('Weekly report'))
+        await waitFor(() => expect(apiSpies.markRead).toHaveBeenCalledWith('m1', true))
+        const folderFetches = apiSpies.listMessagesPage.mock.calls.length
+        fireEvent.click(await screen.findByRole('button', {name: 'Mark as unread'}))
+        // The flag flips back optimistically and the server is told, with no extra folder fetch.
+        await waitFor(() => expect(apiSpies.markRead).toHaveBeenCalledWith('m1', false))
+        await waitFor(() => expect(container.querySelector('[data-mid="m1"]')).toHaveClass('unread'))
+        expect(apiSpies.listMessagesPage.mock.calls.length).toBe(folderFetches)
+    })
+
     it('bulk-deletes the selected messages, dropping them from the list (removeFromAllLists)', async () => {
         apiSpies.listAccounts.mockResolvedValue([makeAccount()])
         apiSpies.listFolders.mockResolvedValue([makeFolder('inbox', 'Inbox', 'inbox')])

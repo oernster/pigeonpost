@@ -4,13 +4,12 @@ import {neighbourAfterRemoval} from '../messageText'
 import type {MessageStore} from './useMessageStore'
 
 // MessageActionsDeps is what the single-message actions need from the rest of App: the message store they
-// mutate, the visible list and the search flag (used to pick the next selection after a removal), the open
-// folder (for toggleRead's reload), the unread-count refresher and the error sink.
+// mutate, the visible list and the search flag (used to pick the next selection after a removal), the
+// unread-count refresher and the error sink.
 export interface MessageActionsDeps {
     store: MessageStore
     displayMessages: Message[]
     searchActive: boolean
-    selectedFolder: string
     loadUnread: () => Promise<void>
     setError: (message: string) => void
 }
@@ -39,7 +38,7 @@ export interface MessageActions {
 // it shows wherever the message appears. Bulk actions, tag actions and the outbox cancel live in their own
 // hooks.
 export function useMessageActions(deps: MessageActionsDeps): MessageActions {
-    const {store, displayMessages, searchActive, selectedFolder, loadUnread, setError} = deps
+    const {store, displayMessages, searchActive, loadUnread, setError} = deps
     const {
         searchResults, setMessages, setSearchResults, setTabs, setSelectedMessage,
         applyToAllLists, removeFromAllLists,
@@ -180,18 +179,12 @@ export function useMessageActions(deps: MessageActionsDeps): MessageActions {
         }
     }, [applyToAllLists, loadUnread])
 
+    // toggleRead flips a message's read flag by delegating to setReadState, which updates the flag in place
+    // across every list (the open reader included) and refreshes the unread counts. It does not reload the
+    // folder, so toggling read in a folder of tens of thousands of messages never refetches every row.
     const toggleRead = useCallback(async (message: Message) => {
-        try {
-            await api.markRead(message.id, !message.read)
-            if (selectedFolder) {
-                const refreshed = await api.listMessages(selectedFolder)
-                setMessages(refreshed)
-                setSelectedMessage(refreshed.find((m) => m.id === message.id) ?? null)
-            }
-        } catch (e) {
-            setError(String(e))
-        }
-    }, [selectedFolder])
+        await setReadState(message, !message.read)
+    }, [setReadState])
 
     // markReadOnView marks a message read when it is displayed, unless it already is.
     const markReadOnView = useCallback((message: Message) => {
