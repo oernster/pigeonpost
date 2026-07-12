@@ -78,16 +78,17 @@ describe('EmailHtmlFrame: dark mode', () => {
         // The same filter on media double-inverts it back to its original colours; a plain background-colour
         // is deliberately not matched, so a coloured box keeps its inverted dark fill.
         expect(srcdoc).toContain(
-            'img,picture,video,svg,canvas,[background]:empty,[style*="background-image"]:empty{filter:invert(1) hue-rotate(180deg);border:1px solid #808080;box-sizing:border-box;}',
+            'img,picture,video,svg,canvas,[background]:empty,[style*="background-image"]:empty{filter:invert(1) hue-rotate(180deg);border:2px solid #808080 !important;box-sizing:border-box;}',
         )
     })
 
-    it('frames re-inverted media so a dark image keeps contrast against the inverted-dark surround', () => {
+    it('frames re-inverted media with an !important border so it survives an email border reset', () => {
         const {frame} = renderFrame({dark: true})
         const srcdoc = frame.getAttribute('srcdoc') ?? ''
-        // A mid-grey hairline rides the re-inverted media so a dark cover cannot read as a dark block on a
-        // dark cell (the Amazon book-cover contrast bug); box-sizing keeps it from reflowing a sized image.
-        expect(srcdoc).toContain('border:1px solid #808080')
+        // A mid-grey border rides the re-inverted media so a dark cover cannot read as a dark block on a dark
+        // cell (the Amazon book-cover contrast bug). It is !important because HTML email almost universally
+        // sets an inline border:0 on images, which would otherwise beat this rule and drop the frame.
+        expect(srcdoc).toContain('border:2px solid #808080 !important')
         expect(srcdoc).toContain('box-sizing:border-box')
     })
 
