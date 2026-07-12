@@ -169,6 +169,17 @@ function App() {
             return next
         })
     }, [])
+    // autoLoadImages, when on, loads a message's remote images immediately instead of holding them behind the
+    // Load images bar. It is off by default to protect privacy (a remote image can report that the message was
+    // opened) and is remembered across launches. The View menu toggles it.
+    const [autoLoadImages, setAutoLoadImages] = useState<boolean>(() => localStorage.getItem('autoLoadImages') === '1')
+    const toggleAutoLoadImages = useCallback(() => {
+        setAutoLoadImages((on) => {
+            const next = !on
+            localStorage.setItem('autoLoadImages', next ? '1' : '0')
+            return next
+        })
+    }, [])
     // displayMessages is the folder message list in the order the list renders it: conversation-grouped
     // when the view is on, otherwise as loaded. conversationHeads labels the first row of each multi-message
     // conversation. Both selection and keyboard navigation read displayMessages, so ranges and arrow keys
@@ -752,6 +763,7 @@ function App() {
             onMove={(m, dest) => void moveMessage(m, dest)}
             onCopy={(m, dest) => void copyMessage(m, dest)}
             canMoveCopy={!isPop3}
+            autoLoadImages={autoLoadImages}
             tags={tags}
             messageTags={messageTags}
             onToggleTag={(tagId, assigned) => void toggleTag(tagId, assigned)}
@@ -781,8 +793,9 @@ function App() {
     // set are computed inside it.
     const {fileMenu, editMenu, viewMenu, mailMenu, helpMenu} = useMenus({
         activeMessage, activeOutbox, canMailAct, canReplyAll, isPop3, selectedAccount, accountSyncing,
-        isWindows, conversationView, previewEnabled, folders, messageTags,
+        isWindows, conversationView, previewEnabled, autoLoadImages, folders, messageTags,
         saveMessageAs, printMessage, setManagingRules, setManagingTemplates, toggleConversationView, togglePreview,
+        toggleAutoLoadImages,
         signatureHtml, setComposeInitial, setComposing, setSettingUp, sync, openInNewTab,
         openReply, openReplyAll, openForward, attachToNewMessage, setReadState, toggleFlag, toggleTag,
         moveMessage, copyMessage, markJunk, setMessageToCancelSend, requestDelete, setMessageToPurge,
@@ -886,7 +899,7 @@ function App() {
             )}
             <AboutModal about={about} onClose={() => setAbout(null)}/>
             <LicenceModal text={licence} onClose={() => setLicence(null)}/>
-            {launchedEmail && <EmailViewerModal email={launchedEmail} onClose={() => setLaunchedEmail(null)}/>}
+            {launchedEmail && <EmailViewerModal email={launchedEmail} autoLoadImages={autoLoadImages} onClose={() => setLaunchedEmail(null)}/>}
             {closeChoice && (
                 <CloseChoiceDialog
                     onMinimise={() => {

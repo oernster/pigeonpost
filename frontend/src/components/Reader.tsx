@@ -36,6 +36,9 @@ interface ReaderProps {
     onCopy: (message: Message, destFolderId: string) => void
     // canMoveCopy is false for POP3 accounts, which have a single inbox and no server-side move/copy.
     canMoveCopy: boolean
+    // autoLoadImages, from the View menu, loads a message's remote images at once rather than blocking them
+    // behind the Load images bar. A new message opens with images shown when it is on.
+    autoLoadImages: boolean
     tags: Tag[]
     messageTags: Tag[]
     onToggleTag: (tagId: string, assigned: boolean) => void
@@ -54,8 +57,8 @@ interface ReaderProps {
     sinkRef?: RefObject<HTMLSpanElement>
 }
 
-export function Reader({message, onToggleRead, onReply, onReplyAll, onForward, onDelete, onCancelSend, folders, onMove, onCopy, canMoveCopy, messageTags, onToggleTag, body, bodyLoading, tabs, onSelectTab, onCloseTab, onBack, bodyRef, sinkRef}: ReaderProps) {
-    const [imagesShown, setImagesShown] = useState(false)
+export function Reader({message, onToggleRead, onReply, onReplyAll, onForward, onDelete, onCancelSend, folders, onMove, onCopy, canMoveCopy, autoLoadImages, messageTags, onToggleTag, body, bodyLoading, tabs, onSelectTab, onCloseTab, onBack, bodyRef, sinkRef}: ReaderProps) {
+    const [imagesShown, setImagesShown] = useState(autoLoadImages)
     // viewedEmail holds a parsed .eml attachment while the in-app viewer shows it.
     const [viewedEmail, setViewedEmail] = useState<EmailView | null>(null)
     // backButtonRef is the Back button; the reader's neutral sink hands the first Tab to it on a mouse open.
@@ -65,11 +68,12 @@ export function Reader({message, onToggleRead, onReply, onReplyAll, onForward, o
         ? <ReaderTabs tabs={tabs} activeMessageId={message?.id ?? ''} onSelectTab={onSelectTab} onCloseTab={onCloseTab}/>
         : null
 
-    // Re-block images whenever the selected message changes. The colour menu and the attachments block own
-    // their own per-message resets.
+    // Reset a new message's images to the current auto-load setting: shown at once when auto-load is on,
+    // otherwise re-blocked behind the Load images bar. Toggling the setting re-applies it to the open message
+    // too. The colour menu and the attachments block own their own per-message resets.
     useEffect(() => {
-        setImagesShown(false)
-    }, [message?.id])
+        setImagesShown(autoLoadImages)
+    }, [message?.id, autoLoadImages])
 
     if (!message) {
         return (
@@ -248,7 +252,7 @@ export function Reader({message, onToggleRead, onReply, onReplyAll, onForward, o
                 />
             )}
             {viewedEmail && (
-                <EmailViewerModal email={viewedEmail} onClose={() => setViewedEmail(null)}/>
+                <EmailViewerModal email={viewedEmail} autoLoadImages={autoLoadImages} onClose={() => setViewedEmail(null)}/>
             )}
         </section>
     )

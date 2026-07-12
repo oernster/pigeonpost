@@ -6,6 +6,9 @@ import {useBackdropDismiss} from './useBackdropDismiss'
 
 interface EmailViewerModalProps {
     email: EmailView
+    // autoLoadImages mirrors the reader's View-menu setting: when on, the viewed .eml shows its remote images
+    // at once instead of holding them behind the Load images bar.
+    autoLoadImages: boolean
     onClose: () => void
 }
 
@@ -18,9 +21,9 @@ function openLinkExternally(href: string) {
 // EmailViewerModal shows an attached .eml inside PigeonPost rather than handing it to an external mail
 // client. It renders the parsed headers and the sanitised body the same way the main reader does, with
 // remote images parked behind a Load images bar until the reader asks for them.
-export function EmailViewerModal({email, onClose}: EmailViewerModalProps) {
+export function EmailViewerModal({email, autoLoadImages, onClose}: EmailViewerModalProps) {
     const dismiss = useBackdropDismiss(onClose)
-    const [imagesShown, setImagesShown] = useState(false)
+    const [imagesShown, setImagesShown] = useState(autoLoadImages)
     const rawHtml = email.html ?? ''
     const hasBlockedImages = rawHtml.includes('data-pp-src=')
     const renderedHtml = imagesShown ? rawHtml.replace(/data-pp-src=/g, 'src=') : rawHtml

@@ -96,6 +96,7 @@ function renderReader(overrides: Partial<ReaderProps> = {}) {
         message: makeMessage(),
         folders: [],
         canMoveCopy: false,
+        autoLoadImages: false,
         tags: [],
         messageTags: [],
         body: makeBody(),
@@ -379,6 +380,19 @@ describe('Reader: message body', () => {
         expect(srcdoc()).toContain('img-src data: https: http:')
     })
 
+    it('loads remote images at once when auto-load is on, with no Load images bar', () => {
+        const {container} = renderReader({
+            autoLoadImages: true,
+            body: makeBody({html: '<img data-pp-src="https://x.test/i.png" alt="pic">shown'}),
+        })
+        const srcdoc = (container.querySelector('iframe.reader-html-frame') as HTMLIFrameElement).getAttribute('srcdoc') ?? ''
+        // The images are shown from the start, so there is no blocked-images bar, the source is unparked and
+        // the frame's CSP admits remote images.
+        expect(screen.queryByText('Remote images were not loaded to protect your privacy.')).toBeNull()
+        expect(srcdoc).not.toContain('data-pp-src=')
+        expect(srcdoc).toContain('img-src data: https: http:')
+    })
+
     it('opens a link in the body through the external browser', () => {
         const {container} = renderReader({body: makeBody({html: '<a href="https://example.com/x">go</a>'})})
         const frame = container.querySelector('iframe.reader-html-frame') as HTMLIFrameElement
@@ -428,8 +442,8 @@ describe('Reader: reset on message change', () => {
             onToggleTag: vi.fn(), onSelectTab: vi.fn(), onCloseTab: vi.fn(),
         }
         const base: ReaderProps = {
-            message: makeMessage({id: 'first'}), folders: [], canMoveCopy: false, tags: [], messageTags: [],
-            body: makeBody(), bodyLoading: false, tabs: [], ...handlers,
+            message: makeMessage({id: 'first'}), folders: [], canMoveCopy: false, autoLoadImages: false,
+            tags: [], messageTags: [], body: makeBody(), bodyLoading: false, tabs: [], ...handlers,
         }
         const {rerender} = render(<Reader {...base}/>)
         await openColourMenu(user)

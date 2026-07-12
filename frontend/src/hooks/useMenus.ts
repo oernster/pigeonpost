@@ -21,6 +21,7 @@ export interface MenusDeps {
     isWindows: boolean
     conversationView: boolean
     previewEnabled: boolean
+    autoLoadImages: boolean
     // The folder list (Move/Copy targets) and the open message's tags (the applied ticks).
     folders: Folder[]
     messageTags: Tag[]
@@ -33,6 +34,7 @@ export interface MenusDeps {
     // View menu.
     toggleConversationView: () => void
     togglePreview: () => void
+    toggleAutoLoadImages: () => void
     // Mail menu.
     signatureHtml: () => string
     setComposeInitial: Dispatch<SetStateAction<ComposeInitial | undefined>>
@@ -74,8 +76,9 @@ export interface Menus {
 export function useMenus(deps: MenusDeps): Menus {
     const {
         activeMessage, activeOutbox, canMailAct, canReplyAll, isPop3, selectedAccount, accountSyncing,
-        isWindows, conversationView, previewEnabled, folders, messageTags,
+        isWindows, conversationView, previewEnabled, autoLoadImages, folders, messageTags,
         saveMessageAs, printMessage, setManagingRules, setManagingTemplates, toggleConversationView, togglePreview,
+        toggleAutoLoadImages,
         signatureHtml, setComposeInitial, setComposing, setSettingUp, sync, openInNewTab,
         openReply, openReplyAll, openForward, attachToNewMessage, setReadState, toggleFlag, toggleTag,
         moveMessage, copyMessage, markJunk, setMessageToCancelSend, requestDelete, setMessageToPurge,
@@ -144,6 +147,11 @@ export function useMenus(deps: MenusDeps): Menus {
             shortcut: 'F8',
             checked: previewEnabled,
             onClick: togglePreview,
+        },
+        {
+            label: 'Load images by default',
+            checked: autoLoadImages,
+            onClick: toggleAutoLoadImages,
         },
     ]
     const mailMenu: MenuItem[] = [
