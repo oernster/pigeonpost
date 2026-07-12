@@ -45,6 +45,7 @@ import {useComposeLauncher} from './hooks/useComposeLauncher'
 import {useAppEvents} from './hooks/useAppEvents'
 import {useMenus} from './hooks/useMenus'
 import {useMessageListKeyboard} from './hooks/useMessageListKeyboard'
+import {useFolderPagination} from './hooks/useFolderPagination'
 
 function App() {
     const [selectedAccount, setSelectedAccount] = useState<string>('')
@@ -59,6 +60,15 @@ function App() {
         tabs, setTabs,
         selectedMessage, setSelectedMessage,
     } = store
+    // messagesRef mirrors the loaded folder list so loadMoreMessages can read the current ids (to skip
+    // duplicates) without being rebuilt whenever the list changes.
+    const messagesRef = useRef<Message[]>(messages)
+    messagesRef.current = messages
+    // Flat-view keyset pagination: the folder listing loads one page at a time so a huge folder (a real
+    // Trash of tens of thousands of messages) opens without loading every row at once. Conversation view
+    // and search load the whole set instead (threading and search each need it), bounded by the virtualized
+    // list so the render does not freeze.
+    const pagination = useFolderPagination()
     const [error, setError] = useState<string>('')
     // The folder list, the selected folder, the folder create/rename/delete/reparent flow and the
     // selected-folder ref live in useFolders. loadFolderMessages and selectFolder stay in App (below): they
@@ -166,14 +176,9 @@ function App() {
     // sortAscending flips the folder list between newest-first (default) and oldest-first, driven by the
     // Date column header. The choice is remembered across launches. It also sets the order conversations
     // are listed in when the conversation view is on.
+    // sortAscending's toggle (toggleSort) is defined below, after loadFolderMessages, because flipping the
+    // order reloads the flat view's first page in the new direction.
     const [sortAscending, setSortAscending] = useState<boolean>(() => localStorage.getItem('sortAscending') === '1')
-    const toggleSort = useCallback(() => {
-        setSortAscending((asc) => {
-            const next = !asc
-            localStorage.setItem('sortAscending', next ? '1' : '0')
-            return next
-        })
-    }, [])
     const {ordered: displayMessages, heads: conversationHeads} = useMemo(
         () => (conversationView && !searchActive
             ? arrangeByConversation(messages, sortAscending)
@@ -339,22 +344,99 @@ function App() {
     // refreshes it from the server and updates the list if the user is still on that folder. This is
     // what makes a message moved or deleted into a folder appear when the folder is opened. A sync
     // failure (offline) simply leaves the cached view in place.
-    const loadFolderMessages = useCallback(async (id: string) => {
+    //
+    // The flat view (the default) loads only the first page and lets loadMoreMessages append the rest as
+    // the user scrolls, so a folder of tens of thousands of messages opens without loading every row.
+    // Conversation view needs the whole folder to thread it, so it loads every row (the virtualized list
+    // renders only what is on screen, so even a 48k folder does not freeze the render). Every (re)load
+    // resets pagination. opts overrides the direction or the view mode when a toggle drives the reload
+    // before its state has settled; skipSync loads once without re-syncing for a caller that has just
+    // synced (a mailbox sync or the background poll).
+    const loadFolderMessages = useCallback(async (
+        id: string, opts?: {ascending?: boolean; conversation?: boolean; skipSync?: boolean},
+    ) => {
+        const ascending = opts?.ascending ?? sortAscending
+        const grouped = opts?.conversation ?? conversationView
+        pagination.reset()
+        const loadInto = grouped
+            ? async () => setMessages(await api.listMessages(id))
+            : async () => setMessages(await pagination.loadFirst(id, ascending))
         try {
-            setMessages(await api.listMessages(id))
+            await loadInto()
         } catch (e) {
             setError(String(e))
+        }
+        if (opts?.skipSync) {
+            return
         }
         try {
             await api.syncFolder(id)
             if (selectedFolderRef.current === id) {
-                setMessages(await api.listMessages(id))
+                await loadInto()
             }
             await loadUnread()
         } catch {
             // Offline or a transient failure: the cached view stands.
         }
-    }, [loadUnread])
+    }, [sortAscending, conversationView, loadUnread, pagination])
+
+    // loadMoreMessages appends the next page to the flat folder view as the list nears its end. It is a
+    // no-op in conversation view and in search (both hold the whole set), on the synthetic Outbox and when
+    // no page remains or a load is already running (the pagination hook guards those). A late page from a
+    // folder the user has since left is discarded; duplicate ids are never appended.
+    const loadMoreMessages = useCallback(async () => {
+        if (conversationView || searchActive) {
+            return
+        }
+        const folderId = selectedFolderRef.current
+        if (!folderId || folderId === OUTBOX_FOLDER_ID || !pagination.hasMore()) {
+            return
+        }
+        try {
+            const loadedIds = new Set(messagesRef.current.map((m) => m.id))
+            const additions = await pagination.loadNext(folderId, loadedIds)
+            if (additions.length === 0 || selectedFolderRef.current !== folderId) {
+                return
+            }
+            setMessages((prev) => {
+                const seen = new Set(prev.map((m) => m.id))
+                const fresh = additions.filter((m) => !seen.has(m.id))
+                return fresh.length > 0 ? [...prev, ...fresh] : prev
+            })
+        } catch (e) {
+            setError(String(e))
+        }
+    }, [conversationView, searchActive, pagination])
+
+    // toggleSort flips the date order and persists it. Only a prefix of the folder is loaded in the flat
+    // view, so a client-side re-sort would reorder just that prefix and hide the true first rows of the new
+    // direction; instead pagination is reset and page one is reloaded in the new order. Conversation view
+    // and search hold the whole set, so the derived list re-sorts them client-side without a reload.
+    const toggleSort = useCallback(() => {
+        const next = !sortAscending
+        localStorage.setItem('sortAscending', next ? '1' : '0')
+        setSortAscending(next)
+        const folderId = selectedFolderRef.current
+        if (folderId && folderId !== OUTBOX_FOLDER_ID && !conversationView && !searchActive) {
+            void loadFolderMessages(folderId, {ascending: next})
+        }
+    }, [sortAscending, conversationView, searchActive, loadFolderMessages])
+
+    // Reload the open folder when the conversation view is toggled, because the two modes load different
+    // amounts: flat loads a page at a time, conversation loads the whole folder to thread it. Skipped on the
+    // first render (the account auto-select already opens the inbox) and on the synthetic Outbox.
+    const conversationViewMounted = useRef(false)
+    useEffect(() => {
+        if (!conversationViewMounted.current) {
+            conversationViewMounted.current = true
+            return
+        }
+        const folderId = selectedFolderRef.current
+        if (folderId && folderId !== OUTBOX_FOLDER_ID) {
+            void loadFolderMessages(folderId, {conversation: conversationView})
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [conversationView])
 
     const selectAccount = useCallback(async (id: string) => {
         setSelectedAccount(id)
@@ -439,7 +521,8 @@ function App() {
     // The mailbox sync (a manual full-account sync and the periodic light refresh of the open folder) and
     // the per-account "is syncing" state live in useSync.
     const {syncingAccounts, sync, accountSyncing} = useSync({
-        selectedAccount, selectedFolder, selectedFolderRef, setFolders, store,
+        selectedAccount, selectedFolder, selectedFolderRef, setFolders,
+        reloadFolder: loadFolderMessages,
         refreshOutbox, loadUnread, setError,
     })
 
@@ -560,7 +643,7 @@ function App() {
         closeChoice, setCloseChoice,
     } = useAppEvents({
         showAbout, showLicence, checkUpdates,
-        selectedFolder, setMessages,
+        selectedFolder, reloadFolder: loadFolderMessages,
         loadUnread, loadEvents, setError,
     })
 
@@ -643,6 +726,7 @@ function App() {
             onToggleFlag={(m) => void toggleFlag(m)}
             onContextMenu={openContextMenu}
             onOpenInNewTab={openInNewTab}
+            onLoadMore={() => void loadMoreMessages()}
         />
     )
     const readerEl = multiSelected ? (

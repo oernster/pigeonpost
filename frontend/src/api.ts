@@ -14,6 +14,7 @@ import {
     ListFolders,
     LicenceText,
     ListMessages,
+    ListMessagesPage,
     ListTags,
     MarkFlagged,
     MarkJunk,
@@ -100,6 +101,19 @@ export type Folder = main.FolderDTO
 // updates, so Message is the data-only shape. Omitting convertValues keeps this valid even after the
 // generated MessageDTO regains that helper method on a `wails generate`.
 export type Message = Omit<main.MessageDTO, 'convertValues'>
+// MessagePage is one keyset-paginated slice of a folder's flat listing: the page's messages, whether an
+// older (or newer, when ascending) page exists plus the opaque cursor to fetch it. The cursor is passed
+// straight back to listMessagesPage; it is never constructed by the caller.
+export interface MessagePage {
+    messages: Message[]
+    hasMore: boolean
+    nextCursorDateMs: number
+    nextCursorId: string
+}
+// MESSAGE_PAGE_SIZE is how many rows the flat folder view loads per page. A folder of tens of thousands
+// of messages (a real Trash) would freeze the render if every row were loaded at once, so the list loads
+// one page and fetches the next as the user scrolls.
+export const MESSAGE_PAGE_SIZE = 200
 export type AboutInfo = main.AboutDTO
 export type Tag = main.TagDTO
 export type Rule = main.RuleDTO
@@ -345,6 +359,13 @@ export const api = {
     listFolders: (accountId: string): Promise<Folder[]> => ListFolders(accountId),
     unreadCounts: (): Promise<UnreadCountsResult> => UnreadCounts(),
     listMessages: (folderId: string): Promise<Message[]> => ListMessages(folderId),
+    // listMessagesPage fetches one keyset page of a folder's flat listing. The first call passes
+    // hasCursor false (the cursor arguments are ignored); each later call passes hasCursor true with the
+    // previous page's nextCursorDateMs and nextCursorId to walk to strictly older (or newer, when
+    // ascending) rows. ascending matches the list's sort direction.
+    listMessagesPage: (
+        folderId: string, hasCursor: boolean, cursorDateMs: number, cursorId: string, limit: number, ascending: boolean,
+    ): Promise<MessagePage> => ListMessagesPage(folderId, hasCursor, cursorDateMs, cursorId, limit, ascending),
     searchMessages: (query: string): Promise<Message[]> => SearchMessages(query),
     messageBody: (messageId: string): Promise<MessageBody> => GetMessageBody(messageId),
     openExternal: (url: string): Promise<void> => OpenExternal(url),

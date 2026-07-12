@@ -1,17 +1,19 @@
 import {Dispatch, SetStateAction, useEffect, useState} from 'react'
-import {EmailView, Message, api} from '../api'
+import {EmailView} from '../api'
 import {Environment, EventsOn} from '../../wailsjs/runtime'
 
 // AppEventsDeps is what the backend-event wiring needs from the rest of App: the Help-dialog openers the tray
-// menu mirrors (showAbout, showLicence, checkUpdates), the open folder and the message setter (mail:new
-// reloads the folder on screen), the unread-count and events loaders the poll events refresh, and the error
-// sink.
+// menu mirrors (showAbout, showLicence, checkUpdates), the open folder and the folder reloader (mail:new
+// reloads the folder on screen, resetting the flat view's pagination rather than pulling every row), the
+// unread-count and events loaders the poll events refresh plus the error sink.
 export interface AppEventsDeps {
     showAbout: () => Promise<void>
     showLicence: () => Promise<void>
     checkUpdates: () => void
     selectedFolder: string
-    setMessages: Dispatch<SetStateAction<Message[]>>
+    // reloadFolder resets pagination and reloads the folder view; skipSync loads once without re-syncing,
+    // because the arrival was already fetched by the backend poller that raised mail:new.
+    reloadFolder: (id: string, opts?: {skipSync?: boolean}) => Promise<void>
     loadUnread: () => Promise<void>
     loadEvents: () => Promise<void>
     setError: (message: string) => void
@@ -33,7 +35,7 @@ export interface AppEvents {
 // closeChoice state live here; App's render consumes them (the EmailViewer, the Mail menu and the CloseChoice
 // dialog), so they are returned.
 export function useAppEvents(deps: AppEventsDeps): AppEvents {
-    const {showAbout, showLicence, checkUpdates, selectedFolder, setMessages, loadUnread, loadEvents, setError} = deps
+    const {showAbout, showLicence, checkUpdates, selectedFolder, reloadFolder, loadUnread, loadEvents, setError} = deps
 
     // launchedEmail holds a .eml the OS handed to PigeonPost (a double-click on the file) while the in-app
     // viewer shows it; isWindows gates the Windows-only "Set as default for .eml" menu item.
@@ -78,11 +80,11 @@ export function useAppEvents(deps: AppEventsDeps): AppEvents {
         const off = EventsOn('mail:new', () => {
             void loadUnread()
             if (selectedFolder) {
-                void api.listMessages(selectedFolder).then(setMessages).catch(() => undefined)
+                void reloadFolder(selectedFolder, {skipSync: true})
             }
         })
         return () => off()
-    }, [selectedFolder, loadUnread])
+    }, [selectedFolder, reloadFolder, loadUnread])
 
     // The poller emits calendar:changed after auto-applying an incoming meeting reply or cancellation, so
     // reload the events for the calendar view to reflect the updated attendee status or removed meeting.

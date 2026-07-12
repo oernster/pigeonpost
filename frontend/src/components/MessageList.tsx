@@ -1,4 +1,5 @@
-import {Fragment} from 'react'
+import {useEffect, useMemo, useRef, type CSSProperties} from 'react'
+import {useVirtualizer, VirtualItem} from '@tanstack/react-virtual'
 import {Message} from '../api'
 import {ConversationHead} from '../threads'
 
@@ -6,6 +7,17 @@ import {ConversationHead} from '../threads'
 // When several messages are selected, dropping any one of them moves the whole selection; the parent
 // expands the dragged id to the full selection, so a single id on the drag is enough.
 export const messageDragType = 'application/x-pigeonpost-message'
+
+// The list is virtualized: only the rows on screen are in the DOM, so a folder of tens of thousands of
+// messages renders without freezing. These size hints seed the scrollbar before a row's real height is
+// measured (a message row is one to three lines; a conversation header is a single line) and OVERSCAN
+// keeps a few rows rendered just past the viewport so keyboard navigation and scrolling stay smooth.
+const MESSAGE_ROW_ESTIMATE = 64
+const CONVERSATION_HEADER_ESTIMATE = 26
+const ROW_OVERSCAN = 8
+// LOAD_MORE_ROW_THRESHOLD is how close to the last loaded row the viewport must reach before the next
+// page is requested, so the following page is in flight before the user hits the end.
+const LOAD_MORE_ROW_THRESHOLD = 12
 
 // ClickMods carries the modifier keys of a row click so the parent can apply the standard selection
 // gestures: plain click selects one, Ctrl (or Cmd) toggles a row in or out, Shift selects a range.
@@ -32,10 +44,21 @@ interface MessageListProps {
     onToggleFlag: (message: Message) => void
     onContextMenu: (message: Message, x: number, y: number) => void
     onOpenInNewTab: (message: Message, fromKeyboard?: boolean) => void
+    // onLoadMore is called as the viewport nears the last loaded row, so the flat view can fetch and
+    // append the next page. The parent guards it (it is a no-op in conversation view, in search or when
+    // there is no more to load or a load is already running), so it is safe to call freely.
+    onLoadMore: () => void
     // sortAscending is the current date order of the list (false is newest first); onToggleSort flips it.
     sortAscending: boolean
     onToggleSort: () => void
 }
+
+// ListRow is one rendered row: a conversation header (the label above the first message of a multi-message
+// conversation) or a message. The two are flattened into a single sequence so the virtualizer can measure
+// and position them together.
+type ListRow =
+    | {kind: 'header'; key: string; head: ConversationHead}
+    | {kind: 'message'; key: string; message: Message}
 
 function formatDate(iso: string): string {
     if (!iso) {
@@ -50,106 +73,220 @@ function formatDate(iso: string): string {
     })
 }
 
+// escapeId makes a message id safe to embed in an attribute selector (message ids can carry characters
+// that are special in CSS), falling back to the raw id where CSS.escape is unavailable.
+function escapeId(id: string): string {
+    return typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(id) : id
+}
+
 export function MessageList(props: MessageListProps) {
     const {messages, selectedIds, activeId, folderSelected, searchQuery, searchActive} = props
     const selectionCount = selectedIds.size
-    // The message list is a single focus-ring stop: the active message is the tabbable row, falling back to
-    // the first message when none is active, so Tab from the search box always reaches the list. Up and Down
-    // move the selection from there, the same roving-tabindex model the folder and account lists use.
-    const tabStopId = activeId ?? (messages.length > 0 ? messages[0].id : null)
+    const scrollRef = useRef<HTMLDivElement>(null)
 
-    const content = () => {
-        if (searchActive) {
-            if (messages.length === 0) {
-                return <div className="empty-state"><p className="empty-body">No messages match your search.</p></div>
+    // Flatten the visible list into the exact row sequence the list renders: a conversation-header row
+    // precedes the first message of each multi-message conversation, then the message row itself.
+    const rows = useMemo<ListRow[]>(() => {
+        const out: ListRow[] = []
+        for (const message of messages) {
+            const head = props.conversationHeads.get(message.id)
+            if (head) {
+                out.push({kind: 'header', key: 'header:' + message.id, head})
             }
-        } else if (!folderSelected) {
+            out.push({kind: 'message', key: message.id, message})
+        }
+        return out
+    }, [messages, props.conversationHeads])
+
+    // messageIndex maps a message id to its row position, so keyboard navigation can scroll a row that is
+    // not currently mounted into view before focusing it. A ref holds the latest map so the scroll effect
+    // can read it without listing it as a dependency (which would re-scroll whenever the list changes, for
+    // example when a page is appended).
+    const messageIndex = useMemo(() => {
+        const map = new Map<string, number>()
+        rows.forEach((row, index) => {
+            if (row.kind === 'message') {
+                map.set(row.message.id, index)
+            }
+        })
+        return map
+    }, [rows])
+    const messageIndexRef = useRef(messageIndex)
+    messageIndexRef.current = messageIndex
+
+    const virtualizer = useVirtualizer({
+        count: rows.length,
+        getScrollElement: () => scrollRef.current,
+        estimateSize: (index) => (rows[index].kind === 'header' ? CONVERSATION_HEADER_ESTIMATE : MESSAGE_ROW_ESTIMATE),
+        getItemKey: (index) => rows[index].key,
+        overscan: ROW_OVERSCAN,
+    })
+
+    const virtualItems = virtualizer.getVirtualItems()
+
+    // When the active row changes (a click or a keyboard move) scroll it into view. With virtualization the
+    // target row may be unmounted, so focus() alone cannot reach it; scrolling mounts it, then focus lands
+    // on it once it is in the DOM so Enter, Space and the roving tabindex work. Keyed on activeId alone: a
+    // list change (an appended page) must not yank the scroll back to the active row.
+    useEffect(() => {
+        if (activeId == null) {
+            return
+        }
+        const index = messageIndexRef.current.get(activeId)
+        if (index == null) {
+            return
+        }
+        virtualizer.scrollToIndex(index, {align: 'auto'})
+        const raf = requestAnimationFrame(() => {
+            // Only take focus from a neutral spot (the start sink or the body, both tabindex -1) or another
+            // row, mirroring the window key handler, so focus already moved into the reader or a control is
+            // not yanked back to the list.
+            const active = document.activeElement as HTMLElement | null
+            if (active && active.tabIndex >= 0 && !active.classList.contains('message-row')) {
+                return
+            }
+            scrollRef.current?.querySelector<HTMLElement>(`[data-mid="${escapeId(activeId)}"]`)?.focus()
+        })
+        return () => cancelAnimationFrame(raf)
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [activeId])
+
+    // Request the next page as the viewport nears the last loaded row. onLoadMore is guarded by the parent,
+    // so calling it on every approach to the end is safe.
+    const lastIndex = virtualItems.length > 0 ? virtualItems[virtualItems.length - 1].index : -1
+    useEffect(() => {
+        if (lastIndex >= 0 && lastIndex >= rows.length - LOAD_MORE_ROW_THRESHOLD) {
+            props.onLoadMore()
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [lastIndex, rows.length])
+
+    // The message list is a single focus-ring stop: the roving tabbable row (tabindex 0) must be one that is
+    // actually rendered, so Tab from the search box always reaches a row in the DOM. It is the active row
+    // when that row is on screen, otherwise the first rendered row.
+    const renderedMessageIds = virtualItems
+        .map((item) => rows[item.index])
+        .filter((row): row is Extract<ListRow, {kind: 'message'}> => row.kind === 'message')
+        .map((row) => row.message.id)
+    const tabStopId = activeId && renderedMessageIds.includes(activeId)
+        ? activeId
+        : (renderedMessageIds[0] ?? null)
+
+    const emptyState = () => {
+        if (searchActive) {
+            return messages.length === 0
+                ? <div className="empty-state"><p className="empty-body">No messages match your search.</p></div>
+                : null
+        }
+        if (!folderSelected) {
             return <div className="empty-state"><p className="empty-body">Select a folder to see its messages.</p></div>
-        } else if (messages.length === 0) {
+        }
+        if (messages.length === 0) {
             return <div className="empty-state"><p className="empty-body">No messages in this folder.</p></div>
         }
+        return null
+    }
+
+    const renderRow = (item: VirtualItem) => {
+        const row = rows[item.index]
+        const index = item.index
+        const style: CSSProperties = {
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            width: '100%',
+            transform: `translateY(${item.start}px)`,
+        }
+        if (row.kind === 'header') {
+            const {head} = row
+            return (
+                <li
+                    key={row.key}
+                    data-index={index}
+                    ref={virtualizer.measureElement}
+                    className="conversation-header"
+                    aria-hidden="true"
+                    style={style}
+                >
+                    <span className="conversation-subject" title={head.subject || '(no subject)'}>{head.subject || '(no subject)'}</span>
+                    <span className="conversation-count">{head.count} messages</span>
+                </li>
+            )
+        }
+        const message = row.message
         return (
-            <ul className="list">
-                {messages.map((message) => {
-                    const head = props.conversationHeads.get(message.id)
-                    return (
-                    <Fragment key={message.id}>
-                    {head && (
-                        <li className="conversation-header" aria-hidden="true">
-                            <span className="conversation-subject" title={head.subject || '(no subject)'}>{head.subject || '(no subject)'}</span>
-                            <span className="conversation-count">{head.count} messages</span>
-                        </li>
-                    )}
-                    <li
-                        className={
-                            'message-row' +
-                            (message.read ? '' : ' unread') +
-                            (selectedIds.has(message.id) ? ' selected' : '') +
-                            (activeId === message.id ? ' active' : '')
-                        }
-                        data-mid={message.id}
-                        tabIndex={tabStopId === message.id ? 0 : -1}
-                        aria-selected={selectedIds.has(message.id)}
-                        // Shift-click would otherwise select the page text across the rows it spans; suppress
-                        // that here so a range selection stays a message selection.
-                        onMouseDown={(e) => {
-                            if (e.shiftKey) {
-                                e.preventDefault()
-                            }
-                        }}
-                        onClick={(e) => props.onActivate(message, {ctrl: e.ctrlKey || e.metaKey, shift: e.shiftKey})}
-                        onDoubleClick={() => props.onOpenInNewTab(message, false)}
-                        draggable
-                        onDragStart={(e) => {
-                            e.dataTransfer.setData(messageDragType, message.id)
-                            e.dataTransfer.effectAllowed = 'move'
-                        }}
-                        onContextMenu={(e) => {
-                            e.preventDefault()
-                            props.onContextMenu(message, e.clientX, e.clientY)
+            <li
+                key={row.key}
+                data-index={index}
+                ref={virtualizer.measureElement}
+                className={
+                    'message-row' +
+                    (message.read ? '' : ' unread') +
+                    (selectedIds.has(message.id) ? ' selected' : '') +
+                    (activeId === message.id ? ' active' : '')
+                }
+                data-mid={message.id}
+                tabIndex={tabStopId === message.id ? 0 : -1}
+                aria-selected={selectedIds.has(message.id)}
+                style={style}
+                // Shift-click would otherwise select the page text across the rows it spans; suppress
+                // that here so a range selection stays a message selection.
+                onMouseDown={(e) => {
+                    if (e.shiftKey) {
+                        e.preventDefault()
+                    }
+                }}
+                onClick={(e) => props.onActivate(message, {ctrl: e.ctrlKey || e.metaKey, shift: e.shiftKey})}
+                onDoubleClick={() => props.onOpenInNewTab(message, false)}
+                draggable
+                onDragStart={(e) => {
+                    e.dataTransfer.setData(messageDragType, message.id)
+                    e.dataTransfer.effectAllowed = 'move'
+                }}
+                onContextMenu={(e) => {
+                    e.preventDefault()
+                    props.onContextMenu(message, e.clientX, e.clientY)
+                }}
+            >
+                <div className="message-row-top">
+                    <button
+                        className={'message-star' + (message.flagged ? ' on' : '')}
+                        aria-label={message.flagged ? 'Remove star' : 'Add star'}
+                        aria-pressed={message.flagged}
+                        title={message.flagged ? 'Starred' : 'Star'}
+                        onClick={(e) => {
+                            e.stopPropagation()
+                            props.onToggleFlag(message)
                         }}
                     >
-                        <div className="message-row-top">
-                            <button
-                                className={'message-star' + (message.flagged ? ' on' : '')}
-                                aria-label={message.flagged ? 'Remove star' : 'Add star'}
-                                aria-pressed={message.flagged}
-                                title={message.flagged ? 'Starred' : 'Star'}
-                                onClick={(e) => {
-                                    e.stopPropagation()
-                                    props.onToggleFlag(message)
-                                }}
-                            >
-                                {message.flagged ? '★' : '☆'}
-                            </button>
-                            {message.hasAttachments && (
-                                <span className="attach" title="Has attachments" aria-label="Has attachments">
-                                    {'\u{1F4CE}'}
-                                </span>
-                            )}
-                            <span className="message-from" title={message.fromName || message.fromAddress || '(unknown sender)'}>
-                                {message.fromName || message.fromAddress || '(unknown sender)'}
-                            </span>
-                            {message.tagColours.length > 0 && (
-                                <span className="message-tags" aria-hidden="true">
-                                    {message.tagColours.map((colour, i) => (
-                                        <span key={i} className="message-tag-dot" style={{backgroundColor: colour}}/>
-                                    ))}
-                                </span>
-                            )}
-                            <span className="message-date">{formatDate(message.date)}</span>
-                        </div>
-                        <div className="message-subject">
-                            {message.subject || '(no subject)'}
-                        </div>
-                        {message.snippet && <div className="message-snippet" title={message.snippet}>{message.snippet}</div>}
-                    </li>
-                    </Fragment>
-                    )
-                })}
-            </ul>
+                        {message.flagged ? '★' : '☆'}
+                    </button>
+                    {message.hasAttachments && (
+                        <span className="attach" title="Has attachments" aria-label="Has attachments">
+                            {'\u{1F4CE}'}
+                        </span>
+                    )}
+                    <span className="message-from" title={message.fromName || message.fromAddress || '(unknown sender)'}>
+                        {message.fromName || message.fromAddress || '(unknown sender)'}
+                    </span>
+                    {message.tagColours.length > 0 && (
+                        <span className="message-tags" aria-hidden="true">
+                            {message.tagColours.map((colour, i) => (
+                                <span key={i} className="message-tag-dot" style={{backgroundColor: colour}}/>
+                            ))}
+                        </span>
+                    )}
+                    <span className="message-date">{formatDate(message.date)}</span>
+                </div>
+                <div className="message-subject">
+                    {message.subject || '(no subject)'}
+                </div>
+                {message.snippet && <div className="message-snippet" title={message.snippet}>{message.snippet}</div>}
+            </li>
         )
     }
+
+    const empty = emptyState()
 
     return (
         <section className="pane message-list">
@@ -185,7 +322,13 @@ export function MessageList(props: MessageListProps) {
                     </button>
                 </div>
             )}
-            <div className="message-list-scroll">{content()}</div>
+            <div className="message-list-scroll" ref={scrollRef}>
+                {empty ?? (
+                    <ul className="list" style={{position: 'relative', height: virtualizer.getTotalSize()}}>
+                        {virtualItems.map((item) => renderRow(item))}
+                    </ul>
+                )}
+            </div>
         </section>
     )
 }

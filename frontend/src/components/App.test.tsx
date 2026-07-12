@@ -21,7 +21,7 @@ const apiSpies = vi.hoisted(() => ({
     listRules: vi.fn(), listContacts: vi.fn(), listEvents: vi.fn(),
     unreadCounts: vi.fn(), listTags: vi.fn(), saveTag: vi.fn(),
     messageTags: vi.fn(), messageBody: vi.fn(), searchMessages: vi.fn(),
-    setMessageTag: vi.fn(), listMessages: vi.fn(), syncFolder: vi.fn(),
+    setMessageTag: vi.fn(), listMessages: vi.fn(), listMessagesPage: vi.fn(), syncFolder: vi.fn(),
     listFolders: vi.fn(), listOutbox: vi.fn(), cancelOutboxItem: vi.fn(),
     syncAccount: vi.fn(), replayOutbox: vi.fn(), removeAccount: vi.fn(),
     deleteMessage: vi.fn(), deleteMessagePermanent: vi.fn(), saveMessageAs: vi.fn(),
@@ -43,9 +43,13 @@ const runtimeSpies = vi.hoisted(() => ({
 
 // EventScope is provided with its real integer values because App imports CalendarModal (which reads the
 // enum), even though the calendar is never opened in these tests.
+// MESSAGE_PAGE_SIZE is a real runtime export of ../api (the flat view's page size), so the mock must
+// supply it too or useFolderPagination's import throws. Its value is irrelevant here: the stubbed
+// listMessagesPage ignores the limit.
 vi.mock('../api', () => ({
     api: apiSpies,
     EventScope: {This: 0, Future: 1, All: 2},
+    MESSAGE_PAGE_SIZE: 200,
 }))
 // The runtime lives at frontend/wailsjs/runtime, which App reaches as ../wailsjs/runtime from src/; from
 // this test one level deeper it is ../../wailsjs/runtime, the same absolute module both App and
@@ -112,6 +116,13 @@ beforeEach(() => {
     apiSpies.searchMessages.mockReset().mockResolvedValue([])
     apiSpies.setMessageTag.mockReset().mockResolvedValue(undefined)
     apiSpies.listMessages.mockReset().mockResolvedValue([])
+    // The flat folder view now loads through listMessagesPage. Its default delegates to listMessages so a
+    // test that stubs listMessages (the folder's rows) keeps working unchanged and the existing
+    // "listMessages called with <folder>" assertions still hold; a page carries no more rows and no cursor.
+    apiSpies.listMessagesPage.mockReset().mockImplementation(async (folderId: string) => ({
+        messages: await apiSpies.listMessages(folderId),
+        hasMore: false, nextCursorDateMs: 0, nextCursorId: '',
+    }))
     apiSpies.syncFolder.mockReset().mockResolvedValue(undefined)
     apiSpies.listFolders.mockReset().mockResolvedValue([])
     apiSpies.listOutbox.mockReset().mockResolvedValue([])
@@ -680,5 +691,62 @@ describe('App: message-list keyboard', () => {
         fireEvent.keyDown(document.body, {key: 'Delete'})
         // Delete on the selected message asks for confirmation before removing it.
         expect(await screen.findByRole('alertdialog', {name: 'Delete message'})).toBeInTheDocument()
+    })
+})
+
+// The flat folder view is keyset-paginated (useFolderPagination, wired through loadFolderMessages,
+// loadMoreMessages and toggleSort). The list loads one page, appends the next as it nears the end, and
+// reloads page one in the new direction when the sort is flipped, so a huge folder never loads every row at
+// once. MESSAGE_PAGE_SIZE is 200 in the mock above.
+describe('App: flat-view pagination', () => {
+    it('reloads page one in the new direction when the date sort is toggled (toggleSort)', async () => {
+        apiSpies.listAccounts.mockResolvedValue([makeAccount()])
+        apiSpies.listFolders.mockResolvedValue([makeFolder('inbox', 'Inbox', 'inbox')])
+        // A single-page folder (no more pages), so no append fires and the reload is the only refetch.
+        apiSpies.listMessagesPage.mockReset().mockResolvedValue({
+            messages: [makeMessage({id: 'm1', subject: 'Weekly report'})],
+            hasMore: false, nextCursorDateMs: 0, nextCursorId: '',
+        })
+        render(<App/>)
+        await screen.findByText('Weekly report')
+        // The default order is newest first (ascending false); toggling asks for oldest first.
+        apiSpies.listMessagesPage.mockClear()
+        fireEvent.click(screen.getByRole('button', {name: /Sort by date/}))
+        // The reload starts a fresh page one (hasCursor false, cursor arguments ignored) in the new
+        // ascending direction, rather than re-sorting the loaded prefix on the client.
+        await waitFor(() =>
+            expect(apiSpies.listMessagesPage).toHaveBeenCalledWith('inbox', false, 0, '', 200, true))
+    })
+
+    it('appends the next page as the list nears its end, dedupes and stops when no more remain (loadMoreMessages)', async () => {
+        apiSpies.listAccounts.mockResolvedValue([makeAccount()])
+        apiSpies.listFolders.mockResolvedValue([makeFolder('inbox', 'Inbox', 'inbox')])
+        // syncFolder rejects so loadFolderMessages leaves the cached first page in place (its post-sync
+        // reload would reset pagination and discard the appended page mid-test); the append is then driven
+        // purely by the list reaching its end.
+        apiSpies.syncFolder.mockReset().mockRejectedValue(new Error('offline'))
+        apiSpies.listMessagesPage.mockReset()
+            .mockResolvedValueOnce({
+                messages: [makeMessage({id: 'm1', subject: 'First'}), makeMessage({id: 'm2', subject: 'Second'})],
+                hasMore: true, nextCursorDateMs: 111, nextCursorId: 'c1',
+            })
+            .mockResolvedValueOnce({
+                // m2 is a duplicate of the first page; m3 is new. hasMore false ends paging.
+                messages: [makeMessage({id: 'm2', subject: 'Second'}), makeMessage({id: 'm3', subject: 'Third'})],
+                hasMore: false, nextCursorDateMs: 0, nextCursorId: '',
+            })
+            .mockResolvedValue({messages: [], hasMore: false, nextCursorDateMs: 0, nextCursorId: ''})
+        render(<App/>)
+
+        // The appended page's new row appears, alongside the first page's rows.
+        await screen.findByText('Third')
+        expect(screen.getByText('First')).toBeInTheDocument()
+        // The duplicate m2 is appended only once.
+        expect(screen.getAllByText('Second')).toHaveLength(1)
+        // Exactly two fetches: the first page and the one appended page. Paging then stops (hasMore false),
+        // so no third page is ever requested; the second fetch carried the first page's cursor.
+        expect(apiSpies.listMessagesPage).toHaveBeenCalledTimes(2)
+        expect(apiSpies.listMessagesPage).toHaveBeenNthCalledWith(1, 'inbox', false, 0, '', 200, false)
+        expect(apiSpies.listMessagesPage).toHaveBeenNthCalledWith(2, 'inbox', true, 111, 'c1', 200, false)
     })
 })

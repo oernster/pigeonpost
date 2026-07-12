@@ -1,7 +1,6 @@
 import {Dispatch, MutableRefObject, SetStateAction, useCallback, useEffect, useState} from 'react'
 import {Folder, api} from '../api'
 import {OUTBOX_FOLDER_ID} from '../outbox'
-import type {MessageStore} from './useMessageStore'
 
 // autoSyncIntervalMs is how often the folder on screen is refreshed from the server in the background,
 // so new mail in the open folder appears without a manual sync.
@@ -10,13 +9,16 @@ const autoSyncIntervalMs = 5 * millisPerMinute
 
 // SyncDeps is what syncing needs from the rest of App: the selected account (whose mailbox is synced), the
 // selected folder and its ref (the folder a sync or the background poll reloads), the folder-list setter, the
-// message store, the outbox refresher, the unread-count refresher and the error sink.
+// folder reloader (which resets the flat view's pagination and loads its first page, so a sync does not pull
+// every row of a huge folder), the outbox refresher, the unread-count refresher and the error sink.
 export interface SyncDeps {
     selectedAccount: string
     selectedFolder: string
     selectedFolderRef: MutableRefObject<string>
     setFolders: Dispatch<SetStateAction<Folder[]>>
-    store: MessageStore
+    // reloadFolder resets pagination and reloads the folder view; skipSync loads once without re-syncing,
+    // because the caller here has already synced (the account or the folder in the background poll).
+    reloadFolder: (id: string, opts?: {skipSync?: boolean}) => Promise<void>
     refreshOutbox: () => Promise<void>
     loadUnread: () => Promise<void>
     setError: (message: string) => void
@@ -35,10 +37,9 @@ export interface Sync {
 // and the open folder and updates the unread counts; the background poll re-syncs just the open folder.
 export function useSync(deps: SyncDeps): Sync {
     const {
-        selectedAccount, selectedFolder, selectedFolderRef, setFolders, store,
+        selectedAccount, selectedFolder, selectedFolderRef, setFolders, reloadFolder,
         refreshOutbox, loadUnread, setError,
     } = deps
-    const {setMessages} = store
 
     const [syncingAccounts, setSyncingAccounts] = useState<Set<string>>(() => new Set<string>())
 
@@ -55,7 +56,7 @@ export function useSync(deps: SyncDeps): Sync {
             await api.replayOutbox()
             setFolders(await api.listFolders(accountId))
             if (selectedFolder) {
-                setMessages(await api.listMessages(selectedFolder))
+                await reloadFolder(selectedFolder, {skipSync: true})
             }
             await refreshOutbox()
             await loadUnread()
@@ -68,7 +69,7 @@ export function useSync(deps: SyncDeps): Sync {
                 return next
             })
         }
-    }, [selectedAccount, selectedFolder, refreshOutbox, loadUnread])
+    }, [selectedAccount, selectedFolder, reloadFolder, refreshOutbox, loadUnread])
 
     // accountSyncing is true while the selected account's mailbox sync is running, so the Sync control
     // disables and relabels for that account only; other accounts stay syncable one by one.
@@ -85,9 +86,11 @@ export function useSync(deps: SyncDeps): Sync {
             void (async () => {
                 try {
                     await api.syncFolder(selectedFolder)
-                    // Only replace the list if the user is still on this folder.
+                    // Only replace the list if the user is still on this folder. The reload resets the flat
+                    // view's pagination and reloads its first page (skipSync, since the folder just synced),
+                    // rather than pulling every row of a folder that may hold tens of thousands.
                     if (selectedFolderRef.current === selectedFolder) {
-                        setMessages(await api.listMessages(selectedFolder))
+                        await reloadFolder(selectedFolder, {skipSync: true})
                     }
                     await loadUnread()
                 } catch {
@@ -96,7 +99,7 @@ export function useSync(deps: SyncDeps): Sync {
             })()
         }, autoSyncIntervalMs)
         return () => window.clearInterval(interval)
-    }, [selectedFolder, loadUnread])
+    }, [selectedFolder, reloadFolder, loadUnread])
 
     return {syncingAccounts, sync, accountSyncing}
 }
