@@ -97,6 +97,7 @@ function renderReader(overrides: Partial<ReaderProps> = {}) {
         folders: [],
         canMoveCopy: false,
         autoLoadImages: false,
+        dark: false,
         tags: [],
         messageTags: [],
         body: makeBody(),
@@ -410,6 +411,12 @@ describe('Reader: message body', () => {
         renderReader({body: makeBody({html: '', plain: 'just text'})})
         expect(screen.getByText('just text')).toBeInTheDocument()
     })
+
+    it('renders the email dark, inverted to match the app, when the dark theme is on', () => {
+        const {container} = renderReader({dark: true, body: makeBody({html: '<p>Message body</p>'})})
+        const srcdoc = (container.querySelector('iframe.reader-html-frame') as HTMLIFrameElement).getAttribute('srcdoc') ?? ''
+        expect(srcdoc).toContain('html{filter:invert(1) hue-rotate(180deg);}')
+    })
 })
 
 describe('Reader: tabs and back', () => {
@@ -443,7 +450,7 @@ describe('Reader: reset on message change', () => {
         }
         const base: ReaderProps = {
             message: makeMessage({id: 'first'}), folders: [], canMoveCopy: false, autoLoadImages: false,
-            tags: [], messageTags: [], body: makeBody(), bodyLoading: false, tabs: [], ...handlers,
+            dark: false, tags: [], messageTags: [], body: makeBody(), bodyLoading: false, tabs: [], ...handlers,
         }
         const {rerender} = render(<Reader {...base}/>)
         await openColourMenu(user)

@@ -9,6 +9,9 @@ interface EmailViewerModalProps {
     // autoLoadImages mirrors the reader's View-menu setting: when on, the viewed .eml shows its remote images
     // at once instead of holding them behind the Load images bar.
     autoLoadImages: boolean
+    // dark is true in the app's dark theme, so the viewed .eml is inverted to match the reader rather than
+    // showing on a bright white surface.
+    dark: boolean
     onClose: () => void
 }
 
@@ -21,7 +24,7 @@ function openLinkExternally(href: string) {
 // EmailViewerModal shows an attached .eml inside PigeonPost rather than handing it to an external mail
 // client. It renders the parsed headers and the sanitised body the same way the main reader does, with
 // remote images parked behind a Load images bar until the reader asks for them.
-export function EmailViewerModal({email, autoLoadImages, onClose}: EmailViewerModalProps) {
+export function EmailViewerModal({email, autoLoadImages, dark, onClose}: EmailViewerModalProps) {
     const dismiss = useBackdropDismiss(onClose)
     const [imagesShown, setImagesShown] = useState(autoLoadImages)
     const rawHtml = email.html ?? ''
@@ -50,7 +53,7 @@ export function EmailViewerModal({email, autoLoadImages, onClose}: EmailViewerMo
                 )}
                 {rawHtml.trim() !== '' ? (
                     <div className="email-viewer-body">
-                        <EmailHtmlFrame html={renderedHtml} imagesShown={imagesShown} onOpenLink={openLinkExternally}/>
+                        <EmailHtmlFrame html={renderedHtml} imagesShown={imagesShown} dark={dark} onOpenLink={openLinkExternally}/>
                     </div>
                 ) : (
                     <pre className="email-viewer-body reader-text">{email.plain || '(no content)'}</pre>

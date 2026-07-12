@@ -39,6 +39,9 @@ interface ReaderProps {
     // autoLoadImages, from the View menu, loads a message's remote images at once rather than blocking them
     // behind the Load images bar. A new message opens with images shown when it is on.
     autoLoadImages: boolean
+    // dark is true when the app is in its dark theme; the rendered email is then inverted to match rather than
+    // sitting on a bright white surface. It is threaded on to the attached-.eml viewer as well.
+    dark: boolean
     tags: Tag[]
     messageTags: Tag[]
     onToggleTag: (tagId: string, assigned: boolean) => void
@@ -57,7 +60,7 @@ interface ReaderProps {
     sinkRef?: RefObject<HTMLSpanElement>
 }
 
-export function Reader({message, onToggleRead, onReply, onReplyAll, onForward, onDelete, onCancelSend, folders, onMove, onCopy, canMoveCopy, autoLoadImages, messageTags, onToggleTag, body, bodyLoading, tabs, onSelectTab, onCloseTab, onBack, bodyRef, sinkRef}: ReaderProps) {
+export function Reader({message, onToggleRead, onReply, onReplyAll, onForward, onDelete, onCancelSend, folders, onMove, onCopy, canMoveCopy, autoLoadImages, dark, messageTags, onToggleTag, body, bodyLoading, tabs, onSelectTab, onCloseTab, onBack, bodyRef, sinkRef}: ReaderProps) {
     const [imagesShown, setImagesShown] = useState(autoLoadImages)
     // viewedEmail holds a parsed .eml attachment while the in-app viewer shows it.
     const [viewedEmail, setViewedEmail] = useState<EmailView | null>(null)
@@ -233,6 +236,7 @@ export function Reader({message, onToggleRead, onReply, onReplyAll, onForward, o
                         <EmailHtmlFrame
                             html={renderedHtml}
                             imagesShown={imagesShown}
+                            dark={dark}
                             onOpenLink={openLinkExternally}
                         />
                     </>
@@ -252,7 +256,7 @@ export function Reader({message, onToggleRead, onReply, onReplyAll, onForward, o
                 />
             )}
             {viewedEmail && (
-                <EmailViewerModal email={viewedEmail} autoLoadImages={autoLoadImages} onClose={() => setViewedEmail(null)}/>
+                <EmailViewerModal email={viewedEmail} autoLoadImages={autoLoadImages} dark={dark} onClose={() => setViewedEmail(null)}/>
             )}
         </section>
     )

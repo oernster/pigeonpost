@@ -764,6 +764,7 @@ function App() {
             onCopy={(m, dest) => void copyMessage(m, dest)}
             canMoveCopy={!isPop3}
             autoLoadImages={autoLoadImages}
+            dark={theme === 'dark'}
             tags={tags}
             messageTags={messageTags}
             onToggleTag={(tagId, assigned) => void toggleTag(tagId, assigned)}
@@ -899,7 +900,7 @@ function App() {
             )}
             <AboutModal about={about} onClose={() => setAbout(null)}/>
             <LicenceModal text={licence} onClose={() => setLicence(null)}/>
-            {launchedEmail && <EmailViewerModal email={launchedEmail} autoLoadImages={autoLoadImages} onClose={() => setLaunchedEmail(null)}/>}
+            {launchedEmail && <EmailViewerModal email={launchedEmail} autoLoadImages={autoLoadImages} dark={theme === 'dark'} onClose={() => setLaunchedEmail(null)}/>}
             {closeChoice && (
                 <CloseChoiceDialog
                     onMinimise={() => {

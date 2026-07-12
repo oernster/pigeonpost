@@ -10,6 +10,7 @@ afterEach(() => cleanup())
 interface FrameOverrides {
     html?: string
     imagesShown?: boolean
+    dark?: boolean
     onOpenLink?: (href: string) => void
 }
 
@@ -19,6 +20,7 @@ function renderFrame(overrides: FrameOverrides = {}) {
         <EmailHtmlFrame
             html={overrides.html ?? '<p>hello</p>'}
             imagesShown={overrides.imagesShown ?? false}
+            dark={overrides.dark ?? false}
             onOpenLink={onOpenLink}
         />,
     )
@@ -57,6 +59,32 @@ describe('EmailHtmlFrame: sandbox and CSP', () => {
     it('carries the sanitised body verbatim in the srcdoc', () => {
         const {frame} = renderFrame({html: '<p>Message body</p>'})
         expect(frame.getAttribute('srcdoc')).toContain('<p>Message body</p>')
+    })
+})
+
+describe('EmailHtmlFrame: dark mode', () => {
+    it('keeps the faithful white surface with no inversion in light mode', () => {
+        const {frame} = renderFrame({dark: false})
+        const srcdoc = frame.getAttribute('srcdoc') ?? ''
+        expect(srcdoc).toContain('background:#ffffff')
+        expect(srcdoc).not.toContain('invert(1)')
+    })
+
+    it('inverts the whole document to render dark when the app theme is dark', () => {
+        const {frame} = renderFrame({dark: true})
+        const srcdoc = frame.getAttribute('srcdoc') ?? ''
+        // The light-designed document is inverted so a white background becomes dark and dark text light.
+        expect(srcdoc).toContain('html{filter:invert(1) hue-rotate(180deg);}')
+    })
+
+    it('re-inverts images so photos and logos keep their true colours in dark mode', () => {
+        const {frame} = renderFrame({dark: true})
+        const srcdoc = frame.getAttribute('srcdoc') ?? ''
+        // The same filter on media double-inverts it back to its original colours; a plain background-colour
+        // is deliberately not matched, so a coloured box keeps its inverted dark fill.
+        expect(srcdoc).toContain(
+            'img,picture,video,svg,canvas,[background],[style*="background-image"]{filter:invert(1) hue-rotate(180deg);}',
+        )
     })
 })
 

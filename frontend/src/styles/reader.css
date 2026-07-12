@@ -25,12 +25,18 @@
 
 /* The message HTML renders inside a sandboxed iframe (EmailHtmlFrame) so it keeps its own styling while
    staying isolated from the app. The frame sizes itself to its content height, so it carries no border and
-   shows no inner scrollbar; the reader pane scrolls. The white backing matches the frame's own paper surface
-   so there is no dark flash before the document paints. */
+   shows no inner scrollbar; the reader pane scrolls. The backing matches the frame's own paper surface so
+   there is no flash of the wrong colour before the document paints. In the dark theme EmailHtmlFrame inverts
+   the paper to black, so the backing is black by default (dark is the app default) and only the explicit
+   light theme flips it back to white. */
 .reader-html-frame {
     display: block;
     width: 100%;
     border: 0;
+    background: #000000;
+}
+
+:root[data-theme="light"] .reader-html-frame {
     background: #ffffff;
 }
 

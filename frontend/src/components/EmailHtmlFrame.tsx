@@ -11,11 +11,26 @@ const FRAME_LINE_HEIGHT = 1.55
 const FRAME_FONT_STACK = "-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif"
 
 // baseStyle gives the email a white page with readable defaults and stops a wide image or table overflowing
-// the reader. The message's own inline styles and <style> blocks layer on top of it.
+// the reader. The message's own inline styles and <style> blocks layer on top of it. In dark mode the whole
+// surface is inverted on top of this same light base (see darkModeStyle), so the base is authored once for
+// light and reused.
 const baseStyle =
     `html,body{margin:0;padding:${FRAME_PADDING_PX}px;background:${PAPER_BACKGROUND};color:${PAPER_INK};` +
     `font:${FRAME_FONT_SIZE_PX}px/${FRAME_LINE_HEIGHT} ${FRAME_FONT_STACK};overflow-wrap:break-word;}` +
     'img{max-width:100%;height:auto;}table{max-width:100%;}'
+
+// darkModeStyle renders the email dark when the app theme is dark. Virtually all HTML email is authored for a
+// light background and never anticipates dark mode, so the only technique that darkens an arbitrary message
+// (rather than only the few that ship a prefers-color-scheme variant) is to invert the whole light-designed
+// document: a white background becomes dark and dark body text becomes light. Images and other media are then
+// re-inverted with the same filter, which double-inverts them back to their true colours, so photos and logos
+// still look right. The 180deg hue-rotate keeps hues recognisable rather than turning them complementary. The
+// media re-invert deliberately matches only real media and inline background-images, never a plain
+// background-colour, so a coloured box keeps its (inverted) dark fill instead of being flipped back to light.
+const DARK_INVERT_FILTER = 'invert(1) hue-rotate(180deg)'
+const DARK_MEDIA_SELECTOR = 'img,picture,video,svg,canvas,[background],[style*="background-image"]'
+const darkModeStyle =
+    `html{filter:${DARK_INVERT_FILTER};}${DARK_MEDIA_SELECTOR}{filter:${DARK_INVERT_FILTER};}`
 
 // The iframe is the security boundary. Its Content-Security-Policy grants no script-src (so no JavaScript
 // runs even if some slipped past the sanitiser), blocks every default source and only permits inline styles,
@@ -32,6 +47,9 @@ interface EmailHtmlFrameProps {
     html: string
     // imagesShown widens the CSP img-src to allow remote images once the reader has opted in.
     imagesShown: boolean
+    // dark renders the email dark to match the app's dark theme, by inverting the light-designed document
+    // inside the frame. It is false in the light theme, where the email keeps its faithful white surface.
+    dark: boolean
     // onOpenLink receives an http/https/mailto href when a link inside the email is clicked; the parent
     // opens it in the external browser rather than letting it navigate the frame or the app.
     onOpenLink: (href: string) => void
@@ -45,11 +63,13 @@ function contentSecurityPolicy(imagesShown: boolean): string {
 }
 
 // buildSrcDoc assembles the self-contained document the iframe renders through its srcdoc attribute. It is a
-// full HTML document so the CSP meta tag governs the message; the sanitised body is dropped in verbatim.
-function buildSrcDoc(html: string, imagesShown: boolean): string {
+// full HTML document so the CSP meta tag governs the message; the sanitised body is dropped in verbatim. The
+// dark inversion layers on top of the same light base so only the theme decides the surface, not the body.
+function buildSrcDoc(html: string, imagesShown: boolean, dark: boolean): string {
+    const surfaceStyle = dark ? baseStyle + darkModeStyle : baseStyle
     return '<!doctype html><html><head><meta charset="utf-8">' +
         `<meta http-equiv="Content-Security-Policy" content="${contentSecurityPolicy(imagesShown)}">` +
-        `<style>${baseStyle}</style></head><body>${html}</body></html>`
+        `<style>${surfaceStyle}</style></head><body>${html}</body></html>`
 }
 
 // isOpenableHref reports whether a link's href is one we open externally (http, https or mailto). Other
@@ -73,14 +93,14 @@ function resizeToContent(frame: HTMLIFrameElement) {
 // allow-same-origin only (never allow-scripts), so no script in the frame can run or remove the sandbox.
 // Because the frame is same-origin, the parent reads its height and intercepts its link clicks directly, so
 // no script inside the frame is needed.
-export function EmailHtmlFrame({html, imagesShown, onOpenLink}: EmailHtmlFrameProps) {
+export function EmailHtmlFrame({html, imagesShown, dark, onOpenLink}: EmailHtmlFrameProps) {
     const frameRef = useRef<HTMLIFrameElement>(null)
     // The link callback is held in a ref so a new callback identity from the parent does not re-run the
     // binding effect (which would needlessly rebind on every parent render).
     const onOpenLinkRef = useRef(onOpenLink)
     onOpenLinkRef.current = onOpenLink
 
-    const doc = buildSrcDoc(html, imagesShown)
+    const doc = buildSrcDoc(html, imagesShown, dark)
 
     useEffect(() => {
         const frame = frameRef.current
