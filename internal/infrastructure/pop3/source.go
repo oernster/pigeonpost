@@ -175,6 +175,12 @@ func (s *Source) SetForwarded(context.Context, domain.Account, domain.Folder, st
 	return nil
 }
 
+// SetKeyword is a no-op on the server, for the same reason as SetSeen: POP3 has no server-side keywords, so
+// a POP3 account's tags stay purely local.
+func (s *Source) SetKeyword(context.Context, domain.Account, domain.Folder, string, string, bool) error {
+	return nil
+}
+
 // Delete permanently removes a message from the server with DELE, committed when the session quits.
 // POP3 has no Trash mailbox, so trashPath is ignored and every delete is permanent; leaving the
 // message on the server would only re-download it on the next sync.

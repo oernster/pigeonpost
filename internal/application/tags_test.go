@@ -14,7 +14,7 @@ func testTag(t *testing.T, id string) domain.Tag {
 	if err != nil {
 		t.Fatalf("build colour: %v", err)
 	}
-	tag, err := domain.NewTag(id, "Important", colour)
+	tag, err := domain.NewTag(id, "Important", colour, domain.KeywordForName("Important"))
 	if err != nil {
 		t.Fatalf("build tag: %v", err)
 	}
@@ -116,40 +116,5 @@ func TestTagServiceColoursForMessages(t *testing.T) {
 	store.forMsgErr = errBoom
 	if _, err := svc.ColoursForMessages(context.Background(), []string{"m1"}); !errors.Is(err, errBoom) {
 		t.Errorf("ColoursForMessages error = %v, want wrapped boom", err)
-	}
-}
-
-func TestTagServiceAssign(t *testing.T) {
-	store := newFakeTagStore()
-	svc := NewTagService(store)
-
-	if err := svc.Assign(context.Background(), "m1", "t1"); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if len(store.byMessage["m1"]) != 1 {
-		t.Error("tag not assigned")
-	}
-
-	store.addErr = errBoom
-	if err := svc.Assign(context.Background(), "m1", "t2"); !errors.Is(err, errBoom) {
-		t.Errorf("Assign error = %v, want wrapped boom", err)
-	}
-}
-
-func TestTagServiceUnassign(t *testing.T) {
-	store := newFakeTagStore()
-	store.byMessage["m1"] = []string{"t1"}
-	svc := NewTagService(store)
-
-	if err := svc.Unassign(context.Background(), "m1", "t1"); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if len(store.byMessage["m1"]) != 0 {
-		t.Error("tag not unassigned")
-	}
-
-	store.removeErr = errBoom
-	if err := svc.Unassign(context.Background(), "m1", "t1"); !errors.Is(err, errBoom) {
-		t.Errorf("Unassign error = %v, want wrapped boom", err)
 	}
 }

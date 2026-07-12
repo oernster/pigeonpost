@@ -546,7 +546,7 @@ func buildTag(t *testing.T, id, name, hex string) domain.Tag {
 	if err != nil {
 		t.Fatalf("colour: %v", err)
 	}
-	tag, err := domain.NewTag(id, name, colour)
+	tag, err := domain.NewTag(id, name, colour, domain.KeywordForName(name))
 	if err != nil {
 		t.Fatalf("tag: %v", err)
 	}
@@ -629,6 +629,150 @@ func TestTagRoundTripAndAssignment(t *testing.T) {
 	tags, _ = store.ListTags(ctx)
 	if len(tags) != 1 {
 		t.Errorf("expected 1 tag remaining, got %d", len(tags))
+	}
+}
+
+func TestPendingTagOps(t *testing.T) {
+	store := openTestStore(t)
+	ctx := context.Background()
+
+	// Record intents: assign t1 and remove t2 on m1, assign t1 on m2.
+	for _, op := range []struct {
+		messageID, tagID string
+		assigned         bool
+	}{{"m1", "t1", true}, {"m1", "t2", false}, {"m2", "t1", true}} {
+		if err := store.SetPendingTagOp(ctx, op.messageID, op.tagID, op.assigned); err != nil {
+			t.Fatalf("set pending %s/%s: %v", op.messageID, op.tagID, err)
+		}
+	}
+
+	pending, err := store.PendingTagOps(ctx, "m1")
+	if err != nil {
+		t.Fatalf("pending tag ops: %v", err)
+	}
+	if len(pending) != 2 || pending["t1"] != true || pending["t2"] != false {
+		t.Fatalf("pending for m1 = %+v", pending)
+	}
+
+	// Setting the same pair again replaces the intent.
+	if err := store.SetPendingTagOp(ctx, "m1", "t1", false); err != nil {
+		t.Fatalf("replace pending: %v", err)
+	}
+	if pending, _ = store.PendingTagOps(ctx, "m1"); pending["t1"] != false {
+		t.Fatalf("expected replaced intent false, got %+v", pending)
+	}
+
+	all, err := store.ListPendingTagOps(ctx)
+	if err != nil {
+		t.Fatalf("list pending: %v", err)
+	}
+	if len(all) != 3 {
+		t.Fatalf("expected 3 pending ops, got %d", len(all))
+	}
+
+	// Clearing one pair leaves the rest.
+	if err := store.ClearPendingTagOp(ctx, "m1", "t1"); err != nil {
+		t.Fatalf("clear pending: %v", err)
+	}
+	pending, _ = store.PendingTagOps(ctx, "m1")
+	if _, ok := pending["t1"]; ok || len(pending) != 1 {
+		t.Fatalf("expected only t2 pending left for m1, got %+v", pending)
+	}
+
+	// Deleting a tag clears its pending ops everywhere (here m2/t1).
+	if err := store.SaveTag(ctx, buildTag(t, "t1", "Work", "#3366ff")); err != nil {
+		t.Fatalf("save tag: %v", err)
+	}
+	if err := store.DeleteTag(ctx, "t1"); err != nil {
+		t.Fatalf("delete tag: %v", err)
+	}
+	all, _ = store.ListPendingTagOps(ctx)
+	for _, op := range all {
+		if op.TagID() == "t1" {
+			t.Errorf("expected t1 pending cleared by DeleteTag, got %+v", op)
+		}
+	}
+
+	// Deleting a message clears its pending ops.
+	if err := store.DeleteMessage(ctx, "m1"); err != nil {
+		t.Fatalf("delete message: %v", err)
+	}
+	if pending, _ = store.PendingTagOps(ctx, "m1"); len(pending) != 0 {
+		t.Errorf("expected no pending for m1 after delete, got %+v", pending)
+	}
+}
+
+func TestAssignUnassignMessageTagAtomic(t *testing.T) {
+	store := openTestStore(t)
+	ctx := context.Background()
+	if err := store.SaveTag(ctx, buildTag(t, "t1", "Work", "#3366ff")); err != nil {
+		t.Fatalf("save tag: %v", err)
+	}
+
+	// Assign with recordPending=true writes the link and the pending intent together.
+	if err := store.AssignMessageTag(ctx, "m1", "t1", true); err != nil {
+		t.Fatalf("assign: %v", err)
+	}
+	if tags, _ := store.TagsForMessage(ctx, "m1"); len(tags) != 1 || tags[0].ID() != "t1" {
+		t.Fatalf("expected t1 on m1, got %+v", tags)
+	}
+	if p, _ := store.PendingTagOps(ctx, "m1"); !p["t1"] {
+		t.Errorf("expected a pending assign, got %v", p)
+	}
+
+	// recordPending=false (a POP3 account) writes only the link.
+	if err := store.AssignMessageTag(ctx, "m2", "t1", false); err != nil {
+		t.Fatalf("assign local-only: %v", err)
+	}
+	if p, _ := store.PendingTagOps(ctx, "m2"); len(p) != 0 {
+		t.Errorf("a local-only assign must record no pending, got %v", p)
+	}
+
+	// Unassign with recordPending=true removes the link and records the removal intent.
+	if err := store.UnassignMessageTag(ctx, "m1", "t1", true); err != nil {
+		t.Fatalf("unassign: %v", err)
+	}
+	if tags, _ := store.TagsForMessage(ctx, "m1"); len(tags) != 0 {
+		t.Errorf("expected t1 detached, got %+v", tags)
+	}
+	if p, _ := store.PendingTagOps(ctx, "m1"); p["t1"] != false {
+		t.Errorf("expected a pending unassign (false), got %v", p)
+	}
+	// recordPending=false unassign writes only the removal.
+	if err := store.UnassignMessageTag(ctx, "m2", "t1", false); err != nil {
+		t.Fatalf("unassign local-only: %v", err)
+	}
+	if p, _ := store.PendingTagOps(ctx, "m2"); len(p) != 0 {
+		t.Errorf("a local-only unassign must record no pending, got %v", p)
+	}
+}
+
+func TestSaveMessagesSweepsOrphanedPendingTags(t *testing.T) {
+	store := openTestStore(t)
+	ctx := context.Background()
+
+	// Cache a message in f1 and record a pending tag op on it: this one must survive a folder replace.
+	kept := buildMessageIn(t, "m-kept", "f1", false)
+	if err := store.SaveMessages(ctx, "f1", []domain.MessageSummary{kept}); err != nil {
+		t.Fatalf("save messages: %v", err)
+	}
+	if err := store.SetPendingTagOp(ctx, "m-kept", "t1", true); err != nil {
+		t.Fatalf("set pending kept: %v", err)
+	}
+	// A pending op for a message that is no longer cached (expunged on the server) must be swept.
+	if err := store.SetPendingTagOp(ctx, "m-gone", "t1", true); err != nil {
+		t.Fatalf("set pending gone: %v", err)
+	}
+
+	// A folder replace sweeps the orphaned pending row but keeps the one whose message is still cached.
+	if err := store.SaveMessages(ctx, "f2", nil); err != nil {
+		t.Fatalf("save messages f2: %v", err)
+	}
+	if p, _ := store.PendingTagOps(ctx, "m-kept"); !p["t1"] {
+		t.Errorf("a cached message's pending op must survive, got %v", p)
+	}
+	if p, _ := store.PendingTagOps(ctx, "m-gone"); len(p) != 0 {
+		t.Errorf("an orphaned pending op must be swept, got %v", p)
 	}
 }
 

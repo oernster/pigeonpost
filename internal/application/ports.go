@@ -67,6 +67,23 @@ type TagStore interface {
 	TagColoursForMessages(ctx context.Context, messageIDs []string) (map[string][]string, error)
 	AddMessageTag(ctx context.Context, messageID, tagID string) error
 	RemoveMessageTag(ctx context.Context, messageID, tagID string) error
+	// AssignMessageTag attaches a tag to a message and (when recordPending is true) records the pending
+	// intent to sync it, in one transaction so the local change and its intent cannot drift apart.
+	AssignMessageTag(ctx context.Context, messageID, tagID string, recordPending bool) error
+	// UnassignMessageTag detaches a tag from a message and (when recordPending is true) records the pending
+	// intent to remove it on the server, in one transaction.
+	UnassignMessageTag(ctx context.Context, messageID, tagID string, recordPending bool) error
+	// SetPendingTagOp records the intended state of a (message, tag) pair not yet confirmed on the server
+	// (assigned true for an assignment, false for a removal), replacing any existing intent for that pair.
+	SetPendingTagOp(ctx context.Context, messageID, tagID string, assigned bool) error
+	// ClearPendingTagOp removes the pending intent for a (message, tag) pair, called once the server agrees.
+	ClearPendingTagOp(ctx context.Context, messageID, tagID string) error
+	// PendingTagOps returns the pending intents for one message keyed by tag id (true for a pending
+	// assignment, false for a pending removal), read during a reconcile to guard unsynced local changes.
+	PendingTagOps(ctx context.Context, messageID string) (map[string]bool, error)
+	// ListPendingTagOps returns every pending tag operation across all messages, used to replay unsynced
+	// intents to the server on a sync.
+	ListPendingTagOps(ctx context.Context) ([]domain.PendingTagOp, error)
 }
 
 // MailSource is a remote mail server (IMAP/POP3) from which folders and message summaries are pulled.
@@ -91,6 +108,10 @@ type MailActions interface {
 	// ($Forwarded keyword). Both are set after the corresponding message is sent.
 	SetAnswered(ctx context.Context, account domain.Account, folder domain.Folder, uid string, answered bool) error
 	SetForwarded(ctx context.Context, account domain.Account, folder domain.Folder, uid string, forwarded bool) error
+	// SetKeyword adds or removes an arbitrary IMAP keyword on a message by its opaque handle, used to round
+	// a user tag onto the server as a keyword. It is separate from the fixed system-flag setters because the
+	// keyword is chosen by the caller.
+	SetKeyword(ctx context.Context, account domain.Account, folder domain.Folder, uid string, keyword string, set bool) error
 	// Delete removes a message by its opaque handle. A non-empty trashPath moves it to that mailbox; an
 	// empty trashPath deletes it permanently (mark \Deleted and expunge).
 	Delete(ctx context.Context, account domain.Account, folder domain.Folder, uid string, trashPath string) error

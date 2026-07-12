@@ -242,6 +242,19 @@ func mapFlags(flags []imap.Flag) domain.Flags {
 	return out
 }
 
+// tagKeywords collects the PigeonPost tag keywords a server reported on a message (see domain.IsTagKeyword),
+// so the tag reconcile can align local tag assignments with the server. System flags and keywords owned by
+// other clients are ignored.
+func tagKeywords(flags []imap.Flag) []string {
+	var out []string
+	for _, flag := range flags {
+		if domain.IsTagKeyword(string(flag)) {
+			out = append(out, string(flag))
+		}
+	}
+	return out
+}
+
 // firstAddress maps the first envelope address into a domain address. An empty list or an
 // unparseable address yields the zero address rather than an error, because a missing sender must
 // not fail a whole sync.
@@ -280,6 +293,7 @@ func buildMessage(folderID string, buf *imapclient.FetchMessageBuffer) (domain.M
 		UID:      uid,
 		Size:     int(buf.RFC822Size),
 		Flags:    mapFlags(buf.Flags),
+		Keywords: tagKeywords(buf.Flags),
 	}
 	in.HasAttachments = hasAttachment(buf.BodyStructure)
 	if buf.Envelope != nil {

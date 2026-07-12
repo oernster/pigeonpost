@@ -67,6 +67,35 @@ const schemaV35 = `
 DELETE FROM message_body;
 `
 
+// schemaV36 adds the pending tag-keyword operations table: a local record of a tag assignment or removal
+// that has not yet been confirmed on the server, so an assignment made while offline is not undone by the
+// next sync before its keyword STORE lands. Each row is the intended state of one (message, tag) pair:
+// assigned is 1 for an intended assignment and 0 for an intended removal. A row is cleared once a sync sees
+// the server agree with it.
+const schemaV36 = `
+CREATE TABLE IF NOT EXISTS message_tag_pending (
+    message_id TEXT NOT NULL,
+    tag_id     TEXT NOT NULL,
+    assigned   INTEGER NOT NULL,
+    PRIMARY KEY (message_id, tag_id)
+);
+CREATE INDEX IF NOT EXISTS idx_message_tag_pending_message ON message_tag_pending(message_id);
+`
+
+// schemaV37 stores each tag's stable IMAP keyword (its server-side label) so it can be frozen at creation
+// and survive a rename: the keyword is derived from the name once here; thereafter the column is
+// authoritative rather than the mutable name. Existing rows are backfilled with the derivation the Go
+// code uses on create ("$PPtag_" followed by the name bytes as lower-case hex), so a tag keeps the keyword
+// it would have had. The name is hex-encoded without lower-casing it: only the hex digits are lower-cased,
+// so this matches KeywordForName byte for byte for every name including non-ASCII ones (SQLite's lower()
+// is ASCII-only and would diverge from Go's Unicode-aware casing, freezing a keyword the server never
+// stored and letting a later reconcile strip the tag). Names are already trimmed on save by NewTag. A
+// rename never rewrites this column.
+const schemaV37 = `
+ALTER TABLE tag ADD COLUMN keyword TEXT NOT NULL DEFAULT '';
+UPDATE tag SET keyword = '$PPtag_' || lower(hex(name)) WHERE keyword = '';
+`
+
 // migrations is the ordered list of schema steps. Index i upgrades the database from version i to
 // version i+1, so a fresh database applies them all and an existing one applies only what it lacks.
-var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15, schemaV16, schemaV17, schemaV18, schemaV19, schemaV20, schemaV21, schemaV22, schemaV23, schemaV24, schemaV25, schemaV26, schemaV27, schemaV28, schemaV29, schemaV30, schemaV31, schemaV32, schemaV33, schemaV34, schemaV35}
+var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15, schemaV16, schemaV17, schemaV18, schemaV19, schemaV20, schemaV21, schemaV22, schemaV23, schemaV24, schemaV25, schemaV26, schemaV27, schemaV28, schemaV29, schemaV30, schemaV31, schemaV32, schemaV33, schemaV34, schemaV35, schemaV36, schemaV37}

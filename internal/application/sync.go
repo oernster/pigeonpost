@@ -7,6 +7,15 @@ import (
 	"github.com/oernster/pigeonpost/internal/domain"
 )
 
+// TagSyncer replays pending tag changes to the server and reconciles local tag assignments against the tag
+// keywords the server reports on freshly fetched messages. The sync drives it so a tag assigned on another
+// device (or made locally while offline) is brought into step on the next sync. It is best-effort: the sync
+// ignores the errors it returns so a tag-sync hiccup never fails a mail sync.
+type TagSyncer interface {
+	FlushPending(ctx context.Context) error
+	ReconcileFetched(ctx context.Context, messages []domain.MessageSummary) error
+}
+
 // SyncService pulls folders and message summaries from a remote source and persists them into the
 // local store, applying the user's filter rules to messages as they arrive.
 type SyncService struct {
@@ -14,11 +23,22 @@ type SyncService struct {
 	mail     MailStore
 	source   MailSource
 	rules    RuleStore
+	tags     TagSyncer
 }
 
 // NewSyncService constructs the service with its injected dependencies.
-func NewSyncService(accounts AccountStore, mail MailStore, source MailSource, rules RuleStore) *SyncService {
-	return &SyncService{accounts: accounts, mail: mail, source: source, rules: rules}
+func NewSyncService(accounts AccountStore, mail MailStore, source MailSource, rules RuleStore, tags TagSyncer) *SyncService {
+	return &SyncService{accounts: accounts, mail: mail, source: source, rules: rules, tags: tags}
+}
+
+// reconcileTags aligns local tag assignments with the server keywords on the fetched messages, for an IMAP
+// account only: a POP3 message carries no keywords, so reconciling it would read as every tag having been
+// removed. It is best-effort, so its error is deliberately ignored by the caller.
+func (s *SyncService) reconcileTags(ctx context.Context, account domain.Account, messages []domain.MessageSummary) {
+	if account.Protocol() == domain.ProtocolPOP3 {
+		return
+	}
+	_ = s.tags.ReconcileFetched(ctx, messages)
 }
 
 // SyncAccount fetches the folder list for an account, then each folder's message summaries, applies
@@ -43,11 +63,18 @@ func (s *SyncService) SyncAccount(ctx context.Context, accountID string) error {
 		return fmt.Errorf("sync: save folders: %w", err)
 	}
 
+	// Replay any tag changes that have not yet reached the server before reading folders back, so the
+	// fetch reflects them and the reconcile can confirm them. Best-effort: a failure never fails the sync.
+	_ = s.tags.FlushPending(ctx)
+
 	for _, folder := range folders {
 		messages, err := s.source.FetchMessages(ctx, account, folder)
 		if err != nil {
 			return fmt.Errorf("sync: fetch messages for %q: %w", folder.Path(), err)
 		}
+		// Align local tag assignments with the server keywords on the fetched messages, before the rules
+		// run, so the reconcile sees the keywords exactly as the server reported them.
+		s.reconcileTags(ctx, account, messages)
 		// Filter rules mark-read or flag matching messages as they arrive. The actions only set
 		// flags, so re-applying on every sync is stable.
 		messages = domain.ApplyRules(messages, rules)
@@ -78,10 +105,14 @@ func (s *SyncService) SyncFolder(ctx context.Context, folderID string) error {
 	if err != nil {
 		return fmt.Errorf("sync: load rules: %w", err)
 	}
+	// Replay unsynced tag changes before the fetch, so the fetch reflects them and the reconcile below can
+	// confirm them. Best-effort: a failure never fails the sync.
+	_ = s.tags.FlushPending(ctx)
 	messages, err := s.source.FetchMessages(ctx, account, folder)
 	if err != nil {
 		return fmt.Errorf("sync: fetch messages for %q: %w", folder.Path(), err)
 	}
+	s.reconcileTags(ctx, account, messages)
 	messages = domain.ApplyRules(messages, rules)
 	messages, err = s.preserveFlags(ctx, account, folder, messages)
 	if err != nil {
@@ -108,6 +139,8 @@ func (s *SyncService) SyncInboxes(ctx context.Context) ([]domain.MessageSummary,
 	if err != nil {
 		return nil, fmt.Errorf("sync: load rules: %w", err)
 	}
+	// Replay unsynced tag changes once for this pass before reading the inboxes. Best-effort.
+	_ = s.tags.FlushPending(ctx)
 	var arrived []domain.MessageSummary
 	for _, account := range accounts {
 		folders, err := s.mail.ListFolders(ctx, account.ID())
@@ -142,6 +175,8 @@ func (s *SyncService) refreshInbox(ctx context.Context, account domain.Account, 
 	if err != nil {
 		return nil, err
 	}
+	// Align local tag assignments with the server keywords before the rules run (IMAP only). Best-effort.
+	s.reconcileTags(ctx, account, fetched)
 	// Record each message's read state as the server reports it, before local rules run. A message
 	// another client (Thunderbird, a phone) has already marked read is still a new arrival worth
 	// announcing; only a message a filter rule marks read on arrival should be silenced.

@@ -64,6 +64,15 @@ func (s *Source) SetForwarded(ctx context.Context, account domain.Account, folde
 	return s.storeFlag(ctx, account, folder, uid, imap.FlagForwarded, forwarded)
 }
 
+// SetKeyword adds or removes an arbitrary IMAP keyword for one message by UID on the server, used to round a
+// user tag onto the server (see domain.Tag.Keyword). It satisfies application.MailActions. As with
+// $Forwarded, a server keeps a custom keyword only where it advertises \* in PERMANENTFLAGS; elsewhere the
+// STORE is accepted and the mark does not persist across a resync, which the tag reconcile treats as the
+// local-only fallback (the pending intent is never confirmed, so the local tag is left in place).
+func (s *Source) SetKeyword(ctx context.Context, account domain.Account, folder domain.Folder, uid string, keyword string, set bool) error {
+	return s.storeFlag(ctx, account, folder, uid, imap.Flag(keyword), set)
+}
+
 // Delete removes a message by UID: it moves it to trashPath when that is set, otherwise marks it
 // \Deleted and expunges it permanently. It satisfies application.MailActions.
 func (s *Source) Delete(ctx context.Context, account domain.Account, folder domain.Folder, uid string, trashPath string) error {

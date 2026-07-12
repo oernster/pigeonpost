@@ -24,6 +24,9 @@ func TestLocalOnlyFlagsAreNoOps(t *testing.T) {
 	if err := source.SetForwarded(context.Background(), account, folder, "u1", true); err != nil {
 		t.Errorf("SetForwarded should be a server no-op, got %v", err)
 	}
+	if err := source.SetKeyword(context.Background(), account, folder, "u1", "$PPtag_abc", true); err != nil {
+		t.Errorf("SetKeyword should be a server no-op, got %v", err)
+	}
 }
 
 func TestMoveAndCopyAreUnsupported(t *testing.T) {

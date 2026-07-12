@@ -395,18 +395,27 @@ func (f *fakeMailStore) toggleFlag(messageID string, flag domain.Flag, set bool)
 
 // fakeTagStore is a hand-written in-memory TagStore with error-injection fields.
 type fakeTagStore struct {
-	tags      map[string]domain.Tag
-	byMessage map[string][]string
-	listErr   error
-	saveErr   error
-	deleteErr error
-	forMsgErr error
-	addErr    error
-	removeErr error
+	tags            map[string]domain.Tag
+	byMessage       map[string][]string
+	pending         map[string]map[string]bool
+	listErr         error
+	saveErr         error
+	deleteErr       error
+	forMsgErr       error
+	addErr          error
+	removeErr       error
+	pendingErr      error
+	listPendingErr  error
+	setPendingErr   error
+	clearPendingErr error
 }
 
 func newFakeTagStore() *fakeTagStore {
-	return &fakeTagStore{tags: map[string]domain.Tag{}, byMessage: map[string][]string{}}
+	return &fakeTagStore{
+		tags:      map[string]domain.Tag{},
+		byMessage: map[string][]string{},
+		pending:   map[string]map[string]bool{},
+	}
 }
 
 func (f *fakeTagStore) ListTags(context.Context) ([]domain.Tag, error) {
@@ -486,6 +495,88 @@ func (f *fakeTagStore) RemoveMessageTag(_ context.Context, messageID, tagID stri
 	return nil
 }
 
+func (f *fakeTagStore) AssignMessageTag(ctx context.Context, messageID, tagID string, recordPending bool) error {
+	if err := f.AddMessageTag(ctx, messageID, tagID); err != nil {
+		return err
+	}
+	if recordPending {
+		return f.SetPendingTagOp(ctx, messageID, tagID, true)
+	}
+	return nil
+}
+
+func (f *fakeTagStore) UnassignMessageTag(ctx context.Context, messageID, tagID string, recordPending bool) error {
+	if err := f.RemoveMessageTag(ctx, messageID, tagID); err != nil {
+		return err
+	}
+	if recordPending {
+		return f.SetPendingTagOp(ctx, messageID, tagID, false)
+	}
+	return nil
+}
+
+func (f *fakeTagStore) SetPendingTagOp(_ context.Context, messageID, tagID string, assigned bool) error {
+	if f.setPendingErr != nil {
+		return f.setPendingErr
+	}
+	if f.pending[messageID] == nil {
+		f.pending[messageID] = map[string]bool{}
+	}
+	f.pending[messageID][tagID] = assigned
+	return nil
+}
+
+func (f *fakeTagStore) ClearPendingTagOp(_ context.Context, messageID, tagID string) error {
+	if f.clearPendingErr != nil {
+		return f.clearPendingErr
+	}
+	delete(f.pending[messageID], tagID)
+	return nil
+}
+
+func (f *fakeTagStore) PendingTagOps(_ context.Context, messageID string) (map[string]bool, error) {
+	if f.pendingErr != nil {
+		return nil, f.pendingErr
+	}
+	out := map[string]bool{}
+	for tagID, assigned := range f.pending[messageID] {
+		out[tagID] = assigned
+	}
+	return out, nil
+}
+
+func (f *fakeTagStore) ListPendingTagOps(_ context.Context) ([]domain.PendingTagOp, error) {
+	if f.listPendingErr != nil {
+		return nil, f.listPendingErr
+	}
+	var ops []domain.PendingTagOp
+	for messageID, byTag := range f.pending {
+		for tagID, assigned := range byTag {
+			ops = append(ops, domain.NewPendingTagOp(messageID, tagID, assigned))
+		}
+	}
+	return ops, nil
+}
+
+// fakeTagSyncer records the sync's tag flush and reconcile calls so a test can assert they run for an IMAP
+// account but are skipped for POP3; it can also inject errors to prove the sync ignores them.
+type fakeTagSyncer struct {
+	flushCalls   int
+	reconciled   [][]domain.MessageSummary
+	flushErr     error
+	reconcileErr error
+}
+
+func (f *fakeTagSyncer) FlushPending(context.Context) error {
+	f.flushCalls++
+	return f.flushErr
+}
+
+func (f *fakeTagSyncer) ReconcileFetched(_ context.Context, messages []domain.MessageSummary) error {
+	f.reconciled = append(f.reconciled, messages)
+	return f.reconcileErr
+}
+
 // fakeMailSource is a hand-written MailSource with error-injection fields.
 type fakeMailSource struct {
 	folders          []domain.Folder
@@ -530,11 +621,20 @@ func (f *fakeMailSource) FetchMessages(_ context.Context, _ domain.Account, fold
 }
 
 // fakeMailActions is a hand-written MailActions that records the operations it was asked to perform.
+// keywordCall records one SetKeyword call so a test can assert which tag keyword was pushed and whether it
+// was added or removed.
+type keywordCall struct {
+	keyword string
+	set     bool
+}
+
 type fakeMailActions struct {
 	setSeenErr        error
 	flaggedErr        error
 	answeredErr       error
 	forwardedErr      error
+	keywordErr        error
+	keywordCalls      []keywordCall
 	deleteErr         error
 	deleteManyErr     error
 	moveErr           error
@@ -599,6 +699,14 @@ func (f *fakeMailActions) SetForwarded(_ context.Context, _ domain.Account, _ do
 		return f.forwardedErr
 	}
 	f.forwardedCalls = append(f.forwardedCalls, forwarded)
+	return nil
+}
+
+func (f *fakeMailActions) SetKeyword(_ context.Context, _ domain.Account, _ domain.Folder, _ string, keyword string, set bool) error {
+	if f.keywordErr != nil {
+		return f.keywordErr
+	}
+	f.keywordCalls = append(f.keywordCalls, keywordCall{keyword: keyword, set: set})
 	return nil
 }
 

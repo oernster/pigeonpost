@@ -178,6 +178,32 @@ func TestMapFlags(t *testing.T) {
 	}
 }
 
+func TestTagKeywords(t *testing.T) {
+	// Only PigeonPost tag keywords are captured; system flags and other clients' keywords are ignored.
+	got := tagKeywords([]imap.Flag{imap.FlagSeen, "$PPtag_abc", imap.FlagForwarded, "$Label1", "$PPtag_def"})
+	if len(got) != 2 || got[0] != "$PPtag_abc" || got[1] != "$PPtag_def" {
+		t.Errorf("tagKeywords = %v", got)
+	}
+	if len(tagKeywords(nil)) != 0 {
+		t.Error("no flags should yield no tag keywords")
+	}
+}
+
+func TestBuildMessageCapturesTagKeywords(t *testing.T) {
+	buf := &imapclient.FetchMessageBuffer{
+		UID:        imap.UID(5),
+		RFC822Size: 10,
+		Flags:      []imap.Flag{imap.FlagSeen, "$PPtag_abc", "$Junk"},
+	}
+	msg, err := buildMessage("f1", buf)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if kws := msg.Keywords(); len(kws) != 1 || kws[0] != "$PPtag_abc" {
+		t.Errorf("keywords = %v", kws)
+	}
+}
+
 func TestFirstAddress(t *testing.T) {
 	if !firstAddress(nil).IsZero() {
 		t.Error("empty address list should map to zero")

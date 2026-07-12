@@ -61,19 +61,3 @@ func (s *TagService) ColoursForMessages(ctx context.Context, messageIDs []string
 	}
 	return colours, nil
 }
-
-// Assign attaches a tag to a message. Assigning a tag already present is a no-op.
-func (s *TagService) Assign(ctx context.Context, messageID, tagID string) error {
-	if err := s.tags.AddMessageTag(ctx, messageID, tagID); err != nil {
-		return fmt.Errorf("assign tag %q to message %q: %w", tagID, messageID, err)
-	}
-	return nil
-}
-
-// Unassign detaches a tag from a message.
-func (s *TagService) Unassign(ctx context.Context, messageID, tagID string) error {
-	if err := s.tags.RemoveMessageTag(ctx, messageID, tagID); err != nil {
-		return fmt.Errorf("unassign tag %q from message %q: %w", tagID, messageID, err)
-	}
-	return nil
-}

@@ -99,7 +99,10 @@ func run() error {
 	// The Microsoft account is IMAP, so the router verifies it through the XOAUTH2-aware IMAP adapter.
 	microsoftSetupService := application.NewMicrosoftSetupService(store, vault, mailSource, authorizer, buildMicrosoftAccount)
 	mailboxService := application.NewMailboxService(store)
-	syncService := application.NewSyncService(store, store, mailSource, store)
+	// The tag-sync service rounds user tags onto the server as IMAP keywords; the sync service drives its
+	// flush and reconcile, so it is constructed first and injected into the sync.
+	tagSyncService := application.NewTagSyncService(store, store, store, mailSource)
+	syncService := application.NewSyncService(store, store, mailSource, store, tagSyncService)
 	composeService := application.NewComposeService(store, store, transport, imapSource, imapSource, store, store, clock, newOutboxID)
 	tagService := application.NewTagService(store)
 	bodyService := application.NewMessageBodyService(store, store, mailSource)
@@ -132,7 +135,7 @@ func run() error {
 	// rather than waiting for the poll; it authenticates through the same keychain vault as fetches.
 	watcher := imap.NewWatcher(vault, tokenManager)
 
-	app = NewApp(store.Close, overlay, flasher, tray, watcher, accountService, setupService, microsoftSetupService, mailboxService, syncService, composeService, tagService, bodyService, actionService, folderService, ruleService, templateService, contactService, calendarService, schedulingService, remoteImageService)
+	app = NewApp(store.Close, overlay, flasher, tray, watcher, accountService, setupService, microsoftSetupService, mailboxService, syncService, composeService, tagService, tagSyncService, bodyService, actionService, folderService, ruleService, templateService, contactService, calendarService, schedulingService, remoteImageService)
 	app.title = windowTitle
 
 	err = wails.Run(&options.App{

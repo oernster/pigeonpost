@@ -113,6 +113,7 @@ func (s *Store) DeleteMessage(ctx context.Context, messageID string) error {
 			"DELETE FROM message_body WHERE message_id = ?;",
 			"DELETE FROM message_attachment WHERE message_id = ?;",
 			"DELETE FROM message_tag WHERE message_id = ?;",
+			"DELETE FROM message_tag_pending WHERE message_id = ?;",
 			"DELETE FROM message_fts WHERE message_id = ?;",
 			"DELETE FROM message WHERE id = ?;",
 		} {
@@ -225,6 +226,13 @@ func (s *Store) SaveMessages(ctx context.Context, folderID string, messages []do
 				return fmt.Errorf("index message %q: %w", m.ID(), err)
 			}
 		}
+		// A folder replace drops the rows of any message expunged on the server without going through
+		// DeleteMessage, so it never cleans their pending tag ops. Sweep any that now have no message left,
+		// so an expunged-while-pending message cannot leak an unreachable, forever-retried pending row.
+		if _, err := tx.ExecContext(ctx,
+			"DELETE FROM message_tag_pending WHERE message_id NOT IN (SELECT id FROM message);"); err != nil {
+			return fmt.Errorf("sweep orphaned pending tags: %w", err)
+		}
 		return nil
 	})
 }
@@ -332,6 +340,9 @@ func (s *Store) DeleteAccountData(ctx context.Context, accountID string) error {
 		}
 		if _, err := tx.ExecContext(ctx, "DELETE FROM message_tag WHERE "+bodyOrTagFilter, accountID); err != nil {
 			return fmt.Errorf("clear cached message tags: %w", err)
+		}
+		if _, err := tx.ExecContext(ctx, "DELETE FROM message_tag_pending WHERE "+bodyOrTagFilter, accountID); err != nil {
+			return fmt.Errorf("clear pending message tags: %w", err)
 		}
 		if _, err := tx.ExecContext(ctx, "DELETE FROM message_fts WHERE "+bodyOrTagFilter, accountID); err != nil {
 			return fmt.Errorf("clear message index: %w", err)

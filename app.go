@@ -60,6 +60,7 @@ type App struct {
 	sync         *application.SyncService
 	compose      *application.ComposeService
 	tags         *application.TagService
+	tagSync      *application.TagSyncService
 	body         *application.MessageBodyService
 	actions      *application.MessageActionService
 	folders      *application.FolderService
@@ -85,6 +86,7 @@ func NewApp(
 	sync *application.SyncService,
 	compose *application.ComposeService,
 	tags *application.TagService,
+	tagSync *application.TagSyncService,
 	body *application.MessageBodyService,
 	actions *application.MessageActionService,
 	folders *application.FolderService,
@@ -109,6 +111,7 @@ func NewApp(
 		sync:         sync,
 		compose:      compose,
 		tags:         tags,
+		tagSync:      tagSync,
 		body:         body,
 		actions:      actions,
 		folders:      folders,

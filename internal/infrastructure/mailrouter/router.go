@@ -22,6 +22,7 @@ type protocolSource interface {
 	SetFlagged(ctx context.Context, account domain.Account, folder domain.Folder, uid string, flagged bool) error
 	SetAnswered(ctx context.Context, account domain.Account, folder domain.Folder, uid string, answered bool) error
 	SetForwarded(ctx context.Context, account domain.Account, folder domain.Folder, uid string, forwarded bool) error
+	SetKeyword(ctx context.Context, account domain.Account, folder domain.Folder, uid string, keyword string, set bool) error
 	Delete(ctx context.Context, account domain.Account, folder domain.Folder, uid string, trashPath string) error
 	DeleteMany(ctx context.Context, account domain.Account, folder domain.Folder, uids []string, trashPath string) error
 	Move(ctx context.Context, account domain.Account, folder domain.Folder, uid string, destPath string) error
@@ -93,6 +94,11 @@ func (r *Router) SetAnswered(ctx context.Context, account domain.Account, folder
 // SetForwarded delegates to the account's protocol adapter.
 func (r *Router) SetForwarded(ctx context.Context, account domain.Account, folder domain.Folder, uid string, forwarded bool) error {
 	return r.sourceFor(account).SetForwarded(ctx, account, folder, uid, forwarded)
+}
+
+// SetKeyword delegates to the account's protocol adapter.
+func (r *Router) SetKeyword(ctx context.Context, account domain.Account, folder domain.Folder, uid string, keyword string, set bool) error {
+	return r.sourceFor(account).SetKeyword(ctx, account, folder, uid, keyword, set)
 }
 
 // Delete delegates to the account's protocol adapter.

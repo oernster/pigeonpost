@@ -74,7 +74,7 @@ func TestMessageSummaryFlagAccessors(t *testing.T) {
 
 func TestNewTag(t *testing.T) {
 	colour, _ := NewColour("#ff8800")
-	tag, err := NewTag(" t1 ", "  Important  ", colour)
+	tag, err := NewTag(" t1 ", "  Important  ", colour, " $PPtag_x ")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -87,15 +87,71 @@ func TestNewTag(t *testing.T) {
 	if tag.Colour().Hex() != "#ff8800" {
 		t.Errorf("Colour = %q", tag.Colour().Hex())
 	}
+	if tag.Keyword() != "$PPtag_x" {
+		t.Errorf("Keyword = %q", tag.Keyword())
+	}
 }
 
 func TestNewTagInvalid(t *testing.T) {
 	colour, _ := NewColour("#ffffff")
-	if _, err := NewTag("  ", "name", colour); !errors.Is(err, ErrEmptyTagID) {
+	if _, err := NewTag("  ", "name", colour, "$PPtag_x"); !errors.Is(err, ErrEmptyTagID) {
 		t.Errorf("empty id error = %v", err)
 	}
-	if _, err := NewTag("id", "  ", colour); !errors.Is(err, ErrEmptyTagName) {
+	if _, err := NewTag("id", "  ", colour, "$PPtag_x"); !errors.Is(err, ErrEmptyTagName) {
 		t.Errorf("empty name error = %v", err)
+	}
+	if _, err := NewTag("id", "name", colour, "  "); !errors.Is(err, ErrEmptyTagKeyword) {
+		t.Errorf("empty keyword error = %v", err)
+	}
+}
+
+func TestTagKeyword(t *testing.T) {
+	// KeywordForName is the prefix followed by the hex of the trimmed name, so it is a valid IMAP atom.
+	if got := KeywordForName("Important"); got != "$PPtag_496d706f7274616e74" {
+		t.Errorf("KeywordForName = %q", got)
+	}
+	// A tag with the same name and case on another device maps to the same keyword, so the assignment
+	// syncs; matching is case-sensitive, so a different case maps to a different keyword (dropping the
+	// lower-casing keeps the Go derivation identical to the migration's lower(hex(name)) for every name,
+	// including non-ASCII ones SQLite's ASCII-only lower() cannot fold).
+	if KeywordForName("IMPORTANT") == KeywordForName("Important") {
+		t.Error("different case must map to different keywords")
+	}
+	if KeywordForName("Work") == KeywordForName("Important") {
+		t.Error("different names must not share a keyword")
+	}
+	// A tag returns its stored keyword verbatim; it stays frozen when the tag is rebuilt with a new name,
+	// so a rename does not recompute the keyword (which would orphan the tag's server assignments).
+	colour, _ := NewColour("#ff8800")
+	tag, _ := NewTag("t1", "Important", colour, KeywordForName("Important"))
+	if tag.Keyword() != "$PPtag_496d706f7274616e74" {
+		t.Errorf("Tag.Keyword = %q", tag.Keyword())
+	}
+	renamed, _ := NewTag("t1", "Blocked", colour, tag.Keyword())
+	if renamed.Keyword() != tag.Keyword() {
+		t.Error("keyword must stay frozen, not be recomputed from the new name")
+	}
+}
+
+func TestIsTagKeyword(t *testing.T) {
+	if !IsTagKeyword("$PPtag_696d706f7274616e74") {
+		t.Error("a PigeonPost tag keyword should be recognised")
+	}
+	for _, kw := range []string{"\\Seen", "$Forwarded", "$Label1", "PPtag_x", ""} {
+		if IsTagKeyword(kw) {
+			t.Errorf("%q must not be recognised as a tag keyword", kw)
+		}
+	}
+}
+
+func TestPendingTagOp(t *testing.T) {
+	assign := NewPendingTagOp("m1", "t1", true)
+	if assign.MessageID() != "m1" || assign.TagID() != "t1" || !assign.Assigned() {
+		t.Errorf("assign op = %+v", assign)
+	}
+	remove := NewPendingTagOp("m2", "t2", false)
+	if remove.MessageID() != "m2" || remove.TagID() != "t2" || remove.Assigned() {
+		t.Errorf("remove op = %+v", remove)
 	}
 }
 
@@ -224,5 +280,33 @@ func TestMessageSummaryWithFlags(t *testing.T) {
 	flagged := m.WithFlags(m.Flags().With(FlagFlagged))
 	if !flagged.IsFlagged() {
 		t.Error("expected flagged after setting FlagFlagged")
+	}
+}
+
+func TestMessageSummaryKeywords(t *testing.T) {
+	in := validMessageInput()
+	in.Keywords = []string{"$PPtag_abc", "$PPtag_def"}
+	m, err := NewMessageSummary(in)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got := m.Keywords(); len(got) != 2 || got[0] != "$PPtag_abc" || got[1] != "$PPtag_def" {
+		t.Errorf("Keywords = %v", got)
+	}
+	// Mutating the input slice after construction must not reach into the summary.
+	in.Keywords[0] = "mutated"
+	if m.Keywords()[0] != "$PPtag_abc" {
+		t.Error("NewMessageSummary must copy the input keywords")
+	}
+	// The getter returns a copy, not the internal slice.
+	got := m.Keywords()
+	got[0] = "mutated"
+	if m.Keywords()[0] != "$PPtag_abc" {
+		t.Error("Keywords() must return a copy, not the internal slice")
+	}
+	// A summary built without keywords carries none.
+	plain, _ := NewMessageSummary(validMessageInput())
+	if len(plain.Keywords()) != 0 {
+		t.Errorf("expected no keywords, got %v", plain.Keywords())
 	}
 }

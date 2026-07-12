@@ -20,6 +20,8 @@ var (
 	ErrNegativeSize        = errors.New("message size cannot be negative")
 	ErrEmptyTagID          = errors.New("tag id is empty")
 	ErrEmptyTagName        = errors.New("tag name is empty")
+	ErrEmptyTagKeyword     = errors.New("tag keyword is empty")
+	ErrDuplicateTag        = errors.New("a tag with that name already exists")
 	ErrNoRecipients        = errors.New("message has no valid recipients")
 	ErrNoSender            = errors.New("message has no sender")
 	ErrEmptyOutboxID       = errors.New("outbox item id is empty")
