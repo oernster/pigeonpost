@@ -51,7 +51,7 @@ local-first. A calmer, more predictable alternative to Thunderbird.
 - **Notifications**: new mail raises a native desktop notification and updates a Windows taskbar badge.
   Each IMAP account is watched by a persistent IDLE connection with a 60-second poll backstop (and for
   POP3); an account's first sync is silent.
-- **Calendar**: month, week and day views, recurring events with per-event time zones, nine
+- **Calendar**: month, week and day views (a multi-day event is drawn as one bar across its days), recurring events with per-event time zones, nine
   emoji-labelled event categories, on-screen reminders and ICS import/export (RFC 5545) that round-trips
   with Outlook and Thunderbird. Meeting
   invites over iTIP/iMIP (accept, decline, cancel, reply) with clickable join links (Teams, Meet, Zoom,

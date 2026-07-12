@@ -345,7 +345,10 @@ edges are excluded.
 **UI.** A contacts pane (list plus an editor dialog, reusing the confirm-before-delete rule) and
 calendar month, week and day views, both clients of the Application use cases only. The week and day
 views are an hour time-grid: an all-day strip, timed events sized by start and end, clashing events in
-side-by-side lanes.
+side-by-side lanes. The month view lays each week's events out as bars: a multi-day event spans the day
+columns it covers as one continuous bar, squared where a week boundary clips it and stacked in lanes above
+the single-day chips, with a "+N more" when a day overflows; the span and lane placement is pure and tested
+in `calendarModel`.
 
 **Interop acceptance.** A real export from Outlook and from Thunderbird imports cleanly into PigeonPost;
 a PigeonPost export imports back into both without loss, for calendar (ICS) and contacts (vCard and CSV).
@@ -396,19 +399,25 @@ round-trip even though PigeonPost does not yet display them.
 minutes-before). The `ics` codec reads relative-trigger `VALARM` children into alarms and re-emits one
 `DISPLAY VALARM` per modelled alarm with a friendly duration (`-PT15M`, not the library's `-PT900S`);
 because it owns the property it strips existing VALARMs first, so an exotic imported alarm (an absolute
-trigger, an email action) is not preserved. `CalendarService.DueReminders(since, now)` expands events and
+trigger, an email action) is not preserved.
+
+**Reminder scheduling.** `CalendarService.DueReminders(since, now)` expands events and
 returns the reminders whose trigger falls in that window; a scheduler goroutine in the composition root
 polls it every thirty seconds and emits a Wails event that the front end shows as an on-screen banner. On
 launch it first calls `PendingReminders(now)`, which fires reminders for still-imminent events (starting
 at or after now) whose trigger lapsed while the app was closed, so a reminder for an upcoming event is not
 missed; a reminder for an event already started or past is not resurrected, and the catch-up and live
-windows do not overlap. When a batch of reminders fires, the composition root also draws attention from
+windows do not overlap.
+
+**Alerting.** When a batch of reminders fires, the composition root also draws attention from
 outside the window: it flashes the taskbar button through an injected `ReminderAlerter` (the `taskbar`
 package's `Flasher`, a build-tagged no-op off Windows) and raises a notification through the `taskbar`
 package's `Tray`. The tray notification is a Windows balloon on the tray icon, or a native desktop
 notification off Windows (a freedesktop D-Bus notification on Linux, an `osascript` notification on
 macOS, a no-op on any other platform). Both alerts skip when the window is already in the foreground, so
-an in-view reminder relies on its banner alone. On Windows the `Tray` is a persistent, clickable
+an in-view reminder relies on its banner alone.
+
+**Close to tray.** On Windows the `Tray` is a persistent, clickable
 notification-area icon: left-clicking it reopens the window, and its right-click menu mirrors the Help
 menu (About, Licence, Check for Updates) plus Open and Quit. Where a restorable tray icon exists (only
 Windows, gated by `Tray.CanHideToTray`), the window's close button does not quit: `OnBeforeClose` keeps
