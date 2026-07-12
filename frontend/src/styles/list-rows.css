@@ -65,6 +65,12 @@
     cursor: pointer;
     border-bottom: 1px solid var(--border);
     border-left: 2px solid transparent;
+    /* Skip layout and paint for rows scrolled out of view, so a folder of thousands of messages opens
+       without freezing the main thread. Each row stays in the DOM (the keyboard navigation and focus
+       depend on that) and the browser reveals it on scroll or focus. The size hint keeps the scrollbar
+       stable; the auto keyword lets the browser remember a row's real height once it has rendered. */
+    content-visibility: auto;
+    contain-intrinsic-size: auto 64px;
 }
 
 .conversation-header {
@@ -76,6 +82,8 @@
     background-color: var(--bg-elev-2);
     border-bottom: 1px solid var(--border);
     font-size: 12px;
+    content-visibility: auto;
+    contain-intrinsic-size: auto 26px;
 }
 
 .conversation-subject {
