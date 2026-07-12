@@ -16,8 +16,6 @@ const apiSpies = vi.hoisted(() => ({
     clearDraftRecovery: vi.fn(),
     saveDraftRecovery: vi.fn(),
     pickAttachments: vi.fn(),
-    markReplied: vi.fn(),
-    markForwarded: vi.fn(),
 }))
 
 vi.mock('../api', () => ({
@@ -27,8 +25,6 @@ vi.mock('../api', () => ({
         clearDraftRecovery: apiSpies.clearDraftRecovery,
         saveDraftRecovery: apiSpies.saveDraftRecovery,
         pickAttachments: apiSpies.pickAttachments,
-        markReplied: apiSpies.markReplied,
-        markForwarded: apiSpies.markForwarded,
     },
 }))
 
@@ -59,16 +55,20 @@ const TO_PLACEHOLDER = 'name@example.com, other@example.com'
 
 function renderCompose(overrides: Partial<ComposeProps> = {}) {
     const onClose = vi.fn()
+    const onMarkReplied = vi.fn()
+    const onMarkForwarded = vi.fn()
     const props: ComposeProps = {
         accountId: 'acc1',
         senders: [{name: 'Me', address: 'me@x.com'}],
         canSaveDraft: true,
         onClose,
+        onMarkReplied,
+        onMarkForwarded,
         ...overrides,
     }
     const view = render(<ComposeModal {...props}/>)
     const toInput = () => screen.getByPlaceholderText(TO_PLACEHOLDER)
-    return {...view, onClose, toInput}
+    return {...view, onClose, onMarkReplied, onMarkForwarded, toInput}
 }
 
 beforeEach(() => {
@@ -77,8 +77,6 @@ beforeEach(() => {
     apiSpies.clearDraftRecovery.mockReset().mockResolvedValue(undefined)
     apiSpies.saveDraftRecovery.mockReset().mockResolvedValue(undefined)
     apiSpies.pickAttachments.mockReset().mockResolvedValue([])
-    apiSpies.markReplied.mockReset().mockResolvedValue(undefined)
-    apiSpies.markForwarded.mockReset().mockResolvedValue(undefined)
 })
 
 afterEach(() => cleanup())
@@ -105,6 +103,8 @@ describe('ComposeModal: basics', () => {
                 accountId="acc1"
                 senders={[{name: 'Me', address: 'me@x.com'}, {name: 'Alias', address: 'alias@x.com'}]}
                 canSaveDraft
+                onMarkReplied={vi.fn()}
+                onMarkForwarded={vi.fn()}
                 onClose={vi.fn()}
             />,
         )
@@ -124,27 +124,27 @@ describe('ComposeModal: send', () => {
     })
 
     it('marks the original replied after sending a reply', async () => {
-        const {onClose} = renderCompose({initial: {to: 'x@y.com', inReplyToId: 'orig1', replyKind: 'reply'}})
+        const {onClose, onMarkReplied, onMarkForwarded} = renderCompose({initial: {to: 'x@y.com', inReplyToId: 'orig1', replyKind: 'reply'}})
         fireEvent.click(screen.getByRole('button', {name: 'Send'}))
         await waitFor(() => expect(onClose).toHaveBeenCalled())
-        expect(apiSpies.markReplied).toHaveBeenCalledWith('orig1')
-        expect(apiSpies.markForwarded).not.toHaveBeenCalled()
+        expect(onMarkReplied).toHaveBeenCalledWith('orig1')
+        expect(onMarkForwarded).not.toHaveBeenCalled()
     })
 
     it('marks the original forwarded after sending a forward', async () => {
-        const {onClose} = renderCompose({initial: {to: 'x@y.com', inReplyToId: 'orig2', replyKind: 'forward'}})
+        const {onClose, onMarkReplied, onMarkForwarded} = renderCompose({initial: {to: 'x@y.com', inReplyToId: 'orig2', replyKind: 'forward'}})
         fireEvent.click(screen.getByRole('button', {name: 'Send'}))
         await waitFor(() => expect(onClose).toHaveBeenCalled())
-        expect(apiSpies.markForwarded).toHaveBeenCalledWith('orig2')
-        expect(apiSpies.markReplied).not.toHaveBeenCalled()
+        expect(onMarkForwarded).toHaveBeenCalledWith('orig2')
+        expect(onMarkReplied).not.toHaveBeenCalled()
     })
 
     it('marks nothing after sending a fresh compose', async () => {
-        const {onClose} = renderCompose({initial: {to: 'x@y.com'}})
+        const {onClose, onMarkReplied, onMarkForwarded} = renderCompose({initial: {to: 'x@y.com'}})
         fireEvent.click(screen.getByRole('button', {name: 'Send'}))
         await waitFor(() => expect(onClose).toHaveBeenCalled())
-        expect(apiSpies.markReplied).not.toHaveBeenCalled()
-        expect(apiSpies.markForwarded).not.toHaveBeenCalled()
+        expect(onMarkReplied).not.toHaveBeenCalled()
+        expect(onMarkForwarded).not.toHaveBeenCalled()
     })
 
     it('keeps Send disabled until there is a recipient', () => {

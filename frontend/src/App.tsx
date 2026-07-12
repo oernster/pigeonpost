@@ -295,7 +295,7 @@ function App() {
         messageToDelete, setMessageToDelete, deletingMessage,
         messageToPurge, setMessageToPurge, purgingMessage,
         requestDelete, deleteMessage, deletePermanent, toggleFlag, moveMessage, markJunk, copyMessage,
-        setReadState, toggleRead, markReadOnView,
+        setReadState, toggleRead, markReadOnView, markReplied, markForwarded,
     } = useMessageActions({store, displayMessages, searchActive, loadUnread, setError})
 
     // Fetch (and cache) the full body of the selected message. Keyed on the id so re-selecting the
@@ -920,6 +920,8 @@ function App() {
                     senders={sendersFor(activeAccount)}
                     initial={composeInitial}
                     canSaveDraft={!isPop3}
+                    onMarkReplied={(id) => void markReplied(id)}
+                    onMarkForwarded={(id) => void markForwarded(id)}
                     onClose={() => {
                         setComposing(false)
                         setComposeInitial(undefined)

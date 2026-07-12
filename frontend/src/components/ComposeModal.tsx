@@ -53,11 +53,17 @@ interface ComposeModalProps {
     initial?: ComposeInitial
     // canSaveDraft is false for POP3 accounts, which have no server-side Drafts mailbox to append to.
     canSaveDraft: boolean
+    // onMarkReplied / onMarkForwarded record a sent reply or forward on its original message (by id), so the
+    // row shows the replied / forwarded glyph at once. They own the server flag, the local cache and the
+    // in-memory list update; the composer just reports which original was acted on. Called best-effort after a
+    // successful send, so a failure never disrupts the send.
+    onMarkReplied: (id: string) => void
+    onMarkForwarded: (id: string) => void
     onClose: () => void
 }
 
 
-export function ComposeModal({accountId, senders, initial, canSaveDraft, onClose}: ComposeModalProps) {
+export function ComposeModal({accountId, senders, initial, canSaveDraft, onMarkReplied, onMarkForwarded, onClose}: ComposeModalProps) {
     const dismiss = useBackdropDismiss(onClose)
     // The chosen From address. It defaults to the reply's delivered-to address when given, otherwise the
     // account's primary (first) sender. The backend validates it against the account's owned addresses.
@@ -155,17 +161,18 @@ export function ComposeModal({accountId, senders, initial, canSaveDraft, onClose
         setAttachments((prev) => prev.filter((p) => p !== path))
     }
 
-    // markOriginalOnSend records a sent reply or forward on its original message so the row shows the
-    // replied/forwarded indicator (a server flag plus the local cache). It is best-effort and fire-and-forget:
-    // it never blocks or fails the send, so composing offline just leaves the indicator for the next sync.
+    // markOriginalOnSend reports a sent reply or forward on its original message so the row shows the
+    // replied/forwarded indicator. The handlers own the server flag, the local cache and the in-memory list
+    // update; this only says which original was acted on. It is fire-and-forget: it never blocks or fails the
+    // send, so composing offline just leaves the indicator for the next sync.
     const markOriginalOnSend = () => {
         if (!initial?.inReplyToId) {
             return
         }
         if (initial.replyKind === 'reply') {
-            void api.markReplied(initial.inReplyToId)
+            onMarkReplied(initial.inReplyToId)
         } else if (initial.replyKind === 'forward') {
-            void api.markForwarded(initial.inReplyToId)
+            onMarkForwarded(initial.inReplyToId)
         }
     }
 

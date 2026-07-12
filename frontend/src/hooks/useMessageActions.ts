@@ -31,6 +31,8 @@ export interface MessageActions {
     setReadState: (message: Message, read: boolean) => Promise<void>
     toggleRead: (message: Message) => Promise<void>
     markReadOnView: (message: Message) => void
+    markReplied: (id: string) => Promise<void>
+    markForwarded: (id: string) => Promise<void>
 }
 
 // useMessageActions owns the single-message actions (delete, move, flag, read, junk, copy) and the confirm
@@ -120,6 +122,32 @@ export function useMessageActions(deps: MessageActionsDeps): MessageActions {
         }
     }, [])
 
+    // markReplied records a sent reply on its original message: the \Answered flag on the server (and the
+    // local cache) through the backend, then the answered field in place across every list so the replied
+    // glyph appears on the row at once, without waiting for the folder to be reopened. It is best-effort:
+    // a failure (an offline reply whose STORE cannot reach the server) leaves the message unflagged until it
+    // is acted on again, so the in-memory glyph is only set once the server has actually recorded it. Called
+    // fire-and-forget from the composer after a successful send, so it never blocks or fails the send.
+    const markReplied = useCallback(async (id: string) => {
+        try {
+            await api.markReplied(id)
+            applyToAllLists((m) => (m.id === id ? {...m, answered: true} : m))
+        } catch {
+            // Best-effort: leave the message unflagged on failure.
+        }
+    }, [applyToAllLists])
+
+    // markForwarded is markReplied's counterpart for a forward: it sets the $Forwarded keyword through the
+    // backend, then the forwarded field in place across every list. Same best-effort, fire-and-forget contract.
+    const markForwarded = useCallback(async (id: string) => {
+        try {
+            await api.markForwarded(id)
+            applyToAllLists((m) => (m.id === id ? {...m, forwarded: true} : m))
+        } catch {
+            // Best-effort: leave the message unflagged on failure.
+        }
+    }, [applyToAllLists])
+
     // moveMessageById moves a message to a folder by id. It backs moveMessage; a same-folder drop is a
     // no-op on the server.
     const moveMessageById = useCallback(async (messageId: string, destFolderId: string) => {
@@ -197,6 +225,6 @@ export function useMessageActions(deps: MessageActionsDeps): MessageActions {
         messageToDelete, setMessageToDelete, deletingMessage,
         messageToPurge, setMessageToPurge, purgingMessage,
         requestDelete, deleteMessage, deletePermanent, toggleFlag, moveMessage, markJunk, copyMessage,
-        setReadState, toggleRead, markReadOnView,
+        setReadState, toggleRead, markReadOnView, markReplied, markForwarded,
     }
 }
