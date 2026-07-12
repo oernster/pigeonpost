@@ -206,6 +206,20 @@
     color: var(--text-dim);
 }
 
+.provider-note-link {
+    display: block;
+    width: fit-content;
+    margin-top: 6px;
+    color: var(--accent);
+    font-size: 12px;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.provider-note-link:hover {
+    text-decoration: underline;
+}
+
 .setup-advanced {
     margin-bottom: 6px;
 }

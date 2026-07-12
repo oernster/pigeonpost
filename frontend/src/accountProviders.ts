@@ -38,6 +38,10 @@ export const SECURITY_OPTIONS: ReadonlyArray<{value: string; label: string}> = [
 
 // Provider is a known email service with its server settings pre-filled. Choosing one skips manual
 // server entry; the account itself is still added through the same AddAccount path.
+// appPasswordUrl is the public page where the user creates an app password, set only for providers
+// whose normal login password is rejected on IMAP/SMTP and that expose a stable public page for it.
+// Providers that require an app password but only offer an in-app settings screen (Fastmail, StartMail)
+// carry the warning in their note without a link.
 export interface Provider {
     id: string
     name: string
@@ -48,6 +52,7 @@ export interface Provider {
     outHost: string
     outPort: number
     outSecurity: string
+    appPasswordUrl?: string
 }
 
 export const PROVIDERS: readonly Provider[] = [
@@ -55,31 +60,34 @@ export const PROVIDERS: readonly Provider[] = [
         id: 'gmail', name: 'Gmail',
         inHost: 'imap.gmail.com', inPort: 993, inSecurity: 'tls',
         outHost: 'smtp.gmail.com', outPort: 587, outSecurity: 'starttls',
-        note: 'Personal Gmail only. Turn on 2-Step Verification, then generate an app password and use it here.',
+        note: 'Personal Gmail only. Your normal Gmail password will not work here. Turn on 2-Step Verification, then create an app password and use that instead.',
+        appPasswordUrl: 'https://myaccount.google.com/apppasswords',
     },
     {
         id: 'icloud', name: 'iCloud Mail',
         inHost: 'imap.mail.me.com', inPort: 993, inSecurity: 'tls',
         outHost: 'smtp.mail.me.com', outPort: 587, outSecurity: 'starttls',
-        note: 'Create an app-specific password in your Apple ID settings and use it here.',
+        note: 'Your normal Apple Account password will not work here. Create an app-specific password in your Apple Account settings (Sign-In and Security) and use that instead.',
+        appPasswordUrl: 'https://account.apple.com',
     },
     {
         id: 'yahoo', name: 'Yahoo Mail',
         inHost: 'imap.mail.yahoo.com', inPort: 993, inSecurity: 'tls',
         outHost: 'smtp.mail.yahoo.com', outPort: 465, outSecurity: 'tls',
-        note: 'Yahoo requires an app password generated in your account security settings.',
+        note: 'Your normal Yahoo password will not work here. Turn on 2-step verification, then create an app password in your account security settings and use that instead.',
+        appPasswordUrl: 'https://login.yahoo.com/account/security',
     },
     {
         id: 'fastmail', name: 'Fastmail',
         inHost: 'imap.fastmail.com', inPort: 993, inSecurity: 'tls',
         outHost: 'smtp.fastmail.com', outPort: 465, outSecurity: 'tls',
-        note: 'Create an app password in Fastmail settings and use it here.',
+        note: 'Your normal Fastmail password will not work here. Create an app password in Fastmail settings (Privacy and Security) and use that instead. App passwords need a paid Fastmail plan.',
     },
     {
         id: 'startmail', name: 'StartMail',
         inHost: 'imap.startmail.com', inPort: 993, inSecurity: 'tls',
         outHost: 'smtp.startmail.com', outPort: 587, outSecurity: 'starttls',
-        note: 'Enable IMAP/SMTP under Settings in StartMail, then use your app-specific password.',
+        note: 'Your normal StartMail password will not work here. Enable IMAP in Settings, then create a device-specific password (Trusted Devices) and use that instead.',
     },
     {
         id: 'zoho', name: 'Zoho Mail',

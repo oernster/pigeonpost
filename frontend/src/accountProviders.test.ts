@@ -60,3 +60,26 @@ describe('preset data', () => {
         expect(PROVIDERS.every((p) => p.inHost !== '' && p.outHost !== '')).toBe(true)
     })
 })
+
+describe('app password guidance', () => {
+    it('links only to https app-password pages', () => {
+        for (const p of PROVIDERS) {
+            if (p.appPasswordUrl !== undefined) {
+                expect(p.appPasswordUrl.startsWith('https://')).toBe(true)
+            }
+        }
+    })
+
+    it('warns the normal password will not work wherever an app-password page is linked', () => {
+        for (const p of PROVIDERS) {
+            if (p.appPasswordUrl !== undefined) {
+                expect(p.note.toLowerCase()).toContain('will not work')
+            }
+        }
+    })
+
+    it('links the providers whose normal password is rejected and that expose a public page', () => {
+        const linked = PROVIDERS.filter((p) => p.appPasswordUrl !== undefined).map((p) => p.id)
+        expect(linked).toEqual(['gmail', 'icloud', 'yahoo'])
+    })
+})

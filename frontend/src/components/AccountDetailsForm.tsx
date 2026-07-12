@@ -2,6 +2,7 @@ import {useBackdropDismiss} from './useBackdropDismiss'
 import {ModalClose} from './ModalClose'
 import {RichTextField} from './RichTextField'
 import {PROTOCOL_OPTIONS, SECURITY_OPTIONS} from '../accountProviders'
+import {api} from '../api'
 import type {AccountForm} from '../hooks/useAccountForm'
 
 interface AccountDetailsFormProps {
@@ -23,6 +24,8 @@ export function AccountDetailsForm({form, onClose}: AccountDetailsFormProps) {
         outSecurity, setOutSecurity, identities, addIdentity, updateIdentity, removeIdentity,
         sigEditor, error, saving, msSigningIn, canSubmit, signInMicrosoft, submit, goBack,
     } = form
+    // The app-password page, shown as a link under the provider note for providers that expose one.
+    const appPasswordUrl = provider?.appPasswordUrl
 
     const serverFields = (
         <>
@@ -113,7 +116,23 @@ export function AccountDetailsForm({form, onClose}: AccountDetailsFormProps) {
                         password is stored in the operating system keychain, never in the app database.
                     </p>
                 )}
-                {provider && !oauthMode && <p className="provider-note">{provider.note}</p>}
+                {provider && !oauthMode && (
+                    <div className="provider-note">
+                        {provider.note}
+                        {appPasswordUrl && (
+                            <a
+                                className="provider-note-link"
+                                href={appPasswordUrl}
+                                onClick={(e) => {
+                                    e.preventDefault()
+                                    void api.openExternal(appPasswordUrl)
+                                }}
+                            >
+                                Create an app password
+                            </a>
+                        )}
+                    </div>
+                )}
                 {error && <div className="compose-error">{error}</div>}
 
                 <label className="field">
