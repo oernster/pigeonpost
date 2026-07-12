@@ -36,6 +36,17 @@ func (s *MailboxService) Messages(ctx context.Context, folderID string) ([]domai
 	return messages, nil
 }
 
+// MessagesPage returns one keyset page of a folder's cached message summaries. The first page passes
+// hasCursor false; each later page passes the previous page's last row (date and id) so the reading list
+// can load a large folder incrementally rather than all at once.
+func (s *MailboxService) MessagesPage(ctx context.Context, folderID string, hasCursor bool, cursorDateMs int64, cursorID string, limit int, ascending bool) ([]domain.MessageSummary, error) {
+	messages, err := s.mail.ListMessagesPage(ctx, folderID, hasCursor, cursorDateMs, cursorID, limit, ascending)
+	if err != nil {
+		return nil, fmt.Errorf("page messages for folder %q: %w", folderID, err)
+	}
+	return messages, nil
+}
+
 // Threads returns the cached messages of a folder grouped into conversations, newest conversation first.
 // Grouping is done in the domain from the same summaries Messages returns, so a threaded and a flat view
 // read the identical cache.

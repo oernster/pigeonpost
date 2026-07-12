@@ -73,6 +73,38 @@ func (s *Store) ListMessages(ctx context.Context, folderID string) ([]domain.Mes
 		 FROM message WHERE folder_id = ? ORDER BY date_ms DESC;`, scanMessage, folderID)
 }
 
+// ListMessagesPage returns one keyset page of a folder's cached message summaries, ordered by date then
+// id (newest first or oldest first when ascending). The first page passes hasCursor false; each later
+// page passes the date and id of the previous page's last row so the walk resumes strictly after it. It
+// reads at most limit rows, letting the reading list load a huge folder incrementally instead of all at
+// once. The (date_ms, id) tie-break gives a total order, so no row is skipped or repeated when several
+// share a timestamp.
+func (s *Store) ListMessagesPage(ctx context.Context, folderID string, hasCursor bool, cursorDateMs int64, cursorID string, limit int, ascending bool) ([]domain.MessageSummary, error) {
+	const cols = `id, folder_id, uid, message_id, from_display, from_address, to_json, cc_json, subject,
+	              date_ms, size, flags, has_attachments, snippet`
+	order, cmp := "DESC", "<"
+	if ascending {
+		order, cmp = "ASC", ">"
+	}
+	var (
+		query string
+		args  []any
+	)
+	if hasCursor {
+		query = fmt.Sprintf(
+			`SELECT %s FROM message
+			 WHERE folder_id = ? AND (date_ms %s ? OR (date_ms = ? AND id %s ?))
+			 ORDER BY date_ms %s, id %s LIMIT ?;`, cols, cmp, cmp, order, order)
+		args = []any{folderID, cursorDateMs, cursorDateMs, cursorID, limit}
+	} else {
+		query = fmt.Sprintf(
+			`SELECT %s FROM message WHERE folder_id = ?
+			 ORDER BY date_ms %s, id %s LIMIT ?;`, cols, order, order)
+		args = []any{folderID, limit}
+	}
+	return queryRows(ctx, s.db, "messages", query, scanMessage, args...)
+}
+
 // DeleteMessage removes a cached message and everything derived from it (body, tags, index row) in a
 // single transaction.
 func (s *Store) DeleteMessage(ctx context.Context, messageID string) error {

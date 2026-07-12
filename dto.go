@@ -83,6 +83,16 @@ type MessageDTO struct {
 	TagColours []string `json:"tagColours"`
 }
 
+// MessagePageDTO is one keyset page of a folder's messages for the reading list's incremental load. The
+// cursor is opaque to the frontend: it passes NextCursorDateMs and NextCursorID straight back to fetch
+// the following page while HasMore is true and never constructs a cursor itself.
+type MessagePageDTO struct {
+	Messages         []MessageDTO `json:"messages"`
+	HasMore          bool         `json:"hasMore"`
+	NextCursorDateMs int64        `json:"nextCursorDateMs"`
+	NextCursorID     string       `json:"nextCursorId"`
+}
+
 // AttachmentDTO is the JSON-serialisable metadata of one received attachment. It carries no bytes: the
 // reader lists attachments by name and size, and SaveAttachment resolves the content by index from the
 // cached body when the user saves one.

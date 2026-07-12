@@ -43,6 +43,14 @@ CREATE TABLE IF NOT EXISTS contact_address (
 CREATE INDEX IF NOT EXISTS idx_contact_address_contact ON contact_address(contact_id);
 `
 
+// schemaV33 adds a composite index on (folder_id, date_ms, id) so the reading list can page a folder's
+// messages by keyset (date and id) at any depth without a full scan. The list orders newest first, which
+// SQLite serves by walking this index in reverse; the ascending sort walks it forward. The pre-existing
+// idx_message_folder stays for the many single-folder lookups that do not order by date.
+const schemaV33 = `
+CREATE INDEX IF NOT EXISTS idx_message_folder_date ON message(folder_id, date_ms, id);
+`
+
 // migrations is the ordered list of schema steps. Index i upgrades the database from version i to
 // version i+1, so a fresh database applies them all and an existing one applies only what it lacks.
-var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15, schemaV16, schemaV17, schemaV18, schemaV19, schemaV20, schemaV21, schemaV22, schemaV23, schemaV24, schemaV25, schemaV26, schemaV27, schemaV28, schemaV29, schemaV30, schemaV31, schemaV32}
+var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15, schemaV16, schemaV17, schemaV18, schemaV19, schemaV20, schemaV21, schemaV22, schemaV23, schemaV24, schemaV25, schemaV26, schemaV27, schemaV28, schemaV29, schemaV30, schemaV31, schemaV32, schemaV33}

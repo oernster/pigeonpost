@@ -1,0 +1,66 @@
+package main
+
+// Reading-list facade: the Wails-exposed methods that read a folder's cached messages for the desktop
+// list (flat, paged, threaded and searched). Kept apart from app.go so the composition root stays within
+// the module-size limit, mirroring calendarapi.go and contactsapi.go.
+
+// ListMessages returns the cached message summaries for a folder.
+func (a *App) ListMessages(folderID string) ([]MessageDTO, error) {
+	messages, err := a.mailbox.Messages(a.ctx, folderID)
+	if err != nil {
+		return nil, err
+	}
+	colours, coloursErr := a.tags.ColoursForMessages(a.ctx, messageIDs(messages))
+	if coloursErr != nil {
+		// Tag colours are decorative; a failure to load them must not break the message list.
+		colours = nil
+	}
+	return toMessageDTOs(messages, colours), nil
+}
+
+// ListMessagesPage returns one keyset page of a folder's cached message summaries for the reading list's
+// incremental load. The first call passes hasCursor false; while the returned page reports HasMore, the
+// next call passes the page's NextCursor* values back to resume strictly after its last row. limit caps
+// the rows read, so a huge folder opens without loading every row at once.
+func (a *App) ListMessagesPage(folderID string, hasCursor bool, cursorDateMs int64, cursorID string, limit int, ascending bool) (MessagePageDTO, error) {
+	messages, err := a.mailbox.MessagesPage(a.ctx, folderID, hasCursor, cursorDateMs, cursorID, limit, ascending)
+	if err != nil {
+		return MessagePageDTO{}, err
+	}
+	colours, coloursErr := a.tags.ColoursForMessages(a.ctx, messageIDs(messages))
+	if coloursErr != nil {
+		// Tag colours are decorative; a failure to load them must not break the message list.
+		colours = nil
+	}
+	page := MessagePageDTO{Messages: toMessageDTOs(messages, colours), HasMore: len(messages) == limit}
+	if len(messages) > 0 {
+		last := messages[len(messages)-1]
+		page.NextCursorDateMs = last.Date().UnixMilli()
+		page.NextCursorID = last.ID()
+	}
+	return page, nil
+}
+
+// ListThreads returns the cached messages of a folder grouped into conversations, newest conversation
+// first, for the reading list's conversation view.
+func (a *App) ListThreads(folderID string) ([]ThreadDTO, error) {
+	threads, err := a.mailbox.Threads(a.ctx, folderID)
+	if err != nil {
+		return nil, err
+	}
+	return toThreadDTOs(threads), nil
+}
+
+// SearchMessages returns cached messages matching a free-text query, most relevant first.
+func (a *App) SearchMessages(query string) ([]MessageDTO, error) {
+	messages, err := a.mailbox.Search(a.ctx, query)
+	if err != nil {
+		return nil, err
+	}
+	colours, coloursErr := a.tags.ColoursForMessages(a.ctx, messageIDs(messages))
+	if coloursErr != nil {
+		// Tag colours are decorative; a failure to load them must not break the search list.
+		colours = nil
+	}
+	return toMessageDTOs(messages, colours), nil
+}

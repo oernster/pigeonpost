@@ -388,6 +388,70 @@ func TestMessageRoundTrip(t *testing.T) {
 	}
 }
 
+func TestListMessagesPage(t *testing.T) {
+	store := openTestStore(t)
+	ctx := context.Background()
+
+	d1 := time.Date(2026, time.July, 1, 8, 0, 0, 0, time.UTC)
+	d2 := time.Date(2026, time.July, 2, 8, 0, 0, 0, time.UTC)
+	d3 := time.Date(2026, time.July, 3, 8, 0, 0, 0, time.UTC)
+	// mA and mB share the newest timestamp, so the (date, id) tie-break must order them by id.
+	msgs := []domain.MessageSummary{
+		buildMessage(t, "m1", d1, true),
+		buildMessage(t, "m2", d2, true),
+		buildMessage(t, "mA", d3, true),
+		buildMessage(t, "mB", d3, true),
+	}
+	if err := store.SaveMessages(ctx, "f1", msgs); err != nil {
+		t.Fatalf("save messages: %v", err)
+	}
+	ids := func(page []domain.MessageSummary) []string {
+		out := make([]string, len(page))
+		for i, m := range page {
+			out[i] = m.ID()
+		}
+		return out
+	}
+
+	// First page, newest first, limit two: the two newest share d3, so id DESC gives mB then mA.
+	first, err := store.ListMessagesPage(ctx, "f1", false, 0, "", 2, false)
+	if err != nil {
+		t.Fatalf("first page: %v", err)
+	}
+	if got := ids(first); len(got) != 2 || got[0] != "mB" || got[1] != "mA" {
+		t.Fatalf("first page = %v, want [mB mA]", got)
+	}
+
+	// Second page resumes strictly after the first page's last row (mA at d3): m2 then m1.
+	last := first[len(first)-1]
+	second, err := store.ListMessagesPage(ctx, "f1", true, last.Date().UnixMilli(), last.ID(), 2, false)
+	if err != nil {
+		t.Fatalf("second page: %v", err)
+	}
+	if got := ids(second); len(got) != 2 || got[0] != "m2" || got[1] != "m1" {
+		t.Fatalf("second page = %v, want [m2 m1]", got)
+	}
+
+	// A third page past the end is empty, ending the walk.
+	lastTwo := second[len(second)-1]
+	third, err := store.ListMessagesPage(ctx, "f1", true, lastTwo.Date().UnixMilli(), lastTwo.ID(), 2, false)
+	if err != nil {
+		t.Fatalf("third page: %v", err)
+	}
+	if len(third) != 0 {
+		t.Fatalf("third page = %v, want empty", ids(third))
+	}
+
+	// Ascending walks oldest first: m1, m2, then mA before mB (id ASC on the shared d3).
+	asc, err := store.ListMessagesPage(ctx, "f1", false, 0, "", 10, true)
+	if err != nil {
+		t.Fatalf("ascending page: %v", err)
+	}
+	if got := ids(asc); len(got) != 4 || got[0] != "m1" || got[1] != "m2" || got[2] != "mA" || got[3] != "mB" {
+		t.Fatalf("ascending page = %v, want [m1 m2 mA mB]", got)
+	}
+}
+
 func TestSetSeen(t *testing.T) {
 	store := openTestStore(t)
 	ctx := context.Background()

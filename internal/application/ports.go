@@ -40,6 +40,7 @@ type MailStore interface {
 	ListFolders(ctx context.Context, accountID string) ([]domain.Folder, error)
 	SaveFolders(ctx context.Context, accountID string, folders []domain.Folder) error
 	ListMessages(ctx context.Context, folderID string) ([]domain.MessageSummary, error)
+	ListMessagesPage(ctx context.Context, folderID string, hasCursor bool, cursorDateMs int64, cursorID string, limit int, ascending bool) ([]domain.MessageSummary, error)
 	SaveMessages(ctx context.Context, folderID string, messages []domain.MessageSummary) error
 	SetSeen(ctx context.Context, messageID string, seen bool) error
 	SetFlagged(ctx context.Context, messageID string, flagged bool) error

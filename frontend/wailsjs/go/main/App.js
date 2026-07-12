@@ -158,6 +158,10 @@ export function ListMessages(arg1) {
   return window['go']['main']['App']['ListMessages'](arg1);
 }
 
+export function ListMessagesPage(arg1, arg2, arg3, arg4, arg5, arg6) {
+  return window['go']['main']['App']['ListMessagesPage'](arg1, arg2, arg3, arg4, arg5, arg6);
+}
+
 export function ListOutbox() {
   return window['go']['main']['App']['ListOutbox']();
 }

@@ -80,6 +80,8 @@ export function ListFolders(arg1:string):Promise<Array<main.FolderDTO>>;
 
 export function ListMessages(arg1:string):Promise<Array<main.MessageDTO>>;
 
+export function ListMessagesPage(arg1:string,arg2:boolean,arg3:number,arg4:string,arg5:number,arg6:boolean):Promise<main.MessagePageDTO>;
+
 export function ListOutbox():Promise<Array<main.OutboxItemDTO>>;
 
 export function ListRules():Promise<Array<main.RuleDTO>>;

@@ -238,44 +238,6 @@ func (a *App) UnreadCounts() (UnreadCountsDTO, error) {
 	return UnreadCountsDTO{Total: totals.Total, ByAccount: byAccount}, nil
 }
 
-// ListMessages returns the cached message summaries for a folder.
-func (a *App) ListMessages(folderID string) ([]MessageDTO, error) {
-	messages, err := a.mailbox.Messages(a.ctx, folderID)
-	if err != nil {
-		return nil, err
-	}
-	colours, coloursErr := a.tags.ColoursForMessages(a.ctx, messageIDs(messages))
-	if coloursErr != nil {
-		// Tag colours are decorative; a failure to load them must not break the message list.
-		colours = nil
-	}
-	return toMessageDTOs(messages, colours), nil
-}
-
-// ListThreads returns the cached messages of a folder grouped into conversations, newest conversation
-// first, for the reading list's conversation view.
-func (a *App) ListThreads(folderID string) ([]ThreadDTO, error) {
-	threads, err := a.mailbox.Threads(a.ctx, folderID)
-	if err != nil {
-		return nil, err
-	}
-	return toThreadDTOs(threads), nil
-}
-
-// SearchMessages returns cached messages matching a free-text query, most relevant first.
-func (a *App) SearchMessages(query string) ([]MessageDTO, error) {
-	messages, err := a.mailbox.Search(a.ctx, query)
-	if err != nil {
-		return nil, err
-	}
-	colours, coloursErr := a.tags.ColoursForMessages(a.ctx, messageIDs(messages))
-	if coloursErr != nil {
-		// Tag colours are decorative; a failure to load them must not break the search list.
-		colours = nil
-	}
-	return toMessageDTOs(messages, colours), nil
-}
-
 // GetMessageBody returns a message's full body, fetching and caching it on the first open.
 func (a *App) GetMessageBody(messageID string) (MessageBodyDTO, error) {
 	body, err := a.body.Body(a.ctx, messageID)

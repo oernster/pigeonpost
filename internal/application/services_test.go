@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/oernster/pigeonpost/internal/domain"
 )
@@ -372,6 +373,62 @@ func TestMailboxServiceMessages(t *testing.T) {
 	store.listMessagesErr = errBoom
 	if _, err := svc.Messages(context.Background(), "f1"); !errors.Is(err, errBoom) {
 		t.Errorf("Messages error = %v, want wrapped boom", err)
+	}
+}
+
+func testMessageAt(t *testing.T, id, folderID string, dateMs int64) domain.MessageSummary {
+	t.Helper()
+	msg, err := domain.NewMessageSummary(domain.MessageSummaryInput{
+		ID: id, FolderID: folderID, UID: "1", Size: 10, Flags: domain.NewFlags(0),
+		Date: time.UnixMilli(dateMs),
+	})
+	if err != nil {
+		t.Fatalf("build message: %v", err)
+	}
+	return msg
+}
+
+func TestMailboxServiceMessagesPage(t *testing.T) {
+	store := newFakeMailStore()
+	store.messages["f1"] = []domain.MessageSummary{
+		testMessageAt(t, "m1", "f1", 100),
+		testMessageAt(t, "m2", "f1", 300),
+		testMessageAt(t, "m3", "f1", 200),
+	}
+	svc := NewMailboxService(store)
+	ctx := context.Background()
+
+	// First page, newest first, limit two: m2 (300) then m3 (200).
+	first, err := svc.MessagesPage(ctx, "f1", false, 0, "", 2, false)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(first) != 2 || first[0].ID() != "m2" || first[1].ID() != "m3" {
+		t.Fatalf("first page = %q, %q, want m2, m3", first[0].ID(), first[1].ID())
+	}
+
+	// Second page resumes strictly after the first page's last row (m3), yielding m1 (100).
+	last := first[len(first)-1]
+	second, err := svc.MessagesPage(ctx, "f1", true, last.Date().UnixMilli(), last.ID(), 2, false)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(second) != 1 || second[0].ID() != "m1" {
+		t.Fatalf("second page = %d rows, want [m1]", len(second))
+	}
+
+	// Ascending first page walks oldest first: m1 (100) then m3 (200).
+	asc, err := svc.MessagesPage(ctx, "f1", false, 0, "", 2, true)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(asc) != 2 || asc[0].ID() != "m1" || asc[1].ID() != "m3" {
+		t.Fatalf("ascending page = %q, %q, want m1, m3", asc[0].ID(), asc[1].ID())
+	}
+
+	store.listPageErr = errBoom
+	if _, err := svc.MessagesPage(ctx, "f1", false, 0, "", 2, false); !errors.Is(err, errBoom) {
+		t.Errorf("MessagesPage error = %v, want wrapped boom", err)
 	}
 }
 

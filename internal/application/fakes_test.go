@@ -3,6 +3,7 @@ package application
 import (
 	"context"
 	"errors"
+	"sort"
 	"testing"
 	"time"
 
@@ -147,6 +148,7 @@ type fakeMailStore struct {
 	listFoldersErr   error
 	saveFoldersErr   error
 	listMessagesErr  error
+	listPageErr      error
 	saveMessagesErr  error
 	setSeenErr       error
 	setFlaggedErr    error
@@ -197,6 +199,50 @@ func (f *fakeMailStore) ListMessages(_ context.Context, folderID string) ([]doma
 		return nil, f.listMessagesErr
 	}
 	return f.messages[folderID], nil
+}
+
+// ListMessagesPage mirrors the store's keyset paging over the in-memory slice: it orders the folder's
+// messages by (date, id), keeps only those strictly after the cursor when one is given and returns at
+// most limit. This lets the service test exercise real paging without a database.
+func (f *fakeMailStore) ListMessagesPage(_ context.Context, folderID string, hasCursor bool, cursorDateMs int64, cursorID string, limit int, ascending bool) ([]domain.MessageSummary, error) {
+	if f.listPageErr != nil {
+		return nil, f.listPageErr
+	}
+	all := append([]domain.MessageSummary(nil), f.messages[folderID]...)
+	sort.SliceStable(all, func(i, j int) bool {
+		di, dj := all[i].Date().UnixMilli(), all[j].Date().UnixMilli()
+		if di != dj {
+			if ascending {
+				return di < dj
+			}
+			return di > dj
+		}
+		if ascending {
+			return all[i].ID() < all[j].ID()
+		}
+		return all[i].ID() > all[j].ID()
+	})
+	after := func(m domain.MessageSummary) bool {
+		if !hasCursor {
+			return true
+		}
+		d := m.Date().UnixMilli()
+		if ascending {
+			return d > cursorDateMs || (d == cursorDateMs && m.ID() > cursorID)
+		}
+		return d < cursorDateMs || (d == cursorDateMs && m.ID() < cursorID)
+	}
+	page := make([]domain.MessageSummary, 0, limit)
+	for _, m := range all {
+		if !after(m) {
+			continue
+		}
+		page = append(page, m)
+		if len(page) == limit {
+			break
+		}
+	}
+	return page, nil
 }
 
 func (f *fakeMailStore) UnreadByAccount(_ context.Context) (map[string]int, error) {
