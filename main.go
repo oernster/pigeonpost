@@ -23,6 +23,7 @@ import (
 	"github.com/oernster/pigeonpost/internal/infrastructure/oauth"
 	"github.com/oernster/pigeonpost/internal/infrastructure/pop3"
 	"github.com/oernster/pigeonpost/internal/infrastructure/recurrence"
+	"github.com/oernster/pigeonpost/internal/infrastructure/remoteimage"
 	"github.com/oernster/pigeonpost/internal/infrastructure/smtp"
 	"github.com/oernster/pigeonpost/internal/infrastructure/storage"
 	"github.com/oernster/pigeonpost/internal/infrastructure/taskbar"
@@ -102,6 +103,9 @@ func run() error {
 	composeService := application.NewComposeService(store, store, transport, imapSource, imapSource, store, store, clock, newOutboxID)
 	tagService := application.NewTagService(store)
 	bodyService := application.NewMessageBodyService(store, store, mailSource)
+	// The resolver fetches a message's blocked remote images server-side (hardened against SSRF) and inlines
+	// them as data: URIs, so the reader can show images a browser cannot load cross-origin.
+	remoteImageService := application.NewRemoteImageService(remoteimage.NewResolver())
 	actionService := application.NewMessageActionService(store, store, mailSource)
 	folderService := application.NewFolderService(store, store, imapSource, imapSource)
 	ruleService := application.NewRuleService(store, newRuleID)
@@ -128,7 +132,7 @@ func run() error {
 	// rather than waiting for the poll; it authenticates through the same keychain vault as fetches.
 	watcher := imap.NewWatcher(vault, tokenManager)
 
-	app = NewApp(store.Close, overlay, flasher, tray, watcher, accountService, setupService, microsoftSetupService, mailboxService, syncService, composeService, tagService, bodyService, actionService, folderService, ruleService, templateService, contactService, calendarService, schedulingService)
+	app = NewApp(store.Close, overlay, flasher, tray, watcher, accountService, setupService, microsoftSetupService, mailboxService, syncService, composeService, tagService, bodyService, actionService, folderService, ruleService, templateService, contactService, calendarService, schedulingService, remoteImageService)
 	app.title = windowTitle
 
 	err = wails.Run(&options.App{

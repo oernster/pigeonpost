@@ -242,3 +242,12 @@ type RecurrenceService interface {
 	// returned unchanged.
 	SplitCountForward(master domain.Event, at time.Time) (string, error)
 }
+
+// RemoteImageResolver fetches a message body's blocked remote images server-side and returns the HTML with
+// each fetched image inlined as a data: URI. It is the seam that lets the reader show images a browser cannot
+// load cross-origin (a sender's Cross-Origin-Resource-Policy, CORS or hotlink protection stops direct
+// embedding); an image it cannot fetch is left parked. The fetch is hardened against server-side request
+// forgery in the infrastructure implementation.
+type RemoteImageResolver interface {
+	Resolve(ctx context.Context, html string) (string, error)
+}

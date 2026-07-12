@@ -3,6 +3,7 @@ import {api, EmailView} from '../api'
 import {EmailHtmlFrame} from './EmailHtmlFrame'
 import {ModalClose} from './ModalClose'
 import {useBackdropDismiss} from './useBackdropDismiss'
+import {useRemoteImages} from '../hooks/useRemoteImages'
 
 interface EmailViewerModalProps {
     email: EmailView
@@ -28,8 +29,7 @@ export function EmailViewerModal({email, autoLoadImages, dark, onClose}: EmailVi
     const dismiss = useBackdropDismiss(onClose)
     const [imagesShown, setImagesShown] = useState(autoLoadImages)
     const rawHtml = email.html ?? ''
-    const hasBlockedImages = rawHtml.includes('data-pp-src=')
-    const renderedHtml = imagesShown ? rawHtml.replace(/data-pp-src=/g, 'src=') : rawHtml
+    const {renderedHtml, loadingImages, hasBlockedImages} = useRemoteImages(rawHtml, imagesShown)
     return (
         <div className="modal-backdrop" {...dismiss}>
             <div
@@ -51,9 +51,14 @@ export function EmailViewerModal({email, autoLoadImages, dark, onClose}: EmailVi
                         <button className="btn" onClick={() => setImagesShown(true)}>Load images</button>
                     </div>
                 )}
+                {hasBlockedImages && imagesShown && loadingImages && (
+                    <div className="images-blocked-bar">
+                        <span>Loading images…</span>
+                    </div>
+                )}
                 {rawHtml.trim() !== '' ? (
                     <div className="email-viewer-body">
-                        <EmailHtmlFrame html={renderedHtml} imagesShown={imagesShown} dark={dark} onOpenLink={openLinkExternally}/>
+                        <EmailHtmlFrame html={renderedHtml} dark={dark} onOpenLink={openLinkExternally}/>
                     </div>
                 ) : (
                     <pre className="email-viewer-body reader-text">{email.plain || '(no content)'}</pre>

@@ -182,6 +182,10 @@ export function ListThreads(arg1) {
   return window['go']['main']['App']['ListThreads'](arg1);
 }
 
+export function LoadRemoteImages(arg1) {
+  return window['go']['main']['App']['LoadRemoteImages'](arg1);
+}
+
 export function MarkFlagged(arg1, arg2) {
   return window['go']['main']['App']['MarkFlagged'](arg1, arg2);
 }

@@ -16,6 +16,7 @@ import {
     ListMessages,
     ListMessagesPage,
     ListTags,
+    LoadRemoteImages,
     MarkFlagged,
     MarkJunk,
     MarkRead,
@@ -368,6 +369,10 @@ export const api = {
     ): Promise<MessagePage> => ListMessagesPage(folderId, hasCursor, cursorDateMs, cursorId, limit, ascending),
     searchMessages: (query: string): Promise<Message[]> => SearchMessages(query),
     messageBody: (messageId: string): Promise<MessageBody> => GetMessageBody(messageId),
+    // loadRemoteImages returns the message HTML with its blocked remote images fetched server-side and inlined
+    // as data: URIs, so the reader can show images a browser cannot load cross-origin (a sender's
+    // Cross-Origin-Resource-Policy, CORS or hotlink protection).
+    loadRemoteImages: (html: string): Promise<string> => LoadRemoteImages(html),
     openExternal: (url: string): Promise<void> => OpenExternal(url),
     syncAccount: (accountId: string): Promise<void> => SyncAccount(accountId),
     syncFolder: (folderId: string): Promise<void> => SyncFolder(folderId),

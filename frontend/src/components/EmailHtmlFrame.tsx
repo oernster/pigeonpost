@@ -32,21 +32,22 @@ const DARK_MEDIA_SELECTOR = 'img,picture,video,svg,canvas,[background],[style*="
 const darkModeStyle =
     `html{filter:${DARK_INVERT_FILTER};}${DARK_MEDIA_SELECTOR}{filter:${DARK_INVERT_FILTER};}`
 
-// The iframe is the security boundary. Its Content-Security-Policy grants no script-src (so no JavaScript
-// runs even if some slipped past the sanitiser), blocks every default source and only permits inline styles,
-// data: fonts plus images. img-src additionally allows remote http/https images once the reader opts in; a
-// message's remote images then load only on request.
-const CSP_IMG_SRC_BLOCKED = 'img-src data:'
-const CSP_IMG_SRC_SHOWN = 'img-src data: https: http:'
+// The iframe is the security boundary. Its Content-Security-Policy grants no script-src (so no JavaScript runs
+// even if some slipped past the sanitiser), blocks every default source and permits only inline styles, data:
+// fonts plus data: images. It never allows a remote http/https image: a message's remote images are fetched
+// server-side and inlined as data: URIs before they reach the frame (see the LoadRemoteImages proxy), so the
+// frame makes no remote request at all and cannot leak that a message was opened, even for an image whose
+// server-side fetch failed and stayed parked.
+const CONTENT_SECURITY_POLICY = "default-src 'none'; style-src 'unsafe-inline'; img-src data:; font-src data:;"
 
 // LINK_SCHEMES are the URL schemes a link inside the email may open externally; any other scheme is ignored.
 const LINK_SCHEMES = ['http:', 'https:', 'mailto:']
 
 interface EmailHtmlFrameProps {
-    // html is the already sanitised, image-parked-or-unparked message body the parent computed.
+    // html is the already sanitised, image-parked-or-inlined message body the parent computed. When the reader
+    // has asked for images, the parent passes the proxy-resolved HTML whose remote images are inlined as data:
+    // URIs; otherwise it passes the parked HTML, which shows no images.
     html: string
-    // imagesShown widens the CSP img-src to allow remote images once the reader has opted in.
-    imagesShown: boolean
     // dark renders the email dark to match the app's dark theme, by inverting the light-designed document
     // inside the frame. It is false in the light theme, where the email keeps its faithful white surface.
     dark: boolean
@@ -55,20 +56,13 @@ interface EmailHtmlFrameProps {
     onOpenLink: (href: string) => void
 }
 
-// contentSecurityPolicy builds the CSP for the srcdoc. Only img-src changes with the images toggle;
-// everything else stays locked down.
-function contentSecurityPolicy(imagesShown: boolean): string {
-    const imgSrc = imagesShown ? CSP_IMG_SRC_SHOWN : CSP_IMG_SRC_BLOCKED
-    return `default-src 'none'; style-src 'unsafe-inline'; ${imgSrc}; font-src data:;`
-}
-
 // buildSrcDoc assembles the self-contained document the iframe renders through its srcdoc attribute. It is a
 // full HTML document so the CSP meta tag governs the message; the sanitised body is dropped in verbatim. The
 // dark inversion layers on top of the same light base so only the theme decides the surface, not the body.
-function buildSrcDoc(html: string, imagesShown: boolean, dark: boolean): string {
+function buildSrcDoc(html: string, dark: boolean): string {
     const surfaceStyle = dark ? baseStyle + darkModeStyle : baseStyle
     return '<!doctype html><html><head><meta charset="utf-8">' +
-        `<meta http-equiv="Content-Security-Policy" content="${contentSecurityPolicy(imagesShown)}">` +
+        `<meta http-equiv="Content-Security-Policy" content="${CONTENT_SECURITY_POLICY}">` +
         `<style>${surfaceStyle}</style></head><body>${html}</body></html>`
 }
 
@@ -93,14 +87,14 @@ function resizeToContent(frame: HTMLIFrameElement) {
 // allow-same-origin only (never allow-scripts), so no script in the frame can run or remove the sandbox.
 // Because the frame is same-origin, the parent reads its height and intercepts its link clicks directly, so
 // no script inside the frame is needed.
-export function EmailHtmlFrame({html, imagesShown, dark, onOpenLink}: EmailHtmlFrameProps) {
+export function EmailHtmlFrame({html, dark, onOpenLink}: EmailHtmlFrameProps) {
     const frameRef = useRef<HTMLIFrameElement>(null)
     // The link callback is held in a ref so a new callback identity from the parent does not re-run the
     // binding effect (which would needlessly rebind on every parent render).
     const onOpenLinkRef = useRef(onOpenLink)
     onOpenLinkRef.current = onOpenLink
 
-    const doc = buildSrcDoc(html, imagesShown, dark)
+    const doc = buildSrcDoc(html, dark)
 
     useEffect(() => {
         const frame = frameRef.current

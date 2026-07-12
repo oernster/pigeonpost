@@ -92,6 +92,8 @@ export function ListTemplates():Promise<Array<main.TemplateDTO>>;
 
 export function ListThreads(arg1:string):Promise<Array<main.ThreadDTO>>;
 
+export function LoadRemoteImages(arg1:string):Promise<string>;
+
 export function MarkFlagged(arg1:string,arg2:boolean):Promise<void>;
 
 export function MarkJunk(arg1:string):Promise<void>;

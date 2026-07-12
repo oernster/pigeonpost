@@ -9,7 +9,6 @@ afterEach(() => cleanup())
 
 interface FrameOverrides {
     html?: string
-    imagesShown?: boolean
     dark?: boolean
     onOpenLink?: (href: string) => void
 }
@@ -19,7 +18,6 @@ function renderFrame(overrides: FrameOverrides = {}) {
     const {container} = render(
         <EmailHtmlFrame
             html={overrides.html ?? '<p>hello</p>'}
-            imagesShown={overrides.imagesShown ?? false}
             dark={overrides.dark ?? false}
             onOpenLink={onOpenLink}
         />,
@@ -43,17 +41,14 @@ describe('EmailHtmlFrame: sandbox and CSP', () => {
         expect(srcdoc).not.toContain('script-src')
     })
 
-    it('blocks remote images in the CSP until images are shown', () => {
-        const {frame} = renderFrame({imagesShown: false})
+    it('restricts images to data: URIs only, since remote images are proxied and inlined server-side', () => {
+        const {frame} = renderFrame()
         const srcdoc = frame.getAttribute('srcdoc') ?? ''
         expect(srcdoc).toContain('img-src data:;')
+        // The frame never permits a remote image: there is no widening to http/https as there used to be, so
+        // it makes no remote request at all.
         expect(srcdoc).not.toContain('img-src data: https:')
-    })
-
-    it('widens the CSP img-src to remote images once shown', () => {
-        const {frame} = renderFrame({imagesShown: true})
-        const srcdoc = frame.getAttribute('srcdoc') ?? ''
-        expect(srcdoc).toContain('img-src data: https: http:')
+        expect(srcdoc).not.toContain('http:')
     })
 
     it('carries the sanitised body verbatim in the srcdoc', () => {

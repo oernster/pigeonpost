@@ -68,6 +68,7 @@ type App struct {
 	contacts     *application.ContactService
 	calendar     *application.CalendarService
 	scheduling   *application.SchedulingService
+	remoteImages *application.RemoteImageService
 }
 
 // NewApp constructs the facade with its injected use-case services and a closer for shutdown.
@@ -92,29 +93,31 @@ func NewApp(
 	contacts *application.ContactService,
 	calendar *application.CalendarService,
 	scheduling *application.SchedulingService,
+	remoteImages *application.RemoteImageService,
 ) *App {
 	return &App{
-		closer:     closer,
-		notifier:   notifier,
-		alerter:    alerter,
-		tray:       tray,
-		watcher:    watcher,
-		watchers:   make(map[string]context.CancelFunc),
-		accounts:   accounts,
-		setup:      setup,
-		msSetup:    microsoftSetup,
-		mailbox:    mailbox,
-		sync:       sync,
-		compose:    compose,
-		tags:       tags,
-		body:       body,
-		actions:    actions,
-		folders:    folders,
-		rules:      rules,
-		templates:  templates,
-		contacts:   contacts,
-		calendar:   calendar,
-		scheduling: scheduling,
+		closer:       closer,
+		notifier:     notifier,
+		alerter:      alerter,
+		tray:         tray,
+		watcher:      watcher,
+		watchers:     make(map[string]context.CancelFunc),
+		accounts:     accounts,
+		setup:        setup,
+		msSetup:      microsoftSetup,
+		mailbox:      mailbox,
+		sync:         sync,
+		compose:      compose,
+		tags:         tags,
+		body:         body,
+		actions:      actions,
+		folders:      folders,
+		rules:        rules,
+		templates:    templates,
+		contacts:     contacts,
+		calendar:     calendar,
+		scheduling:   scheduling,
+		remoteImages: remoteImages,
 	}
 }
 

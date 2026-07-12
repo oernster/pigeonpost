@@ -20,6 +20,7 @@ const apiSpies = vi.hoisted(() => ({
     openAttachment: vi.fn(),
     openEmailAttachment: vi.fn(),
     saveAllAttachments: vi.fn(),
+    loadRemoteImages: vi.fn(),
 }))
 
 vi.mock('../api', () => ({
@@ -29,6 +30,7 @@ vi.mock('../api', () => ({
         openAttachment: apiSpies.openAttachment,
         openEmailAttachment: apiSpies.openEmailAttachment,
         saveAllAttachments: apiSpies.saveAllAttachments,
+        loadRemoteImages: apiSpies.loadRemoteImages,
     },
 }))
 
@@ -123,6 +125,7 @@ beforeEach(() => {
     apiSpies.saveAttachment.mockReset().mockResolvedValue(undefined)
     apiSpies.openAttachment.mockReset().mockResolvedValue(undefined)
     apiSpies.saveAllAttachments.mockReset().mockResolvedValue(undefined)
+    apiSpies.loadRemoteImages.mockReset().mockResolvedValue('')
     apiSpies.openEmailAttachment.mockReset().mockResolvedValue({
         subject: 'Nested subject', from: 'x@y.com', to: 'me@z.com', date: '', html: '<p>eml body</p>', plain: '',
     })
@@ -364,34 +367,37 @@ describe('Reader: message body', () => {
         expect(screen.getByText('Loading message…')).toBeInTheDocument()
     })
 
-    it('blocks remote images until asked, then reveals them', async () => {
+    it('blocks remote images until asked, then loads them through the server-side proxy', async () => {
         const user = userEvent.setup()
-        const {container} = renderReader({
-            body: makeBody({html: '<img data-pp-src="https://x.test/i.png" alt="pic">shown'}),
-        })
+        apiSpies.loadRemoteImages.mockResolvedValue('<img src="data:image/png;base64,AAAA" alt="pic">shown')
+        const rawHtml = '<img data-pp-src="https://x.test/i.png" alt="pic">shown'
+        const {container} = renderReader({body: makeBody({html: rawHtml})})
         const srcdoc = () => (container.querySelector('iframe.reader-html-frame') as HTMLIFrameElement).getAttribute('srcdoc') ?? ''
         expect(screen.getByText('Remote images were not loaded to protect your privacy.')).toBeInTheDocument()
-        // While blocked the remote source stays parked and the frame's CSP forbids remote images.
+        // While blocked the remote source stays parked, the proxy is not called and the CSP forbids remote images.
         expect(srcdoc()).toContain('data-pp-src="https://x.test/i.png"')
         expect(srcdoc()).toContain('img-src data:;')
+        expect(apiSpies.loadRemoteImages).not.toHaveBeenCalled()
         await user.click(screen.getByRole('button', {name: 'Load images'}))
         expect(screen.queryByRole('button', {name: 'Load images'})).toBeNull()
-        // Once shown the source is unparked and the CSP admits remote images.
+        // The proxy resolves the parked body; its inlined-data: result is what the frame then renders.
+        expect(apiSpies.loadRemoteImages).toHaveBeenCalledWith(rawHtml)
+        await waitFor(() => expect(srcdoc()).toContain('data:image/png;base64,AAAA'))
         expect(srcdoc()).not.toContain('data-pp-src=')
-        expect(srcdoc()).toContain('img-src data: https: http:')
+        // The CSP never widens to remote images; it always permits only data:.
+        expect(srcdoc()).not.toContain('https:')
     })
 
-    it('loads remote images at once when auto-load is on, with no Load images bar', () => {
-        const {container} = renderReader({
-            autoLoadImages: true,
-            body: makeBody({html: '<img data-pp-src="https://x.test/i.png" alt="pic">shown'}),
-        })
-        const srcdoc = (container.querySelector('iframe.reader-html-frame') as HTMLIFrameElement).getAttribute('srcdoc') ?? ''
-        // The images are shown from the start, so there is no blocked-images bar, the source is unparked and
-        // the frame's CSP admits remote images.
+    it('loads remote images at once through the proxy when auto-load is on, with no Load images bar', async () => {
+        apiSpies.loadRemoteImages.mockResolvedValue('<img src="data:image/png;base64,BBBB" alt="pic">shown')
+        const rawHtml = '<img data-pp-src="https://x.test/i.png" alt="pic">shown'
+        const {container} = renderReader({autoLoadImages: true, body: makeBody({html: rawHtml})})
+        const srcdoc = () => (container.querySelector('iframe.reader-html-frame') as HTMLIFrameElement).getAttribute('srcdoc') ?? ''
+        // The images are shown from the start, so there is no blocked-images bar and the proxy resolves at once.
         expect(screen.queryByText('Remote images were not loaded to protect your privacy.')).toBeNull()
-        expect(srcdoc).not.toContain('data-pp-src=')
-        expect(srcdoc).toContain('img-src data: https: http:')
+        expect(apiSpies.loadRemoteImages).toHaveBeenCalledWith(rawHtml)
+        await waitFor(() => expect(srcdoc()).toContain('data:image/png;base64,BBBB'))
+        expect(srcdoc()).not.toContain('data-pp-src=')
     })
 
     it('opens a link in the body through the external browser', () => {

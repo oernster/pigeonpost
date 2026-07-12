@@ -9,6 +9,7 @@ import {isOutboxMessage} from '../outbox'
 import {ReaderTabs} from './ReaderTabs'
 import {InviteCard} from './InviteCard'
 import {formatAddressList, readableInk} from '../readerFormat'
+import {useRemoteImages} from '../hooks/useRemoteImages'
 
 // The reader body is a scrollable focus stop: the arrow keys scroll it so a long email can be read from
 // the keyboard. READER_SCROLL_STEP_PX is one arrow press; PageUp/PageDown move by READER_PAGE_FRACTION of
@@ -67,6 +68,13 @@ export function Reader({message, onToggleRead, onReply, onReplyAll, onForward, o
     // backButtonRef is the Back button; the reader's neutral sink hands the first Tab to it on a mouse open.
     const backButtonRef = useRef<HTMLButtonElement>(null)
 
+    // The raw (image-parked) body and its on-demand image resolution. useRemoteImages returns the HTML to
+    // render (the proxy-resolved, image-inlined body once images are shown and ready, else the parked body),
+    // whether that resolve is in flight and whether the body has any blocked remote image. It is called
+    // before the no-message guard so its hooks run unconditionally on every render.
+    const rawHtml = body?.html ?? ''
+    const {renderedHtml, loadingImages, hasBlockedImages} = useRemoteImages(rawHtml, imagesShown)
+
     const tabStrip = tabs.length > 0
         ? <ReaderTabs tabs={tabs} activeMessageId={message?.id ?? ''} onSelectTab={onSelectTab} onCloseTab={onCloseTab}/>
         : null
@@ -92,12 +100,6 @@ export function Reader({message, onToggleRead, onReply, onReplyAll, onForward, o
         ? `${message.fromName} <${message.fromAddress}>`
         : message.fromAddress || '(unknown sender)'
     const recipients = message.to.map((a) => a.address).filter(Boolean).join(', ')
-
-    // Remote images are parked in data-pp-src at fetch time so they do not load automatically. When the
-    // reader asks to load them, restore the src; the block resets when the message changes.
-    const rawHtml = body?.html ?? ''
-    const hasBlockedImages = rawHtml.includes('data-pp-src=')
-    const renderedHtml = imagesShown ? rawHtml.replace(/data-pp-src=/g, 'src=') : rawHtml
 
     return (
         <section className={'pane reader' + (onBack ? ' reader-scoped' : '')}>
@@ -233,9 +235,13 @@ export function Reader({message, onToggleRead, onReply, onReplyAll, onForward, o
                                 <button className="btn" onClick={() => setImagesShown(true)}>Load images</button>
                             </div>
                         )}
+                        {hasBlockedImages && imagesShown && loadingImages && (
+                            <div className="images-blocked-bar">
+                                <span>Loading images…</span>
+                            </div>
+                        )}
                         <EmailHtmlFrame
                             html={renderedHtml}
-                            imagesShown={imagesShown}
                             dark={dark}
                             onOpenLink={openLinkExternally}
                         />

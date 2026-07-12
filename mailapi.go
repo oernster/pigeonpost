@@ -1,8 +1,9 @@
 package main
 
-// Reading-list facade: the Wails-exposed methods that read a folder's cached messages for the desktop
-// list (flat, paged, threaded and searched). Kept apart from app.go so the composition root stays within
-// the module-size limit, mirroring calendarapi.go and contactsapi.go.
+// Reading facade: the Wails-exposed methods that read a folder's cached messages for the desktop list
+// (flat, paged, threaded and searched) and load an open message's blocked remote images. Kept apart from
+// app.go so the composition root stays within the module-size limit, mirroring calendarapi.go and
+// contactsapi.go.
 
 // ListMessages returns the cached message summaries for a folder.
 func (a *App) ListMessages(folderID string) ([]MessageDTO, error) {
@@ -63,4 +64,12 @@ func (a *App) SearchMessages(query string) ([]MessageDTO, error) {
 		colours = nil
 	}
 	return toMessageDTOs(messages, colours), nil
+}
+
+// LoadRemoteImages returns the open message's HTML with its blocked remote images fetched server-side and
+// inlined as data: URIs, so the reader can display images a browser cannot load cross-origin (a sender's
+// Cross-Origin-Resource-Policy, CORS or hotlink protection). An image that cannot be fetched is left parked,
+// so the returned HTML is always usable.
+func (a *App) LoadRemoteImages(html string) (string, error) {
+	return a.remoteImages.LoadImages(a.ctx, html)
 }

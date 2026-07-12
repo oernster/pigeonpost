@@ -888,3 +888,14 @@ func testMessage(t *testing.T, id, folderID string) domain.MessageSummary {
 	}
 	return msg
 }
+
+// fakeRemoteImageResolver is a hand-written RemoteImageResolver with a scripted result and an error-injection
+// field, so the service's success and error-wrapping paths can both be driven without any real fetching.
+type fakeRemoteImageResolver struct {
+	resolved string
+	err      error
+}
+
+func (f *fakeRemoteImageResolver) Resolve(context.Context, string) (string, error) {
+	return f.resolved, f.err
+}

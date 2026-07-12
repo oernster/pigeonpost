@@ -20,7 +20,7 @@ const apiSpies = vi.hoisted(() => ({
     draftRecovery: vi.fn(), clearDraftRecovery: vi.fn(),
     listRules: vi.fn(), listContacts: vi.fn(), listEvents: vi.fn(),
     unreadCounts: vi.fn(), listTags: vi.fn(), saveTag: vi.fn(),
-    messageTags: vi.fn(), messageBody: vi.fn(), searchMessages: vi.fn(),
+    messageTags: vi.fn(), messageBody: vi.fn(), loadRemoteImages: vi.fn(), searchMessages: vi.fn(),
     setMessageTag: vi.fn(), listMessages: vi.fn(), listMessagesPage: vi.fn(), syncFolder: vi.fn(),
     listFolders: vi.fn(), listOutbox: vi.fn(), cancelOutboxItem: vi.fn(),
     syncAccount: vi.fn(), replayOutbox: vi.fn(), removeAccount: vi.fn(),
