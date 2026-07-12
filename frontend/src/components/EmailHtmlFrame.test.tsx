@@ -78,8 +78,21 @@ describe('EmailHtmlFrame: dark mode', () => {
         // The same filter on media double-inverts it back to its original colours; a plain background-colour
         // is deliberately not matched, so a coloured box keeps its inverted dark fill.
         expect(srcdoc).toContain(
-            'img,picture,video,svg,canvas,[background],[style*="background-image"]{filter:invert(1) hue-rotate(180deg);}',
+            'img,picture,video,svg,canvas,[background]:empty,[style*="background-image"]:empty{filter:invert(1) hue-rotate(180deg);}',
         )
+    })
+
+    it('does not re-invert a content-bearing background container, which would flip its subtree back to light', () => {
+        const {frame} = renderFrame({dark: true})
+        const srcdoc = frame.getAttribute('srcdoc') ?? ''
+        // A filter on a container and one on its descendants compound, so re-inverting a layout cell that
+        // carries a background attribute or image would double-invert its whole subtree back to light (the
+        // Amazon order-email bug) and flip its child images the wrong way. Only :empty background boxes, which
+        // hold no content, are matched, so the bare blanket forms must be absent.
+        expect(srcdoc).toContain('[background]:empty')
+        expect(srcdoc).toContain('[style*="background-image"]:empty')
+        expect(srcdoc).not.toContain('[background],')
+        expect(srcdoc).not.toContain('[style*="background-image"]{')
     })
 })
 

@@ -22,13 +22,20 @@ const baseStyle =
 // darkModeStyle renders the email dark when the app theme is dark. Virtually all HTML email is authored for a
 // light background and never anticipates dark mode, so the only technique that darkens an arbitrary message
 // (rather than only the few that ship a prefers-color-scheme variant) is to invert the whole light-designed
-// document: a white background becomes dark and dark body text becomes light. Images and other media are then
-// re-inverted with the same filter, which double-inverts them back to their true colours, so photos and logos
-// still look right. The 180deg hue-rotate keeps hues recognisable rather than turning them complementary. The
-// media re-invert deliberately matches only real media and inline background-images, never a plain
-// background-colour, so a coloured box keeps its (inverted) dark fill instead of being flipped back to light.
+// document: a white background becomes dark and dark body text becomes light. Real media is then re-inverted
+// with the same filter, which double-inverts it back to its true colours, so photos and logos still look
+// right. The 180deg hue-rotate keeps hues recognisable rather than turning them complementary.
+//
+// The re-invert targets only leaf media: the replaced elements (img, picture, video, svg, canvas) plus a
+// background image on an otherwise-empty box. It must never match a container that holds content. A CSS
+// filter on an element and one on its descendant compound, so re-inverting a content-bearing box (a layout
+// table cell carrying a background attribute or a background-image, as Amazon-style transactional email
+// uses) double-inverts that whole subtree back to light: it defeats dark mode for the block and leaves the
+// descendant images (a product thumbnail, a logo) inverted the wrong way. Restricting the background match
+// to :empty keeps a genuinely decorative background image looking right while never flipping a content
+// wrapper. A plain background-colour is never matched, so a coloured box keeps its inverted dark fill.
 const DARK_INVERT_FILTER = 'invert(1) hue-rotate(180deg)'
-const DARK_MEDIA_SELECTOR = 'img,picture,video,svg,canvas,[background],[style*="background-image"]'
+const DARK_MEDIA_SELECTOR = 'img,picture,video,svg,canvas,[background]:empty,[style*="background-image"]:empty'
 const darkModeStyle =
     `html{filter:${DARK_INVERT_FILTER};}${DARK_MEDIA_SELECTOR}{filter:${DARK_INVERT_FILTER};}`
 
