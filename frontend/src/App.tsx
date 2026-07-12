@@ -29,7 +29,7 @@ import {CloseChoiceDialog} from './components/CloseChoiceDialog'
 import {Splash} from './components/Splash'
 import {emlFilename, escapeHtml} from './messageText'
 import {sendersFor} from './replyDraft'
-import {printDocument, printFrameId} from './print'
+import {printDocument, printFrameId, printFrameStyle, printReadyMarkerId} from './print'
 import {focusRingElements, focusRingRoot} from './focusRing'
 import {useMessageStore} from './hooks/useMessageStore'
 import {rangeIds, toggleId, useSelection} from './hooks/useSelection'
@@ -591,11 +591,11 @@ function App() {
         }
     }, [])
 
-    // printMessage prints one message by rendering it into a hidden iframe and invoking the browser's
-    // print dialog on that frame, so only the message (not the whole app window) is printed. Remote
-    // images, parked in the reader for privacy, are restored for the printed copy. The frame is pinned to a
-    // light colour scheme (it otherwise inherits the app's dark scheme) so an email's own dark-mode CSS does
-    // not render white text that prints blank on white paper once the printer drops backgrounds.
+    // printMessage prints one message by rendering it into a hidden, page-sized iframe parked off-screen and
+    // invoking the browser's print dialog on that frame, so only the message (not the whole app window) is
+    // printed. Remote images, parked in the reader for privacy, are restored for the printed copy. The frame
+    // is given real off-screen dimensions (a zero-size frame prints blank) and is pinned to a light colour
+    // scheme (it otherwise inherits the app's dark scheme) so the message prints as dark text on white paper.
     const printMessage = useCallback(async (message: Message) => {
         try {
             const body = await api.messageBody(message.id)
@@ -609,18 +609,23 @@ function App() {
             const frame = document.createElement('iframe')
             frame.id = printFrameId
             frame.setAttribute('aria-hidden', 'true')
-            frame.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;color-scheme:light'
+            frame.style.cssText = printFrameStyle
             frame.onload = () => {
                 const win = frame.contentWindow
-                if (!win) {
+                // Ignore the empty about:blank document a fresh iframe momentarily holds: print only once the
+                // real print document (which carries the print-ready marker) has loaded, so the dialog never
+                // captures a blank page.
+                if (!win || !frame.contentDocument?.getElementById(printReadyMarkerId)) {
                     return
                 }
                 win.onafterprint = () => frame.remove()
                 win.focus()
                 win.print()
             }
-            document.body.appendChild(frame)
+            // srcdoc is set before the frame is inserted, so its first and only load is the print document
+            // itself (mirroring the reader frame) rather than an about:blank navigation.
             frame.srcdoc = doc
+            document.body.appendChild(frame)
         } catch (e) {
             setError(String(e))
         }
