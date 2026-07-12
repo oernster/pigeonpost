@@ -41,7 +41,7 @@ func TestEventRoundTrip(t *testing.T) {
 	end := start.Add(time.Hour)
 	ev, err := domain.NewEvent(domain.EventInput{
 		ID: "e1", UID: "uid-1", CalendarID: "cal1", Summary: "Standup", Description: "daily",
-		Location: "Room 1", Start: start, End: end, Recurrence: "FREQ=DAILY",
+		Location: "Room 1", Category: "meeting", Start: start, End: end, Recurrence: "FREQ=DAILY",
 	})
 	if err != nil {
 		t.Fatalf("event: %v", err)
@@ -56,6 +56,11 @@ func TestEventRoundTrip(t *testing.T) {
 	if got.UID() != "uid-1" || got.CalendarID() != "cal1" || got.Summary() != "Standup" ||
 		got.Description() != "daily" || got.Location() != "Room 1" || got.Recurrence() != "FREQ=DAILY" {
 		t.Errorf("fields not persisted: %+v", got)
+	}
+	// A category set on an in-app event must survive the store round-trip (schema v38 gave it a column;
+	// before that it was dropped on reload because it rode only in the ICS extra blob, empty here).
+	if got.Category() != "meeting" {
+		t.Errorf("category not persisted: %q", got.Category())
 	}
 	if !got.Start().Equal(start) || !got.End().Equal(end) || !got.HasEnd() {
 		t.Errorf("times not persisted: start=%v end=%v", got.Start(), got.End())

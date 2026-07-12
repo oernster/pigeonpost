@@ -96,6 +96,14 @@ ALTER TABLE tag ADD COLUMN keyword TEXT NOT NULL DEFAULT '';
 UPDATE tag SET keyword = '$PPtag_' || lower(hex(name)) WHERE keyword = '';
 `
 
+// schemaV38 gives events their own category column so a category set on an in-app event survives a
+// reload. Before this the category rode only in the preserved ICS extra blob, which is empty for an
+// event created in the app, so its category was dropped on the next load from the store. Existing rows
+// default to an empty string (no category); an imported event keeps its own via the extra blob.
+const schemaV38 = `
+ALTER TABLE event ADD COLUMN category TEXT NOT NULL DEFAULT '';
+`
+
 // migrations is the ordered list of schema steps. Index i upgrades the database from version i to
 // version i+1, so a fresh database applies them all and an existing one applies only what it lacks.
-var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15, schemaV16, schemaV17, schemaV18, schemaV19, schemaV20, schemaV21, schemaV22, schemaV23, schemaV24, schemaV25, schemaV26, schemaV27, schemaV28, schemaV29, schemaV30, schemaV31, schemaV32, schemaV33, schemaV34, schemaV35, schemaV36, schemaV37}
+var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15, schemaV16, schemaV17, schemaV18, schemaV19, schemaV20, schemaV21, schemaV22, schemaV23, schemaV24, schemaV25, schemaV26, schemaV27, schemaV28, schemaV29, schemaV30, schemaV31, schemaV32, schemaV33, schemaV34, schemaV35, schemaV36, schemaV37, schemaV38}
