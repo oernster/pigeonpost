@@ -231,6 +231,7 @@ func TestParseBodyRemovesHiddenPreheader(t *testing.T) {
 		`<span style="opacity:0 !important">Zero opacity teaser</span>` +
 		`<div style="height:0;overflow:hidden">Zero height preheader</div>` +
 		`<span hidden>Hidden attribute snippet</span>` +
+		`<span style="font-size:0">Zero font leaf teaser</span>` +
 		`<h1 style="opacity:0.9">Visible headline</h1>` +
 		`<p style="line-height:0">Line height kept</p>` +
 		`<p style="font-size:0.9em">Visible body text</p>` + "\r\n"
@@ -240,7 +241,7 @@ func TestParseBodyRemovesHiddenPreheader(t *testing.T) {
 		t.Fatalf("ParseBody: %v", err)
 	}
 	html := parsed.HTML
-	for _, gone := range []string{"Hidden preheader duplicate", "Zero opacity teaser", "Zero height preheader", "Hidden attribute snippet"} {
+	for _, gone := range []string{"Hidden preheader duplicate", "Zero opacity teaser", "Zero height preheader", "Hidden attribute snippet", "Zero font leaf teaser"} {
 		if strings.Contains(html, gone) {
 			t.Errorf("sender-hidden node should be removed, still present %q: %s", gone, html)
 		}
@@ -249,6 +250,31 @@ func TestParseBodyRemovesHiddenPreheader(t *testing.T) {
 	for _, kept := range []string{"Visible headline", "Line height kept", "Visible body text"} {
 		if !strings.Contains(html, kept) {
 			t.Errorf("visible content should survive, missing %q: %s", kept, html)
+		}
+	}
+}
+
+func TestParseBodyKeepsFontSizeZeroLayoutWrapper(t *testing.T) {
+	// Email frameworks such as MJML wrap content cells in font-size:0 to collapse the whitespace between
+	// inline-block columns; the real text inside re-sets its own size. Such a wrapper has element children,
+	// so it must not be mistaken for a hidden preheader or the whole visible body is deleted (the blank
+	// render seen for MJML-built transactional mail such as the Claude sign-in email).
+	raw := "MIME-Version: 1.0\r\n" +
+		"Content-Type: text/html; charset=utf-8\r\n" +
+		"\r\n" +
+		`<div style="font-size:0px;direction:ltr;display:inline-block;width:100%;text-align:left;">` +
+		`<div style="font-family:Helvetica;font-size:32px;color:#0F0F0D;">Let's get you signed in</div>` +
+		`<a href="https://example.com/signin" style="font-size:18px;color:#fff;">Sign in to Claude</a>` +
+		`</div>` + "\r\n"
+
+	parsed, err := ParseBody([]byte(raw))
+	if err != nil {
+		t.Fatalf("ParseBody: %v", err)
+	}
+	// Substrings without the apostrophe, which html.Render escapes to &#39; in the output.
+	for _, kept := range []string{"get you signed in", "Sign in to Claude"} {
+		if !strings.Contains(parsed.HTML, kept) {
+			t.Errorf("font-size:0 layout wrapper content should survive, missing %q: %s", kept, parsed.HTML)
 		}
 	}
 }
