@@ -144,7 +144,13 @@ Read a message body:
    `data:` URI, sidestepping the CORP/CORS rules that would otherwise stop the iframe embedding it by URL.
    The fetch is SSRF-guarded by a `net.Dialer.Control` hook that checks the real post-DNS connect IP and
    rejects private, loopback, link-local and CGNAT addresses, under size, timeout and redirect caps and an
-   image-only content-type check.
+   image-only content-type check. In the dark theme the frame inverts the whole light-designed message with a
+   hue-rotate to darken it, then re-inverts only leaf media (images, logos) and an image on an otherwise-empty
+   box back to true colour, never a content-bearing container with a `background` attribute or background-image:
+   a `filter` on a wrapper and one on its descendants compound, so re-inverting a content wrapper would flip its
+   whole subtree back to light. Re-inverted media also carries a mid-grey hairline (with `box-sizing:
+   border-box` so it does not resize the image), so a genuinely dark image keeps contrast against the now-dark
+   surround instead of reading as a dark block on a dark cell.
 
 Send (also reply, reply-all and forward, which just pre-fill the same compose window before the
 identical send path runs: reply pre-fills the sender; reply-all pre-fills the sender plus the original
