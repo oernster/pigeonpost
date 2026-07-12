@@ -152,6 +152,8 @@ type fakeMailStore struct {
 	saveMessagesErr  error
 	setSeenErr       error
 	setFlaggedErr    error
+	setAnsweredErr   error
+	setForwardedErr  error
 	deleteDataErr    error
 	getMessageErr    error
 	getFolderErr     error
@@ -358,6 +360,20 @@ func (f *fakeMailStore) SetFlagged(_ context.Context, messageID string, flagged 
 	return f.toggleFlag(messageID, domain.FlagFlagged, flagged)
 }
 
+func (f *fakeMailStore) SetAnswered(_ context.Context, messageID string, answered bool) error {
+	if f.setAnsweredErr != nil {
+		return f.setAnsweredErr
+	}
+	return f.toggleFlag(messageID, domain.FlagAnswered, answered)
+}
+
+func (f *fakeMailStore) SetForwarded(_ context.Context, messageID string, forwarded bool) error {
+	if f.setForwardedErr != nil {
+		return f.setForwardedErr
+	}
+	return f.toggleFlag(messageID, domain.FlagForwarded, forwarded)
+}
+
 func (f *fakeMailStore) toggleFlag(messageID string, flag domain.Flag, set bool) error {
 	for folderID, msgs := range f.messages {
 		for i, m := range msgs {
@@ -517,6 +533,8 @@ func (f *fakeMailSource) FetchMessages(_ context.Context, _ domain.Account, fold
 type fakeMailActions struct {
 	setSeenErr        error
 	flaggedErr        error
+	answeredErr       error
+	forwardedErr      error
 	deleteErr         error
 	deleteManyErr     error
 	moveErr           error
@@ -524,6 +542,8 @@ type fakeMailActions struct {
 	copyErr           error
 	seenCalls         []bool
 	flaggedCalls      []bool
+	answeredCalls     []bool
+	forwardedCalls    []bool
 	deleteTrashPaths  []string
 	deleteManyBatches [][]string
 	deleteManyTrash   []string
@@ -563,6 +583,22 @@ func (f *fakeMailActions) SetFlagged(_ context.Context, _ domain.Account, _ doma
 		return f.flaggedErr
 	}
 	f.flaggedCalls = append(f.flaggedCalls, flagged)
+	return nil
+}
+
+func (f *fakeMailActions) SetAnswered(_ context.Context, _ domain.Account, _ domain.Folder, _ string, answered bool) error {
+	if f.answeredErr != nil {
+		return f.answeredErr
+	}
+	f.answeredCalls = append(f.answeredCalls, answered)
+	return nil
+}
+
+func (f *fakeMailActions) SetForwarded(_ context.Context, _ domain.Account, _ domain.Folder, _ string, forwarded bool) error {
+	if f.forwardedErr != nil {
+		return f.forwardedErr
+	}
+	f.forwardedCalls = append(f.forwardedCalls, forwarded)
 	return nil
 }
 

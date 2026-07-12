@@ -18,6 +18,12 @@ func TestLocalOnlyFlagsAreNoOps(t *testing.T) {
 	if err := source.SetFlagged(context.Background(), account, folder, "u1", true); err != nil {
 		t.Errorf("SetFlagged should be a server no-op, got %v", err)
 	}
+	if err := source.SetAnswered(context.Background(), account, folder, "u1", true); err != nil {
+		t.Errorf("SetAnswered should be a server no-op, got %v", err)
+	}
+	if err := source.SetForwarded(context.Background(), account, folder, "u1", true); err != nil {
+		t.Errorf("SetForwarded should be a server no-op, got %v", err)
+	}
 }
 
 func TestMoveAndCopyAreUnsupported(t *testing.T) {

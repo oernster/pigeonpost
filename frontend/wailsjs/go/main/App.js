@@ -190,12 +190,20 @@ export function MarkFlagged(arg1, arg2) {
   return window['go']['main']['App']['MarkFlagged'](arg1, arg2);
 }
 
+export function MarkForwarded(arg1) {
+  return window['go']['main']['App']['MarkForwarded'](arg1);
+}
+
 export function MarkJunk(arg1) {
   return window['go']['main']['App']['MarkJunk'](arg1);
 }
 
 export function MarkRead(arg1, arg2) {
   return window['go']['main']['App']['MarkRead'](arg1, arg2);
+}
+
+export function MarkReplied(arg1) {
+  return window['go']['main']['App']['MarkReplied'](arg1);
 }
 
 export function MessageTags(arg1) {

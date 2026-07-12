@@ -115,28 +115,40 @@ export function useComposeLauncher(deps: ComposeLauncherDeps): ComposeLauncher {
         replyFromAddress(message, sendersFor(accounts.find((a) => a.id === selectedAccount)))
 
     const openReply = (message: Message) => {
-        setComposeInitial(buildReply(message, {
-            from: replyFrom(message),
-            signatureHtml: signatureHtml(),
-            quotedHtml: quoteFor(message, messageBody),
-        }))
+        setComposeInitial({
+            ...buildReply(message, {
+                from: replyFrom(message),
+                signatureHtml: signatureHtml(),
+                quotedHtml: quoteFor(message, messageBody),
+            }),
+            inReplyToId: message.id,
+            replyKind: 'reply',
+        })
         setComposing(true)
     }
 
     const openReplyAll = (message: Message) => {
-        setComposeInitial(buildReplyAll(message, selectedAccount, {
-            from: replyFrom(message),
-            signatureHtml: signatureHtml(),
-            quotedHtml: quoteFor(message, messageBody),
-        }))
+        setComposeInitial({
+            ...buildReplyAll(message, selectedAccount, {
+                from: replyFrom(message),
+                signatureHtml: signatureHtml(),
+                quotedHtml: quoteFor(message, messageBody),
+            }),
+            inReplyToId: message.id,
+            replyKind: 'reply',
+        })
         setComposing(true)
     }
 
     const openForward = (message: Message) => {
-        setComposeInitial(buildForward(message, {
-            signatureHtml: signatureHtml(),
-            quotedHtml: quoteFor(message, messageBody),
-        }))
+        setComposeInitial({
+            ...buildForward(message, {
+                signatureHtml: signatureHtml(),
+                quotedHtml: quoteFor(message, messageBody),
+            }),
+            inReplyToId: message.id,
+            replyKind: 'forward',
+        })
         setComposing(true)
     }
 

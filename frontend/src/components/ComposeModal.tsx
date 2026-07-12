@@ -32,6 +32,11 @@ export interface ComposeInitial {
     // attachmentPaths pre-attaches files by path, used when the Attach button picks files before opening a
     // fresh compose so the chosen files are already attached.
     attachmentPaths?: string[]
+    // inReplyToId and replyKind mark this compose as a reply or forward of an existing message, so once it is
+    // sent the original can be flagged \Answered (reply / reply-all) or $Forwarded (forward). Both are unset
+    // for a fresh compose, a restored draft or an attach-to-new-message.
+    inReplyToId?: string
+    replyKind?: 'reply' | 'forward'
 }
 
 // Sender is one address the account may send from, offered in the From dropdown.
@@ -150,12 +155,27 @@ export function ComposeModal({accountId, senders, initial, canSaveDraft, onClose
         setAttachments((prev) => prev.filter((p) => p !== path))
     }
 
+    // markOriginalOnSend records a sent reply or forward on its original message so the row shows the
+    // replied/forwarded indicator (a server flag plus the local cache). It is best-effort and fire-and-forget:
+    // it never blocks or fails the send, so composing offline just leaves the indicator for the next sync.
+    const markOriginalOnSend = () => {
+        if (!initial?.inReplyToId) {
+            return
+        }
+        if (initial.replyKind === 'reply') {
+            void api.markReplied(initial.inReplyToId)
+        } else if (initial.replyKind === 'forward') {
+            void api.markForwarded(initial.inReplyToId)
+        }
+    }
+
     const send = async () => {
         autosave.stopAutosave()
         setSending(true)
         setError('')
         try {
             await api.send(buildRequest())
+            markOriginalOnSend()
             void api.clearDraftRecovery()
             onClose()
         } catch (e) {

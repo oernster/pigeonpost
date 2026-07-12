@@ -44,6 +44,8 @@ type MailStore interface {
 	SaveMessages(ctx context.Context, folderID string, messages []domain.MessageSummary) error
 	SetSeen(ctx context.Context, messageID string, seen bool) error
 	SetFlagged(ctx context.Context, messageID string, flagged bool) error
+	SetAnswered(ctx context.Context, messageID string, answered bool) error
+	SetForwarded(ctx context.Context, messageID string, forwarded bool) error
 	DeleteAccountData(ctx context.Context, accountID string) error
 	GetMessage(ctx context.Context, messageID string) (domain.MessageSummary, error)
 	GetFolder(ctx context.Context, folderID string) (domain.Folder, error)
@@ -85,6 +87,10 @@ type MailSource interface {
 type MailActions interface {
 	SetSeen(ctx context.Context, account domain.Account, folder domain.Folder, uid string, seen bool) error
 	SetFlagged(ctx context.Context, account domain.Account, folder domain.Folder, uid string, flagged bool) error
+	// SetAnswered marks a message replied-to (\Answered) on the server; SetForwarded marks it forwarded
+	// ($Forwarded keyword). Both are set after the corresponding message is sent.
+	SetAnswered(ctx context.Context, account domain.Account, folder domain.Folder, uid string, answered bool) error
+	SetForwarded(ctx context.Context, account domain.Account, folder domain.Folder, uid string, forwarded bool) error
 	// Delete removes a message by its opaque handle. A non-empty trashPath moves it to that mailbox; an
 	// empty trashPath deletes it permanently (mark \Deleted and expunge).
 	Delete(ctx context.Context, account domain.Account, folder domain.Folder, uid string, trashPath string) error

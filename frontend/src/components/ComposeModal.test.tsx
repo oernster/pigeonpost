@@ -16,6 +16,8 @@ const apiSpies = vi.hoisted(() => ({
     clearDraftRecovery: vi.fn(),
     saveDraftRecovery: vi.fn(),
     pickAttachments: vi.fn(),
+    markReplied: vi.fn(),
+    markForwarded: vi.fn(),
 }))
 
 vi.mock('../api', () => ({
@@ -25,6 +27,8 @@ vi.mock('../api', () => ({
         clearDraftRecovery: apiSpies.clearDraftRecovery,
         saveDraftRecovery: apiSpies.saveDraftRecovery,
         pickAttachments: apiSpies.pickAttachments,
+        markReplied: apiSpies.markReplied,
+        markForwarded: apiSpies.markForwarded,
     },
 }))
 
@@ -73,6 +77,8 @@ beforeEach(() => {
     apiSpies.clearDraftRecovery.mockReset().mockResolvedValue(undefined)
     apiSpies.saveDraftRecovery.mockReset().mockResolvedValue(undefined)
     apiSpies.pickAttachments.mockReset().mockResolvedValue([])
+    apiSpies.markReplied.mockReset().mockResolvedValue(undefined)
+    apiSpies.markForwarded.mockReset().mockResolvedValue(undefined)
 })
 
 afterEach(() => cleanup())
@@ -115,6 +121,30 @@ describe('ComposeModal: send', () => {
             accountId: 'acc1', from: 'me@x.com', to: ['x@y.com'], subject: 'Hi',
         }))
         expect(apiSpies.clearDraftRecovery).toHaveBeenCalled()
+    })
+
+    it('marks the original replied after sending a reply', async () => {
+        const {onClose} = renderCompose({initial: {to: 'x@y.com', inReplyToId: 'orig1', replyKind: 'reply'}})
+        fireEvent.click(screen.getByRole('button', {name: 'Send'}))
+        await waitFor(() => expect(onClose).toHaveBeenCalled())
+        expect(apiSpies.markReplied).toHaveBeenCalledWith('orig1')
+        expect(apiSpies.markForwarded).not.toHaveBeenCalled()
+    })
+
+    it('marks the original forwarded after sending a forward', async () => {
+        const {onClose} = renderCompose({initial: {to: 'x@y.com', inReplyToId: 'orig2', replyKind: 'forward'}})
+        fireEvent.click(screen.getByRole('button', {name: 'Send'}))
+        await waitFor(() => expect(onClose).toHaveBeenCalled())
+        expect(apiSpies.markForwarded).toHaveBeenCalledWith('orig2')
+        expect(apiSpies.markReplied).not.toHaveBeenCalled()
+    })
+
+    it('marks nothing after sending a fresh compose', async () => {
+        const {onClose} = renderCompose({initial: {to: 'x@y.com'}})
+        fireEvent.click(screen.getByRole('button', {name: 'Send'}))
+        await waitFor(() => expect(onClose).toHaveBeenCalled())
+        expect(apiSpies.markReplied).not.toHaveBeenCalled()
+        expect(apiSpies.markForwarded).not.toHaveBeenCalled()
     })
 
     it('keeps Send disabled until there is a recipient', () => {

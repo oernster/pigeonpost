@@ -36,6 +36,40 @@ func TestFlags(t *testing.T) {
 	if !f.IsSeen() {
 		t.Error("Without must not mutate the original")
 	}
+
+	forwarded := f.With(FlagForwarded)
+	if !forwarded.Has(FlagForwarded) {
+		t.Error("With should set Forwarded")
+	}
+	if f.Has(FlagForwarded) {
+		t.Error("With must not mutate the original for Forwarded")
+	}
+}
+
+func TestMessageSummaryFlagAccessors(t *testing.T) {
+	both, err := NewMessageSummary(MessageSummaryInput{
+		ID: "m1", FolderID: "inbox", UID: "1", Flags: NewFlags(FlagAnswered | FlagForwarded),
+	})
+	if err != nil {
+		t.Fatalf("NewMessageSummary: %v", err)
+	}
+	if !both.IsAnswered() {
+		t.Error("IsAnswered should be true when \\Answered is set")
+	}
+	if !both.IsForwarded() {
+		t.Error("IsForwarded should be true when $Forwarded is set")
+	}
+	if both.IsFlagged() {
+		t.Error("IsFlagged should be false when only answered and forwarded are set")
+	}
+
+	plain, err := NewMessageSummary(MessageSummaryInput{ID: "m2", FolderID: "inbox", UID: "2", Flags: NewFlags(FlagSeen)})
+	if err != nil {
+		t.Fatalf("NewMessageSummary: %v", err)
+	}
+	if plain.IsAnswered() || plain.IsForwarded() {
+		t.Error("a seen-only message must be neither answered nor forwarded")
+	}
 }
 
 func TestNewTag(t *testing.T) {

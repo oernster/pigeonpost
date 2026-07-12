@@ -96,9 +96,13 @@ export function LoadRemoteImages(arg1:string):Promise<string>;
 
 export function MarkFlagged(arg1:string,arg2:boolean):Promise<void>;
 
+export function MarkForwarded(arg1:string):Promise<void>;
+
 export function MarkJunk(arg1:string):Promise<void>;
 
 export function MarkRead(arg1:string,arg2:boolean):Promise<void>;
+
+export function MarkReplied(arg1:string):Promise<void>;
 
 export function MessageTags(arg1:string):Promise<Array<main.TagDTO>>;
 

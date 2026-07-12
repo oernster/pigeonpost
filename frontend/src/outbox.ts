@@ -33,6 +33,9 @@ export function outboxItemToMessage(item: OutboxItem): Message {
         read: true,
         flagged: false,
         hasAttachments: false,
+        // A queued outgoing message is never itself replied-to or forwarded.
+        answered: false,
+        forwarded: false,
         snippet,
         tagColours: [],
     }

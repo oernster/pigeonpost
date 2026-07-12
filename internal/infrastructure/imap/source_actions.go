@@ -10,9 +10,10 @@ import (
 	"github.com/oernster/pigeonpost/internal/infrastructure/message"
 )
 
-// SetSeen sets or clears the \Seen flag for one message by UID on the server. It satisfies
-// application.MailActions. The mailbox is selected read-write so the STORE is permitted.
-func (s *Source) SetSeen(ctx context.Context, account domain.Account, folder domain.Folder, uid string, seen bool) error {
+// storeFlag adds or removes a single IMAP flag for one message by UID on the server. It is the shared body of
+// the per-flag setters (SetSeen / SetFlagged / SetAnswered / SetForwarded); the mailbox is selected read-write
+// so the STORE is permitted.
+func (s *Source) storeFlag(ctx context.Context, account domain.Account, folder domain.Folder, uid string, flag imap.Flag, set bool) error {
 	client, err := s.connect(ctx, account)
 	if err != nil {
 		return err
@@ -30,44 +31,37 @@ func (s *Source) SetSeen(ctx context.Context, account domain.Account, folder dom
 	uidSet := imap.UIDSet{}
 	uidSet.AddNum(u)
 	op := imap.StoreFlagsDel
-	if seen {
+	if set {
 		op = imap.StoreFlagsAdd
 	}
-	store := &imap.StoreFlags{Op: op, Silent: true, Flags: []imap.Flag{imap.FlagSeen}}
+	store := &imap.StoreFlags{Op: op, Silent: true, Flags: []imap.Flag{flag}}
 	if err := client.Store(uidSet, store, nil).Close(); err != nil {
-		return fmt.Errorf("imap: store \\Seen uid %q: %w", uid, err)
+		return fmt.Errorf("imap: store %s uid %q: %w", flag, uid, err)
 	}
 	return nil
 }
 
-// SetFlagged sets or clears the \Flagged flag for one message by UID on the server. It satisfies
-// application.MailActions.
+// SetSeen sets or clears the \Seen flag for one message by UID on the server. It satisfies application.MailActions.
+func (s *Source) SetSeen(ctx context.Context, account domain.Account, folder domain.Folder, uid string, seen bool) error {
+	return s.storeFlag(ctx, account, folder, uid, imap.FlagSeen, seen)
+}
+
+// SetFlagged sets or clears the \Flagged flag for one message by UID on the server. It satisfies application.MailActions.
 func (s *Source) SetFlagged(ctx context.Context, account domain.Account, folder domain.Folder, uid string, flagged bool) error {
-	client, err := s.connect(ctx, account)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = client.Logout().Wait() }()
+	return s.storeFlag(ctx, account, folder, uid, imap.FlagFlagged, flagged)
+}
 
-	if _, err := client.Select(folder.Path(), nil).Wait(); err != nil {
-		return fmt.Errorf("imap: select %q: %w", folder.Path(), err)
-	}
+// SetAnswered sets or clears the \Answered flag for one message by UID on the server, marking it replied-to. It
+// satisfies application.MailActions.
+func (s *Source) SetAnswered(ctx context.Context, account domain.Account, folder domain.Folder, uid string, answered bool) error {
+	return s.storeFlag(ctx, account, folder, uid, imap.FlagAnswered, answered)
+}
 
-	u, err := parseUID(uid)
-	if err != nil {
-		return err
-	}
-	uidSet := imap.UIDSet{}
-	uidSet.AddNum(u)
-	op := imap.StoreFlagsDel
-	if flagged {
-		op = imap.StoreFlagsAdd
-	}
-	store := &imap.StoreFlags{Op: op, Silent: true, Flags: []imap.Flag{imap.FlagFlagged}}
-	if err := client.Store(uidSet, store, nil).Close(); err != nil {
-		return fmt.Errorf("imap: store \\Flagged uid %q: %w", uid, err)
-	}
-	return nil
+// SetForwarded sets or clears the $Forwarded keyword for one message by UID on the server, marking it forwarded.
+// It satisfies application.MailActions. A server keeps the keyword only where it advertises \* in PERMANENTFLAGS;
+// elsewhere the STORE is accepted and the mark simply does not persist across a resync.
+func (s *Source) SetForwarded(ctx context.Context, account domain.Account, folder domain.Folder, uid string, forwarded bool) error {
+	return s.storeFlag(ctx, account, folder, uid, imap.FlagForwarded, forwarded)
 }
 
 // Delete removes a message by UID: it moves it to trashPath when that is set, otherwise marks it

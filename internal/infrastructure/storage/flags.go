@@ -19,6 +19,17 @@ func (s *Store) SetFlagged(ctx context.Context, messageID string, flagged bool) 
 	return s.setFlag(ctx, messageID, domain.FlagFlagged, flagged)
 }
 
+// SetAnswered sets or clears the Answered flag on a cached message, driving the replied indicator so the row
+// shows it at once without waiting for a resync.
+func (s *Store) SetAnswered(ctx context.Context, messageID string, answered bool) error {
+	return s.setFlag(ctx, messageID, domain.FlagAnswered, answered)
+}
+
+// SetForwarded sets or clears the Forwarded flag on a cached message, driving the forwarded indicator.
+func (s *Store) SetForwarded(ctx context.Context, messageID string, forwarded bool) error {
+	return s.setFlag(ctx, messageID, domain.FlagForwarded, forwarded)
+}
+
 // setFlag reads a cached message's flag bitmask, toggles one flag and writes it back, in a transaction.
 func (s *Store) setFlag(ctx context.Context, messageID string, flag domain.Flag, set bool) error {
 	return s.inTx(ctx, func(tx *sql.Tx) error {

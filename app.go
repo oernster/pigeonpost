@@ -277,6 +277,18 @@ func (a *App) MarkFlagged(messageID string, flagged bool) error {
 	return a.actions.MarkFlagged(a.ctx, messageID, flagged)
 }
 
+// MarkReplied records that a message has been replied to, setting \Answered on the server and in the local
+// cache. The front end calls it after a reply is sent, so the original row shows the replied indicator.
+func (a *App) MarkReplied(messageID string) error {
+	return a.actions.MarkAnswered(a.ctx, messageID, true)
+}
+
+// MarkForwarded records that a message has been forwarded, setting the $Forwarded keyword on the server and in
+// the local cache. The front end calls it after a forward is sent.
+func (a *App) MarkForwarded(messageID string) error {
+	return a.actions.MarkForwarded(a.ctx, messageID, true)
+}
+
 // DeleteMessage removes a message: it is moved to Trash where one exists, otherwise deleted
 // permanently. The local cache is updated to match.
 func (a *App) DeleteMessage(messageID string) error {

@@ -165,8 +165,8 @@ func TestBuildFoldersNameFallback(t *testing.T) {
 }
 
 func TestMapFlags(t *testing.T) {
-	flags := mapFlags([]imap.Flag{imap.FlagSeen, imap.FlagFlagged, imap.FlagAnswered, imap.FlagDraft, imap.FlagDeleted, imap.FlagJunk})
-	for _, want := range []domain.Flag{domain.FlagSeen, domain.FlagFlagged, domain.FlagAnswered, domain.FlagDraft, domain.FlagDeleted} {
+	flags := mapFlags([]imap.Flag{imap.FlagSeen, imap.FlagFlagged, imap.FlagAnswered, imap.FlagDraft, imap.FlagDeleted, imap.FlagForwarded, imap.FlagJunk})
+	for _, want := range []domain.Flag{domain.FlagSeen, domain.FlagFlagged, domain.FlagAnswered, domain.FlagDraft, domain.FlagDeleted, domain.FlagForwarded} {
 		if !flags.Has(want) {
 			t.Errorf("expected flag %d set", want)
 		}

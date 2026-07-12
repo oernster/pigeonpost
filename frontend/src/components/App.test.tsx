@@ -79,7 +79,7 @@ function makeMessage(overrides: Partial<Message> = {}): Message {
         fromName: 'Alice Example', fromAddress: 'alice@example.com',
         to: [{name: 'Me', address: 'me@example.com'}], cc: [],
         date: '2026-07-11T10:00:00.000Z', size: 1024, read: false, flagged: false,
-        hasAttachments: false, snippet: 'A short snippet', tagColours: [],
+        hasAttachments: false, answered: false, forwarded: false, snippet: 'A short snippet', tagColours: [],
         ...overrides,
     } as Message
 }
@@ -371,6 +371,28 @@ describe('App: single-message actions', () => {
         // The row star toggles the flag without selecting the message.
         fireEvent.click(screen.getByRole('button', {name: 'Add star'}))
         await waitFor(() => expect(apiSpies.markFlagged).toHaveBeenCalledWith('m1', true))
+    })
+
+    it('shows the replied and forwarded glyphs on a message that has been answered or forwarded', async () => {
+        apiSpies.listAccounts.mockResolvedValue([makeAccount()])
+        apiSpies.listFolders.mockResolvedValue([makeFolder('inbox', 'Inbox', 'inbox')])
+        apiSpies.listMessages.mockResolvedValue([makeMessage({subject: 'Weekly report', answered: true, forwarded: true})])
+        const {container} = render(<App/>)
+        await screen.findByText('Weekly report')
+        const row = container.querySelector('[data-mid="m1"]') as HTMLElement
+        expect(row.querySelector('.replied')).not.toBeNull()
+        expect(row.querySelector('.forwarded')).not.toBeNull()
+    })
+
+    it('shows no replied or forwarded glyph on a plain message', async () => {
+        apiSpies.listAccounts.mockResolvedValue([makeAccount()])
+        apiSpies.listFolders.mockResolvedValue([makeFolder('inbox', 'Inbox', 'inbox')])
+        apiSpies.listMessages.mockResolvedValue([makeMessage({subject: 'Weekly report'})])
+        const {container} = render(<App/>)
+        await screen.findByText('Weekly report')
+        const row = container.querySelector('[data-mid="m1"]') as HTMLElement
+        expect(row.querySelector('.replied')).toBeNull()
+        expect(row.querySelector('.forwarded')).toBeNull()
     })
 
     it('moves a message via the Mail menu Move to submenu (moveMessage)', async () => {

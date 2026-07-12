@@ -18,8 +18,10 @@ import {
     ListTags,
     LoadRemoteImages,
     MarkFlagged,
+    MarkForwarded,
     MarkJunk,
     MarkRead,
+    MarkReplied,
     MessageTags,
     MinimiseToTray,
     RequestQuit,
@@ -378,6 +380,11 @@ export const api = {
     syncFolder: (folderId: string): Promise<void> => SyncFolder(folderId),
     markRead: (messageId: string, read: boolean): Promise<void> => MarkRead(messageId, read),
     markFlagged: (messageId: string, flagged: boolean): Promise<void> => MarkFlagged(messageId, flagged),
+    // markReplied / markForwarded record that a message has been replied to (\Answered) or forwarded
+    // ($Forwarded) on the server and in the local cache, so its row shows the indicator. The composer calls
+    // them after a successful reply / forward.
+    markReplied: (messageId: string): Promise<void> => MarkReplied(messageId),
+    markForwarded: (messageId: string): Promise<void> => MarkForwarded(messageId),
     deleteMessage: (messageId: string): Promise<void> => DeleteMessage(messageId),
     deleteMessagePermanent: (messageId: string): Promise<void> => DeleteMessagePermanent(messageId),
     // deleteMessages / deleteMessagesPermanent / moveMessages act on the whole selection in one batched

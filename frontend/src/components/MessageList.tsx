@@ -8,6 +8,12 @@ import {ConversationHead} from '../threads'
 // expands the dragged id to the full selection, so a single id on the drag is enough.
 export const messageDragType = 'application/x-pigeonpost-message'
 
+// REPLIED_GLYPH and FORWARDED_GLYPH are the small arrows shown at the top-left of a row once the message has
+// been replied to (\Answered) or forwarded ($Forwarded). The FE0E text-presentation selector keeps them as
+// flat monochrome glyphs matching the dimmed attachment clip rather than a colourful emoji on some platforms.
+const REPLIED_GLYPH = '\u{21A9}\u{FE0E}'
+const FORWARDED_GLYPH = '\u{21AA}\u{FE0E}'
+
 // The list is virtualized: only the rows on screen are in the DOM, so a folder of tens of thousands of
 // messages renders without freezing. These size hints seed the scrollbar before a row's real height is
 // measured (a message row is one to three lines; a conversation header is a single line) and OVERSCAN
@@ -249,6 +255,12 @@ export function MessageList(props: MessageListProps) {
                 }}
             >
                 <div className="message-row-top">
+                    {message.answered && (
+                        <span className="replied" title="Replied" aria-label="Replied">{REPLIED_GLYPH}</span>
+                    )}
+                    {message.forwarded && (
+                        <span className="forwarded" title="Forwarded" aria-label="Forwarded">{FORWARDED_GLYPH}</span>
+                    )}
                     <button
                         className={'message-star' + (message.flagged ? ' on' : '')}
                         aria-label={message.flagged ? 'Remove star' : 'Add star'}

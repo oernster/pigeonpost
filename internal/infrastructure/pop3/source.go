@@ -165,6 +165,16 @@ func (s *Source) SetFlagged(context.Context, domain.Account, domain.Folder, stri
 	return nil
 }
 
+// SetAnswered is a no-op on the server, for the same reason as SetSeen: POP3 has no server-side flags.
+func (s *Source) SetAnswered(context.Context, domain.Account, domain.Folder, string, bool) error {
+	return nil
+}
+
+// SetForwarded is a no-op on the server, for the same reason as SetSeen: POP3 has no server-side flags.
+func (s *Source) SetForwarded(context.Context, domain.Account, domain.Folder, string, bool) error {
+	return nil
+}
+
 // Delete permanently removes a message from the server with DELE, committed when the session quits.
 // POP3 has no Trash mailbox, so trashPath is ignored and every delete is permanent; leaving the
 // message on the server would only re-download it on the next sync.

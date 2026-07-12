@@ -78,7 +78,11 @@ type MessageDTO struct {
 	Read           bool         `json:"read"`
 	Flagged        bool         `json:"flagged"`
 	HasAttachments bool         `json:"hasAttachments"`
-	Snippet        string       `json:"snippet"`
+	// Answered is set once the message has been replied to (\Answered); Forwarded once it has been forwarded
+	// ($Forwarded keyword). They drive the small replied/forwarded glyphs on the row.
+	Answered  bool   `json:"answered"`
+	Forwarded bool   `json:"forwarded"`
+	Snippet   string `json:"snippet"`
 	// TagColours are the hex colours of the tags on this message, for the coloured dots shown on the row.
 	TagColours []string `json:"tagColours"`
 }
@@ -217,6 +221,8 @@ func toMessageDTO(m domain.MessageSummary, tagColours []string) MessageDTO {
 		Read:           m.IsRead(),
 		Flagged:        m.IsFlagged(),
 		HasAttachments: m.HasAttachments(),
+		Answered:       m.IsAnswered(),
+		Forwarded:      m.IsForwarded(),
 		Snippet:        m.Snippet(),
 		TagColours:     tagColours,
 	}

@@ -53,6 +53,8 @@ function makeMessage(overrides: Partial<Message> = {}): Message {
         read: false,
         flagged: false,
         hasAttachments: false,
+        answered: false,
+        forwarded: false,
         snippet: 'A short snippet',
         tagColours: [],
         ...overrides,

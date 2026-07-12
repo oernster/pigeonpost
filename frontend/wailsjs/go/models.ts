@@ -886,6 +886,8 @@ export namespace main {
 	    read: boolean;
 	    flagged: boolean;
 	    hasAttachments: boolean;
+	    answered: boolean;
+	    forwarded: boolean;
 	    snippet: string;
 	    tagColours: string[];
 	
@@ -907,6 +909,8 @@ export namespace main {
 	        this.read = source["read"];
 	        this.flagged = source["flagged"];
 	        this.hasAttachments = source["hasAttachments"];
+	        this.answered = source["answered"];
+	        this.forwarded = source["forwarded"];
 	        this.snippet = source["snippet"];
 	        this.tagColours = source["tagColours"];
 	    }

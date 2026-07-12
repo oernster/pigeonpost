@@ -481,6 +481,65 @@ func TestSetSeen(t *testing.T) {
 	}
 }
 
+func TestSetAnswered(t *testing.T) {
+	store := openTestStore(t)
+	ctx := context.Background()
+	msg := buildMessage(t, "m1", time.Date(2026, time.July, 1, 0, 0, 0, 0, time.UTC), true)
+	if err := store.SaveMessages(ctx, "f1", []domain.MessageSummary{msg}); err != nil {
+		t.Fatalf("save: %v", err)
+	}
+
+	if err := store.SetAnswered(ctx, "m1", true); err != nil {
+		t.Fatalf("set answered: %v", err)
+	}
+	msgs, _ := store.ListMessages(ctx, "f1")
+	if !msgs[0].IsAnswered() {
+		t.Error("expected answered after setting it")
+	}
+	if !msgs[0].IsRead() {
+		t.Error("setting answered must not disturb the seen flag")
+	}
+
+	if err := store.SetAnswered(ctx, "m1", false); err != nil {
+		t.Fatalf("clear answered: %v", err)
+	}
+	msgs, _ = store.ListMessages(ctx, "f1")
+	if msgs[0].IsAnswered() {
+		t.Error("expected not answered after clearing it")
+	}
+
+	if err := store.SetAnswered(ctx, "missing", true); err == nil {
+		t.Error("expected error for a missing message")
+	}
+}
+
+func TestSetForwarded(t *testing.T) {
+	store := openTestStore(t)
+	ctx := context.Background()
+	msg := buildMessage(t, "m1", time.Date(2026, time.July, 1, 0, 0, 0, 0, time.UTC), true)
+	if err := store.SaveMessages(ctx, "f1", []domain.MessageSummary{msg}); err != nil {
+		t.Fatalf("save: %v", err)
+	}
+
+	if err := store.SetForwarded(ctx, "m1", true); err != nil {
+		t.Fatalf("set forwarded: %v", err)
+	}
+	// The forwarded bit is new; asserting it survives a SaveMessages then ListMessages round-trip confirms the
+	// existing integer flags column carries it with no schema change.
+	msgs, _ := store.ListMessages(ctx, "f1")
+	if !msgs[0].IsForwarded() {
+		t.Error("expected forwarded after setting it")
+	}
+
+	if err := store.SetForwarded(ctx, "m1", false); err != nil {
+		t.Fatalf("clear forwarded: %v", err)
+	}
+	msgs, _ = store.ListMessages(ctx, "f1")
+	if msgs[0].IsForwarded() {
+		t.Error("expected not forwarded after clearing it")
+	}
+}
+
 func buildTag(t *testing.T, id, name, hex string) domain.Tag {
 	t.Helper()
 	colour, err := domain.NewColour(hex)

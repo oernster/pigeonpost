@@ -20,6 +20,8 @@ type protocolSource interface {
 	Verify(ctx context.Context, account domain.Account, password string) error
 	SetSeen(ctx context.Context, account domain.Account, folder domain.Folder, uid string, seen bool) error
 	SetFlagged(ctx context.Context, account domain.Account, folder domain.Folder, uid string, flagged bool) error
+	SetAnswered(ctx context.Context, account domain.Account, folder domain.Folder, uid string, answered bool) error
+	SetForwarded(ctx context.Context, account domain.Account, folder domain.Folder, uid string, forwarded bool) error
 	Delete(ctx context.Context, account domain.Account, folder domain.Folder, uid string, trashPath string) error
 	DeleteMany(ctx context.Context, account domain.Account, folder domain.Folder, uids []string, trashPath string) error
 	Move(ctx context.Context, account domain.Account, folder domain.Folder, uid string, destPath string) error
@@ -81,6 +83,16 @@ func (r *Router) SetSeen(ctx context.Context, account domain.Account, folder dom
 // SetFlagged delegates to the account's protocol adapter.
 func (r *Router) SetFlagged(ctx context.Context, account domain.Account, folder domain.Folder, uid string, flagged bool) error {
 	return r.sourceFor(account).SetFlagged(ctx, account, folder, uid, flagged)
+}
+
+// SetAnswered delegates to the account's protocol adapter.
+func (r *Router) SetAnswered(ctx context.Context, account domain.Account, folder domain.Folder, uid string, answered bool) error {
+	return r.sourceFor(account).SetAnswered(ctx, account, folder, uid, answered)
+}
+
+// SetForwarded delegates to the account's protocol adapter.
+func (r *Router) SetForwarded(ctx context.Context, account domain.Account, folder domain.Folder, uid string, forwarded bool) error {
+	return r.sourceFor(account).SetForwarded(ctx, account, folder, uid, forwarded)
 }
 
 // Delete delegates to the account's protocol adapter.

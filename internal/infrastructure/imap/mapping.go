@@ -235,6 +235,8 @@ func mapFlags(flags []imap.Flag) domain.Flags {
 			out = out.With(domain.FlagDraft)
 		case imap.FlagDeleted:
 			out = out.With(domain.FlagDeleted)
+		case imap.FlagForwarded:
+			out = out.With(domain.FlagForwarded)
 		}
 	}
 	return out

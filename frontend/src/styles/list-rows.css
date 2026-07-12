@@ -183,6 +183,16 @@
     color: var(--text-dim);
 }
 
+/* The replied (U+21A9) and forwarded (U+21AA) arrows at the row's top-left, dimmed to match the attachment
+   clip and the date so they read as quiet status markers rather than actions. */
+.replied,
+.forwarded {
+    flex-shrink: 0;
+    font-size: 14px;
+    line-height: 1;
+    color: var(--text-dim);
+}
+
 .message-snippet {
     margin-top: 3px;
     font-size: 13px;

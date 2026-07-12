@@ -52,6 +52,38 @@ func (s *MessageActionService) MarkFlagged(ctx context.Context, messageID string
 	return nil
 }
 
+// MarkAnswered sets or clears a message's answered (\Answered) state on the server and then in the cache. It
+// is called after a reply is sent, so the original message shows the replied indicator.
+func (s *MessageActionService) MarkAnswered(ctx context.Context, messageID string, answered bool) error {
+	msg, folder, account, err := resolveMessageContext(ctx, s.store, s.accounts, messageID)
+	if err != nil {
+		return err
+	}
+	if err := s.remote.SetAnswered(ctx, account, folder, msg.UID(), answered); err != nil {
+		return fmt.Errorf("set server answered for %q: %w", messageID, err)
+	}
+	if err := s.store.SetAnswered(ctx, messageID, answered); err != nil {
+		return fmt.Errorf("set cached answered for %q: %w", messageID, err)
+	}
+	return nil
+}
+
+// MarkForwarded sets or clears a message's forwarded ($Forwarded) state on the server and then in the cache. It
+// is called after a message is forwarded, so the original shows the forwarded indicator.
+func (s *MessageActionService) MarkForwarded(ctx context.Context, messageID string, forwarded bool) error {
+	msg, folder, account, err := resolveMessageContext(ctx, s.store, s.accounts, messageID)
+	if err != nil {
+		return err
+	}
+	if err := s.remote.SetForwarded(ctx, account, folder, msg.UID(), forwarded); err != nil {
+		return fmt.Errorf("set server forwarded for %q: %w", messageID, err)
+	}
+	if err := s.store.SetForwarded(ctx, messageID, forwarded); err != nil {
+		return fmt.Errorf("set cached forwarded for %q: %w", messageID, err)
+	}
+	return nil
+}
+
 // Delete removes a message from the server and the local cache. It moves the message to the account's
 // Trash folder when one exists; if the message already lives in Trash, or the account has no Trash
 // folder, it is deleted permanently.

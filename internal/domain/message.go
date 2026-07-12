@@ -5,7 +5,8 @@ import (
 	"time"
 )
 
-// Flag is a single IMAP-style system flag, held as a bit within Flags.
+// Flag is a single IMAP-style flag held as a bit within Flags: an RFC 3501 system flag or the $Forwarded
+// keyword.
 type Flag uint8
 
 const (
@@ -14,6 +15,10 @@ const (
 	FlagFlagged
 	FlagDraft
 	FlagDeleted
+	// FlagForwarded records that the message has been forwarded. Unlike the others it is not an RFC 3501
+	// system flag but the widely used $Forwarded keyword (RFC 5788); it is modelled as a bit here so it rides
+	// the same Flags value, persistence and IMAP mapping as the system flags.
+	FlagForwarded
 )
 
 // Flags is an immutable set of system flags on a message.
@@ -183,6 +188,12 @@ func (m MessageSummary) IsRead() bool { return m.flags.IsSeen() }
 
 // IsFlagged reports whether the message is flagged (starred / important).
 func (m MessageSummary) IsFlagged() bool { return m.flags.Has(FlagFlagged) }
+
+// IsAnswered reports whether the message has been replied to (the \Answered system flag).
+func (m MessageSummary) IsAnswered() bool { return m.flags.Has(FlagAnswered) }
+
+// IsForwarded reports whether the message has been forwarded (the $Forwarded keyword).
+func (m MessageSummary) IsForwarded() bool { return m.flags.Has(FlagForwarded) }
 
 // WithFlags returns a copy carrying a new flag set.
 func (m MessageSummary) WithFlags(flags Flags) MessageSummary {

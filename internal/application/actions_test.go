@@ -101,6 +101,94 @@ func TestMarkFlaggedCacheError(t *testing.T) {
 	}
 }
 
+func TestMarkAnsweredWritesServerThenCache(t *testing.T) {
+	svc, store, accounts, remote := newActionService()
+	seedMessageLocation(t, store, accounts)
+
+	if err := svc.MarkAnswered(context.Background(), "m1", true); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(remote.answeredCalls) != 1 || remote.answeredCalls[0] != true {
+		t.Errorf("server SetAnswered calls = %v, want [true]", remote.answeredCalls)
+	}
+	if !store.messages["f1"][0].IsAnswered() {
+		t.Error("local cache was not marked answered")
+	}
+}
+
+func TestMarkAnsweredResolveError(t *testing.T) {
+	svc, store, _, _ := newActionService()
+	store.getMessageErr = errBoom
+	if err := svc.MarkAnswered(context.Background(), "m1", true); !errors.Is(err, errBoom) {
+		t.Errorf("MarkAnswered error = %v, want wrapped boom", err)
+	}
+}
+
+func TestMarkAnsweredServerError(t *testing.T) {
+	svc, store, accounts, remote := newActionService()
+	seedMessageLocation(t, store, accounts)
+	remote.answeredErr = errBoom
+	if err := svc.MarkAnswered(context.Background(), "m1", true); !errors.Is(err, errBoom) {
+		t.Errorf("MarkAnswered error = %v, want wrapped boom", err)
+	}
+	if store.messages["f1"][0].IsAnswered() {
+		t.Error("cache changed despite a server failure")
+	}
+}
+
+func TestMarkAnsweredCacheError(t *testing.T) {
+	svc, store, accounts, _ := newActionService()
+	seedMessageLocation(t, store, accounts)
+	store.setAnsweredErr = errBoom
+	if err := svc.MarkAnswered(context.Background(), "m1", true); !errors.Is(err, errBoom) {
+		t.Errorf("MarkAnswered error = %v, want wrapped boom", err)
+	}
+}
+
+func TestMarkForwardedWritesServerThenCache(t *testing.T) {
+	svc, store, accounts, remote := newActionService()
+	seedMessageLocation(t, store, accounts)
+
+	if err := svc.MarkForwarded(context.Background(), "m1", true); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(remote.forwardedCalls) != 1 || remote.forwardedCalls[0] != true {
+		t.Errorf("server SetForwarded calls = %v, want [true]", remote.forwardedCalls)
+	}
+	if !store.messages["f1"][0].IsForwarded() {
+		t.Error("local cache was not marked forwarded")
+	}
+}
+
+func TestMarkForwardedResolveError(t *testing.T) {
+	svc, store, _, _ := newActionService()
+	store.getMessageErr = errBoom
+	if err := svc.MarkForwarded(context.Background(), "m1", true); !errors.Is(err, errBoom) {
+		t.Errorf("MarkForwarded error = %v, want wrapped boom", err)
+	}
+}
+
+func TestMarkForwardedServerError(t *testing.T) {
+	svc, store, accounts, remote := newActionService()
+	seedMessageLocation(t, store, accounts)
+	remote.forwardedErr = errBoom
+	if err := svc.MarkForwarded(context.Background(), "m1", true); !errors.Is(err, errBoom) {
+		t.Errorf("MarkForwarded error = %v, want wrapped boom", err)
+	}
+	if store.messages["f1"][0].IsForwarded() {
+		t.Error("cache changed despite a server failure")
+	}
+}
+
+func TestMarkForwardedCacheError(t *testing.T) {
+	svc, store, accounts, _ := newActionService()
+	seedMessageLocation(t, store, accounts)
+	store.setForwardedErr = errBoom
+	if err := svc.MarkForwarded(context.Background(), "m1", true); !errors.Is(err, errBoom) {
+		t.Errorf("MarkForwarded error = %v, want wrapped boom", err)
+	}
+}
+
 func TestMarkReadGetMessageError(t *testing.T) {
 	svc, store, _, _ := newActionService()
 	store.getMessageErr = errBoom
