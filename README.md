@@ -30,8 +30,9 @@ local-first. A calmer, more predictable alternative to Thunderbird.
 - **Mail**: folders and summaries cached to local SQLite and read offline; bodies fetched on open and
   cached. HTML renders faithfully in a sandboxed frame that keeps the sender's own styles while running
   no scripts and making no remote requests; remote images are blocked by default until you load them
-  (per message or a "Load images by default" toggle). In the dark theme the message is inverted to read
-  comfortably while photos and logos keep their true colour. Attachments save from the reader (cached for offline). Sync runs per account with its own
+  (per message or a "Load images by default" toggle). In the dark theme a message that ships its own dark
+  mode is shown in that native design, while a light-designed message is inverted to read comfortably, its
+  photos and logos keeping their true colour. Attachments save from the reader (cached for offline). Sync runs per account with its own
   progress cue.
 - **Compose**: TipTap rich text, To/Cc/Bcc, reply, reply-all and forward, file or message attachments
   (25 MB), reusable message templates, per-account signatures and server Drafts. In-progress writing autosaves locally and is
@@ -46,7 +47,7 @@ local-first. A calmer, more predictable alternative to Thunderbird.
   reader tabs, mouse and keyboard multi-select with bulk actions, plus full keyboard control through an
   explicit focus ring. The list stays fluid in folders of tens of thousands of messages. A Date sort and
   an optional threaded conversation view. A `.eml` file opens in an in-app viewer; on Windows PigeonPost
-  can be set as the default `.eml` handler.
+  can be set as the default `.eml` handler. Print a message through the system print dialog.
 - **Notifications**: new mail raises a native desktop notification and updates a Windows taskbar badge.
   Each IMAP account is watched by a persistent IDLE connection with a 60-second poll backstop (and for
   POP3); an account's first sync is silent.

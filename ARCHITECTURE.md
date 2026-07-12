@@ -144,13 +144,27 @@ Read a message body:
    `data:` URI, sidestepping the CORP/CORS rules that would otherwise stop the iframe embedding it by URL.
    The fetch is SSRF-guarded by a `net.Dialer.Control` hook that checks the real post-DNS connect IP and
    rejects private, loopback, link-local and CGNAT addresses, under size, timeout and redirect caps and an
-   image-only content-type check. In the dark theme the frame inverts the whole light-designed message with a
-   hue-rotate to darken it, then re-inverts only leaf media (images, logos) and an image on an otherwise-empty
-   box back to true colour, never a content-bearing container with a `background` attribute or background-image:
-   a `filter` on a wrapper and one on its descendants compound, so re-inverting a content wrapper would flip its
-   whole subtree back to light. Re-inverted media also carries a mid-grey hairline (with `box-sizing:
-   border-box` so it does not resize the image), so a genuinely dark image keeps contrast against the now-dark
-   surround instead of reading as a dark block on a dark cell.
+   image-only content-type check. In the dark theme the frame first checks whether the message ships its own dark-mode
+   styling (a `prefers-color-scheme: dark` block, common with large senders): if it does, the frame reports the
+   app's dark scheme and lets the message render natively on a dark paper, because inverting an email that has
+   already darkened itself would flip it back to light (its dark background becoming a light page and a
+   forced-white product tile becoming black). Only a light-designed message (the overwhelming majority, which
+   never anticipates dark mode) is inverted: the frame inverts the whole document with a hue-rotate to darken
+   it, then re-inverts only leaf media (images, logos) and an image on an otherwise-empty box back to true
+   colour, never a content-bearing container with a `background` attribute or background-image: a `filter` on a
+   wrapper and one on its descendants compound, so re-inverting a content wrapper would flip its whole subtree
+   back to light. Re-inverted media also carries a mid-grey hairline (with `box-sizing: border-box` so it does
+   not resize the image), so a genuinely dark image keeps contrast against the now-dark surround instead of
+   reading as a dark block on a dark cell.
+
+Printing a message reuses the same sanitised HTML. The message's parked remote images are restored for the
+printed copy; the document is rendered into a hidden iframe that is invoked through the browser's print
+dialog, so only the message prints rather than the whole app window. The frame is parked far off-screen but
+given a real page-sized layout box (a zero-size frame has no viewport for the engine to lay the document into
+and prints blank) and is pinned to a light colour scheme so it does not inherit the app's dark scheme and
+prints as dark text on white paper. Its `srcdoc` is set before the frame is inserted so its only load is the
+print document rather than the empty `about:blank` a fresh iframe momentarily holds. The print fires only once
+a marker element from the print document is present, so the dialog never captures a blank page.
 
 Send (also reply, reply-all and forward, which just pre-fill the same compose window before the
 identical send path runs: reply pre-fills the sender; reply-all pre-fills the sender plus the original
