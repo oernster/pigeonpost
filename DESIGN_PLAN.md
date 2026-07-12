@@ -3,7 +3,7 @@
 Cross-platform desktop email, calendar and address book client. Go core, React front end,
 local-first. Delivered as a signed download at https://www.pigeonpost.ink.
 
-Status: design locked; 0.13.0 in progress on main (the front-end decomposition; VERSION 0.13.0, schema v30); 0.12.0 shipped (tagged v0.12.0, the backend cleanup); 0.11.0 released (tagged v0.11.0, schema v30); 0.10.0 released
+Status: design locked; 0.14.0 in progress on main (tags sync onto IMAP keywords, faithful HTML email rendering and large-folder performance; VERSION 0.14.0, schema v38); 0.13.0 shipped (tagged v0.13.0, the front-end decomposition); 0.12.0 shipped (tagged v0.12.0, the backend cleanup); 0.11.0 released (tagged v0.11.0, schema v30); 0.10.0 released
 (tagged v0.10.0, schema v30); 0.9.0 released (tagged v0.9.0, schema v27); 0.8.0 released (tagged v0.8.0, schema v23); 0.7.0 cut at schema v15;
 0.6.0 released
 (tagged v0.6.0). The 0.5.0 release
@@ -364,7 +364,7 @@ hardest-to-reverse parts) first.
 6. Calendar. Month/week/day, events, reminders, ICS import/export, remote ICS subscription.
 7. Packaging + polish. Signed installers for all three platforms, keyboard navigation as an explicit
    focus ring, About dialog with OSS credits + GPL-3.0 licence, pigeonpost.ink downloads.
-8. v2 candidates. Two-way CalDAV/CardDAV (go-webdav), PGP/S-MIME, message templates.
+8. v2 candidates. Two-way CalDAV/CardDAV (go-webdav) and PGP/S-MIME; message templates shipped in 0.14.0.
 
 ---
 

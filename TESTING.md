@@ -40,7 +40,7 @@ documented here.
 | `internal/application` | unit against hand-written fakes | none |
 | `internal/infrastructure/storage` | integration against a real SQLite file | temp dir |
 | `internal/infrastructure/message` | unit on the RFC 5322 MIME builder | none |
-| `internal/infrastructure/mailparse` | unit on the MIME body parsing, HTML sanitising, image blocking and hidden-preheader removal | none |
+| `internal/infrastructure/mailparse` | unit on the MIME body parsing, HTML sanitising, image blocking and hidden-preheader removal that keeps MJML layout wrappers | none |
 | `internal/infrastructure/mailrouter` | unit on the per-protocol dispatch | none |
 | `internal/infrastructure/smtp` | none (live send only; MIME building lives in `message`) | n/a |
 | `internal/infrastructure/imap` | unit on the source adapter's pure helpers (parsing moved to `mailparse`) | none |
@@ -59,8 +59,8 @@ documented here.
 | internal/infrastructure/message | 100% | the RFC 5322 MIME builder (pure) |
 | internal/infrastructure/mailrouter | 100% | per-protocol dispatch (pure) |
 | internal/infrastructure/keychain | 100% | go-keyring mock |
-| internal/infrastructure/mailparse | ~92% | MIME body parsing, HTML sanitising, image blocking and hidden-preheader removal (pure); a few defensive decode branches uncovered |
-| internal/infrastructure/storage | ~78% | logic and error paths covered; see exclusions |
+| internal/infrastructure/mailparse | ~92% | MIME body parsing, HTML sanitising, image blocking and hidden-preheader removal that keeps MJML layout wrappers and mso-hide content (pure); a few defensive decode branches uncovered |
+| internal/infrastructure/storage | ~78% | logic and error paths covered, including keyset message pagination and the atomic tag-keyword sync writes; see exclusions |
 | internal/infrastructure/pop3 | ~44% | response and UIDL parsing covered; the live dial and download excluded |
 | internal/infrastructure/taskbar | ~22% | the pure label formatting and no-op stub covered; the Windows-only Win32 overlay excluded |
 | internal/infrastructure/imap | ~24% | the source adapter's pure helpers; the wire-to-domain and HTML logic now lives in `mailparse`, and live fetch/append plus the IDLE watcher are excluded |

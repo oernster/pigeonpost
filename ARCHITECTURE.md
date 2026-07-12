@@ -135,6 +135,16 @@ Read a message body:
    the reader opened the message; the UI shows a "Load images" action that restores the source on
    request. The UI renders the sanitised HTML when present (links open in the external browser via the
    facade, never the app's own webview) and falls back to the plain text otherwise.
+3. The sanitised HTML renders inside a sandboxed iframe (`EmailHtmlFrame`) rather than the app's own
+   document: the frame is `sandbox="allow-same-origin"` and never `allow-scripts`, under a strict
+   content-security-policy (`default-src 'none'`, images and fonts restricted to `data:`), so no script in
+   the message runs and the frame makes zero remote requests, meaning opening a message cannot leak that it
+   was read. Loading the parked images routes through a server-side proxy: the application
+   `RemoteImageService` over the `remoteimage` resolver fetches each blocked image and inlines it as a
+   `data:` URI, sidestepping the CORP/CORS rules that would otherwise stop the iframe embedding it by URL.
+   The fetch is SSRF-guarded by a `net.Dialer.Control` hook that checks the real post-DNS connect IP and
+   rejects private, loopback, link-local and CGNAT addresses, under size, timeout and redirect caps and an
+   image-only content-type check.
 
 Send (also reply, reply-all and forward, which just pre-fill the same compose window before the
 identical send path runs: reply pre-fills the sender; reply-all pre-fills the sender plus the original
@@ -184,6 +194,14 @@ uses: the domain `GroupThreads` groups a folder's summaries into conversations b
 date in either direction. The desktop list mirrors the grouping client-side so it updates instantly with
 optimistic changes, keeping the domain function as the single tested definition.
 
+Large folders: the message list is fully virtualized (`@tanstack/react-virtual`) so only on-screen rows
+exist in the DOM and it loads in pages of 200 through keyset pagination. `Store.ListMessagesPage`, exposed
+as `MailboxService.MessagesPage`, walks an indexed `(folder_id, date_ms, id)` order (schema v33 index
+`idx_message_folder_date`) and resumes strictly after the last row returned, its `(date_ms, id)` tie-break a
+total order so no row is skipped or repeated. Toggling a message read or unread mutates the row in place and
+refreshes only the unread counts rather than refetching the folder, so a folder of tens of thousands of
+messages never reloads every row.
+
 Delete a message: after a confirmation modal, the UI calls the facade, routed through the
 `MessageActionService`. It resolves the message's folder and account, then via the `MailActions` port
 moves the message to the account's Trash folder when one exists, or deletes it permanently (mark
@@ -226,8 +244,16 @@ folder listing.
 Coloured tags: the `TagService` use case manages user-defined tags (a name plus a validated `#rrggbb`
 `Colour`) and their many-to-many association with messages, through the `TagStore` port. Tags and the
 `message_tag` link table are added by schema v2; migrations apply incrementally from the recorded
-`user_version`. Tags are local to the cache for now; round-tripping them onto IMAP keywords is a
-later phase.
+`user_version`. Tags now round-trip onto IMAP keywords so an assignment made on one device reconciles on
+another. Each `Tag` carries a frozen keyword, `$PPtag_` followed by the lowercase hex of the tag name's
+UTF-8 bytes (domain `KeywordForName`, backfilled into a new `tag.keyword` column by schema v37), so the same
+tag derives the same keyword everywhere and a rename never rewrites it. Every assign or unassign writes the
+local `message_tag` row and a row in the `message_tag_pending` intent table (schema v36) in one SQLite
+transaction, so the assignment and its sync intent can never drift. The application `TagSyncService` flushes
+each pending intent to the server through the `MailActions.SetKeyword` port (an IMAP STORE of the custom
+keyword, retried best-effort until it lands); when a folder is fetched it reconciles the server's own tag
+keywords back into local assignments, clearing a pending intent once the server agrees. POP3 accounts skip
+all of this by design, since POP3 messages carry no keywords. The store is at schema v38.
 
 Filter rules: the `RuleService` use case manages user-defined rules through the `RuleStore` port and
 applies them to arriving messages. A domain `Rule` matches one field (From, To, Cc or Subject) against a
