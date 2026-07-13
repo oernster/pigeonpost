@@ -39,47 +39,22 @@ func (s *Store) SaveSyncedEvent(ctx context.Context, e domain.Event, href, etag 
 // ListSyncedObjects returns the distinct (href, etag) of every synced object in a local calendar. Local-only
 // events (empty href) are excluded, so the result is exactly the objects the reconcile compares to the server.
 func (s *Store) ListSyncedObjects(ctx context.Context, calendarID string) ([]application.SyncedObject, error) {
-	rows, err := s.db.QueryContext(ctx,
-		"SELECT DISTINCT href, etag FROM event WHERE calendar_id = ? AND href <> '' ORDER BY href;", calendarID)
-	if err != nil {
-		return nil, fmt.Errorf("list synced objects for %q: %w", calendarID, err)
-	}
-	defer rows.Close()
-	out := make([]application.SyncedObject, 0)
-	for rows.Next() {
-		var href, etag string
-		if err := rows.Scan(&href, &etag); err != nil {
-			return nil, fmt.Errorf("scan synced object: %w", err)
-		}
-		out = append(out, application.SyncedObject{Href: href, ETag: etag})
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate synced objects: %w", err)
-	}
-	return out, nil
+	return queryRows(ctx, s.db, "synced objects for "+calendarID,
+		"SELECT DISTINCT href, etag FROM event WHERE calendar_id = ? AND href <> '' ORDER BY href;",
+		func(row scanner) (application.SyncedObject, error) {
+			var href, etag string
+			if err := row.Scan(&href, &etag); err != nil {
+				return application.SyncedObject{}, fmt.Errorf("scan synced object: %w", err)
+			}
+			return application.SyncedObject{Href: href, ETag: etag}, nil
+		}, calendarID)
 }
 
 // EventsByHref returns every local event decoded from one remote object, ordered so the recurrence master
 // (recurrence_id 0) comes before its overrides, ready for re-encoding into one object body.
 func (s *Store) EventsByHref(ctx context.Context, href string) ([]domain.Event, error) {
-	rows, err := s.db.QueryContext(ctx,
-		"SELECT "+eventColumns+" FROM event WHERE href = ? ORDER BY recurrence_id;", href)
-	if err != nil {
-		return nil, fmt.Errorf("events by href %q: %w", href, err)
-	}
-	defer rows.Close()
-	out := make([]domain.Event, 0)
-	for rows.Next() {
-		event, err := scanEvent(rows)
-		if err != nil {
-			return nil, err
-		}
-		out = append(out, event)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate events by href %q: %w", href, err)
-	}
-	return out, nil
+	return queryRows(ctx, s.db, "events by href "+href,
+		"SELECT "+eventColumns+" FROM event WHERE href = ? ORDER BY recurrence_id;", scanEvent, href)
 }
 
 // DeleteEventsByHref removes every local event of one remote object, used when a sync finds the object gone
@@ -107,24 +82,15 @@ func (s *Store) SaveRemoteCalendar(ctx context.Context, c domain.Calendar, accou
 
 // ListRemoteCalendars returns the collections mirrored for one account, ordered by name.
 func (s *Store) ListRemoteCalendars(ctx context.Context, accountID string) ([]application.RemoteCalendarRecord, error) {
-	rows, err := s.db.QueryContext(ctx,
-		"SELECT id, account_id, href, ctag, name FROM calendar WHERE account_id = ? ORDER BY name;", accountID)
-	if err != nil {
-		return nil, fmt.Errorf("list remote calendars for %q: %w", accountID, err)
-	}
-	defer rows.Close()
-	out := make([]application.RemoteCalendarRecord, 0)
-	for rows.Next() {
-		var id, acc, href, ctag, name string
-		if err := rows.Scan(&id, &acc, &href, &ctag, &name); err != nil {
-			return nil, fmt.Errorf("scan remote calendar: %w", err)
-		}
-		out = append(out, application.RemoteCalendarRecord{CalendarID: id, AccountID: acc, Href: href, CTag: ctag, Name: name})
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate remote calendars: %w", err)
-	}
-	return out, nil
+	return queryRows(ctx, s.db, "remote calendars for "+accountID,
+		"SELECT id, account_id, href, ctag, name FROM calendar WHERE account_id = ? ORDER BY name;",
+		func(row scanner) (application.RemoteCalendarRecord, error) {
+			var id, acc, href, ctag, name string
+			if err := row.Scan(&id, &acc, &href, &ctag, &name); err != nil {
+				return application.RemoteCalendarRecord{}, fmt.Errorf("scan remote calendar: %w", err)
+			}
+			return application.RemoteCalendarRecord{CalendarID: id, AccountID: acc, Href: href, CTag: ctag, Name: name}, nil
+		}, accountID)
 }
 
 // RemoteCalendarByID returns a local calendar's remote-collection record and reports whether it is a remote
@@ -229,14 +195,6 @@ func (s *Store) UpdateCalendarCTag(ctx context.Context, calendarID, ctag string)
 	return nil
 }
 
-// SetPendingCalendarOp records or replaces the pending write intent for one object.
-func (s *Store) SetPendingCalendarOp(ctx context.Context, op application.PendingCalendarObject) error {
-	if _, err := s.db.ExecContext(ctx, pendingCalendarUpsertSQL, op.CalendarID, op.Href, int(op.Op), op.BaseETag); err != nil {
-		return fmt.Errorf("set pending calendar op %q %q: %w", op.CalendarID, op.Href, err)
-	}
-	return nil
-}
-
 // ClearPendingCalendarOp removes the pending intent for one object, called once the server agrees.
 func (s *Store) ClearPendingCalendarOp(ctx context.Context, calendarID, href string) error {
 	_, err := s.db.ExecContext(ctx,
@@ -249,24 +207,16 @@ func (s *Store) ClearPendingCalendarOp(ctx context.Context, calendarID, href str
 
 // ListPendingCalendarOps returns every pending write intent across all collections, for the flush.
 func (s *Store) ListPendingCalendarOps(ctx context.Context) ([]application.PendingCalendarObject, error) {
-	rows, err := s.db.QueryContext(ctx, "SELECT calendar_id, href, op, base_etag FROM calendar_pending;")
-	if err != nil {
-		return nil, fmt.Errorf("list pending calendar ops: %w", err)
-	}
-	defer rows.Close()
-	out := make([]application.PendingCalendarObject, 0)
-	for rows.Next() {
-		var calendarID, href, baseETag string
-		var op int
-		if err := rows.Scan(&calendarID, &href, &op, &baseETag); err != nil {
-			return nil, fmt.Errorf("scan pending calendar op: %w", err)
-		}
-		out = append(out, application.PendingCalendarObject{
-			CalendarID: calendarID, Href: href, Op: application.CalendarOpKind(op), BaseETag: baseETag,
+	return queryRows(ctx, s.db, "pending calendar ops",
+		"SELECT calendar_id, href, op, base_etag FROM calendar_pending;",
+		func(row scanner) (application.PendingCalendarObject, error) {
+			var calendarID, href, baseETag string
+			var op int
+			if err := row.Scan(&calendarID, &href, &op, &baseETag); err != nil {
+				return application.PendingCalendarObject{}, fmt.Errorf("scan pending calendar op: %w", err)
+			}
+			return application.PendingCalendarObject{
+				CalendarID: calendarID, Href: href, Op: application.CalendarOpKind(op), BaseETag: baseETag,
+			}, nil
 		})
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate pending calendar ops: %w", err)
-	}
-	return out, nil
 }

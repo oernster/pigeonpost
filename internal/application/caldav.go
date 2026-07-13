@@ -124,17 +124,33 @@ func (s *CalDAVSyncService) saveRemoteCalendar(ctx context.Context, calendar Rem
 	return RemoteCalendarRecord{CalendarID: calendarID, AccountID: s.accountID, Href: calendar.Path, Name: name, CTag: ctag}, nil
 }
 
+// decodeTagged decodes a calendar object body and tags each decoded event with the owning local calendar. It
+// is the shared prefix of the pull's saveObject and the reconcile's applyServerObject. It reports whether the
+// body decoded: a decode failure returns (nil, false) so each caller applies its own decode-failure policy (the
+// pull skips the object, the reconcile withholds the collection's CTag). The persistence tail is the caller's.
+func decodeTagged(codec CalendarCodec, data []byte, calendarID string) ([]domain.Event, bool) {
+	events, _, err := codec.Decode(data)
+	if err != nil {
+		return nil, false
+	}
+	tagged := make([]domain.Event, 0, len(events))
+	for _, event := range events {
+		tagged = append(tagged, event.WithCalendarID(calendarID))
+	}
+	return tagged, true
+}
+
 // saveObject decodes one remote object and saves each of its events into the collection's local calendar,
 // tagged with the object's href and etag, returning how many were saved. An object that cannot be decoded is
 // skipped (zero saved, no error); a store write failure is fatal.
 func (s *CalDAVSyncService) saveObject(ctx context.Context, calendarID string, object RemoteObject) (int, error) {
-	events, _, decErr := s.codec.Decode(object.Data)
-	if decErr != nil {
+	tagged, ok := decodeTagged(s.codec, object.Data, calendarID)
+	if !ok {
 		return 0, nil
 	}
 	saved := 0
-	for _, event := range events {
-		if err := s.store.SaveSyncedEvent(ctx, event.WithCalendarID(calendarID), object.Href, object.ETag); err != nil {
+	for _, event := range tagged {
+		if err := s.store.SaveSyncedEvent(ctx, event, object.Href, object.ETag); err != nil {
 			return saved, fmt.Errorf("caldav: save event: %w", err)
 		}
 		saved++

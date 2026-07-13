@@ -57,9 +57,10 @@ func TestSaveCalendarAccountReplaces(t *testing.T) {
 	if err := store.SaveCalendarAccount(ctx, buildCalendarAccount(t, "c1")); err != nil {
 		t.Fatalf("save: %v", err)
 	}
-	renamed, err := buildCalendarAccount(t, "c1").WithDisplayName("Work DAV")
+	renamed, err := domain.NewCalendarAccount("c1", "Work DAV",
+		"https://caldav.fastmail.com/", "user@fastmail.com", domain.AuthPassword)
 	if err != nil {
-		t.Fatalf("rename: %v", err)
+		t.Fatalf("build renamed: %v", err)
 	}
 	if err := store.SaveCalendarAccount(ctx, renamed); err != nil {
 		t.Fatalf("resave: %v", err)

@@ -125,9 +125,6 @@ func (f *fakeSyncStore) UpdateCalendarCTag(_ context.Context, calendarID, ctag s
 	f.updatedCTags = append(f.updatedCTags, [2]string{calendarID, ctag})
 	return nil
 }
-func (f *fakeSyncStore) SetPendingCalendarOp(context.Context, PendingCalendarObject) error {
-	return nil
-}
 
 func (f *fakeSyncStore) RemoteCalendarByID(_ context.Context, calendarID string) (RemoteCalendarRecord, bool, error) {
 	if f.remoteErr != nil {

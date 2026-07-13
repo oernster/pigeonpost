@@ -41,20 +41,3 @@ func TestNewCalendarAccountAllowsHTTP(t *testing.T) {
 		t.Errorf("an http base url should be allowed: %v", err)
 	}
 }
-
-func TestCalendarAccountWithDisplayName(t *testing.T) {
-	a, err := NewCalendarAccount("id", "old", "https://d.example.com", "u", AuthPassword)
-	if err != nil {
-		t.Fatalf("NewCalendarAccount: %v", err)
-	}
-	b, err := a.WithDisplayName(" new ")
-	if err != nil {
-		t.Fatalf("WithDisplayName: %v", err)
-	}
-	if b.DisplayName() != "new" {
-		t.Errorf("DisplayName = %q, want new", b.DisplayName())
-	}
-	if _, err := a.WithDisplayName("  "); !errors.Is(err, ErrEmptyDisplayName) {
-		t.Errorf("WithDisplayName(blank) error = %v, want ErrEmptyDisplayName", err)
-	}
-}

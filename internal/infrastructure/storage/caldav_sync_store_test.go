@@ -271,11 +271,14 @@ func TestPendingCalendarOps(t *testing.T) {
 	const href1, href2 = "https://dav.example.com/cal1/a.ics", "https://dav.example.com/cal1/b.ics"
 	create := application.PendingCalendarObject{CalendarID: "cal1", Href: href1, Op: application.CalendarOpCreate}
 	update := application.PendingCalendarObject{CalendarID: "cal1", Href: href2, Op: application.CalendarOpUpdate, BaseETag: "e2"}
-	if err := store.SetPendingCalendarOp(ctx, create); err != nil {
-		t.Fatalf("SetPendingCalendarOp create: %v", err)
+	// The pending intent is recorded through DeleteObjectWithPending, the atomic writer that persists an op via
+	// setPendingCalendarOpTx. With no event rows at these hrefs its event DELETE is a no-op, so it exercises the
+	// pending-op CRUD in isolation.
+	if err := store.DeleteObjectWithPending(ctx, href1, create); err != nil {
+		t.Fatalf("record create op: %v", err)
 	}
-	if err := store.SetPendingCalendarOp(ctx, update); err != nil {
-		t.Fatalf("SetPendingCalendarOp update: %v", err)
+	if err := store.DeleteObjectWithPending(ctx, href2, update); err != nil {
+		t.Fatalf("record update op: %v", err)
 	}
 
 	ops, err := store.ListPendingCalendarOps(ctx)
@@ -286,11 +289,11 @@ func TestPendingCalendarOps(t *testing.T) {
 		t.Fatalf("pending ops = %+v, want 2", ops)
 	}
 
-	// Setting the same object again replaces the intent rather than adding a row: a queued create that is
+	// Recording the same object again replaces the intent rather than adding a row: a queued create that is
 	// then locally deleted becomes a delete for the same (calendar, href), still one row.
 	del := application.PendingCalendarObject{CalendarID: "cal1", Href: href1, Op: application.CalendarOpDelete, BaseETag: "e1"}
-	if err := store.SetPendingCalendarOp(ctx, del); err != nil {
-		t.Fatalf("SetPendingCalendarOp replace: %v", err)
+	if err := store.DeleteObjectWithPending(ctx, href1, del); err != nil {
+		t.Fatalf("replace op: %v", err)
 	}
 	ops, _ = store.ListPendingCalendarOps(ctx)
 	if len(ops) != 2 {

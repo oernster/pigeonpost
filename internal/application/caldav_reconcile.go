@@ -140,13 +140,9 @@ func (s *CalDAVReconcileService) reconcileMissingObject(ctx context.Context, rec
 // with the object's href and etag, reporting whether every event persisted. A body that cannot be decoded, or
 // an event that fails to save, returns false so the CTag is withheld and the object is retried next sync.
 func (s *CalDAVReconcileService) applyServerObject(ctx context.Context, record RemoteCalendarRecord, obj RemoteObject) bool {
-	events, _, err := s.codec.Decode(obj.Data)
-	if err != nil {
+	tagged, ok := decodeTagged(s.codec, obj.Data, record.CalendarID)
+	if !ok {
 		return false
-	}
-	tagged := make([]domain.Event, 0, len(events))
-	for _, e := range events {
-		tagged = append(tagged, e.WithCalendarID(record.CalendarID))
 	}
 	return s.persistAll(ctx, tagged, obj.Href, obj.ETag)
 }

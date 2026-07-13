@@ -58,14 +58,3 @@ func (a CalendarAccount) Username() string { return a.username }
 
 // Auth returns the authentication method (password or OAuth2).
 func (a CalendarAccount) Auth() AuthMethod { return a.auth }
-
-// WithDisplayName returns a copy carrying the given display name, validated non-empty as in
-// NewCalendarAccount.
-func (a CalendarAccount) WithDisplayName(displayName string) (CalendarAccount, error) {
-	displayName = strings.TrimSpace(displayName)
-	if displayName == "" {
-		return CalendarAccount{}, ErrEmptyDisplayName
-	}
-	a.displayName = displayName
-	return a, nil
-}
