@@ -3,9 +3,9 @@
 Cross-platform desktop email, calendar and address book client. Go core, React front end,
 local-first. Delivered as a signed download at https://www.pigeonpost.ink.
 
-Status: design locked. Working version 0.14.1 (schema v38). The per-version change history lives in the release notes, not in this document.
+Status: living roadmap. Working version 0.14.1 (schema v38). The per-version change history lives in the release notes, not in this document.
 
-This document is the target design.
+This document is the target design and the forward roadmap. It is living: delivered work is exorcised as it lands (a shipped feature lives in the code and the release notes, not here), so section 10 holds only what is not yet built. Sections 2 to 9 still describe the delivered v1 as the standing design reference.
 Author: Oliver Ernster. Licence: GPL-3.0.
 
 ---
@@ -41,8 +41,8 @@ it stops scope re-litigation mid-build.
 ### Out of scope for v1 (named so they do not creep)
 
 Chat/matrix/newsgroups/RSS, add-on/extension system, message-template gallery, full HTML-editor
-parity, PGP/S-MIME (v2 candidate), server-side sieve editing, two-way CalDAV/CardDAV (v2),
-Gmail-specific support (see section 7).
+parity, PGP/S-MIME (v2 candidate), server-side sieve editing, Gmail-specific support (see section 7).
+Two-way CalDAV/CardDAV was a v2 item; it is now active (section 10).
 
 ---
 
@@ -189,7 +189,7 @@ so they round-trip with the server. Bold-unread is a pure UI concern driven by i
 
 go-ical for ICS import/export and go-vcard for contacts. v1 supports file import/export plus read-only
 remote ICS subscription. Events carry their original ICS UID so export round-trips cleanly. Two-way
-CalDAV/CardDAV (go-webdav) is v2.
+CalDAV/CardDAV (go-webdav) is now active (section 10; phase 1 in progress).
 
 Outlook and Thunderbird interop is an explicit v1 requirement, not just a by-product of using standard
 formats. Calendar uses ICS (RFC 5545), which both apps read and write. Contacts need two formats: vCard
@@ -281,23 +281,61 @@ external dependency; it costs nothing to run.
 
 ---
 
-## 10. Phased roadmap
+## 10. Roadmap (forward only)
 
-Each phase ships something usable. Earlier phases de-risk the schema and sync engine (the
-hardest-to-reverse parts) first.
+This section holds only work not yet delivered. A feature is removed once it ships: a delivered
+capability lives in the code and the release notes, not here. The v1 phases (skeleton and read-only
+IMAP, send and compose and flags, move/copy/drag and folders and outbox, the account wizard and POP3,
+search and address book, calendar, packaging) are all delivered and have been removed, along with the
+later work that also shipped: coloured tags with IMAP-keyword sync, message templates, event categories,
+the multi-day month view, full RFC 5545 recurrence (expansion, RECURRENCE-ID overrides, the
+this/this-and-future/all editor) and per-event IANA time zones with DST-correct expansion and
+Windows-zone import.
 
-1. Skeleton + read-only IMAP. Wails shell, clean-architecture packages, SQLite schema v1, single IMAP
-   account via manual setup, three-pane read-only. Proves the sync engine and layering.
-2. Send + compose + flags. SMTP send, compose (plain + TipTap rich-text), read/unread bold, coloured
-   tags, star/junk.
-3. Move/copy/drag + folders + offline outbox. Full folder ops, native HTML5 drag, outbox replay,
-   filters/rules.
-4. Account wizard + POP3. Autoconfig wizard, POP3, multiple accounts each with a separate inbox.
-5. Search + address book. FTS5 search, contacts, vCard import/export.
-6. Calendar. Month/week/day, events, reminders, ICS import/export, remote ICS subscription.
-7. Packaging + polish. Signed installers for all three platforms, keyboard navigation as an explicit
-   focus ring, About dialog with OSS credits + GPL-3.0 licence, pigeonpost.ink downloads.
-8. v2 candidates. Two-way CalDAV/CardDAV (go-webdav) and PGP/S-MIME; message templates shipped in 0.14.0.
+### Two-way CalDAV / CardDAV (active, the 1.x flagship)
+
+The biggest remaining "real Thunderbird replacement" win: sync calendars and contacts both ways with a
+DAV server (Fastmail, iCloud, Google, Nextcloud), so calendar and contacts stop being local-only.
+
+**Reuse (already built).** The whole sync discipline exists to lift: the tag two-way sync
+(`tags_sync.go`: pending-intent write plus three-way reconcile of server/local/pending) is the object-sync
+template; the Mail `Source`/`Actions`/`FolderActions` port split mirrors into `CalDAVSource`/`CalDAVActions`
+and the CardDAV pair; the OAuth `TokenManager` and authorizer and `credentialFor` cover DAV-over-HTTPS
+auth; the `OutboxStore` offline queue models pending object writes; `domain.Event`/`Contact` and the
+ICS/vCard codecs are the serialization the engine PUTs and parses; `event.uid`/`contact.uid` seed object
+identity.
+
+**Build (greenfield).** `emersion/go-webdav`; a DAV account model (base URL plus principal, discovered);
+per-object `etag` and `href` columns on `event` and `contact` (schema bump from v38); per-collection
+`account_id` and a sync-token/CTag; pending-intent tables plus tombstones so offline create/update/delete
+propagate; the RFC 6578 sync-collection incremental loop with a CTag-plus-ETag fallback; collection
+discovery (`.well-known/caldav`, current-user-principal, calendar-home-set).
+
+**Data flow.** Discover (principal, home-set, collections); initial pull (REPORT hrefs plus etags,
+multiget the ICS bodies, decode with the existing codec, store with href plus etag); incremental
+(sync-collection with the stored token, changed and removed hrefs); push (PUT `If-Match` for update and
+`If-None-Match: *` for create, DELETE `If-Match`; a 412 refetches and reconciles).
+
+**Phasing.**
+1. Read-only calendar pull (in progress). DAV account plus discovery plus a full pull plus CTag refresh;
+   remote calendars appear read-only next to local. Lowest risk, immediate value.
+2. Two-way calendar. Pending-intent write-back, `If-Match` conflict handling, tombstones, sync-collection
+   incremental.
+3. CardDAV contacts. The same engine over the vCard codec and an address-book collection.
+4. Polish. Multiple collections per account, colour and displayname sync, optional CalDAV scheduling inbox.
+
+**Open decisions.** First server target (Fastmail plus a generic Nextcloud/Radicale, then iCloud, then
+Google OAuth CalDAV last); conflict policy (last-writer-wins with a safety copy is the recommendation, to
+match the calm automatic tag-sync ethos); account model (a separate `CalendarAccount` aggregate rather than
+extending the mail `Account`, so DAV and mail hosts stay decoupled); incremental strategy (sync-token
+preferred, CTag-plus-ETag fallback).
+
+**Prerequisite (met).** A pulled DAV calendar is parsed by the same ICS codec, so the Windows-zone import
+fix had to land first; it has.
+
+### PGP / S-MIME (deferred, v2)
+
+End-to-end mail encryption and signing. Deferred until the DAV work lands; no design started.
 
 ---
 
@@ -310,7 +348,7 @@ hardest-to-reverse parts) first.
   registration). Gmail personal accounts are supported via an app-password preset; one-click Google
   sign-in is declined (annual CASA fee) and Workspace accounts are OAuth-only, so they are not covered
   by the personal preset.
-- Calendar/contacts: file ICS/vCard import/export + read-only ICS subscription in v1; two-way
-  CalDAV/CardDAV in v2.
+- Calendar/contacts: file ICS/vCard import/export + read-only ICS subscription shipped; two-way
+  CalDAV/CardDAV is now active (section 10).
 - Compose: light TipTap rich-text + plain-text toggle in v1; no full HTML-editor parity.
 - Inboxes: each account keeps its own separate inbox; there is no unified/combined inbox.
