@@ -245,6 +245,19 @@ type CalendarAccountStore interface {
 	DeleteCalendarAccount(ctx context.Context, id string) error
 }
 
+// CalendarCredentialStore keeps a CalDAV/CardDAV account's password in the OS keychain, never the database.
+type CalendarCredentialStore interface {
+	CalendarPassword(ctx context.Context, account domain.CalendarAccount) (string, error)
+	SetCalendarPassword(ctx context.Context, account domain.CalendarAccount, secret string) error
+	DeleteCalendarPassword(ctx context.Context, account domain.CalendarAccount) error
+}
+
+// CalDAVSourceFactory builds a CalDAVSource for an account and password. It is the seam that keeps the
+// application free of the go-webdav client: the infrastructure adapter implements it.
+type CalDAVSourceFactory interface {
+	NewSource(account domain.CalendarAccount, password string) (CalDAVSource, error)
+}
+
 // CalendarCodec converts events to and from a serialised calendar format (ICS). It is the import/export
 // seam. A decoded event carries its own id (an ICS UID where present) so an import can reconcile against
 // existing records. Non-event components PigeonPost does not model (to-dos and journal entries) are
