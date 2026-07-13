@@ -15,19 +15,27 @@ type CalDAVService struct {
 	accounts    CalendarAccountStore
 	credentials CalendarCredentialStore
 	factory     CalDAVSourceFactory
+	writers     CalDAVWriterFactory
 	codec       CalendarCodec
 	calendar    CalendarSyncStore
+	newID       func() string
 }
 
-// NewCalDAVService wires the orchestrator over its stores, credential vault, source factory and codec.
+// NewCalDAVService wires the orchestrator over its stores, credential vault, source and writer factories, the
+// codec and an id generator (used for the reconcile's safety-copy rows).
 func NewCalDAVService(
 	accounts CalendarAccountStore,
 	credentials CalendarCredentialStore,
 	factory CalDAVSourceFactory,
+	writers CalDAVWriterFactory,
 	codec CalendarCodec,
 	calendar CalendarSyncStore,
+	newID func() string,
 ) *CalDAVService {
-	return &CalDAVService{accounts: accounts, credentials: credentials, factory: factory, codec: codec, calendar: calendar}
+	return &CalDAVService{
+		accounts: accounts, credentials: credentials, factory: factory, writers: writers,
+		codec: codec, calendar: calendar, newID: newID,
+	}
 }
 
 // AddAccount stores a DAV account and its password. The password is written to the keychain first so a
@@ -78,4 +86,36 @@ func (s *CalDAVService) Pull(ctx context.Context, accountID string) (int, error)
 		return 0, fmt.Errorf("caldav: source: %w", err)
 	}
 	return NewCalDAVSyncService(source, s.codec, s.calendar, accountID).Pull(ctx)
+}
+
+// Sync runs the two-way sync for an account: it pushes the account's pending local changes to the server, then
+// discovers its collections and reconciles the server's state into the local store. The order mirrors the tag
+// two-way sync (flush before the pull so the pull reflects the pushed changes, reconcile after). The flush and
+// the reconcile are best-effort, so a transient failure in either leaves the pending intents in place for the
+// next run rather than failing the whole sync; only resolving the account, its password, the source, the
+// writer or discovering the collections is fatal, since without those there is nothing to sync.
+func (s *CalDAVService) Sync(ctx context.Context, accountID string) error {
+	account, err := s.accounts.GetCalendarAccount(ctx, accountID)
+	if err != nil {
+		return fmt.Errorf("caldav: account: %w", err)
+	}
+	password, err := s.credentials.CalendarPassword(ctx, account)
+	if err != nil {
+		return fmt.Errorf("caldav: password: %w", err)
+	}
+	source, err := s.factory.NewSource(account, password)
+	if err != nil {
+		return fmt.Errorf("caldav: source: %w", err)
+	}
+	writer, err := s.writers.NewWriter(account, password)
+	if err != nil {
+		return fmt.Errorf("caldav: writer: %w", err)
+	}
+	_ = NewCalDAVWriteService(s.calendar, s.codec).Flush(ctx, writer)
+	records, err := NewCalDAVSyncService(source, s.codec, s.calendar, accountID).Discover(ctx)
+	if err != nil {
+		return err
+	}
+	_ = NewCalDAVReconcileService(s.calendar, s.codec, s.newID).Reconcile(ctx, source, records)
+	return nil
 }

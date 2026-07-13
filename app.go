@@ -68,6 +68,7 @@ type App struct {
 	templates    *application.TemplateService
 	contacts     *application.ContactService
 	calendar     *application.CalendarService
+	calendarEdit *application.CalendarEditService
 	scheduling   *application.SchedulingService
 	remoteImages *application.RemoteImageService
 	caldav       *application.CalDAVService
@@ -95,6 +96,7 @@ func NewApp(
 	templates *application.TemplateService,
 	contacts *application.ContactService,
 	calendar *application.CalendarService,
+	calendarEdit *application.CalendarEditService,
 	scheduling *application.SchedulingService,
 	remoteImages *application.RemoteImageService,
 	caldav *application.CalDAVService,
@@ -121,6 +123,7 @@ func NewApp(
 		templates:    templates,
 		contacts:     contacts,
 		calendar:     calendar,
+		calendarEdit: calendarEdit,
 		scheduling:   scheduling,
 		remoteImages: remoteImages,
 		caldav:       caldav,

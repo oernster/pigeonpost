@@ -129,13 +129,15 @@ func (a *App) GetEvent(id string) (EventDTO, error) {
 }
 
 // SaveEvent creates or updates an event and returns its id, so a newly created meeting can be acted on
-// (for example to send its invitations) without a reload.
+// (for example to send its invitations) without a reload. It routes through the edit service so a change to an
+// event in a CalDAV-mirrored calendar records the pending write intent a later sync pushes; an event in a
+// local calendar is saved unchanged.
 func (a *App) SaveEvent(req EventRequest) (string, error) {
 	input, err := eventInputFromRequest(req)
 	if err != nil {
 		return "", err
 	}
-	return a.calendar.SaveEvent(a.ctx, input)
+	return a.calendarEdit.SaveEvent(a.ctx, input)
 }
 
 // eventInputFromRequest parses a request's start and end times and maps it to the application EventInput
@@ -172,9 +174,11 @@ func eventInputFromRequest(req EventRequest) (application.EventInput, error) {
 	}, nil
 }
 
-// DeleteEvent removes an event by id.
+// DeleteEvent removes an event by id. It routes through the edit service so deleting an event in a
+// CalDAV-mirrored calendar records the delete tombstone a later sync sends to the server; a local event is
+// removed unchanged.
 func (a *App) DeleteEvent(id string) error {
-	return a.calendar.DeleteEvent(a.ctx, id)
+	return a.calendarEdit.DeleteEvent(a.ctx, id)
 }
 
 // ListEventInstances expands every event into its concrete occurrences within the inclusive window

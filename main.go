@@ -116,10 +116,16 @@ func run() error {
 	templateService := application.NewTemplateService(store, newTemplateID)
 	contactService := application.NewContactService(store, newContactID)
 	calendarService := application.NewCalendarService(store, newCalendarID, recurrence.New())
-	// The CalDAV service is the account-aware read-only pull orchestrator. The store implements both the
-	// account store and the calendar store; the keychain vault holds each account's password; the caldav
-	// factory builds a per-account go-webdav source; the ICS codec is the same one CalendarService uses.
-	caldavService := application.NewCalDAVService(store, vault, caldav.NewFactory(), ics.New(), store)
+	// CalendarEditService is the remote-aware editing wrapper: creating, editing or deleting an event in a
+	// CalDAV-mirrored calendar records the pending write intent a later sync pushes, while an event in a local
+	// calendar stays purely local. The Wails calendar API routes SaveEvent and DeleteEvent through it.
+	calendarEditService := application.NewCalendarEditService(calendarService, store, newCalendarID)
+	// The CalDAV service is the account-aware two-way sync orchestrator. The store implements both the account
+	// store and the calendar sync store; the keychain vault holds each account's password; one caldav factory
+	// builds both the per-account read source and the write client; the ICS codec is the same one
+	// CalendarService uses; newCalendarID supplies the reconcile's safety-copy ids.
+	davFactory := caldav.NewFactory()
+	caldavService := application.NewCalDAVService(store, vault, davFactory, davFactory, ics.New(), store, newCalendarID)
 	// The scheduling service reads incoming meeting invites and replies (the ICS codec also implements
 	// the iTIP SchedulingCodec), saves accepted meetings to the calendar store and sends replies,
 	// requests and cancellations through the same SMTP transport as ordinary mail.
@@ -140,7 +146,7 @@ func run() error {
 	// rather than waiting for the poll; it authenticates through the same keychain vault as fetches.
 	watcher := imap.NewWatcher(vault, tokenManager)
 
-	app = NewApp(store.Close, overlay, flasher, tray, watcher, accountService, setupService, microsoftSetupService, mailboxService, syncService, composeService, tagService, tagSyncService, bodyService, actionService, folderService, ruleService, templateService, contactService, calendarService, schedulingService, remoteImageService, caldavService)
+	app = NewApp(store.Close, overlay, flasher, tray, watcher, accountService, setupService, microsoftSetupService, mailboxService, syncService, composeService, tagService, tagSyncService, bodyService, actionService, folderService, ruleService, templateService, contactService, calendarService, calendarEditService, schedulingService, remoteImageService, caldavService)
 	app.title = windowTitle
 
 	err = wails.Run(&options.App{

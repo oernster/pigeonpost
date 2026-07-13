@@ -53,7 +53,15 @@ func (a *App) RemoveCalDAVAccount(id string) error {
 }
 
 // PullCalDAV fetches the account's remote calendars into the local store, returning the number of events
-// saved. This is the read-only phase-1 pull; write-back arrives in a later phase.
+// saved. This is the one-way phase-1 pull. Prefer SyncCalDAV once the account has local edits: a naive pull
+// overwrites an unpushed local change, which the two-way sync guards against.
 func (a *App) PullCalDAV(id string) (int, error) {
 	return a.caldav.Pull(a.ctx, id)
+}
+
+// SyncCalDAV runs the two-way sync for an account: it pushes the account's pending local calendar changes to
+// the server, then reconciles the server's calendars back into the local store, resolving a conflict in the
+// server's favour while preserving the losing local edit as a safety copy.
+func (a *App) SyncCalDAV(id string) error {
+	return a.caldav.Sync(a.ctx, id)
 }

@@ -51,27 +51,45 @@ func NewCalDAVSyncService(source CalDAVSource, codec CalendarCodec, store Calend
 	return &CalDAVSyncService{source: source, codec: codec, store: store, accountID: accountID}
 }
 
-// Pull mirrors each remote collection as a local calendar and saves its objects' events, returning the number
-// of events saved. A calendar whose objects cannot be listed, or an object that cannot be decoded, is skipped
-// so one bad item does not fail the whole pull. A store write failure (saving a calendar or an event) is fatal
-// because it signals a broken local database rather than a single unusable remote item.
-func (s *CalDAVSyncService) Pull(ctx context.Context) (int, error) {
+// Discover lists the account's remote collections and mirrors each as a local calendar, returning the records
+// the reconcile needs. It is the collection-discovery half of the pull, kept separate so the two-way sync can
+// establish the local calendars and then hand the object merge to CalDAVReconcileService, which guards pending
+// local edits rather than overwriting them. A store write failure is fatal, since it signals a broken local
+// database rather than a single unusable remote item.
+func (s *CalDAVSyncService) Discover(ctx context.Context) ([]RemoteCalendarRecord, error) {
 	calendars, err := s.source.ListCalendars(ctx)
 	if err != nil {
-		return 0, fmt.Errorf("caldav: list calendars: %w", err)
+		return nil, fmt.Errorf("caldav: list calendars: %w", err)
+	}
+	records := make([]RemoteCalendarRecord, 0, len(calendars))
+	for _, calendar := range calendars {
+		record, err := s.saveRemoteCalendar(ctx, calendar)
+		if err != nil {
+			return nil, err
+		}
+		records = append(records, record)
+	}
+	return records, nil
+}
+
+// Pull discovers the account's collections and, for each, saves its objects' events, returning the number of
+// events saved. It is the one-way population path (server into local, no merge): a calendar whose objects
+// cannot be listed, or an object that cannot be decoded, is skipped so one bad item does not fail the whole
+// pull, and a store write failure is fatal. The two-way sync uses Discover plus the reconcile instead, since a
+// naive object save here would overwrite an unpushed local edit.
+func (s *CalDAVSyncService) Pull(ctx context.Context) (int, error) {
+	records, err := s.Discover(ctx)
+	if err != nil {
+		return 0, err
 	}
 	saved := 0
-	for _, calendar := range calendars {
-		calendarID, err := s.saveRemoteCalendar(ctx, calendar)
-		if err != nil {
-			return saved, err
-		}
-		objects, err := s.source.ListObjects(ctx, calendar)
+	for _, record := range records {
+		objects, err := s.source.ListObjects(ctx, RemoteCalendar{Path: record.Href, DisplayName: record.Name})
 		if err != nil {
 			continue
 		}
 		for _, object := range objects {
-			n, err := s.saveObject(ctx, calendarID, object)
+			n, err := s.saveObject(ctx, record.CalendarID, object)
 			if err != nil {
 				return saved, err
 			}
@@ -81,10 +99,10 @@ func (s *CalDAVSyncService) Pull(ctx context.Context) (int, error) {
 	return saved, nil
 }
 
-// saveRemoteCalendar mirrors one remote collection as a local calendar and returns the local calendar id. The
-// collection's display name falls back to its resource path when the server reports none, since a calendar
-// name must be non-empty. The CTag is left empty for now; a later slice reads it to skip an unchanged pull.
-func (s *CalDAVSyncService) saveRemoteCalendar(ctx context.Context, calendar RemoteCalendar) (string, error) {
+// saveRemoteCalendar mirrors one remote collection as a local calendar and returns its record. The collection's
+// display name falls back to its resource path when the server reports none, since a calendar name must be
+// non-empty. The CTag is left empty for now; a later slice reads it to skip an unchanged pull.
+func (s *CalDAVSyncService) saveRemoteCalendar(ctx context.Context, calendar RemoteCalendar) (RemoteCalendarRecord, error) {
 	calendarID := remoteCalendarID(s.accountID, calendar.Path)
 	name := calendar.DisplayName
 	if name == "" {
@@ -92,12 +110,12 @@ func (s *CalDAVSyncService) saveRemoteCalendar(ctx context.Context, calendar Rem
 	}
 	mirror, err := domain.NewCalendar(calendarID, name, DefaultRemoteCalendarColour)
 	if err != nil {
-		return "", fmt.Errorf("caldav: build calendar: %w", err)
+		return RemoteCalendarRecord{}, fmt.Errorf("caldav: build calendar: %w", err)
 	}
 	if err := s.store.SaveRemoteCalendar(ctx, mirror, s.accountID, calendar.Path, ""); err != nil {
-		return "", fmt.Errorf("caldav: save calendar: %w", err)
+		return RemoteCalendarRecord{}, fmt.Errorf("caldav: save calendar: %w", err)
 	}
-	return calendarID, nil
+	return RemoteCalendarRecord{CalendarID: calendarID, AccountID: s.accountID, Href: calendar.Path, Name: name}, nil
 }
 
 // saveObject decodes one remote object and saves each of its events into the collection's local calendar,
