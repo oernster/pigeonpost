@@ -127,6 +127,85 @@ func (s *Store) ListRemoteCalendars(ctx context.Context, accountID string) ([]ap
 	return out, nil
 }
 
+// RemoteCalendarByID returns a local calendar's remote-collection record and reports whether it is a remote
+// calendar. A calendar is remote when it carries an owning account; a local-only calendar (empty account_id)
+// and an unknown id both report false.
+func (s *Store) RemoteCalendarByID(ctx context.Context, calendarID string) (application.RemoteCalendarRecord, bool, error) {
+	var id, accountID, href, ctag, name string
+	err := s.db.QueryRowContext(ctx,
+		"SELECT id, account_id, href, ctag, name FROM calendar WHERE id = ?;", calendarID).
+		Scan(&id, &accountID, &href, &ctag, &name)
+	if errors.Is(err, sql.ErrNoRows) {
+		return application.RemoteCalendarRecord{}, false, nil
+	}
+	if err != nil {
+		return application.RemoteCalendarRecord{}, false, fmt.Errorf("remote calendar %q: %w", calendarID, err)
+	}
+	record := application.RemoteCalendarRecord{CalendarID: id, AccountID: accountID, Href: href, CTag: ctag, Name: name}
+	return record, accountID != "", nil
+}
+
+// SyncedEventIdentity returns the CalDAV object a local event belongs to (its href, etag and calendar) and
+// reports whether the event exists. A local-only event exists with an empty href.
+func (s *Store) SyncedEventIdentity(ctx context.Context, eventID string) (application.SyncedEventIdentity, bool, error) {
+	var href, etag, calendarID string
+	err := s.db.QueryRowContext(ctx,
+		"SELECT href, etag, calendar_id FROM event WHERE id = ?;", eventID).Scan(&href, &etag, &calendarID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return application.SyncedEventIdentity{}, false, nil
+	}
+	if err != nil {
+		return application.SyncedEventIdentity{}, false, fmt.Errorf("synced event identity %q: %w", eventID, err)
+	}
+	return application.SyncedEventIdentity{Href: href, ETag: etag, CalendarID: calendarID}, true, nil
+}
+
+// SaveEventWithPending upserts a synced event (tagged with href and etag) and records its pending write intent
+// in one transaction, so a local create or edit of a remote-calendar event can never be saved without the
+// intent that will push it to the server.
+func (s *Store) SaveEventWithPending(ctx context.Context, e domain.Event, href, etag string, op application.PendingCalendarObject) error {
+	args, err := eventInsertArgs(e)
+	if err != nil {
+		return fmt.Errorf("save event with pending %q: %w", e.ID(), err)
+	}
+	args = append(args, href, etag)
+	return s.inTx(ctx, func(tx *sql.Tx) error {
+		if _, err := tx.ExecContext(ctx, syncedEventUpsertSQL, args...); err != nil {
+			return fmt.Errorf("save synced event %q: %w", e.ID(), err)
+		}
+		if err := setPendingCalendarOpTx(ctx, tx, op); err != nil {
+			return err
+		}
+		return nil
+	})
+}
+
+// DeleteObjectWithPending removes every local event of one object and records the pending delete intent in one
+// transaction, so the tombstone that removes the object on the server outlives the local rows.
+func (s *Store) DeleteObjectWithPending(ctx context.Context, href string, op application.PendingCalendarObject) error {
+	return s.inTx(ctx, func(tx *sql.Tx) error {
+		if _, err := tx.ExecContext(ctx, "DELETE FROM event WHERE href = ?;", href); err != nil {
+			return fmt.Errorf("delete events by href %q: %w", href, err)
+		}
+		if err := setPendingCalendarOpTx(ctx, tx, op); err != nil {
+			return err
+		}
+		return nil
+	})
+}
+
+// pendingCalendarUpsertSQL records or replaces one pending write intent, keyed by (calendar_id, href).
+const pendingCalendarUpsertSQL = "INSERT OR REPLACE INTO calendar_pending (calendar_id, href, op, base_etag) VALUES (?, ?, ?, ?);"
+
+// setPendingCalendarOpTx records or replaces a pending write intent inside a transaction, shared by the atomic
+// save and delete so the pending-op write lives in one place.
+func setPendingCalendarOpTx(ctx context.Context, tx *sql.Tx, op application.PendingCalendarObject) error {
+	if _, err := tx.ExecContext(ctx, pendingCalendarUpsertSQL, op.CalendarID, op.Href, int(op.Op), op.BaseETag); err != nil {
+		return fmt.Errorf("set pending calendar op %q %q: %w", op.CalendarID, op.Href, err)
+	}
+	return nil
+}
+
 // CalendarCTag returns a local calendar's last-seen CTag, or the empty string when the calendar is unknown or
 // carries none.
 func (s *Store) CalendarCTag(ctx context.Context, calendarID string) (string, error) {
@@ -143,10 +222,7 @@ func (s *Store) CalendarCTag(ctx context.Context, calendarID string) (string, er
 
 // SetPendingCalendarOp records or replaces the pending write intent for one object.
 func (s *Store) SetPendingCalendarOp(ctx context.Context, op application.PendingCalendarObject) error {
-	_, err := s.db.ExecContext(ctx,
-		"INSERT OR REPLACE INTO calendar_pending (calendar_id, href, op, base_etag) VALUES (?, ?, ?, ?);",
-		op.CalendarID, op.Href, int(op.Op), op.BaseETag)
-	if err != nil {
+	if _, err := s.db.ExecContext(ctx, pendingCalendarUpsertSQL, op.CalendarID, op.Href, int(op.Op), op.BaseETag); err != nil {
 		return fmt.Errorf("set pending calendar op %q %q: %w", op.CalendarID, op.Href, err)
 	}
 	return nil

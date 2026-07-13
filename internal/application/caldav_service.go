@@ -16,7 +16,7 @@ type CalDAVService struct {
 	credentials CalendarCredentialStore
 	factory     CalDAVSourceFactory
 	codec       CalendarCodec
-	calendar    CalendarStore
+	calendar    CalendarSyncStore
 }
 
 // NewCalDAVService wires the orchestrator over its stores, credential vault, source factory and codec.
@@ -25,7 +25,7 @@ func NewCalDAVService(
 	credentials CalendarCredentialStore,
 	factory CalDAVSourceFactory,
 	codec CalendarCodec,
-	calendar CalendarStore,
+	calendar CalendarSyncStore,
 ) *CalDAVService {
 	return &CalDAVService{accounts: accounts, credentials: credentials, factory: factory, codec: codec, calendar: calendar}
 }
@@ -77,5 +77,5 @@ func (s *CalDAVService) Pull(ctx context.Context, accountID string) (int, error)
 	if err != nil {
 		return 0, fmt.Errorf("caldav: source: %w", err)
 	}
-	return NewCalDAVSyncService(source, s.codec, s.calendar).Pull(ctx)
+	return NewCalDAVSyncService(source, s.codec, s.calendar, accountID).Pull(ctx)
 }

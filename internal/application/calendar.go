@@ -123,9 +123,23 @@ func (s *CalendarService) GetEvent(ctx context.Context, id string) (domain.Event
 // a new event. The caller needs the id to act on a just-created event, such as sending a meeting's
 // invitations.
 func (s *CalendarService) SaveEvent(ctx context.Context, in EventInput) (string, error) {
+	event, err := buildEvent(in, s.newID)
+	if err != nil {
+		return "", err
+	}
+	if err := s.store.SaveEvent(ctx, event); err != nil {
+		return "", fmt.Errorf("calendar: save event: %w", err)
+	}
+	return event.ID(), nil
+}
+
+// buildEvent resolves the id and UID and constructs the validated domain event from the input, generating an
+// id (and defaulting the UID to it) when none is supplied. It is shared by CalendarService.SaveEvent and the
+// remote-aware CalendarEditService so the organizer, attendee and UID handling lives in one place.
+func buildEvent(in EventInput, newID IDGenerator) (domain.Event, error) {
 	id := strings.TrimSpace(in.ID)
 	if id == "" {
-		id = s.newID()
+		id = newID()
 	}
 	// Every event needs a stable UID: it is the identity a meeting keeps across the iTIP REQUEST, REPLY
 	// and CANCEL round-trip (replies are matched to a stored meeting by UID) and the key an ICS export
@@ -136,11 +150,11 @@ func (s *CalendarService) SaveEvent(ctx context.Context, in EventInput) (string,
 	}
 	organizer, err := buildOrganizer(in.OrganizerAddress, in.OrganizerName)
 	if err != nil {
-		return "", fmt.Errorf("calendar: build organizer: %w", err)
+		return domain.Event{}, fmt.Errorf("calendar: build organizer: %w", err)
 	}
 	attendees, err := buildAttendees(in.Attendees)
 	if err != nil {
-		return "", fmt.Errorf("calendar: build attendees: %w", err)
+		return domain.Event{}, fmt.Errorf("calendar: build attendees: %w", err)
 	}
 	event, err := domain.NewEvent(domain.EventInput{
 		ID:          id,
@@ -161,12 +175,9 @@ func (s *CalendarService) SaveEvent(ctx context.Context, in EventInput) (string,
 		Attendees:   attendees,
 	})
 	if err != nil {
-		return "", fmt.Errorf("calendar: build event: %w", err)
+		return domain.Event{}, fmt.Errorf("calendar: build event: %w", err)
 	}
-	if err := s.store.SaveEvent(ctx, event); err != nil {
-		return "", fmt.Errorf("calendar: save event: %w", err)
-	}
-	return id, nil
+	return event, nil
 }
 
 // buildOrganizer builds a meeting organizer from an address and optional name, or the zero organizer

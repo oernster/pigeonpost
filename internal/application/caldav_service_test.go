@@ -113,7 +113,7 @@ func davAccount(t *testing.T, id string) domain.CalendarAccount {
 func TestCalDAVAddAccount(t *testing.T) {
 	accts := &fakeCalendarAccountStore{}
 	creds := &fakeCalendarCredentialStore{}
-	svc := NewCalDAVService(accts, creds, &fakeCalDAVSourceFactory{}, &davCodec{}, &fakeCalendarStore{})
+	svc := NewCalDAVService(accts, creds, &fakeCalDAVSourceFactory{}, &davCodec{}, &fakeSyncStore{})
 	if err := svc.AddAccount(context.Background(), davAccount(t, "c1"), "secret"); err != nil {
 		t.Fatalf("AddAccount: %v", err)
 	}
@@ -127,7 +127,7 @@ func TestCalDAVAddAccount(t *testing.T) {
 
 func TestCalDAVAddAccountPasswordError(t *testing.T) {
 	svc := NewCalDAVService(&fakeCalendarAccountStore{}, &fakeCalendarCredentialStore{setErr: errBoom},
-		&fakeCalDAVSourceFactory{}, &davCodec{}, &fakeCalendarStore{})
+		&fakeCalDAVSourceFactory{}, &davCodec{}, &fakeSyncStore{})
 	if err := svc.AddAccount(context.Background(), davAccount(t, "c1"), "secret"); err == nil {
 		t.Fatal("expected an error when storing the password fails")
 	}
@@ -135,7 +135,7 @@ func TestCalDAVAddAccountPasswordError(t *testing.T) {
 
 func TestCalDAVAddAccountSaveError(t *testing.T) {
 	svc := NewCalDAVService(&fakeCalendarAccountStore{saveErr: errBoom}, &fakeCalendarCredentialStore{},
-		&fakeCalDAVSourceFactory{}, &davCodec{}, &fakeCalendarStore{})
+		&fakeCalDAVSourceFactory{}, &davCodec{}, &fakeSyncStore{})
 	if err := svc.AddAccount(context.Background(), davAccount(t, "c1"), "secret"); err == nil {
 		t.Fatal("expected an error when saving the account fails")
 	}
@@ -143,7 +143,7 @@ func TestCalDAVAddAccountSaveError(t *testing.T) {
 
 func TestCalDAVListAccounts(t *testing.T) {
 	accts := &fakeCalendarAccountStore{accounts: map[string]domain.CalendarAccount{"c1": davAccount(t, "c1")}}
-	svc := NewCalDAVService(accts, &fakeCalendarCredentialStore{}, &fakeCalDAVSourceFactory{}, &davCodec{}, &fakeCalendarStore{})
+	svc := NewCalDAVService(accts, &fakeCalendarCredentialStore{}, &fakeCalDAVSourceFactory{}, &davCodec{}, &fakeSyncStore{})
 	list, err := svc.ListAccounts(context.Background())
 	if err != nil {
 		t.Fatalf("ListAccounts: %v", err)
@@ -156,7 +156,7 @@ func TestCalDAVListAccounts(t *testing.T) {
 func TestCalDAVRemoveAccount(t *testing.T) {
 	accts := &fakeCalendarAccountStore{accounts: map[string]domain.CalendarAccount{"c1": davAccount(t, "c1")}}
 	creds := &fakeCalendarCredentialStore{passwords: map[string]string{"c1": "secret"}}
-	svc := NewCalDAVService(accts, creds, &fakeCalDAVSourceFactory{}, &davCodec{}, &fakeCalendarStore{})
+	svc := NewCalDAVService(accts, creds, &fakeCalDAVSourceFactory{}, &davCodec{}, &fakeSyncStore{})
 	if err := svc.RemoveAccount(context.Background(), "c1"); err != nil {
 		t.Fatalf("RemoveAccount: %v", err)
 	}
@@ -170,7 +170,7 @@ func TestCalDAVRemoveAccount(t *testing.T) {
 
 func TestCalDAVRemoveAccountGetError(t *testing.T) {
 	svc := NewCalDAVService(&fakeCalendarAccountStore{}, &fakeCalendarCredentialStore{},
-		&fakeCalDAVSourceFactory{}, &davCodec{}, &fakeCalendarStore{})
+		&fakeCalDAVSourceFactory{}, &davCodec{}, &fakeSyncStore{})
 	if err := svc.RemoveAccount(context.Background(), "missing"); err == nil {
 		t.Fatal("expected an error removing an unknown account")
 	}
@@ -178,7 +178,7 @@ func TestCalDAVRemoveAccountGetError(t *testing.T) {
 
 func TestCalDAVRemoveAccountDeleteError(t *testing.T) {
 	accts := &fakeCalendarAccountStore{accounts: map[string]domain.CalendarAccount{"c1": davAccount(t, "c1")}, delErr: errBoom}
-	svc := NewCalDAVService(accts, &fakeCalendarCredentialStore{}, &fakeCalDAVSourceFactory{}, &davCodec{}, &fakeCalendarStore{})
+	svc := NewCalDAVService(accts, &fakeCalendarCredentialStore{}, &fakeCalDAVSourceFactory{}, &davCodec{}, &fakeSyncStore{})
 	if err := svc.RemoveAccount(context.Background(), "c1"); err == nil {
 		t.Fatal("expected an error when deleting the account fails")
 	}
@@ -187,7 +187,7 @@ func TestCalDAVRemoveAccountDeleteError(t *testing.T) {
 func TestCalDAVRemoveAccountPasswordDeleteError(t *testing.T) {
 	accts := &fakeCalendarAccountStore{accounts: map[string]domain.CalendarAccount{"c1": davAccount(t, "c1")}}
 	creds := &fakeCalendarCredentialStore{delErr: errBoom}
-	svc := NewCalDAVService(accts, creds, &fakeCalDAVSourceFactory{}, &davCodec{}, &fakeCalendarStore{})
+	svc := NewCalDAVService(accts, creds, &fakeCalDAVSourceFactory{}, &davCodec{}, &fakeSyncStore{})
 	if err := svc.RemoveAccount(context.Background(), "c1"); err == nil {
 		t.Fatal("expected an error when deleting the password fails")
 	}
@@ -201,7 +201,7 @@ func TestCalDAVPull(t *testing.T) {
 	accts := &fakeCalendarAccountStore{accounts: map[string]domain.CalendarAccount{"c1": davAccount(t, "c1")}}
 	creds := &fakeCalendarCredentialStore{passwords: map[string]string{"c1": "secret"}}
 	codec := &davCodec{decode: map[string][]domain.Event{"EV": {davEvent(t, "e1")}}}
-	store := &fakeCalendarStore{}
+	store := &fakeSyncStore{}
 	svc := NewCalDAVService(accts, creds, &fakeCalDAVSourceFactory{source: src}, codec, store)
 	n, err := svc.Pull(context.Background(), "c1")
 	if err != nil {
@@ -214,7 +214,7 @@ func TestCalDAVPull(t *testing.T) {
 
 func TestCalDAVPullAccountError(t *testing.T) {
 	svc := NewCalDAVService(&fakeCalendarAccountStore{}, &fakeCalendarCredentialStore{},
-		&fakeCalDAVSourceFactory{}, &davCodec{}, &fakeCalendarStore{})
+		&fakeCalDAVSourceFactory{}, &davCodec{}, &fakeSyncStore{})
 	if _, err := svc.Pull(context.Background(), "missing"); err == nil {
 		t.Fatal("expected an error pulling an unknown account")
 	}
@@ -223,7 +223,7 @@ func TestCalDAVPullAccountError(t *testing.T) {
 func TestCalDAVPullPasswordError(t *testing.T) {
 	accts := &fakeCalendarAccountStore{accounts: map[string]domain.CalendarAccount{"c1": davAccount(t, "c1")}}
 	creds := &fakeCalendarCredentialStore{getErr: errBoom}
-	svc := NewCalDAVService(accts, creds, &fakeCalDAVSourceFactory{}, &davCodec{}, &fakeCalendarStore{})
+	svc := NewCalDAVService(accts, creds, &fakeCalDAVSourceFactory{}, &davCodec{}, &fakeSyncStore{})
 	if _, err := svc.Pull(context.Background(), "c1"); err == nil {
 		t.Fatal("expected an error when the password cannot be read")
 	}
@@ -232,7 +232,7 @@ func TestCalDAVPullPasswordError(t *testing.T) {
 func TestCalDAVPullSourceError(t *testing.T) {
 	accts := &fakeCalendarAccountStore{accounts: map[string]domain.CalendarAccount{"c1": davAccount(t, "c1")}}
 	creds := &fakeCalendarCredentialStore{passwords: map[string]string{"c1": "secret"}}
-	svc := NewCalDAVService(accts, creds, &fakeCalDAVSourceFactory{err: errBoom}, &davCodec{}, &fakeCalendarStore{})
+	svc := NewCalDAVService(accts, creds, &fakeCalDAVSourceFactory{err: errBoom}, &davCodec{}, &fakeSyncStore{})
 	if _, err := svc.Pull(context.Background(), "c1"); err == nil {
 		t.Fatal("expected an error when the source cannot be built")
 	}

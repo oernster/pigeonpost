@@ -52,6 +52,15 @@ type SyncedObject struct {
 	ETag string
 }
 
+// SyncedEventIdentity is the CalDAV object a single local event belongs to: its resource path, last-seen etag
+// and owning calendar. A local-only event (one not pulled from a server) has an empty Href. It is read when a
+// local edit or delete needs to record the matching pending write intent.
+type SyncedEventIdentity struct {
+	Href       string
+	ETag       string
+	CalendarID string
+}
+
 // RemoteCalendarRecord is a locally stored CalDAV collection: the local calendar id plus the owning account,
 // the collection's resource path and its last-seen CTag (used to skip an unchanged collection on a sync).
 type RemoteCalendarRecord struct {
@@ -90,6 +99,19 @@ type CalendarSyncStore interface {
 	SaveRemoteCalendar(ctx context.Context, calendar domain.Calendar, accountID, href, ctag string) error
 	// ListRemoteCalendars returns the collections mirrored for one account.
 	ListRemoteCalendars(ctx context.Context, accountID string) ([]RemoteCalendarRecord, error)
+	// RemoteCalendarByID returns a local calendar's remote-collection record and reports whether it is a remote
+	// calendar (one with an owning account). A local-only calendar, or an unknown id, reports false.
+	RemoteCalendarByID(ctx context.Context, calendarID string) (RemoteCalendarRecord, bool, error)
+	// SyncedEventIdentity returns the CalDAV object a local event belongs to (its href, etag and calendar) and
+	// reports whether the event exists. It is read to build the pending write intent for a local edit or delete.
+	SyncedEventIdentity(ctx context.Context, eventID string) (SyncedEventIdentity, bool, error)
+	// SaveEventWithPending upserts a synced event (tagged with href and etag) and records the pending write
+	// intent in one transaction, so a local create or edit of a remote-calendar event can never be saved
+	// without the intent that will push it to the server.
+	SaveEventWithPending(ctx context.Context, event domain.Event, href, etag string, op PendingCalendarObject) error
+	// DeleteObjectWithPending removes every local event of one object and records the pending delete intent in
+	// one transaction, so the tombstone that will remove the object on the server outlives the local rows.
+	DeleteObjectWithPending(ctx context.Context, href string, op PendingCalendarObject) error
 	// CalendarCTag returns a local calendar's last-seen CTag, or the empty string when it has none.
 	CalendarCTag(ctx context.Context, calendarID string) (string, error)
 	// SetPendingCalendarOp records or replaces the pending write intent for one object.

@@ -14,18 +14,49 @@ type savedSynced struct {
 	id, href, etag string
 }
 
-// fakeSyncStore is a hand-written CalendarSyncStore with error injection and call recording. Only the methods
-// Flush exercises carry behaviour; the rest are interface-satisfying stubs.
+// savedRemoteCalendar records a SaveRemoteCalendar call so a pull test can assert the mirrored collection.
+type savedRemoteCalendar struct {
+	id, name, colour, accountID, href, ctag string
+}
+
+// savedWithPending records a SaveEventWithPending call so a test can assert the event, its stamped identity and
+// the recorded intent.
+type savedWithPending struct {
+	id, href, etag string
+	op             PendingCalendarObject
+}
+
+// deletedWithPending records a DeleteObjectWithPending call.
+type deletedWithPending struct {
+	href string
+	op   PendingCalendarObject
+}
+
+// fakeSyncStore is a hand-written CalendarSyncStore with error injection and call recording. Only the methods a
+// test exercises carry behaviour; the rest are interface-satisfying stubs.
 type fakeSyncStore struct {
-	pending      []PendingCalendarObject
-	pendingErr   error
-	eventsByHref map[string][]domain.Event
-	eventsErr    error
-	synced       map[string][]SyncedObject
-	syncedErr    error
-	saved        []savedSynced
-	deletedHrefs []string
-	clearedOps   [][2]string
+	pending       []PendingCalendarObject
+	pendingErr    error
+	eventsByHref  map[string][]domain.Event
+	eventsErr     error
+	synced        map[string][]SyncedObject
+	syncedErr     error
+	saved         []savedSynced
+	savedEvents   []domain.Event
+	saveSyncedErr error
+	deletedHrefs  []string
+	clearedOps    [][2]string
+	savedCals     []savedRemoteCalendar
+	saveCalErr    error
+	// remoteByID keys a calendar id to its remote record; absence reports a local-only (or unknown) calendar.
+	remoteByID  map[string]RemoteCalendarRecord
+	remoteErr   error
+	identities  map[string]SyncedEventIdentity
+	identityErr error
+	savedPend   []savedWithPending
+	savePendErr error
+	deletedPend []deletedWithPending
+	delPendErr  error
 }
 
 var _ CalendarSyncStore = (*fakeSyncStore)(nil)
@@ -42,7 +73,11 @@ func (f *fakeSyncStore) EventsByHref(_ context.Context, href string) ([]domain.E
 }
 
 func (f *fakeSyncStore) SaveSyncedEvent(_ context.Context, e domain.Event, href, etag string) error {
+	if f.saveSyncedErr != nil {
+		return f.saveSyncedErr
+	}
 	f.saved = append(f.saved, savedSynced{e.ID(), href, etag})
+	f.savedEvents = append(f.savedEvents, e)
 	return nil
 }
 
@@ -62,7 +97,11 @@ func (f *fakeSyncStore) ListSyncedObjects(_ context.Context, calendarID string) 
 	}
 	return f.synced[calendarID], nil
 }
-func (f *fakeSyncStore) SaveRemoteCalendar(context.Context, domain.Calendar, string, string, string) error {
+func (f *fakeSyncStore) SaveRemoteCalendar(_ context.Context, c domain.Calendar, accountID, href, ctag string) error {
+	if f.saveCalErr != nil {
+		return f.saveCalErr
+	}
+	f.savedCals = append(f.savedCals, savedRemoteCalendar{c.ID(), c.Name(), c.Colour(), accountID, href, ctag})
 	return nil
 }
 func (f *fakeSyncStore) ListRemoteCalendars(context.Context, string) ([]RemoteCalendarRecord, error) {
@@ -70,6 +109,44 @@ func (f *fakeSyncStore) ListRemoteCalendars(context.Context, string) ([]RemoteCa
 }
 func (f *fakeSyncStore) CalendarCTag(context.Context, string) (string, error) { return "", nil }
 func (f *fakeSyncStore) SetPendingCalendarOp(context.Context, PendingCalendarObject) error {
+	return nil
+}
+
+func (f *fakeSyncStore) RemoteCalendarByID(_ context.Context, calendarID string) (RemoteCalendarRecord, bool, error) {
+	if f.remoteErr != nil {
+		return RemoteCalendarRecord{}, false, f.remoteErr
+	}
+	record, ok := f.remoteByID[calendarID]
+	if !ok {
+		return RemoteCalendarRecord{}, false, nil
+	}
+	return record, record.AccountID != "", nil
+}
+
+func (f *fakeSyncStore) SyncedEventIdentity(_ context.Context, eventID string) (SyncedEventIdentity, bool, error) {
+	if f.identityErr != nil {
+		return SyncedEventIdentity{}, false, f.identityErr
+	}
+	identity, ok := f.identities[eventID]
+	if !ok {
+		return SyncedEventIdentity{}, false, nil
+	}
+	return identity, true, nil
+}
+
+func (f *fakeSyncStore) SaveEventWithPending(_ context.Context, e domain.Event, href, etag string, op PendingCalendarObject) error {
+	if f.savePendErr != nil {
+		return f.savePendErr
+	}
+	f.savedPend = append(f.savedPend, savedWithPending{e.ID(), href, etag, op})
+	return nil
+}
+
+func (f *fakeSyncStore) DeleteObjectWithPending(_ context.Context, href string, op PendingCalendarObject) error {
+	if f.delPendErr != nil {
+		return f.delPendErr
+	}
+	f.deletedPend = append(f.deletedPend, deletedWithPending{href, op})
 	return nil
 }
 

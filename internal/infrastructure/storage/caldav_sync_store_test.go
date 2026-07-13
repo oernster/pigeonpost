@@ -119,6 +119,122 @@ func TestRemoteCalendarAndCTag(t *testing.T) {
 	}
 }
 
+func TestRemoteCalendarByID(t *testing.T) {
+	store := openTestStore(t)
+	ctx := context.Background()
+	remote, err := domain.NewCalendar("cal1", "Work", "#3b82f6")
+	if err != nil {
+		t.Fatalf("calendar: %v", err)
+	}
+	if err := store.SaveRemoteCalendar(ctx, remote, "acc1", "/dav/cal1/", "ctag-1"); err != nil {
+		t.Fatalf("SaveRemoteCalendar: %v", err)
+	}
+	local, _ := domain.NewCalendar("local", "Local", "")
+	if err := store.SaveCalendar(ctx, local); err != nil {
+		t.Fatalf("SaveCalendar: %v", err)
+	}
+
+	rec, isRemote, err := store.RemoteCalendarByID(ctx, "cal1")
+	if err != nil || !isRemote {
+		t.Fatalf("RemoteCalendarByID(cal1) isRemote=%v err=%v", isRemote, err)
+	}
+	want := application.RemoteCalendarRecord{CalendarID: "cal1", AccountID: "acc1", Href: "/dav/cal1/", CTag: "ctag-1", Name: "Work"}
+	if rec != want {
+		t.Errorf("record = %+v, want %+v", rec, want)
+	}
+	// A local calendar exists but is not remote, so an edit to it records no pending op.
+	if _, isRemote, err := store.RemoteCalendarByID(ctx, "local"); err != nil || isRemote {
+		t.Errorf("local calendar reported remote=%v err=%v", isRemote, err)
+	}
+	// An unknown calendar reports not-remote without an error.
+	if rec, isRemote, err := store.RemoteCalendarByID(ctx, "missing"); err != nil || isRemote || rec != (application.RemoteCalendarRecord{}) {
+		t.Errorf("unknown calendar = %+v remote=%v err=%v", rec, isRemote, err)
+	}
+}
+
+func TestSyncedEventIdentity(t *testing.T) {
+	store := openTestStore(t)
+	ctx := context.Background()
+	start := baseStart()
+	const href, etag = "/dav/cal1/o.ics", "etag-9"
+	if err := store.SaveSyncedEvent(ctx, syncedEvent(t, "obj1", "uid-1", start, time.Time{}), href, etag); err != nil {
+		t.Fatalf("SaveSyncedEvent: %v", err)
+	}
+	id, found, err := store.SyncedEventIdentity(ctx, "obj1")
+	if err != nil || !found {
+		t.Fatalf("SyncedEventIdentity(obj1) found=%v err=%v", found, err)
+	}
+	want := application.SyncedEventIdentity{Href: href, ETag: etag, CalendarID: "cal1"}
+	if id != want {
+		t.Errorf("identity = %+v, want %+v", id, want)
+	}
+	// A local-only event exists but carries an empty href, so a delete of it stays local.
+	if err := store.SaveEvent(ctx, syncedEvent(t, "local1", "uid-l", start, time.Time{})); err != nil {
+		t.Fatalf("SaveEvent local: %v", err)
+	}
+	if id, found, _ := store.SyncedEventIdentity(ctx, "local1"); !found || id.Href != "" {
+		t.Errorf("local identity = %+v found=%v, want found with an empty href", id, found)
+	}
+	// An unknown event reports not-found.
+	if id, found, err := store.SyncedEventIdentity(ctx, "missing"); err != nil || found || id != (application.SyncedEventIdentity{}) {
+		t.Errorf("unknown identity = %+v found=%v err=%v", id, found, err)
+	}
+}
+
+func TestSaveEventWithPending(t *testing.T) {
+	store := openTestStore(t)
+	ctx := context.Background()
+	start := baseStart()
+	const href = "/dav/cal1/new.ics"
+	op := application.PendingCalendarObject{CalendarID: "cal1", Href: href, Op: application.CalendarOpCreate}
+	if err := store.SaveEventWithPending(ctx, syncedEvent(t, "e1", "uid-1", start, time.Time{}), href, "", op); err != nil {
+		t.Fatalf("SaveEventWithPending: %v", err)
+	}
+	// The event was saved tagged with its object identity.
+	objs, err := store.ListSyncedObjects(ctx, "cal1")
+	if err != nil {
+		t.Fatalf("ListSyncedObjects: %v", err)
+	}
+	if len(objs) != 1 || objs[0].Href != href {
+		t.Fatalf("synced objects = %+v, want one at %s", objs, href)
+	}
+	// The pending intent was recorded in the same call.
+	ops, err := store.ListPendingCalendarOps(ctx)
+	if err != nil {
+		t.Fatalf("ListPendingCalendarOps: %v", err)
+	}
+	if len(ops) != 1 || ops[0] != op {
+		t.Fatalf("pending ops = %+v, want [%+v]", ops, op)
+	}
+}
+
+func TestDeleteObjectWithPending(t *testing.T) {
+	store := openTestStore(t)
+	ctx := context.Background()
+	start := baseStart()
+	const href, etag = "/dav/cal1/gone.ics", "etag-2"
+	if err := store.SaveSyncedEvent(ctx, syncedEvent(t, "e1", "uid-1", start, time.Time{}), href, etag); err != nil {
+		t.Fatalf("SaveSyncedEvent: %v", err)
+	}
+	op := application.PendingCalendarObject{CalendarID: "cal1", Href: href, Op: application.CalendarOpDelete, BaseETag: etag}
+	if err := store.DeleteObjectWithPending(ctx, href, op); err != nil {
+		t.Fatalf("DeleteObjectWithPending: %v", err)
+	}
+	// The local rows of the object are gone.
+	events, err := store.EventsByHref(ctx, href)
+	if err != nil {
+		t.Fatalf("EventsByHref: %v", err)
+	}
+	if len(events) != 0 {
+		t.Fatalf("events remain after delete: %+v", events)
+	}
+	// The delete tombstone outlives them, so a later flush can still remove the object on the server.
+	ops, _ := store.ListPendingCalendarOps(ctx)
+	if len(ops) != 1 || ops[0] != op {
+		t.Fatalf("pending ops = %+v, want the delete tombstone [%+v]", ops, op)
+	}
+}
+
 func TestPendingCalendarOps(t *testing.T) {
 	store := openTestStore(t)
 	ctx := context.Background()
