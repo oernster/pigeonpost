@@ -539,3 +539,38 @@
     cursor: pointer;
 }
 
+/* Remote calendars (CalDAV) manager: the list of configured DAV accounts, each with a Pull and a Remove. */
+.caldav-accounts {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin: 12px 0;
+}
+
+.caldav-account-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.caldav-account-info {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-width: 0;
+}
+
+.caldav-account-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.caldav-account-meta {
+    font-size: 12px;
+    color: var(--text-dim);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+

@@ -6,6 +6,8 @@ export function About():Promise<main.AboutDTO>;
 
 export function AddAccount(arg1:main.AccountSetupRequest):Promise<void>;
 
+export function AddCalDAVAccount(arg1:string,arg2:string,arg3:string,arg4:string):Promise<void>;
+
 export function ApplyMeetingReply(arg1:string):Promise<void>;
 
 export function Author():Promise<string>;
@@ -65,6 +67,8 @@ export function ImportEventsFromFile():Promise<number>;
 export function LicenceText():Promise<string>;
 
 export function ListAccounts():Promise<Array<main.AccountDTO>>;
+
+export function ListCalDAVAccounts():Promise<Array<main.CalDAVAccountDTO>>;
 
 export function ListCalendars():Promise<Array<main.CalendarDTO>>;
 
@@ -126,7 +130,11 @@ export function OutboxCount():Promise<number>;
 
 export function PickAttachments():Promise<Array<string>>;
 
+export function PullCalDAV(arg1:string):Promise<number>;
+
 export function RemoveAccount(arg1:string):Promise<void>;
+
+export function RemoveCalDAVAccount(arg1:string):Promise<void>;
 
 export function RemoveCancelledMeeting(arg1:string):Promise<void>;
 

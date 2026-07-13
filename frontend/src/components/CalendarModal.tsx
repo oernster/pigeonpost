@@ -29,8 +29,10 @@ import {
 } from '../calendarModel'
 import {useEventInstances} from '../hooks/useEventInstances'
 import {useCalendars} from '../hooks/useCalendars'
+import {useCalDAVAccounts} from '../hooks/useCalDAVAccounts'
 import {useOpenFromReminder} from '../hooks/useOpenFromReminder'
 import {CalendarsManager} from './CalendarsManager'
+import {CalDAVAccountsManager} from './CalDAVAccountsManager'
 import {EventFormModal, type EventForm} from './EventFormModal'
 import {useBanners} from '../hooks/useBanners'
 
@@ -77,12 +79,29 @@ export function CalendarModal({events, accountId, accountEmail, accountName, ini
     // instances are the concrete occurrences shown for the visible range, expanded from the recurring events
     // by the backend and refetched by the application hook; bumpReload forces a refetch after a local change.
     const {instances, bumpReload} = useEventInstances({viewDate, viewMode, events, setError})
+    // The remote-calendars (CalDAV) sub-feature: the DAV accounts, the manager's open state, the add form and
+    // the read-only pull. A pull brings remote events into the local store, so it reloads the calendar.
+    const caldav = useCalDAVAccounts({
+        setError, setStatus, setBusy, onPulled: () => {
+            bumpReload()
+            onChanged()
+        },
+    })
 
     // The event form and the calendars manager are nested modals that are deliberately not dismissed by a
     // backdrop click (so edits are not dropped), so give each its own Escape close. The active flags mean
     // Escape closes whichever is open before falling through to close the calendar itself.
     useEscapeToClose(() => setForm(null), form !== null)
-    useEscapeToClose(() => setManagingCals(false), managingCals)
+    // Escape must reset the edit / add form exactly as the close cross and the Done button do (both route
+    // through the manager's onClose), so a dismissed edit does not survive and reappear on reopen.
+    useEscapeToClose(() => {
+        setManagingCals(false)
+        setCalForm(null)
+    }, managingCals)
+    useEscapeToClose(() => {
+        caldav.setManaging(false)
+        caldav.cancelAdd()
+    }, caldav.managing)
 
     // colourOf resolves an event's colour from its calendar, falling back to the default for events with
     // no calendar. The map is rebuilt each render, which is cheap for the handful of calendars a user has.
@@ -262,6 +281,7 @@ export function CalendarModal({events, accountId, accountEmail, accountName, ini
                     </span>
                     <span className="cal-spacer"/>
                     <button className="btn" onClick={() => setManagingCals(true)}>Calendars</button>
+                    <button className="btn" onClick={() => caldav.setManaging(true)}>Remote calendars</button>
                     <button className="btn" onClick={() => void doImport()}>Import…</button>
                     <button className="btn" onClick={() => void doExport()} disabled={events.length === 0}>Export ICS</button>
                 </div>
@@ -383,6 +403,30 @@ export function CalendarModal({events, accountId, accountEmail, accountName, ini
                         setCalForm(null)
                     }}
                     busy={busy}
+                />
+            )}
+
+            {caldav.managing && (
+                <CalDAVAccountsManager
+                    accounts={caldav.accounts}
+                    adding={caldav.adding}
+                    startAdd={caldav.startAdd}
+                    cancelAdd={caldav.cancelAdd}
+                    form={caldav.form}
+                    setForm={caldav.setForm}
+                    submitAdd={caldav.submitAdd}
+                    pull={caldav.pull}
+                    pullingId={caldav.pullingId}
+                    pendingDelete={caldav.pendingDelete}
+                    setPendingDelete={caldav.setPendingDelete}
+                    confirmRemove={caldav.confirmRemove}
+                    onClose={() => {
+                        caldav.setManaging(false)
+                        caldav.cancelAdd()
+                    }}
+                    busy={busy}
+                    error={error}
+                    status={status}
                 />
             )}
         </div>

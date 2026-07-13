@@ -28,6 +28,10 @@ const apiSpies = vi.hoisted(() => ({
     importEventsFromFile: vi.fn(),
     exportEventsToFile: vi.fn(),
     openExternal: vi.fn(),
+    listCalDAVAccounts: vi.fn(),
+    addCalDAVAccount: vi.fn(),
+    removeCalDAVAccount: vi.fn(),
+    pullCalDAV: vi.fn(),
 }))
 
 // The mock provides EventScope with the real integer values (a runtime enum the modal and the ScopeChooser
@@ -90,6 +94,10 @@ beforeEach(() => {
     apiSpies.importEventsFromFile.mockReset().mockResolvedValue(0)
     apiSpies.exportEventsToFile.mockReset().mockResolvedValue(true)
     apiSpies.openExternal.mockReset().mockResolvedValue(undefined)
+    apiSpies.listCalDAVAccounts.mockReset().mockResolvedValue([])
+    apiSpies.addCalDAVAccount.mockReset().mockResolvedValue(undefined)
+    apiSpies.removeCalDAVAccount.mockReset().mockResolvedValue(undefined)
+    apiSpies.pullCalDAV.mockReset().mockResolvedValue(0)
 })
 
 afterEach(() => cleanup())
@@ -276,6 +284,69 @@ describe('CalendarModal: calendars manager', () => {
         fireEvent.click(within(confirm).getByRole('button', {name: 'Delete'}))
         await waitFor(() => expect(apiSpies.deleteCalendar).toHaveBeenCalledWith('c1'))
         expect(onChanged).toHaveBeenCalled()
+    })
+})
+
+describe('CalendarModal: remote calendars', () => {
+    const acct = {id: 'cal1', displayName: 'Fastmail', baseUrl: 'https://caldav.fastmail.com', username: 'me@example.com'}
+
+    async function openManager() {
+        fireEvent.click(screen.getByRole('button', {name: 'Remote calendars'}))
+        return screen.findByRole('dialog', {name: 'Remote calendars'})
+    }
+
+    it('lists the configured remote accounts', async () => {
+        apiSpies.listCalDAVAccounts.mockResolvedValue([acct])
+        renderCalendar()
+        await waitFor(() => expect(apiSpies.listCalDAVAccounts).toHaveBeenCalled())
+        const mgr = await openManager()
+        expect(within(mgr).getByText('Fastmail')).toBeInTheDocument()
+        expect(within(mgr).getByText(/caldav\.fastmail\.com/)).toBeInTheDocument()
+    })
+
+    it('pulls an account, reports the pluralised count and refreshes the calendar', async () => {
+        apiSpies.listCalDAVAccounts.mockResolvedValue([acct])
+        apiSpies.pullCalDAV.mockResolvedValue(2)
+        const {onChanged} = renderCalendar()
+        const mgr = await openManager()
+        fireEvent.click(await within(mgr).findByRole('button', {name: 'Pull'}))
+        await within(mgr).findByText('Pulled 2 events from Fastmail.')
+        expect(apiSpies.pullCalDAV).toHaveBeenCalledWith('cal1')
+        expect(onChanged).toHaveBeenCalled()
+    })
+
+    it('reports a single pulled event without a plural s', async () => {
+        apiSpies.listCalDAVAccounts.mockResolvedValue([acct])
+        apiSpies.pullCalDAV.mockResolvedValue(1)
+        renderCalendar()
+        const mgr = await openManager()
+        fireEvent.click(await within(mgr).findByRole('button', {name: 'Pull'}))
+        await within(mgr).findByText('Pulled 1 event from Fastmail.')
+    })
+
+    it('adds an account with trimmed fields and reloads the list', async () => {
+        renderCalendar()
+        await waitFor(() => expect(apiSpies.listCalDAVAccounts).toHaveBeenCalledTimes(1))
+        const mgr = await openManager()
+        fireEvent.click(within(mgr).getByRole('button', {name: 'Add account'}))
+        fireEvent.change(within(mgr).getByPlaceholderText('Fastmail calendar'), {target: {value: '  Work  '}})
+        fireEvent.change(within(mgr).getByPlaceholderText('https://caldav.fastmail.com'), {target: {value: '  https://d.example.com  '}})
+        fireEvent.change(within(mgr).getByPlaceholderText('you@example.com'), {target: {value: '  u@example.com  '}})
+        fireEvent.change(mgr.querySelector('input[type="password"]')!, {target: {value: 'secret'}})
+        fireEvent.click(within(mgr).getByRole('button', {name: 'Add account'}))
+        await waitFor(() =>
+            expect(apiSpies.addCalDAVAccount).toHaveBeenCalledWith('Work', 'https://d.example.com', 'u@example.com', 'secret'))
+        await waitFor(() => expect(apiSpies.listCalDAVAccounts).toHaveBeenCalledTimes(2))
+    })
+
+    it('removes an account after confirming', async () => {
+        apiSpies.listCalDAVAccounts.mockResolvedValue([acct])
+        renderCalendar()
+        const mgr = await openManager()
+        fireEvent.click(await within(mgr).findByRole('button', {name: 'Remove'}))
+        const confirm = screen.getByRole('alertdialog', {name: 'Remove remote calendar'})
+        fireEvent.click(within(confirm).getByRole('button', {name: 'Remove'}))
+        await waitFor(() => expect(apiSpies.removeCalDAVAccount).toHaveBeenCalledWith('cal1'))
     })
 })
 

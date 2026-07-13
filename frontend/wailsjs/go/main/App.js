@@ -10,6 +10,10 @@ export function AddAccount(arg1) {
   return window['go']['main']['App']['AddAccount'](arg1);
 }
 
+export function AddCalDAVAccount(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['App']['AddCalDAVAccount'](arg1, arg2, arg3, arg4);
+}
+
 export function ApplyMeetingReply(arg1) {
   return window['go']['main']['App']['ApplyMeetingReply'](arg1);
 }
@@ -128,6 +132,10 @@ export function LicenceText() {
 
 export function ListAccounts() {
   return window['go']['main']['App']['ListAccounts']();
+}
+
+export function ListCalDAVAccounts() {
+  return window['go']['main']['App']['ListCalDAVAccounts']();
 }
 
 export function ListCalendars() {
@@ -250,8 +258,16 @@ export function PickAttachments() {
   return window['go']['main']['App']['PickAttachments']();
 }
 
+export function PullCalDAV(arg1) {
+  return window['go']['main']['App']['PullCalDAV'](arg1);
+}
+
 export function RemoveAccount(arg1) {
   return window['go']['main']['App']['RemoveAccount'](arg1);
+}
+
+export function RemoveCalDAVAccount(arg1) {
+  return window['go']['main']['App']['RemoveCalDAVAccount'](arg1);
 }
 
 export function RemoveCancelledMeeting(arg1) {

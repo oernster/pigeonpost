@@ -3,6 +3,10 @@
 import {
     About,
     AddAccount,
+    AddCalDAVAccount,
+    ListCalDAVAccounts,
+    PullCalDAV,
+    RemoveCalDAVAccount,
     Author,
     DeleteMessage,
     DeleteMessagePermanent,
@@ -172,6 +176,9 @@ export interface ContactGroupInput {
 }
 
 export type Calendar = main.CalendarDTO
+// CalDAVAccount is a configured remote CalDAV account. The password is never part of this view; it lives
+// in the OS keychain, exactly as for a mail account.
+export type CalDAVAccount = main.CalDAVAccountDTO
 export type CalendarEvent = main.EventDTO
 export type CalendarEventInstance = main.EventInstanceDTO
 export type Invitation = main.InvitationDTO
@@ -473,4 +480,12 @@ export const api = {
         SendMeetingRequest(accountId, eventId),
     sendMeetingCancel: (accountId: string, eventId: string): Promise<void> =>
         SendMeetingCancel(accountId, eventId),
+    // CalDAV remote calendars (phase 1, read-only). listCalDAVAccounts returns the configured DAV accounts;
+    // addCalDAVAccount stores an account and its keychain password; removeCalDAVAccount deletes both;
+    // pullCalDAV fetches the account's remote calendars into the local store and returns the events saved.
+    listCalDAVAccounts: (): Promise<CalDAVAccount[]> => ListCalDAVAccounts(),
+    addCalDAVAccount: (displayName: string, baseUrl: string, username: string, password: string): Promise<void> =>
+        AddCalDAVAccount(displayName, baseUrl, username, password),
+    removeCalDAVAccount: (id: string): Promise<void> => RemoveCalDAVAccount(id),
+    pullCalDAV: (id: string): Promise<number> => PullCalDAV(id),
 }

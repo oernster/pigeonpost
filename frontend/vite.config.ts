@@ -26,6 +26,7 @@ export default defineConfig({
         'src/sidebarDnd.ts',
         'src/calendarModel.ts',
         'src/replyDraft.ts',
+        'src/caldavAccount.ts',
       ],
       thresholds: {lines: 100, functions: 100, statements: 100, branches: 100},
     },

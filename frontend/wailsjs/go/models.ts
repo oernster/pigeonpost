@@ -281,6 +281,24 @@ export namespace main {
 	        this.error = source["error"];
 	    }
 	}
+	export class CalDAVAccountDTO {
+	    id: string;
+	    displayName: string;
+	    baseUrl: string;
+	    username: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new CalDAVAccountDTO(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.displayName = source["displayName"];
+	        this.baseUrl = source["baseUrl"];
+	        this.username = source["username"];
+	    }
+	}
 	export class CalendarDTO {
 	    id: string;
 	    name: string;
