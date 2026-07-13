@@ -74,7 +74,7 @@ export const PROVIDERS: readonly Provider[] = [
         id: 'yahoo', name: 'Yahoo Mail',
         inHost: 'imap.mail.yahoo.com', inPort: 993, inSecurity: 'tls',
         outHost: 'smtp.mail.yahoo.com', outPort: 465, outSecurity: 'tls',
-        note: 'Your normal Yahoo password will not work here. Turn on 2-step verification, then create an app password in your account security settings and use that instead.',
+        note: 'Your normal Yahoo password will not work here. Create an app password in your Yahoo account security settings (External connections) and use that instead.',
         appPasswordUrl: 'https://login.yahoo.com/account/security',
     },
     {

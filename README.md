@@ -24,7 +24,9 @@ local-first. A calmer, more predictable alternative to Thunderbird.
 ## Capabilities
 
 - **Accounts**: IMAP and POP3 from a two-step wizard (presets for Gmail, iCloud, Yahoo, Zoho, Fastmail
-  and StartMail, plus a manual host/port/security path), credentials verified before saving. Microsoft accounts
+  and StartMail, plus a manual host/port/security path), credentials verified before saving. A preset
+  whose provider needs an app password says so plainly (a normal login password will not work) and links
+  to the page that creates one. Microsoft accounts
   via one-click OAuth. A separate inbox per account (no unified inbox), send-as addresses and drag or
   button reordering. POP3 downloads into one local mailbox with read and star marks kept locally.
 - **Mail**: folders and summaries cached to local SQLite and read offline; bodies fetched on open and
