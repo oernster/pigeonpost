@@ -236,6 +236,15 @@ type CalDAVSource interface {
 	ListObjects(ctx context.Context, calendar RemoteCalendar) ([]RemoteObject, error)
 }
 
+// CalendarAccountStore persists CalDAV/CardDAV accounts. Each account's password is not stored here; it
+// lives in the OS keychain, keyed by the account id, as for a mail account.
+type CalendarAccountStore interface {
+	SaveCalendarAccount(ctx context.Context, account domain.CalendarAccount) error
+	ListCalendarAccounts(ctx context.Context) ([]domain.CalendarAccount, error)
+	GetCalendarAccount(ctx context.Context, id string) (domain.CalendarAccount, error)
+	DeleteCalendarAccount(ctx context.Context, id string) error
+}
+
 // CalendarCodec converts events to and from a serialised calendar format (ICS). It is the import/export
 // seam. A decoded event carries its own id (an ICS UID where present) so an import can reconcile against
 // existing records. Non-event components PigeonPost does not model (to-dos and journal entries) are
