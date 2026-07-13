@@ -171,6 +171,14 @@ func TestEventCopyMethods(t *testing.T) {
 	if rekeyed.UID() != "uid-2" || e.UID() != "uid-1" {
 		t.Errorf("WithUID mutated the receiver: got %q, receiver %q", rekeyed.UID(), e.UID())
 	}
+	reid := e.WithID("  new-id  ")
+	if reid.ID() != "new-id" || e.ID() == "new-id" {
+		t.Errorf("WithID wrong or mutated the receiver: got %q, receiver %q", reid.ID(), e.ID())
+	}
+	recal := e.WithCalendarID("  cal-9  ")
+	if recal.CalendarID() != "cal-9" || e.CalendarID() == "cal-9" {
+		t.Errorf("WithCalendarID wrong or mutated the receiver: got %q, receiver %q", recal.CalendarID(), e.CalendarID())
+	}
 	zoned := e.WithTimeZone("  Europe/London  ")
 	if zoned.TimeZone() != "Europe/London" || e.TimeZone() != "" {
 		t.Errorf("WithTimeZone wrong: got %q, receiver %q", zoned.TimeZone(), e.TimeZone())

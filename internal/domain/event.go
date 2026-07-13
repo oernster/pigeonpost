@@ -257,6 +257,21 @@ func (e Event) WithUID(uid string) Event {
 	return e
 }
 
+// WithID returns a copy of the event with its local id replaced (trimmed), used to preserve a conflicting
+// local version as a distinct safety-copy row when a two-way sync resolves last-writer-wins in the server's
+// favour.
+func (e Event) WithID(id string) Event {
+	e.id = strings.TrimSpace(id)
+	return e
+}
+
+// WithCalendarID returns a copy of the event assigned to a calendar (trimmed), used when a pulled object is
+// placed into the local calendar that mirrors its remote collection.
+func (e Event) WithCalendarID(calendarID string) Event {
+	e.calendarID = strings.TrimSpace(calendarID)
+	return e
+}
+
 // WithAlarms returns a copy of the event with its reminders replaced. The slice is copied so neither the
 // receiver nor the caller's slice is shared.
 func (e Event) WithAlarms(alarms []Alarm) Event {

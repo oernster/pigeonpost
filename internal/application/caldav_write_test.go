@@ -21,6 +21,8 @@ type fakeSyncStore struct {
 	pendingErr   error
 	eventsByHref map[string][]domain.Event
 	eventsErr    error
+	synced       map[string][]SyncedObject
+	syncedErr    error
 	saved        []savedSynced
 	deletedHrefs []string
 	clearedOps   [][2]string
@@ -54,8 +56,11 @@ func (f *fakeSyncStore) ClearPendingCalendarOp(_ context.Context, calendarID, hr
 	return nil
 }
 
-func (f *fakeSyncStore) ListSyncedObjects(context.Context, string) ([]SyncedObject, error) {
-	return nil, nil
+func (f *fakeSyncStore) ListSyncedObjects(_ context.Context, calendarID string) ([]SyncedObject, error) {
+	if f.syncedErr != nil {
+		return nil, f.syncedErr
+	}
+	return f.synced[calendarID], nil
 }
 func (f *fakeSyncStore) SaveRemoteCalendar(context.Context, domain.Calendar, string, string, string) error {
 	return nil
