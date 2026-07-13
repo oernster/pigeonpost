@@ -136,6 +136,12 @@ func (a *App) beforeClose(ctx context.Context) bool {
 	if a.tray == nil || !a.tray.CanHideToTray() {
 		return false
 	}
+	// Bring the window to the front before the close-choice dialog is shown. A close requested while the
+	// window is minimised or behind other windows (for example the taskbar button's "Close window") would
+	// otherwise render the dialog on a background window, so it looks like nothing happened until the user
+	// refocuses PigeonPost by hand.
+	a.revealWindow()
+	taskbar.FocusMainWindow(a.title)
 	runtime.EventsEmit(ctx, "app:close-request")
 	return true
 }
