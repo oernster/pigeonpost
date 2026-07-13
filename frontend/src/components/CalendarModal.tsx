@@ -80,9 +80,9 @@ export function CalendarModal({events, accountId, accountEmail, accountName, ini
     // by the backend and refetched by the application hook; bumpReload forces a refetch after a local change.
     const {instances, bumpReload} = useEventInstances({viewDate, viewMode, events, setError})
     // The remote-calendars (CalDAV) sub-feature: the DAV accounts, the manager's open state, the add form and
-    // the read-only pull. A pull brings remote events into the local store, so it reloads the calendar.
+    // the two-way sync. A sync reconciles remote events into the local store, so it reloads the calendar.
     const caldav = useCalDAVAccounts({
-        setError, setStatus, setBusy, onPulled: () => {
+        setError, setStatus, setBusy, onSynced: () => {
             bumpReload()
             onChanged()
         },
@@ -415,8 +415,8 @@ export function CalendarModal({events, accountId, accountEmail, accountName, ini
                     form={caldav.form}
                     setForm={caldav.setForm}
                     submitAdd={caldav.submitAdd}
-                    pull={caldav.pull}
-                    pullingId={caldav.pullingId}
+                    sync={caldav.sync}
+                    syncingId={caldav.syncingId}
                     pendingDelete={caldav.pendingDelete}
                     setPendingDelete={caldav.setPendingDelete}
                     confirmRemove={caldav.confirmRemove}

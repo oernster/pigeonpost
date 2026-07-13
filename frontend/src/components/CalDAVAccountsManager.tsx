@@ -12,9 +12,9 @@ interface CalDAVAccountsManagerProps {
     form: CalDAVAccountForm
     setForm: Dispatch<SetStateAction<CalDAVAccountForm>>
     submitAdd: () => void
-    pull: (account: CalDAVAccount) => void
-    // pullingId is the account whose pull is in flight, so only that row's button shows progress.
-    pullingId: string
+    sync: (account: CalDAVAccount) => void
+    // syncingId is the account whose sync is in flight, so only that row's button shows progress.
+    syncingId: string
     pendingDelete: CalDAVAccount | null
     setPendingDelete: Dispatch<SetStateAction<CalDAVAccount | null>>
     confirmRemove: () => void
@@ -26,11 +26,11 @@ interface CalDAVAccountsManagerProps {
 }
 
 // CalDAVAccountsManager is the remote-calendars (CalDAV) sub-feature's modal: the list of configured DAV
-// accounts each with a read-only Pull and a Remove, plus the add-account form and the remove confirmation. It
-// is the presentational surface over useCalDAVAccounts; all its state and actions are injected. A pull is
-// one-way for now (remote to local), which the hint makes explicit.
+// accounts each with a two-way Sync and a Remove, plus the add-account form and the remove confirmation. It
+// is the presentational surface over useCalDAVAccounts; all its state and actions are injected. A sync is
+// two-way (local changes go up, server changes come down), which the hint makes explicit.
 export function CalDAVAccountsManager({
-    accounts, adding, startAdd, cancelAdd, form, setForm, submitAdd, pull, pullingId,
+    accounts, adding, startAdd, cancelAdd, form, setForm, submitAdd, sync, syncingId,
     pendingDelete, setPendingDelete, confirmRemove, onClose, busy, error, status,
 }: CalDAVAccountsManagerProps) {
     const problem = validateCalDAVAccountForm(form)
@@ -42,9 +42,10 @@ export function CalDAVAccountsManager({
                     <ModalClose onClose={onClose}/>
                     <h2 className="modal-title">Remote calendars</h2>
                     <p className="setup-hint">
-                        Add a CalDAV server (Fastmail, iCloud, Nextcloud and similar) to pull its calendars into
-                        PigeonPost. For now this is a one-way, read-only pull: events come in; changes you make
-                        here are not sent back to the server yet.
+                        Add a CalDAV server (Fastmail, iCloud, Nextcloud and similar) to sync its calendars with
+                        PigeonPost. A sync is two-way: your local changes are sent to the server, then the
+                        server's changes are brought in. If the same event changed in both places, the server's
+                        version wins and your local version is kept as a separate copy so nothing is lost.
                     </p>
                     {error && <div className="compose-error">{error}</div>}
                     {status && <div className="setup-hint">{status}</div>}
@@ -59,8 +60,8 @@ export function CalDAVAccountsManager({
                                     <span className="caldav-account-name">{account.displayName}</span>
                                     <span className="caldav-account-meta">{account.username} · {account.baseUrl}</span>
                                 </span>
-                                <button className="btn" onClick={() => pull(account)} disabled={busy}>
-                                    {pullingId === account.id ? 'Pulling…' : 'Pull'}
+                                <button className="btn" onClick={() => sync(account)} disabled={busy}>
+                                    {syncingId === account.id ? 'Syncing…' : 'Sync'}
                                 </button>
                                 <button className="btn danger" onClick={() => setPendingDelete(account)} disabled={busy}>
                                     Remove
@@ -115,7 +116,7 @@ export function CalDAVAccountsManager({
             {pendingDelete && (
                 <ConfirmDialog
                     title="Remove remote calendar"
-                    message={`Remove the account "${pendingDelete.displayName}"? Calendars already pulled from it stay in PigeonPost. This cannot be undone.`}
+                    message={`Remove the account "${pendingDelete.displayName}"? Calendars already synced from it stay in PigeonPost. This cannot be undone.`}
                     confirmLabel="Remove"
                     busy={busy}
                     onConfirm={() => void confirmRemove()}

@@ -5,7 +5,7 @@ import {
     AddAccount,
     AddCalDAVAccount,
     ListCalDAVAccounts,
-    PullCalDAV,
+    SyncCalDAV,
     RemoveCalDAVAccount,
     Author,
     DeleteMessage,
@@ -480,12 +480,12 @@ export const api = {
         SendMeetingRequest(accountId, eventId),
     sendMeetingCancel: (accountId: string, eventId: string): Promise<void> =>
         SendMeetingCancel(accountId, eventId),
-    // CalDAV remote calendars (phase 1, read-only). listCalDAVAccounts returns the configured DAV accounts;
-    // addCalDAVAccount stores an account and its keychain password; removeCalDAVAccount deletes both;
-    // pullCalDAV fetches the account's remote calendars into the local store and returns the events saved.
+    // CalDAV remote calendars. listCalDAVAccounts returns the configured DAV accounts; addCalDAVAccount stores
+    // an account and its keychain password; removeCalDAVAccount deletes both; syncCalDAV runs the two-way sync
+    // for an account (pushes local changes, then reconciles the server's calendars into the local store).
     listCalDAVAccounts: (): Promise<CalDAVAccount[]> => ListCalDAVAccounts(),
     addCalDAVAccount: (displayName: string, baseUrl: string, username: string, password: string): Promise<void> =>
         AddCalDAVAccount(displayName, baseUrl, username, password),
     removeCalDAVAccount: (id: string): Promise<void> => RemoveCalDAVAccount(id),
-    pullCalDAV: (id: string): Promise<number> => PullCalDAV(id),
+    syncCalDAV: (id: string): Promise<void> => SyncCalDAV(id),
 }

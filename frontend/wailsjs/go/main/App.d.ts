@@ -190,6 +190,8 @@ export function SignInMicrosoft(arg1:string):Promise<string>;
 
 export function SyncAccount(arg1:string):Promise<void>;
 
+export function SyncCalDAV(arg1:string):Promise<void>;
+
 export function SyncFolder(arg1:string):Promise<void>;
 
 export function UnreadCounts():Promise<main.UnreadCountsDTO>;

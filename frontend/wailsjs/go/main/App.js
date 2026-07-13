@@ -378,6 +378,10 @@ export function SyncAccount(arg1) {
   return window['go']['main']['App']['SyncAccount'](arg1);
 }
 
+export function SyncCalDAV(arg1) {
+  return window['go']['main']['App']['SyncCalDAV'](arg1);
+}
+
 export function SyncFolder(arg1) {
   return window['go']['main']['App']['SyncFolder'](arg1);
 }

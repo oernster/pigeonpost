@@ -1,6 +1,6 @@
 // Behaviour test for the remote-calendars (CalDAV) manager at its injected-props interface. The component is
 // purely presentational (all state and actions come from useCalDAVAccounts), so no api mock is needed: the
-// test drives the DOM and asserts which injected callback fired. It pins the add / pull / remove flows and the
+// test drives the DOM and asserts which injected callback fired. It pins the add / sync / remove flows and the
 // empty state.
 import {afterEach, describe, expect, it, vi} from 'vitest'
 import {cleanup, fireEvent, render, screen, within} from '@testing-library/react'
@@ -26,8 +26,8 @@ function renderManager(overrides: Partial<ManagerProps> = {}) {
         form: emptyCalDAVAccountForm(),
         setForm: vi.fn(),
         submitAdd: vi.fn(),
-        pull: vi.fn(),
-        pullingId: '',
+        sync: vi.fn(),
+        syncingId: '',
         pendingDelete: null,
         setPendingDelete: vi.fn(),
         confirmRemove: vi.fn(),
@@ -61,22 +61,22 @@ describe('CalDAVAccountsManager', () => {
         expect(props.startAdd).toHaveBeenCalledOnce()
     })
 
-    it('pulls and removes the listed account', () => {
+    it('syncs and removes the listed account', () => {
         const {props} = renderManager()
-        fireEvent.click(screen.getByRole('button', {name: 'Pull'}))
-        expect(props.pull).toHaveBeenCalledWith(account())
+        fireEvent.click(screen.getByRole('button', {name: 'Sync'}))
+        expect(props.sync).toHaveBeenCalledWith(account())
         fireEvent.click(screen.getByRole('button', {name: 'Remove'}))
         expect(props.setPendingDelete).toHaveBeenCalledWith(account())
     })
 
-    it('shows progress only on the row whose pull is in flight', () => {
+    it('shows progress only on the row whose sync is in flight', () => {
         renderManager({
             accounts: [account({id: 'a1', displayName: 'One'}), account({id: 'a2', displayName: 'Two'})],
-            pullingId: 'a1', busy: true,
+            syncingId: 'a1', busy: true,
         })
-        // Only the pulling row reads Pulling…; the sibling still reads Pull, not a false sync label.
-        expect(screen.getByRole('button', {name: 'Pulling…'})).toBeTruthy()
-        expect(screen.getByRole('button', {name: 'Pull'})).toBeTruthy()
+        // Only the syncing row reads Syncing…; the sibling still reads Sync, not a false in-flight label.
+        expect(screen.getByRole('button', {name: 'Syncing…'})).toBeTruthy()
+        expect(screen.getByRole('button', {name: 'Sync'})).toBeTruthy()
     })
 
     it('edits the four add fields through setForm and enables submit only once complete', () => {
@@ -87,7 +87,7 @@ describe('CalDAVAccountsManager', () => {
             return (
                 <CalDAVAccountsManager
                     accounts={[]} adding form={form} setForm={setForm}
-                    startAdd={vi.fn()} cancelAdd={vi.fn()} submitAdd={vi.fn()} pull={vi.fn()} pullingId=""
+                    startAdd={vi.fn()} cancelAdd={vi.fn()} submitAdd={vi.fn()} sync={vi.fn()} syncingId=""
                     pendingDelete={null} setPendingDelete={vi.fn()} confirmRemove={vi.fn()} onClose={vi.fn()}
                     busy={false} error="" status=""
                 />

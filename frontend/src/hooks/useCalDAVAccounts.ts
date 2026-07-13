@@ -6,24 +6,24 @@ interface CalDAVAccountsInput {
     setError: (message: string) => void
     setStatus: (message: string) => void
     setBusy: (busy: boolean) => void
-    // onPulled refreshes the calendar after a pull brings remote events into the local store.
-    onPulled: () => void
+    // onSynced refreshes the calendar after a sync reconciles remote events into the local store.
+    onSynced: () => void
 }
 
 // useCalDAVAccounts owns the remote-calendars (CalDAV) sub-feature: the accounts loaded from the backend,
 // the manager's open state, the add-account form and the account pending removal, plus add, remove and the
-// read-only pull. It is the phase-1 counterpart to useCalendars for DAV accounts; busy, error and status are
-// the shared calendar banners, injected here. A pull is one-way for now (remote to local), so a successful
-// pull calls onPulled for the calendar to reload its events.
-export function useCalDAVAccounts({setError, setStatus, setBusy, onPulled}: CalDAVAccountsInput) {
+// two-way sync. It is the calendar counterpart to useCalendars for DAV accounts; busy, error and status are
+// the shared calendar banners, injected here. A sync pushes local changes then reconciles the server, so a
+// successful sync calls onSynced for the calendar to reload its events.
+export function useCalDAVAccounts({setError, setStatus, setBusy, onSynced}: CalDAVAccountsInput) {
     const [accounts, setAccounts] = useState<CalDAVAccount[]>([])
     const [managing, setManaging] = useState(false)
     const [adding, setAdding] = useState(false)
     const [form, setForm] = useState<CalDAVAccountForm>(emptyCalDAVAccountForm())
     const [pendingDelete, setPendingDelete] = useState<CalDAVAccount | null>(null)
-    // pullingId is the id of the account whose pull is in flight, so only that row shows progress. The shared
+    // syncingId is the id of the account whose sync is in flight, so only that row shows progress. The shared
     // busy flag disables every action; the label must not imply the other accounts are syncing.
-    const [pullingId, setPullingId] = useState('')
+    const [syncingId, setSyncingId] = useState('')
 
     const reload = () =>
         void api.listCalDAVAccounts().then(setAccounts).catch((e) => setError(String(e)))
@@ -82,25 +82,25 @@ export function useCalDAVAccounts({setError, setStatus, setBusy, onPulled}: CalD
         }
     }
 
-    const pull = async (account: CalDAVAccount) => {
+    const sync = async (account: CalDAVAccount) => {
         setBusy(true)
-        setPullingId(account.id)
+        setSyncingId(account.id)
         setError('')
         setStatus('')
         try {
-            const n = await api.pullCalDAV(account.id)
-            setStatus(`Pulled ${n} event${n === 1 ? '' : 's'} from ${account.displayName}.`)
-            onPulled()
+            await api.syncCalDAV(account.id)
+            setStatus(`Synced ${account.displayName}.`)
+            onSynced()
         } catch (e) {
             setError(String(e))
         } finally {
             setBusy(false)
-            setPullingId('')
+            setSyncingId('')
         }
     }
 
     return {
         accounts, managing, setManaging, adding, startAdd, cancelAdd,
-        form, setForm, submitAdd, pendingDelete, setPendingDelete, confirmRemove, pull, pullingId,
+        form, setForm, submitAdd, pendingDelete, setPendingDelete, confirmRemove, sync, syncingId,
     }
 }

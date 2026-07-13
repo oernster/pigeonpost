@@ -31,7 +31,7 @@ const apiSpies = vi.hoisted(() => ({
     listCalDAVAccounts: vi.fn(),
     addCalDAVAccount: vi.fn(),
     removeCalDAVAccount: vi.fn(),
-    pullCalDAV: vi.fn(),
+    syncCalDAV: vi.fn(),
 }))
 
 // The mock provides EventScope with the real integer values (a runtime enum the modal and the ScopeChooser
@@ -97,7 +97,7 @@ beforeEach(() => {
     apiSpies.listCalDAVAccounts.mockReset().mockResolvedValue([])
     apiSpies.addCalDAVAccount.mockReset().mockResolvedValue(undefined)
     apiSpies.removeCalDAVAccount.mockReset().mockResolvedValue(undefined)
-    apiSpies.pullCalDAV.mockReset().mockResolvedValue(0)
+    apiSpies.syncCalDAV.mockReset().mockResolvedValue(undefined)
 })
 
 afterEach(() => cleanup())
@@ -304,24 +304,24 @@ describe('CalendarModal: remote calendars', () => {
         expect(within(mgr).getByText(/caldav\.fastmail\.com/)).toBeInTheDocument()
     })
 
-    it('pulls an account, reports the pluralised count and refreshes the calendar', async () => {
+    it('syncs an account, reports success and refreshes the calendar', async () => {
         apiSpies.listCalDAVAccounts.mockResolvedValue([acct])
-        apiSpies.pullCalDAV.mockResolvedValue(2)
         const {onChanged} = renderCalendar()
         const mgr = await openManager()
-        fireEvent.click(await within(mgr).findByRole('button', {name: 'Pull'}))
-        await within(mgr).findByText('Pulled 2 events from Fastmail.')
-        expect(apiSpies.pullCalDAV).toHaveBeenCalledWith('cal1')
+        fireEvent.click(await within(mgr).findByRole('button', {name: 'Sync'}))
+        await within(mgr).findByText('Synced Fastmail.')
+        expect(apiSpies.syncCalDAV).toHaveBeenCalledWith('cal1')
         expect(onChanged).toHaveBeenCalled()
     })
 
-    it('reports a single pulled event without a plural s', async () => {
+    it('surfaces a sync failure as an error banner', async () => {
         apiSpies.listCalDAVAccounts.mockResolvedValue([acct])
-        apiSpies.pullCalDAV.mockResolvedValue(1)
+        apiSpies.syncCalDAV.mockRejectedValue(new Error('server down'))
         renderCalendar()
         const mgr = await openManager()
-        fireEvent.click(await within(mgr).findByRole('button', {name: 'Pull'}))
-        await within(mgr).findByText('Pulled 1 event from Fastmail.')
+        fireEvent.click(await within(mgr).findByRole('button', {name: 'Sync'}))
+        await within(mgr).findByText(/server down/)
+        expect(apiSpies.syncCalDAV).toHaveBeenCalledWith('cal1')
     })
 
     it('adds an account with trimmed fields and reloads the list', async () => {
