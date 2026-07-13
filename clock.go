@@ -41,3 +41,8 @@ func newContactID() string {
 func newCalendarID() string {
 	return uuid.NewString()
 }
+
+// newCalendarAccountID produces a unique identifier for a CalDAV/CardDAV account added in the app.
+func newCalendarAccountID() string {
+	return uuid.NewString()
+}

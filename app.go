@@ -70,6 +70,7 @@ type App struct {
 	calendar     *application.CalendarService
 	scheduling   *application.SchedulingService
 	remoteImages *application.RemoteImageService
+	caldav       *application.CalDAVService
 }
 
 // NewApp constructs the facade with its injected use-case services and a closer for shutdown.
@@ -96,6 +97,7 @@ func NewApp(
 	calendar *application.CalendarService,
 	scheduling *application.SchedulingService,
 	remoteImages *application.RemoteImageService,
+	caldav *application.CalDAVService,
 ) *App {
 	return &App{
 		closer:       closer,
@@ -121,6 +123,7 @@ func NewApp(
 		calendar:     calendar,
 		scheduling:   scheduling,
 		remoteImages: remoteImages,
+		caldav:       caldav,
 	}
 }
 

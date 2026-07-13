@@ -16,6 +16,7 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 
 	"github.com/oernster/pigeonpost/internal/application"
+	"github.com/oernster/pigeonpost/internal/infrastructure/caldav"
 	"github.com/oernster/pigeonpost/internal/infrastructure/ics"
 	"github.com/oernster/pigeonpost/internal/infrastructure/imap"
 	"github.com/oernster/pigeonpost/internal/infrastructure/keychain"
@@ -115,6 +116,10 @@ func run() error {
 	templateService := application.NewTemplateService(store, newTemplateID)
 	contactService := application.NewContactService(store, newContactID)
 	calendarService := application.NewCalendarService(store, newCalendarID, recurrence.New())
+	// The CalDAV service is the account-aware read-only pull orchestrator. The store implements both the
+	// account store and the calendar store; the keychain vault holds each account's password; the caldav
+	// factory builds a per-account go-webdav source; the ICS codec is the same one CalendarService uses.
+	caldavService := application.NewCalDAVService(store, vault, caldav.NewFactory(), ics.New(), store)
 	// The scheduling service reads incoming meeting invites and replies (the ICS codec also implements
 	// the iTIP SchedulingCodec), saves accepted meetings to the calendar store and sends replies,
 	// requests and cancellations through the same SMTP transport as ordinary mail.
@@ -135,7 +140,7 @@ func run() error {
 	// rather than waiting for the poll; it authenticates through the same keychain vault as fetches.
 	watcher := imap.NewWatcher(vault, tokenManager)
 
-	app = NewApp(store.Close, overlay, flasher, tray, watcher, accountService, setupService, microsoftSetupService, mailboxService, syncService, composeService, tagService, tagSyncService, bodyService, actionService, folderService, ruleService, templateService, contactService, calendarService, schedulingService, remoteImageService)
+	app = NewApp(store.Close, overlay, flasher, tray, watcher, accountService, setupService, microsoftSetupService, mailboxService, syncService, composeService, tagService, tagSyncService, bodyService, actionService, folderService, ruleService, templateService, contactService, calendarService, schedulingService, remoteImageService, caldavService)
 	app.title = windowTitle
 
 	err = wails.Run(&options.App{
