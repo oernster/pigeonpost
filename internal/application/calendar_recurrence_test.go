@@ -99,6 +99,32 @@ func TestListEventInstancesExpandsSuppressesAndFilters(t *testing.T) {
 	}
 }
 
+func TestListEventInstancesSuppressesOverrideWithSubSecondDrift(t *testing.T) {
+	master := recurringMaster(t, "m1", "series-1")
+	// The override's RECURRENCE-ID is the day-6 occurrence plus a sub-second drift, as can arise when a
+	// RECURRENCE-ID and the generated occurrence resolve through slightly different paths. It must still
+	// suppress the generated day-6 occurrence rather than leaving both showing as a duplicate.
+	override := overrideAt(t, "o1", "series-1", day(6, 9).Add(400*time.Millisecond), day(6, 14))
+	store := &fakeCalendarStore{events: []domain.Event{master, override}}
+	svc := NewCalendarService(store, fixedID("x"), dailyExpander())
+	insts, err := svc.ListEventInstances(context.Background(), winFrom(), winTo())
+	if err != nil {
+		t.Fatalf("ListEventInstances: %v", err)
+	}
+	foundOverride := false
+	for _, s := range instanceStarts(insts) {
+		if s.Equal(day(6, 9)) {
+			t.Errorf("day 6 09:00 occurrence should be suppressed by the sub-second-drifted override")
+		}
+		if s.Equal(day(6, 14)) {
+			foundOverride = true
+		}
+	}
+	if !foundOverride {
+		t.Errorf("override at day 6 14:00 missing: %v", instanceStarts(insts))
+	}
+}
+
 func TestListEventInstancesExpandErrorFallsBackWhenInWindow(t *testing.T) {
 	master := recurringMaster(t, "m1", "series-1")
 	store := &fakeCalendarStore{events: []domain.Event{master}}

@@ -44,7 +44,7 @@ func (s *CalendarService) ListEventInstances(ctx context.Context, from, to time.
 				continue
 			}
 			for _, inst := range expanded {
-				if suppressed[inst.RecurrenceID().UnixMilli()] {
+				if suppressed[inst.RecurrenceID().Unix()] {
 					continue
 				}
 				instances = append(instances, inst)
@@ -90,13 +90,16 @@ func seriesKey(e domain.Event) string {
 	return e.ID()
 }
 
-// overrideStarts returns the set of occurrence starts (Unix milliseconds) that an override replaces, so
-// the generated occurrence at each is suppressed in favour of the override.
+// overrideStarts returns the set of occurrence starts that an override replaces, keyed at whole-second
+// resolution so the generated occurrence at each is suppressed in favour of the override. iCalendar
+// date-times carry no sub-second component, so matching on the second (not the millisecond) is the data's
+// native precision: it drops a stray sub-second difference between a RECURRENCE-ID and the generated
+// occurrence that would otherwise leave both showing as a duplicate.
 func overrideStarts(events []domain.Event) map[int64]bool {
 	out := map[int64]bool{}
 	for _, e := range events {
 		if e.IsOverride() {
-			out[e.RecurrenceID().UnixMilli()] = true
+			out[e.RecurrenceID().Unix()] = true
 		}
 	}
 	return out
