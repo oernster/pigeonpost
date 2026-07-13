@@ -16,12 +16,6 @@ A standing reference to the project's outstanding technical debt. It records wha
 
 `DeleteMany` and `MoveMany` share batch-by-folder scaffolding. A shared helper looks tempting but is ruled out: collapsing them would change error aggregation from one-per-folder to one overall, an observable behaviour change.
 
-## 3. CalDAV two-way sync (added since v0.14.1)
-
-A full-audit pass over everything since the last tag (the CalDAV feature phases 1 and 2, the Windows-TZID import fix, the recurrence whole-second fix, the compose and window fixes) found the code clean bar one bug and a short tail of minor refactor debt, both now resolved. The bug was a `Flush` that pushed every account's pending writes through the one account being synced (a cross-account object leak once two DAV accounts are configured), fixed in the audit pass. The refactor tail was cleared in a follow-up, all behaviour-preserving and gate-green: the dead-and-duplicated `CalendarSyncStore.SetPendingCalendarOp` (a straight duplicate of the private `setPendingCalendarOpTx` the atomic writers already use) was dropped from the port, the `Store` and the test fake; the four hand-rolled list loops in `caldav_sync_store.go` (`ListSyncedObjects`, `EventsByHref`, `ListRemoteCalendars`, `ListPendingCalendarOps`) now route through the package's own `queryRows[T]` helper like their `calendar_account_store.go` sibling; the vestigial `domain.CalendarAccount.WithDisplayName` (no account-rename feature) was removed; and the decode-then-tag-with-calendar-id prefix shared by `saveObject` and `applyServerObject` was extracted into a `decodeTagged` helper, each caller keeping its own persistence tail (fatal-and-counting versus best-effort).
-
-Feature-level deferrals from phase 2 (scoped recurring write-back, the numeric Sync conflict count, the pulled RECURRENCE-ID override id=uid collapse, cross-calendar event moves) are roadmap items tracked in NOTES.md, not refactor debt; the real-server integration is unverified by design (also NOTES.md).
-
 ---
 
 ## Not debt (do not "fix" these)
