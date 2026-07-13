@@ -67,6 +67,9 @@ func (Codec) Decode(data []byte) ([]domain.Event, []domain.CalendarPassthrough, 
 // eventFromICS maps a parsed VEVENT into a domain event. The bool is false for an event that cannot be
 // represented (no usable start, or a validation failure), which the caller skips.
 func eventFromICS(e goical.Event) (domain.Event, bool) {
+	// Rewrite Windows zone names (Outlook, Exchange) to IANA before any time is read, so a non-IANA TZID
+	// no longer fails the whole event; an unresolvable zone degrades to floating rather than dropping.
+	normalizeZones(e)
 	start, err := e.DateTimeStart(time.UTC)
 	if err != nil || start.IsZero() {
 		return domain.Event{}, false
