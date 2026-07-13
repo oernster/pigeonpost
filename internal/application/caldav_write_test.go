@@ -62,6 +62,8 @@ type fakeSyncStore struct {
 	ctagByID        map[string]string
 	calendarCTagErr error
 	updatedCTags    [][2]string
+	remoteCals      []RemoteCalendarRecord
+	remoteCalsErr   error
 }
 
 var _ CalendarSyncStore = (*fakeSyncStore)(nil)
@@ -110,7 +112,7 @@ func (f *fakeSyncStore) SaveRemoteCalendar(_ context.Context, c domain.Calendar,
 	return nil
 }
 func (f *fakeSyncStore) ListRemoteCalendars(context.Context, string) ([]RemoteCalendarRecord, error) {
-	return nil, nil
+	return f.remoteCals, f.remoteCalsErr
 }
 func (f *fakeSyncStore) CalendarCTag(_ context.Context, calendarID string) (string, error) {
 	if f.calendarCTagErr != nil {
@@ -206,8 +208,27 @@ func writeEvent(t *testing.T, id string) domain.Event {
 
 func TestFlushListError(t *testing.T) {
 	svc := NewCalDAVWriteService(&fakeSyncStore{pendingErr: errBoom}, &fakeCalendarCodec{})
-	if err := svc.Flush(context.Background(), &fakeWriter{}); !errors.Is(err, errBoom) {
+	if err := svc.Flush(context.Background(), &fakeWriter{}, map[string]bool{"cal1": true}); !errors.Is(err, errBoom) {
 		t.Fatalf("Flush err = %v, want errBoom", err)
+	}
+}
+
+func TestFlushSkipsOtherAccountsOps(t *testing.T) {
+	// A pending op for a calendar the synced account does not own must not be pushed through this account's
+	// writer: doing so would send another account's object to the wrong server under the wrong credentials.
+	const href = "https://dav.example.com/other/z.ics"
+	store := &fakeSyncStore{
+		pending:      []PendingCalendarObject{{CalendarID: "otherAccount|/c", Href: href, Op: CalendarOpCreate}},
+		eventsByHref: map[string][]domain.Event{href: {writeEvent(t, "z")}},
+	}
+	writer := &fakeWriter{putETag: "e"}
+	svc := NewCalDAVWriteService(store, &fakeCalendarCodec{encoded: []byte("X")})
+	// The set names only THIS account's calendar, not otherAccount's.
+	if err := svc.Flush(context.Background(), writer, map[string]bool{"cal1": true}); err != nil {
+		t.Fatalf("Flush: %v", err)
+	}
+	if writer.putCalls != 0 || len(store.clearedOps) != 0 {
+		t.Errorf("another account's op must be skipped: puts=%d cleared=%+v", writer.putCalls, store.clearedOps)
 	}
 }
 
@@ -219,7 +240,7 @@ func TestFlushCreatePut(t *testing.T) {
 	}
 	writer := &fakeWriter{putETag: "srv-etag"}
 	svc := NewCalDAVWriteService(store, &fakeCalendarCodec{encoded: []byte("BEGIN:VCALENDAR")})
-	if err := svc.Flush(context.Background(), writer); err != nil {
+	if err := svc.Flush(context.Background(), writer, map[string]bool{"cal1": true}); err != nil {
 		t.Fatalf("Flush: %v", err)
 	}
 	if writer.putIfNoneMatch != "*" || writer.putIfMatch != "" {
@@ -244,7 +265,7 @@ func TestFlushUpdateWithoutReturnedEtagStillClears(t *testing.T) {
 	}
 	writer := &fakeWriter{putETag: ""} // the server omitted an ETag on the response
 	svc := NewCalDAVWriteService(store, &fakeCalendarCodec{encoded: []byte("X")})
-	_ = svc.Flush(context.Background(), writer)
+	_ = svc.Flush(context.Background(), writer, map[string]bool{"cal1": true})
 	if writer.putIfMatch != "old" || writer.putIfNoneMatch != "" {
 		t.Errorf("update headers: match=%q none=%q", writer.putIfMatch, writer.putIfNoneMatch)
 	}
@@ -264,7 +285,7 @@ func TestFlushPutConflictLeavesIntent(t *testing.T) {
 	}
 	writer := &fakeWriter{putErr: ErrCalDAVConflict}
 	svc := NewCalDAVWriteService(store, &fakeCalendarCodec{encoded: []byte("X")})
-	_ = svc.Flush(context.Background(), writer)
+	_ = svc.Flush(context.Background(), writer, map[string]bool{"cal1": true})
 	if len(store.clearedOps) != 0 || len(store.saved) != 0 {
 		t.Errorf("a conflict must leave the intent: cleared=%+v saved=%+v", store.clearedOps, store.saved)
 	}
@@ -278,7 +299,7 @@ func TestFlushPutSkipsWhenNoEvents(t *testing.T) {
 	}
 	writer := &fakeWriter{}
 	svc := NewCalDAVWriteService(store, &fakeCalendarCodec{encoded: []byte("X")})
-	_ = svc.Flush(context.Background(), writer)
+	_ = svc.Flush(context.Background(), writer, map[string]bool{"cal1": true})
 	if writer.putCalls != 0 || len(store.clearedOps) != 0 {
 		t.Errorf("empty events should skip the put: puts=%d cleared=%+v", writer.putCalls, store.clearedOps)
 	}
@@ -291,7 +312,7 @@ func TestFlushPutEventsError(t *testing.T) {
 	}
 	writer := &fakeWriter{}
 	svc := NewCalDAVWriteService(store, &fakeCalendarCodec{encoded: []byte("X")})
-	_ = svc.Flush(context.Background(), writer)
+	_ = svc.Flush(context.Background(), writer, map[string]bool{"cal1": true})
 	if writer.putCalls != 0 {
 		t.Errorf("an events-read error should skip the put")
 	}
@@ -305,7 +326,7 @@ func TestFlushPutEncodeError(t *testing.T) {
 	}
 	writer := &fakeWriter{}
 	svc := NewCalDAVWriteService(store, &fakeCalendarCodec{encodeErr: errBoom})
-	_ = svc.Flush(context.Background(), writer)
+	_ = svc.Flush(context.Background(), writer, map[string]bool{"cal1": true})
 	if writer.putCalls != 0 {
 		t.Errorf("an encode error should skip the put")
 	}
@@ -318,7 +339,7 @@ func TestFlushDelete(t *testing.T) {
 	}
 	writer := &fakeWriter{}
 	svc := NewCalDAVWriteService(store, &fakeCalendarCodec{})
-	_ = svc.Flush(context.Background(), writer)
+	_ = svc.Flush(context.Background(), writer, map[string]bool{"cal1": true})
 	if writer.delIfMatch != "etg" || writer.delHref != href {
 		t.Errorf("delete request: href=%q match=%q", writer.delHref, writer.delIfMatch)
 	}
@@ -336,7 +357,7 @@ func TestFlushDeleteConflictLeavesIntent(t *testing.T) {
 	}
 	writer := &fakeWriter{delErr: ErrCalDAVConflict}
 	svc := NewCalDAVWriteService(store, &fakeCalendarCodec{})
-	_ = svc.Flush(context.Background(), writer)
+	_ = svc.Flush(context.Background(), writer, map[string]bool{"cal1": true})
 	if len(store.deletedHrefs) != 0 || len(store.clearedOps) != 0 {
 		t.Errorf("a delete conflict must leave the intent: deleted=%+v cleared=%+v", store.deletedHrefs, store.clearedOps)
 	}

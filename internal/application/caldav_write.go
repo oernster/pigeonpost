@@ -22,14 +22,20 @@ func NewCalDAVWriteService(store CalendarSyncStore, codec CalendarCodec) *CalDAV
 	return &CalDAVWriteService{store: store, codec: codec}
 }
 
-// Flush pushes every pending write intent to the server through writer. The only fatal error is failing to
-// read the pending list; a per-object failure is swallowed so a single bad object does not strand the rest.
-func (s *CalDAVWriteService) Flush(ctx context.Context, writer CalDAVWriter) error {
+// Flush pushes the pending write intents of the given account's collections to the server through writer.
+// calendarIDs is the set of local calendar ids owned by the account being synced: an op for any other
+// calendar is skipped, since writer is bound to this account's endpoint and credentials and must never carry
+// another account's object to the wrong server. The only fatal error is failing to read the pending list; a
+// per-object failure is swallowed so a single bad object does not strand the rest.
+func (s *CalDAVWriteService) Flush(ctx context.Context, writer CalDAVWriter, calendarIDs map[string]bool) error {
 	ops, err := s.store.ListPendingCalendarOps(ctx)
 	if err != nil {
 		return fmt.Errorf("caldav: list pending calendar ops: %w", err)
 	}
 	for _, op := range ops {
+		if !calendarIDs[op.CalendarID] {
+			continue
+		}
 		if op.Op == CalendarOpDelete {
 			s.flushDelete(ctx, writer, op)
 			continue

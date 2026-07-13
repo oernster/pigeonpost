@@ -390,6 +390,8 @@ func TestCalDAVSyncFlushesPendingChangeThroughWriter(t *testing.T) {
 	store := &fakeSyncStore{
 		pending:      []PendingCalendarObject{{CalendarID: "c1|/a", Href: href, Op: CalendarOpCreate}},
 		eventsByHref: map[string][]domain.Event{href: {davEvent(t, "e1")}},
+		// The account owns this collection, so its pending op is in scope for the flush.
+		remoteCals: []RemoteCalendarRecord{{CalendarID: "c1|/a", AccountID: "c1", Href: "/a", Name: "A"}},
 	}
 	writer := &fakeWriter{putETag: "srv-created"}
 	svc := NewCalDAVService(accts, creds, &fakeCalDAVSourceFactory{source: src}, &fakeCalDAVWriterFactory{writer: writer}, &davCodec{}, store, fixedID("x"))
@@ -401,5 +403,51 @@ func TestCalDAVSyncFlushesPendingChangeThroughWriter(t *testing.T) {
 	}
 	if writer.putIfNoneMatch != "*" {
 		t.Errorf("a create must guard the push with If-None-Match:* , got %q", writer.putIfNoneMatch)
+	}
+}
+
+func TestCalDAVSyncFlushIsScopedToAccount(t *testing.T) {
+	// A pending op for a calendar this account does not own must never be pushed through this account's writer.
+	// Syncing account c1 must not transmit another account's object to c1's server.
+	accts, creds := syncAccounts(t)
+	const otherHref = "/other/z.ics"
+	src := &fakeCalDAVSource{calendars: []RemoteCalendar{{Path: "/a", DisplayName: "A"}}}
+	store := &fakeSyncStore{
+		pending:      []PendingCalendarObject{{CalendarID: "otherAccount|/o", Href: otherHref, Op: CalendarOpCreate}},
+		eventsByHref: map[string][]domain.Event{otherHref: {davEvent(t, "z")}},
+		// c1 owns only c1|/a; the pending op belongs to another account.
+		remoteCals: []RemoteCalendarRecord{{CalendarID: "c1|/a", AccountID: "c1", Href: "/a", Name: "A"}},
+	}
+	writer := &fakeWriter{putETag: "e"}
+	svc := NewCalDAVService(accts, creds, &fakeCalDAVSourceFactory{source: src}, &fakeCalDAVWriterFactory{writer: writer}, &davCodec{}, store, fixedID("x"))
+	if err := svc.Sync(context.Background(), "c1"); err != nil {
+		t.Fatalf("Sync: %v", err)
+	}
+	if writer.putCalls != 0 {
+		t.Errorf("another account's pending op was pushed through this account's writer: putCalls=%d", writer.putCalls)
+	}
+}
+
+func TestCalDAVSyncSkipsFlushWhenAccountCalendarsUnreadable(t *testing.T) {
+	// If the account's own collections cannot be listed, the flush is skipped (it cannot be scoped safely)
+	// rather than pushing an unscoped set, and the sync still discovers and reconciles.
+	accts, creds := syncAccounts(t)
+	const href = "/a/new.ics"
+	src := &fakeCalDAVSource{calendars: []RemoteCalendar{{Path: "/a", DisplayName: "A"}}}
+	store := &fakeSyncStore{
+		pending:       []PendingCalendarObject{{CalendarID: "c1|/a", Href: href, Op: CalendarOpCreate}},
+		eventsByHref:  map[string][]domain.Event{href: {davEvent(t, "e1")}},
+		remoteCalsErr: errBoom, // the scoping lookup fails
+	}
+	writer := &fakeWriter{putETag: "e"}
+	svc := NewCalDAVService(accts, creds, &fakeCalDAVSourceFactory{source: src}, &fakeCalDAVWriterFactory{writer: writer}, &davCodec{}, store, fixedID("x"))
+	if err := svc.Sync(context.Background(), "c1"); err != nil {
+		t.Fatalf("Sync: %v", err)
+	}
+	if writer.putCalls != 0 {
+		t.Errorf("the flush must be skipped when the account's calendars cannot be listed: putCalls=%d", writer.putCalls)
+	}
+	if len(store.savedCals) != 1 {
+		t.Errorf("discovery must still run: %+v", store.savedCals)
 	}
 }

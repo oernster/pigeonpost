@@ -111,7 +111,16 @@ func (s *CalDAVService) Sync(ctx context.Context, accountID string) error {
 	if err != nil {
 		return fmt.Errorf("caldav: writer: %w", err)
 	}
-	_ = NewCalDAVWriteService(s.calendar, s.codec).Flush(ctx, writer)
+	// Scope the flush to this account's own collections, so another account's pending writes are never pushed
+	// through this account's server or credentials. If the collections cannot be listed, skip the flush (it is
+	// best-effort) rather than risk pushing an unscoped set.
+	if mirrored, err := s.calendar.ListRemoteCalendars(ctx, accountID); err == nil {
+		ids := make(map[string]bool, len(mirrored))
+		for _, r := range mirrored {
+			ids[r.CalendarID] = true
+		}
+		_ = NewCalDAVWriteService(s.calendar, s.codec).Flush(ctx, writer, ids)
+	}
 	records, err := NewCalDAVSyncService(source, s.codec, s.calendar, accountID).Discover(ctx)
 	if err != nil {
 		return err
