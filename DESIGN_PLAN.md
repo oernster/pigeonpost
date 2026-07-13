@@ -3,7 +3,7 @@
 Cross-platform desktop email, calendar and address book client. Go core, React front end,
 local-first. Delivered as a signed download at https://www.pigeonpost.ink.
 
-Status: living roadmap. Working version 0.14.1 (schema v38). The per-version change history lives in the release notes, not in this document.
+Status: living roadmap. Working version 0.14.2 (schema v40). The per-version change history lives in the release notes, not in this document.
 
 This document is the target design and the forward roadmap. It is living: delivered work is exorcised as it lands (a shipped feature lives in the code and the release notes, not here), so section 10 holds only what is not yet built. Sections 2 to 9 still describe the delivered v1 as the standing design reference.
 Author: Oliver Ernster. Licence: GPL-3.0.

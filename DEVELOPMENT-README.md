@@ -48,7 +48,7 @@ main.go + app.go + the feature bindings (send, draftrecovery, export, outbox, ru
 internal/domain/            pure value objects, no IO (100% test gate)
 internal/application/        use cases + port interfaces (100% test gate)
 internal/infrastructure/
-    storage/                SQLite store (schema v38, migrations, outbox, rules, contacts, calendar, reminders, meeting scheduling, draft recovery, cached message attachments)
+    storage/                SQLite store (schema v40, migrations, outbox, rules, contacts, calendar, reminders, meeting scheduling, draft recovery, cached message attachments, CalDAV accounts, two-way calendar sync)
     imap/                   emersion go-imap source adapter (sync, bodies, draft append, IDLE watcher)
     pop3/                   hand-rolled POP3 client (download-to-inbox, local flags)
     smtp/                   emersion go-smtp transport
