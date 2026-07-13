@@ -10,6 +10,7 @@ import {basename, isValidAddress, normaliseUrl, splitAddresses} from '../compose
 import {useLinkEditor} from '../hooks/useLinkEditor'
 import {useDraftAutosave} from '../hooks/useDraftAutosave'
 import {useSeparatorCorrection} from '../hooks/useSeparatorCorrection'
+import {bodyMentionsAttachment} from '../composeAttachment'
 
 // ComposeInitial pre-fills the compose window, used by reply, reply-all and forward.
 // MessageAttachment is an existing email attached to a new message: its id (fetched and rendered as a
@@ -197,9 +198,11 @@ export function ComposeModal({accountId, senders, initial, canSaveDraft, onMarkR
     // canSend mirrors the Send button's enabled state, so Ctrl+Enter behaves exactly like the button.
     const canSend = () => !sending && !savingDraft && to.trim() !== ''
     const hasAttachments = () => attachments.length > 0 || messageAttachments.length > 0
-    // mentionsAttachment matches the whole words "attach" or "attached" in the subject or body, so a
-    // message that talks about attaching something can prompt a reminder before it is sent.
-    const mentionsAttachment = () => /\battach(ed)?\b/i.test(subject + ' ' + (editor?.getText() ?? ''))
+    // mentionsAttachment reports whether the message the user actually wrote talks about attaching
+    // something, so it can prompt a reminder before sending. It passes the editor HTML (not its plain
+    // text) so bodyMentionsAttachment can strip the quoted reply or forward chain: an attachment mentioned
+    // only earlier in the thread must not trigger the reminder.
+    const mentionsAttachment = () => bodyMentionsAttachment(subject, editor?.getHTML() ?? '')
 
     // attemptSend is the single entry point for both the Send button and Ctrl+Enter. It offers to fix a wrong
     // address separator, then warns once when the message mentions an attachment but none is attached,
