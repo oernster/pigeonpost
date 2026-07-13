@@ -228,6 +228,14 @@ type CalendarStore interface {
 	ListPassthrough(ctx context.Context) ([]domain.CalendarPassthrough, error)
 }
 
+// CalDAVSource reads calendars and their objects from a remote CalDAV server. It is the read half of the
+// two-way DAV sync (the infrastructure go-webdav adapter implements it), the calendar counterpart to
+// MailSource. RemoteCalendar and RemoteObject are defined with the sync service in caldav.go.
+type CalDAVSource interface {
+	ListCalendars(ctx context.Context) ([]RemoteCalendar, error)
+	ListObjects(ctx context.Context, calendar RemoteCalendar) ([]RemoteObject, error)
+}
+
 // CalendarCodec converts events to and from a serialised calendar format (ICS). It is the import/export
 // seam. A decoded event carries its own id (an ICS UID where present) so an import can reconcile against
 // existing records. Non-event components PigeonPost does not model (to-dos and journal entries) are
