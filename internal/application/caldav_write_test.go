@@ -1,0 +1,246 @@
+package application
+
+import (
+	"context"
+	"errors"
+	"testing"
+	"time"
+
+	"github.com/oernster/pigeonpost/internal/domain"
+)
+
+// savedSynced records a SaveSyncedEvent call so a test can assert the etag stamped after a successful push.
+type savedSynced struct {
+	id, href, etag string
+}
+
+// fakeSyncStore is a hand-written CalendarSyncStore with error injection and call recording. Only the methods
+// Flush exercises carry behaviour; the rest are interface-satisfying stubs.
+type fakeSyncStore struct {
+	pending      []PendingCalendarObject
+	pendingErr   error
+	eventsByHref map[string][]domain.Event
+	eventsErr    error
+	saved        []savedSynced
+	deletedHrefs []string
+	clearedOps   [][2]string
+}
+
+var _ CalendarSyncStore = (*fakeSyncStore)(nil)
+
+func (f *fakeSyncStore) ListPendingCalendarOps(context.Context) ([]PendingCalendarObject, error) {
+	return f.pending, f.pendingErr
+}
+
+func (f *fakeSyncStore) EventsByHref(_ context.Context, href string) ([]domain.Event, error) {
+	if f.eventsErr != nil {
+		return nil, f.eventsErr
+	}
+	return f.eventsByHref[href], nil
+}
+
+func (f *fakeSyncStore) SaveSyncedEvent(_ context.Context, e domain.Event, href, etag string) error {
+	f.saved = append(f.saved, savedSynced{e.ID(), href, etag})
+	return nil
+}
+
+func (f *fakeSyncStore) DeleteEventsByHref(_ context.Context, href string) error {
+	f.deletedHrefs = append(f.deletedHrefs, href)
+	return nil
+}
+
+func (f *fakeSyncStore) ClearPendingCalendarOp(_ context.Context, calendarID, href string) error {
+	f.clearedOps = append(f.clearedOps, [2]string{calendarID, href})
+	return nil
+}
+
+func (f *fakeSyncStore) ListSyncedObjects(context.Context, string) ([]SyncedObject, error) {
+	return nil, nil
+}
+func (f *fakeSyncStore) SaveRemoteCalendar(context.Context, domain.Calendar, string, string, string) error {
+	return nil
+}
+func (f *fakeSyncStore) ListRemoteCalendars(context.Context, string) ([]RemoteCalendarRecord, error) {
+	return nil, nil
+}
+func (f *fakeSyncStore) CalendarCTag(context.Context, string) (string, error) { return "", nil }
+func (f *fakeSyncStore) SetPendingCalendarOp(context.Context, PendingCalendarObject) error {
+	return nil
+}
+
+// fakeWriter is a hand-written CalDAVWriter recording the conditional headers and returning an injected etag
+// or error.
+type fakeWriter struct {
+	putETag        string
+	putErr         error
+	delErr         error
+	putHref        string
+	putIfMatch     string
+	putIfNoneMatch string
+	putBody        []byte
+	delHref        string
+	delIfMatch     string
+	putCalls       int
+	delCalls       int
+}
+
+var _ CalDAVWriter = (*fakeWriter)(nil)
+
+func (f *fakeWriter) PutObject(_ context.Context, href string, ics []byte, ifMatch, ifNoneMatch string) (string, error) {
+	f.putCalls++
+	f.putHref, f.putBody, f.putIfMatch, f.putIfNoneMatch = href, ics, ifMatch, ifNoneMatch
+	return f.putETag, f.putErr
+}
+
+func (f *fakeWriter) DeleteObject(_ context.Context, href, ifMatch string) error {
+	f.delCalls++
+	f.delHref, f.delIfMatch = href, ifMatch
+	return f.delErr
+}
+
+func writeEvent(t *testing.T, id string) domain.Event {
+	t.Helper()
+	e, err := domain.NewEvent(domain.EventInput{ID: id, Summary: "S", Start: time.Date(2026, 7, 4, 9, 0, 0, 0, time.UTC)})
+	if err != nil {
+		t.Fatalf("event %q: %v", id, err)
+	}
+	return e
+}
+
+func TestFlushListError(t *testing.T) {
+	svc := NewCalDAVWriteService(&fakeSyncStore{pendingErr: errBoom}, &fakeCalendarCodec{})
+	if err := svc.Flush(context.Background(), &fakeWriter{}); !errors.Is(err, errBoom) {
+		t.Fatalf("Flush err = %v, want errBoom", err)
+	}
+}
+
+func TestFlushCreatePut(t *testing.T) {
+	const href = "https://dav.example.com/cal1/a.ics"
+	store := &fakeSyncStore{
+		pending:      []PendingCalendarObject{{CalendarID: "cal1", Href: href, Op: CalendarOpCreate}},
+		eventsByHref: map[string][]domain.Event{href: {writeEvent(t, "e1")}},
+	}
+	writer := &fakeWriter{putETag: "srv-etag"}
+	svc := NewCalDAVWriteService(store, &fakeCalendarCodec{encoded: []byte("BEGIN:VCALENDAR")})
+	if err := svc.Flush(context.Background(), writer); err != nil {
+		t.Fatalf("Flush: %v", err)
+	}
+	if writer.putIfNoneMatch != "*" || writer.putIfMatch != "" {
+		t.Errorf("create headers: none=%q match=%q", writer.putIfNoneMatch, writer.putIfMatch)
+	}
+	if string(writer.putBody) != "BEGIN:VCALENDAR" {
+		t.Errorf("body = %q", writer.putBody)
+	}
+	if len(store.saved) != 1 || store.saved[0] != (savedSynced{"e1", href, "srv-etag"}) {
+		t.Errorf("saved = %+v", store.saved)
+	}
+	if len(store.clearedOps) != 1 || store.clearedOps[0] != [2]string{"cal1", href} {
+		t.Errorf("cleared = %+v", store.clearedOps)
+	}
+}
+
+func TestFlushUpdateWithoutReturnedEtagStillClears(t *testing.T) {
+	const href = "https://dav.example.com/cal1/b.ics"
+	store := &fakeSyncStore{
+		pending:      []PendingCalendarObject{{CalendarID: "cal1", Href: href, Op: CalendarOpUpdate, BaseETag: "old"}},
+		eventsByHref: map[string][]domain.Event{href: {writeEvent(t, "e2")}},
+	}
+	writer := &fakeWriter{putETag: ""} // the server omitted an ETag on the response
+	svc := NewCalDAVWriteService(store, &fakeCalendarCodec{encoded: []byte("X")})
+	_ = svc.Flush(context.Background(), writer)
+	if writer.putIfMatch != "old" || writer.putIfNoneMatch != "" {
+		t.Errorf("update headers: match=%q none=%q", writer.putIfMatch, writer.putIfNoneMatch)
+	}
+	if len(store.saved) != 0 {
+		t.Errorf("no etag returned, must not re-save: %+v", store.saved)
+	}
+	if len(store.clearedOps) != 1 {
+		t.Errorf("a confirmed write clears the intent: %+v", store.clearedOps)
+	}
+}
+
+func TestFlushPutConflictLeavesIntent(t *testing.T) {
+	const href = "https://dav.example.com/cal1/c.ics"
+	store := &fakeSyncStore{
+		pending:      []PendingCalendarObject{{CalendarID: "cal1", Href: href, Op: CalendarOpUpdate, BaseETag: "old"}},
+		eventsByHref: map[string][]domain.Event{href: {writeEvent(t, "e3")}},
+	}
+	writer := &fakeWriter{putErr: ErrCalDAVConflict}
+	svc := NewCalDAVWriteService(store, &fakeCalendarCodec{encoded: []byte("X")})
+	_ = svc.Flush(context.Background(), writer)
+	if len(store.clearedOps) != 0 || len(store.saved) != 0 {
+		t.Errorf("a conflict must leave the intent: cleared=%+v saved=%+v", store.clearedOps, store.saved)
+	}
+}
+
+func TestFlushPutSkipsWhenNoEvents(t *testing.T) {
+	const href = "https://dav.example.com/cal1/d.ics"
+	store := &fakeSyncStore{
+		pending:      []PendingCalendarObject{{CalendarID: "cal1", Href: href, Op: CalendarOpUpdate}},
+		eventsByHref: map[string][]domain.Event{}, // the object vanished locally
+	}
+	writer := &fakeWriter{}
+	svc := NewCalDAVWriteService(store, &fakeCalendarCodec{encoded: []byte("X")})
+	_ = svc.Flush(context.Background(), writer)
+	if writer.putCalls != 0 || len(store.clearedOps) != 0 {
+		t.Errorf("empty events should skip the put: puts=%d cleared=%+v", writer.putCalls, store.clearedOps)
+	}
+}
+
+func TestFlushPutEventsError(t *testing.T) {
+	store := &fakeSyncStore{
+		pending:   []PendingCalendarObject{{CalendarID: "cal1", Href: "h", Op: CalendarOpCreate}},
+		eventsErr: errBoom,
+	}
+	writer := &fakeWriter{}
+	svc := NewCalDAVWriteService(store, &fakeCalendarCodec{encoded: []byte("X")})
+	_ = svc.Flush(context.Background(), writer)
+	if writer.putCalls != 0 {
+		t.Errorf("an events-read error should skip the put")
+	}
+}
+
+func TestFlushPutEncodeError(t *testing.T) {
+	const href = "h"
+	store := &fakeSyncStore{
+		pending:      []PendingCalendarObject{{CalendarID: "cal1", Href: href, Op: CalendarOpCreate}},
+		eventsByHref: map[string][]domain.Event{href: {writeEvent(t, "e")}},
+	}
+	writer := &fakeWriter{}
+	svc := NewCalDAVWriteService(store, &fakeCalendarCodec{encodeErr: errBoom})
+	_ = svc.Flush(context.Background(), writer)
+	if writer.putCalls != 0 {
+		t.Errorf("an encode error should skip the put")
+	}
+}
+
+func TestFlushDelete(t *testing.T) {
+	const href = "https://dav.example.com/cal1/e.ics"
+	store := &fakeSyncStore{
+		pending: []PendingCalendarObject{{CalendarID: "cal1", Href: href, Op: CalendarOpDelete, BaseETag: "etg"}},
+	}
+	writer := &fakeWriter{}
+	svc := NewCalDAVWriteService(store, &fakeCalendarCodec{})
+	_ = svc.Flush(context.Background(), writer)
+	if writer.delIfMatch != "etg" || writer.delHref != href {
+		t.Errorf("delete request: href=%q match=%q", writer.delHref, writer.delIfMatch)
+	}
+	if len(store.deletedHrefs) != 1 || store.deletedHrefs[0] != href {
+		t.Errorf("local remnant not removed: %+v", store.deletedHrefs)
+	}
+	if len(store.clearedOps) != 1 {
+		t.Errorf("delete intent not cleared: %+v", store.clearedOps)
+	}
+}
+
+func TestFlushDeleteConflictLeavesIntent(t *testing.T) {
+	store := &fakeSyncStore{
+		pending: []PendingCalendarObject{{CalendarID: "cal1", Href: "h", Op: CalendarOpDelete, BaseETag: "e"}},
+	}
+	writer := &fakeWriter{delErr: ErrCalDAVConflict}
+	svc := NewCalDAVWriteService(store, &fakeCalendarCodec{})
+	_ = svc.Flush(context.Background(), writer)
+	if len(store.deletedHrefs) != 0 || len(store.clearedOps) != 0 {
+		t.Errorf("a delete conflict must leave the intent: deleted=%+v cleared=%+v", store.deletedHrefs, store.clearedOps)
+	}
+}
