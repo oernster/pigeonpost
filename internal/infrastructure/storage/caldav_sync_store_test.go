@@ -235,6 +235,36 @@ func TestDeleteObjectWithPending(t *testing.T) {
 	}
 }
 
+func TestUpdateCalendarCTag(t *testing.T) {
+	store := openTestStore(t)
+	ctx := context.Background()
+	remote, err := domain.NewCalendar("cal1", "Work", "#3b82f6")
+	if err != nil {
+		t.Fatalf("calendar: %v", err)
+	}
+	if err := store.SaveRemoteCalendar(ctx, remote, "acc1", "/dav/cal1/", "ctag-1"); err != nil {
+		t.Fatalf("SaveRemoteCalendar: %v", err)
+	}
+	if err := store.UpdateCalendarCTag(ctx, "cal1", "ctag-2"); err != nil {
+		t.Fatalf("UpdateCalendarCTag: %v", err)
+	}
+	if ctag, _ := store.CalendarCTag(ctx, "cal1"); ctag != "ctag-2" {
+		t.Errorf("ctag = %q, want ctag-2 after the update", ctag)
+	}
+	// The other fields are untouched, so the calendar still lists for its account with the same href.
+	records, err := store.ListRemoteCalendars(ctx, "acc1")
+	if err != nil {
+		t.Fatalf("ListRemoteCalendars: %v", err)
+	}
+	if len(records) != 1 || records[0].Href != "/dav/cal1/" || records[0].Name != "Work" {
+		t.Errorf("update touched other fields: %+v", records)
+	}
+	// Updating an unknown calendar is a no-op rather than an error.
+	if err := store.UpdateCalendarCTag(ctx, "missing", "x"); err != nil {
+		t.Errorf("update of an unknown calendar should be a no-op: %v", err)
+	}
+}
+
 func TestPendingCalendarOps(t *testing.T) {
 	store := openTestStore(t)
 	ctx := context.Background()

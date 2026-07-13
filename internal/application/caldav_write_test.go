@@ -57,6 +57,11 @@ type fakeSyncStore struct {
 	savePendErr error
 	deletedPend []deletedWithPending
 	delPendErr  error
+	// ctagByID feeds CalendarCTag; calendarCTagErr injects a read failure; updatedCTags records
+	// UpdateCalendarCTag calls as (calendarID, ctag) pairs.
+	ctagByID        map[string]string
+	calendarCTagErr error
+	updatedCTags    [][2]string
 }
 
 var _ CalendarSyncStore = (*fakeSyncStore)(nil)
@@ -107,7 +112,17 @@ func (f *fakeSyncStore) SaveRemoteCalendar(_ context.Context, c domain.Calendar,
 func (f *fakeSyncStore) ListRemoteCalendars(context.Context, string) ([]RemoteCalendarRecord, error) {
 	return nil, nil
 }
-func (f *fakeSyncStore) CalendarCTag(context.Context, string) (string, error) { return "", nil }
+func (f *fakeSyncStore) CalendarCTag(_ context.Context, calendarID string) (string, error) {
+	if f.calendarCTagErr != nil {
+		return "", f.calendarCTagErr
+	}
+	return f.ctagByID[calendarID], nil
+}
+
+func (f *fakeSyncStore) UpdateCalendarCTag(_ context.Context, calendarID, ctag string) error {
+	f.updatedCTags = append(f.updatedCTags, [2]string{calendarID, ctag})
+	return nil
+}
 func (f *fakeSyncStore) SetPendingCalendarOp(context.Context, PendingCalendarObject) error {
 	return nil
 }

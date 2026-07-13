@@ -220,6 +220,15 @@ func (s *Store) CalendarCTag(ctx context.Context, calendarID string) (string, er
 	return ctag, nil
 }
 
+// UpdateCalendarCTag records the CTag a collection was last reconciled against, leaving the calendar's other
+// fields untouched. A calendar that does not exist is a no-op.
+func (s *Store) UpdateCalendarCTag(ctx context.Context, calendarID, ctag string) error {
+	if _, err := s.db.ExecContext(ctx, "UPDATE calendar SET ctag = ? WHERE id = ?;", ctag, calendarID); err != nil {
+		return fmt.Errorf("update calendar ctag %q: %w", calendarID, err)
+	}
+	return nil
+}
+
 // SetPendingCalendarOp records or replaces the pending write intent for one object.
 func (s *Store) SetPendingCalendarOp(ctx context.Context, op application.PendingCalendarObject) error {
 	if _, err := s.db.ExecContext(ctx, pendingCalendarUpsertSQL, op.CalendarID, op.Href, int(op.Op), op.BaseETag); err != nil {

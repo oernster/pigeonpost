@@ -114,6 +114,9 @@ type CalendarSyncStore interface {
 	DeleteObjectWithPending(ctx context.Context, href string, op PendingCalendarObject) error
 	// CalendarCTag returns a local calendar's last-seen CTag, or the empty string when it has none.
 	CalendarCTag(ctx context.Context, calendarID string) (string, error)
+	// UpdateCalendarCTag records the CTag a collection was last reconciled against, so the next sync can skip
+	// the collection when the server still reports the same one.
+	UpdateCalendarCTag(ctx context.Context, calendarID, ctag string) error
 	// SetPendingCalendarOp records or replaces the pending write intent for one object.
 	SetPendingCalendarOp(ctx context.Context, op PendingCalendarObject) error
 	// ClearPendingCalendarOp removes the pending intent for one object, once the server agrees.

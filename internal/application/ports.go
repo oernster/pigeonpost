@@ -234,6 +234,11 @@ type CalendarStore interface {
 type CalDAVSource interface {
 	ListCalendars(ctx context.Context) ([]RemoteCalendar, error)
 	ListObjects(ctx context.Context, calendar RemoteCalendar) ([]RemoteObject, error)
+	// CollectionCTag returns a collection's CTag (its calendarserver.org change tag), used to skip an
+	// unchanged collection on a sync. An empty string means the server does not report one, so the caller
+	// reconciles unconditionally; an error is a transport or parse failure, which the caller treats the same
+	// way (it cannot skip, so it reconciles).
+	CollectionCTag(ctx context.Context, collectionHref string) (string, error)
 }
 
 // CalendarAccountStore persists CalDAV/CardDAV accounts. Each account's password is not stored here; it

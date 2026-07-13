@@ -6,7 +6,9 @@ package caldav
 import (
 	"bytes"
 	"context"
+	"encoding/xml"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -20,6 +22,19 @@ import (
 
 // calendarContentType is the media type of an iCalendar object body sent on a PUT.
 const calendarContentType = "text/calendar; charset=utf-8"
+
+// ctagPropfindBody asks for a collection's calendarserver.org CTag with a Depth-0 PROPFIND. go-webdav v0.7.0
+// has no CTag helper, so the request is raw, matching the raw conditional writes.
+const ctagPropfindBody = `<?xml version="1.0" encoding="utf-8"?>` +
+	`<propfind xmlns="DAV:" xmlns:cs="http://calendarserver.org/ns/"><prop><cs:getctag/></prop></propfind>`
+
+// ctagMultistatus parses just the getctag value out of a PROPFIND multistatus response. Elements are matched by
+// local name, ignoring namespace prefixes, so it is robust across the various ways servers qualify the tag.
+type ctagMultistatus struct {
+	Responses []struct {
+		CTag string `xml:"propstat>prop>getctag"`
+	} `xml:"response"`
+}
 
 // Client implements the application CalDAVSource read port and the CalDAVWriter write port over a remote
 // CalDAV server. Reads go through go-webdav's caldav client; writes are raw conditional HTTP requests
@@ -142,6 +157,45 @@ func unquoteETag(etag string) string {
 	etag = strings.TrimSpace(etag)
 	etag = strings.TrimPrefix(etag, "W/")
 	return strings.Trim(etag, "\"")
+}
+
+// CollectionCTag reads a collection's CTag with a raw Depth-0 PROPFIND for calendarserver.org getctag. A server
+// that does not report the property yields the empty string (no error), so the caller reconciles the collection
+// unconditionally; a transport, status or parse failure is returned as an error, which the caller treats the
+// same way. go-webdav v0.7.0 exposes no CTag helper, hence the raw request.
+func (c *Client) CollectionCTag(ctx context.Context, collectionHref string) (string, error) {
+	target, err := c.resolve(collectionHref)
+	if err != nil {
+		return "", err
+	}
+	req, err := http.NewRequestWithContext(ctx, "PROPFIND", target, strings.NewReader(ctagPropfindBody))
+	if err != nil {
+		return "", fmt.Errorf("caldav: build propfind %q: %w", collectionHref, err)
+	}
+	req.Header.Set("Content-Type", "application/xml; charset=utf-8")
+	req.Header.Set("Depth", "0")
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("caldav: propfind %q: %w", collectionHref, err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return "", fmt.Errorf("caldav: propfind %q: unexpected status %s", collectionHref, resp.Status)
+	}
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("caldav: read propfind %q: %w", collectionHref, err)
+	}
+	var ms ctagMultistatus
+	if err := xml.Unmarshal(body, &ms); err != nil {
+		return "", fmt.Errorf("caldav: parse propfind %q: %w", collectionHref, err)
+	}
+	for _, r := range ms.Responses {
+		if r.CTag != "" {
+			return r.CTag, nil
+		}
+	}
+	return "", nil
 }
 
 // ListCalendars discovers the account's calendar collections: it resolves the current-user principal, then

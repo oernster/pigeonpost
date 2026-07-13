@@ -12,6 +12,7 @@ type fakeCalDAVSource struct {
 	listCalErr error
 	objects    map[string][]RemoteObject
 	listObjErr map[string]error
+	ctag       map[string]string
 }
 
 func (f *fakeCalDAVSource) ListCalendars(context.Context) ([]RemoteCalendar, error) {
@@ -26,6 +27,10 @@ func (f *fakeCalDAVSource) ListObjects(_ context.Context, c RemoteCalendar) ([]R
 		return nil, err
 	}
 	return f.objects[c.Path], nil
+}
+
+func (f *fakeCalDAVSource) CollectionCTag(_ context.Context, href string) (string, error) {
+	return f.ctag[href], nil
 }
 
 // davCodec decodes an object body by looking its bytes up in decode; a body absent from the map
@@ -69,6 +74,31 @@ func TestCalDAVPullSaveCalendarErrorIsFatal(t *testing.T) {
 	svc := NewCalDAVSyncService(src, &davCodec{}, &fakeSyncStore{saveCalErr: errBoom}, pullAccount)
 	if _, err := svc.Pull(context.Background()); err == nil {
 		t.Fatal("expected a fatal error when saving a mirrored calendar fails")
+	}
+}
+
+func TestCalDAVDiscoverPreservesCTag(t *testing.T) {
+	// A re-discovery must carry the CTag the last sync recorded, not wipe it, so the reconcile can still skip an
+	// unchanged collection.
+	src := &fakeCalDAVSource{calendars: []RemoteCalendar{{Path: "/a", DisplayName: "A"}}}
+	store := &fakeSyncStore{ctagByID: map[string]string{pullAccount + "|/a": "stored-ctag"}}
+	records, err := NewCalDAVSyncService(src, &davCodec{}, store, pullAccount).Discover(context.Background())
+	if err != nil {
+		t.Fatalf("Discover: %v", err)
+	}
+	if len(records) != 1 || records[0].CTag != "stored-ctag" {
+		t.Errorf("record ctag = %+v, want the stored ctag preserved", records)
+	}
+	if len(store.savedCals) != 1 || store.savedCals[0].ctag != "stored-ctag" {
+		t.Errorf("saved calendar ctag = %+v, want the stored ctag preserved, not wiped", store.savedCals)
+	}
+}
+
+func TestCalDAVDiscoverCTagReadError(t *testing.T) {
+	src := &fakeCalDAVSource{calendars: []RemoteCalendar{{Path: "/a"}}}
+	store := &fakeSyncStore{calendarCTagErr: errBoom}
+	if _, err := NewCalDAVSyncService(src, &davCodec{}, store, pullAccount).Discover(context.Background()); err == nil {
+		t.Fatal("expected an error when the stored ctag cannot be read")
 	}
 }
 

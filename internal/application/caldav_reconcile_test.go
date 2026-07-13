@@ -10,10 +10,12 @@ import (
 )
 
 // fakeReconcileSource is a CalDAVSource returning canned objects per collection path, with per-collection
-// ListObjects error injection.
+// ListObjects error injection and per-collection CTag stubbing.
 type fakeReconcileSource struct {
 	objects map[string][]RemoteObject
 	listErr map[string]error
+	ctag    map[string]string
+	ctagErr map[string]error
 }
 
 var _ CalDAVSource = (*fakeReconcileSource)(nil)
@@ -26,6 +28,19 @@ func (f *fakeReconcileSource) ListObjects(_ context.Context, c RemoteCalendar) (
 		return nil, err
 	}
 	return f.objects[c.Path], nil
+}
+func (f *fakeReconcileSource) CollectionCTag(_ context.Context, href string) (string, error) {
+	if err := f.ctagErr[href]; err != nil {
+		return "", err
+	}
+	return f.ctag[href], nil
+}
+
+// recWithCTag is rec with a last-synced CTag, for the collection-skip tests.
+func recWithCTag(calendarID, collectionHref, ctag string) RemoteCalendarRecord {
+	r := rec(calendarID, collectionHref)
+	r.CTag = ctag
+	return r
 }
 
 // reconcileCodec decodes a server object body to a canned event slice keyed by the raw bytes, with per-body
@@ -202,6 +217,137 @@ func TestReconcileDecodeErrorSavesNothing(t *testing.T) {
 	_ = svc.Reconcile(context.Background(), src, []RemoteCalendarRecord{rec("cal1", "/c1/")})
 	if len(store.saved) != 0 {
 		t.Errorf("an undecodable object must save nothing")
+	}
+}
+
+func TestReconcileSkipsUnchangedCollection(t *testing.T) {
+	// The server reports the same CTag the last sync recorded, so the collection's objects are neither fetched
+	// nor merged, and its stored CTag is not rewritten. The source carries a changed object to prove that a
+	// skipped collection is genuinely not listed (else it would be saved).
+	store := &fakeSyncStore{synced: map[string][]SyncedObject{"cal1": {{Href: "/c1/a.ics", ETag: "e"}}}}
+	src := &fakeReconcileSource{
+		ctag:    map[string]string{"/c1/": "ctag-1"},
+		objects: map[string][]RemoteObject{"/c1/": {{Href: "/c1/a.ics", ETag: "changed", Data: []byte("A")}}},
+	}
+	codec := &reconcileCodec{byData: map[string][]domain.Event{"A": {writeEvent(t, "a")}}}
+	svc := NewCalDAVReconcileService(store, codec, seqID())
+	_ = svc.Reconcile(context.Background(), src, []RemoteCalendarRecord{recWithCTag("cal1", "/c1/", "ctag-1")})
+	if len(store.saved) != 0 {
+		t.Errorf("an unchanged collection must not be merged: %+v", store.saved)
+	}
+	if len(store.updatedCTags) != 0 {
+		t.Errorf("an unchanged collection must not rewrite its ctag: %+v", store.updatedCTags)
+	}
+}
+
+func TestReconcileUpdatesCTagAfterMerge(t *testing.T) {
+	// The server CTag differs from the recorded one, so the collection is reconciled and its new CTag stored.
+	store := &fakeSyncStore{}
+	src := &fakeReconcileSource{
+		ctag:    map[string]string{"/c1/": "ctag-2"},
+		objects: map[string][]RemoteObject{"/c1/": {{Href: "/c1/a.ics", ETag: "e", Data: []byte("A")}}},
+	}
+	codec := &reconcileCodec{byData: map[string][]domain.Event{"A": {writeEvent(t, "a")}}}
+	svc := NewCalDAVReconcileService(store, codec, seqID())
+	_ = svc.Reconcile(context.Background(), src, []RemoteCalendarRecord{recWithCTag("cal1", "/c1/", "ctag-1")})
+	if !savedHrefs(store)["/c1/a.ics"] {
+		t.Errorf("a changed collection must be merged: %+v", store.saved)
+	}
+	if len(store.updatedCTags) != 1 || store.updatedCTags[0] != [2]string{"cal1", "ctag-2"} {
+		t.Errorf("the new server ctag must be recorded: %+v", store.updatedCTags)
+	}
+}
+
+func TestReconcileCTagErrorStillReconciles(t *testing.T) {
+	// A CTag read failure means the collection cannot be proven unchanged, so it is reconciled anyway and its
+	// CTag is not rewritten, since there is no reliable value to store.
+	store := &fakeSyncStore{}
+	src := &fakeReconcileSource{
+		ctagErr: map[string]error{"/c1/": errBoom},
+		objects: map[string][]RemoteObject{"/c1/": {{Href: "/c1/a.ics", ETag: "e", Data: []byte("A")}}},
+	}
+	codec := &reconcileCodec{byData: map[string][]domain.Event{"A": {writeEvent(t, "a")}}}
+	svc := NewCalDAVReconcileService(store, codec, seqID())
+	_ = svc.Reconcile(context.Background(), src, []RemoteCalendarRecord{recWithCTag("cal1", "/c1/", "ctag-1")})
+	if !savedHrefs(store)["/c1/a.ics"] {
+		t.Errorf("a ctag read error must fall back to a full reconcile: %+v", store.saved)
+	}
+	if len(store.updatedCTags) != 0 {
+		t.Errorf("a ctag read error must not record a ctag: %+v", store.updatedCTags)
+	}
+}
+
+func TestReconcileCTagNotAdvancedWhenLocalUnreadable(t *testing.T) {
+	// The server CTag changed, so the collection is fetched, but reading the local objects fails, so the merge
+	// never runs and the CTag must not advance: advancing it would wrongly skip the collection next time.
+	store := &fakeSyncStore{syncedErr: errBoom}
+	src := &fakeReconcileSource{
+		ctag:    map[string]string{"/c1/": "ctag-2"},
+		objects: map[string][]RemoteObject{"/c1/": {{Href: "/c1/a.ics", ETag: "e", Data: []byte("A")}}},
+	}
+	codec := &reconcileCodec{byData: map[string][]domain.Event{"A": {writeEvent(t, "a")}}}
+	svc := NewCalDAVReconcileService(store, codec, seqID())
+	_ = svc.Reconcile(context.Background(), src, []RemoteCalendarRecord{recWithCTag("cal1", "/c1/", "ctag-1")})
+	if len(store.updatedCTags) != 0 {
+		t.Errorf("the ctag must not advance when the merge could not run: %+v", store.updatedCTags)
+	}
+}
+
+func TestReconcileCTagNotAdvancedWhenApplyFails(t *testing.T) {
+	// The server changed, so the collection is fetched, but persisting the server object fails. The merge did
+	// not fully land, so the CTag must not advance: advancing it would skip the object forever, whereas
+	// withholding it re-reconciles next sync and the object gets another chance to land.
+	store := &fakeSyncStore{saveSyncedErr: errBoom}
+	src := &fakeReconcileSource{
+		ctag:    map[string]string{"/c1/": "ctag-2"},
+		objects: map[string][]RemoteObject{"/c1/": {{Href: "/c1/a.ics", ETag: "e", Data: []byte("A")}}},
+	}
+	codec := &reconcileCodec{byData: map[string][]domain.Event{"A": {writeEvent(t, "a")}}}
+	svc := NewCalDAVReconcileService(store, codec, seqID())
+	_ = svc.Reconcile(context.Background(), src, []RemoteCalendarRecord{recWithCTag("cal1", "/c1/", "ctag-1")})
+	if len(store.updatedCTags) != 0 {
+		t.Errorf("a failed object save must withhold the ctag: %+v", store.updatedCTags)
+	}
+}
+
+func TestReconcileCTagWithheldWhenServerConflictSafetyReadFails(t *testing.T) {
+	// A conflict on a server-present object where reading the local rows to copy fails: the merge is incomplete,
+	// so the CTag is withheld even though the server version is still applied.
+	const href = "/c1/x.ics"
+	store := &fakeSyncStore{
+		synced:    map[string][]SyncedObject{"cal1": {{Href: href, ETag: "base"}}},
+		pending:   []PendingCalendarObject{{CalendarID: "cal1", Href: href, Op: CalendarOpUpdate, BaseETag: "base"}},
+		eventsErr: errBoom, // reading the local events to copy fails
+	}
+	src := &fakeReconcileSource{
+		ctag:    map[string]string{"/c1/": "ctag-2"},
+		objects: map[string][]RemoteObject{"/c1/": {{Href: href, ETag: "server", Data: []byte("SV")}}},
+	}
+	codec := &reconcileCodec{byData: map[string][]domain.Event{"SV": {writeEvent(t, "srv")}}}
+	svc := NewCalDAVReconcileService(store, codec, seqID())
+	_ = svc.Reconcile(context.Background(), src, []RemoteCalendarRecord{recWithCTag("cal1", "/c1/", "ctag-1")})
+	if len(store.updatedCTags) != 0 {
+		t.Errorf("a failed safety-copy read must withhold the ctag: %+v", store.updatedCTags)
+	}
+}
+
+func TestReconcileCTagWithheldWhenMissingObjectSafetyFails(t *testing.T) {
+	// The server dropped an object under a pending local update, and reading the local rows to copy fails, so
+	// the missing-object merge is incomplete and the CTag is withheld.
+	const href = "/c1/gone.ics"
+	store := &fakeSyncStore{
+		synced:    map[string][]SyncedObject{"cal1": {{Href: href, ETag: "e"}}},
+		pending:   []PendingCalendarObject{{CalendarID: "cal1", Href: href, Op: CalendarOpUpdate, BaseETag: "e"}},
+		eventsErr: errBoom,
+	}
+	src := &fakeReconcileSource{
+		ctag:    map[string]string{"/c1/": "ctag-2"},
+		objects: map[string][]RemoteObject{"/c1/": {}}, // the server has dropped the object
+	}
+	svc := NewCalDAVReconcileService(store, &reconcileCodec{}, seqID())
+	_ = svc.Reconcile(context.Background(), src, []RemoteCalendarRecord{recWithCTag("cal1", "/c1/", "ctag-1")})
+	if len(store.updatedCTags) != 0 {
+		t.Errorf("a failed safety copy on a server-gone object must withhold the ctag: %+v", store.updatedCTags)
 	}
 }
 
