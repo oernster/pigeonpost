@@ -117,6 +117,32 @@ CREATE TABLE IF NOT EXISTS calendar_account (
 );
 `
 
+// schemaV40 adds the CalDAV two-way write-back state. Each synced event gains its remote object's href and
+// etag, so a write-back can target the object (its href) and guard the write (If-Match its etag); all events
+// decoded from one object share that object's href and etag. The calendar (collection) gains account_id (the
+// owning calendar_account, empty for a purely local calendar), href (the collection resource path) and ctag
+// (the collectionserver CTag used to skip an unchanged collection on sync). calendar_pending is the pending
+// write-intent table, mirroring message_tag_pending: one row per remote object that has an unpushed local
+// change. op is create, update or delete (0, 1, 2); base_etag is empty for a create (driving If-None-Match:*)
+// and the last-seen etag for an update or delete (driving If-Match). A delete row survives the local event's
+// removal, so it also serves as the object's tombstone until the server delete is confirmed.
+const schemaV40 = `
+ALTER TABLE event ADD COLUMN href TEXT NOT NULL DEFAULT '';
+ALTER TABLE event ADD COLUMN etag TEXT NOT NULL DEFAULT '';
+CREATE INDEX IF NOT EXISTS idx_event_href ON event(href);
+ALTER TABLE calendar ADD COLUMN account_id TEXT NOT NULL DEFAULT '';
+ALTER TABLE calendar ADD COLUMN href TEXT NOT NULL DEFAULT '';
+ALTER TABLE calendar ADD COLUMN ctag TEXT NOT NULL DEFAULT '';
+CREATE TABLE IF NOT EXISTS calendar_pending (
+    calendar_id TEXT NOT NULL,
+    href        TEXT NOT NULL,
+    op          INTEGER NOT NULL,
+    base_etag   TEXT NOT NULL DEFAULT '',
+    PRIMARY KEY (calendar_id, href)
+);
+CREATE INDEX IF NOT EXISTS idx_calendar_pending_calendar ON calendar_pending(calendar_id);
+`
+
 // migrations is the ordered list of schema steps. Index i upgrades the database from version i to
 // version i+1, so a fresh database applies them all and an existing one applies only what it lacks.
-var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15, schemaV16, schemaV17, schemaV18, schemaV19, schemaV20, schemaV21, schemaV22, schemaV23, schemaV24, schemaV25, schemaV26, schemaV27, schemaV28, schemaV29, schemaV30, schemaV31, schemaV32, schemaV33, schemaV34, schemaV35, schemaV36, schemaV37, schemaV38, schemaV39}
+var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15, schemaV16, schemaV17, schemaV18, schemaV19, schemaV20, schemaV21, schemaV22, schemaV23, schemaV24, schemaV25, schemaV26, schemaV27, schemaV28, schemaV29, schemaV30, schemaV31, schemaV32, schemaV33, schemaV34, schemaV35, schemaV36, schemaV37, schemaV38, schemaV39, schemaV40}

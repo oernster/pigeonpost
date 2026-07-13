@@ -54,6 +54,45 @@ func (s *Store) DeleteCalendar(ctx context.Context, id string) error {
 
 const eventColumns = "id, uid, calendar_id, summary, description, location, start_ms, end_ms, all_day, recurrence, extra, rdate, exdate, recurrence_id, time_zone, alarms, organizer, attendees, category"
 
+// eventUpsertSQL inserts or updates one event by id across the eventColumns. SaveSyncedEvent uses a wider
+// variant that also carries the CalDAV href and etag (see caldav_sync_store.go).
+const eventUpsertSQL = `INSERT INTO event (` + eventColumns + `) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	 ON CONFLICT(id) DO UPDATE SET uid = excluded.uid, calendar_id = excluded.calendar_id,
+	     summary = excluded.summary, description = excluded.description, location = excluded.location,
+	     start_ms = excluded.start_ms, end_ms = excluded.end_ms, all_day = excluded.all_day,
+	     recurrence = excluded.recurrence, extra = excluded.extra, rdate = excluded.rdate,
+	     exdate = excluded.exdate, recurrence_id = excluded.recurrence_id, time_zone = excluded.time_zone,
+	     alarms = excluded.alarms, organizer = excluded.organizer, attendees = excluded.attendees,
+	     category = excluded.category;`
+
+// eventInsertArgs builds the ordered argument list for the eventColumns, shared by SaveEvent and (with the
+// href and etag appended) SaveSyncedEvent so the encoding of times, alarms, organizer and attendees lives in
+// one place.
+func eventInsertArgs(e domain.Event) ([]any, error) {
+	var endMs int64
+	if e.HasEnd() {
+		endMs = e.End().UnixMilli()
+	}
+	var recurrenceIDMs int64
+	if e.IsOverride() {
+		recurrenceIDMs = e.RecurrenceID().UnixMilli()
+	}
+	organizer, err := encodeOrganizer(e.Organizer())
+	if err != nil {
+		return nil, err
+	}
+	attendees, err := encodeAttendees(e.Attendees())
+	if err != nil {
+		return nil, err
+	}
+	return []any{
+		e.ID(), e.UID(), e.CalendarID(), e.Summary(), e.Description(), e.Location(),
+		e.Start().UnixMilli(), endMs, boolToInt(e.AllDay()), e.Recurrence(), e.Extra(),
+		encodeTimes(e.RDates()), encodeTimes(e.ExDates()), recurrenceIDMs, e.TimeZone(), encodeAlarms(e.Alarms()),
+		organizer, attendees, e.Category(),
+	}, nil
+}
+
 // ListEvents returns every event, ordered by start time.
 func (s *Store) ListEvents(ctx context.Context) ([]domain.Event, error) {
 	return queryRows(ctx, s.db, "events", "SELECT "+eventColumns+" FROM event ORDER BY start_ms;", scanEvent)
@@ -71,36 +110,11 @@ func (s *Store) GetEvent(ctx context.Context, id string) (domain.Event, error) {
 
 // SaveEvent inserts or updates an event by id.
 func (s *Store) SaveEvent(ctx context.Context, e domain.Event) error {
-	var endMs int64
-	if e.HasEnd() {
-		endMs = e.End().UnixMilli()
-	}
-	var recurrenceIDMs int64
-	if e.IsOverride() {
-		recurrenceIDMs = e.RecurrenceID().UnixMilli()
-	}
-	organizer, err := encodeOrganizer(e.Organizer())
+	args, err := eventInsertArgs(e)
 	if err != nil {
 		return fmt.Errorf("save event %q: %w", e.ID(), err)
 	}
-	attendees, err := encodeAttendees(e.Attendees())
-	if err != nil {
-		return fmt.Errorf("save event %q: %w", e.ID(), err)
-	}
-	_, err = s.db.ExecContext(ctx,
-		`INSERT INTO event (`+eventColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-		 ON CONFLICT(id) DO UPDATE SET uid = excluded.uid, calendar_id = excluded.calendar_id,
-		     summary = excluded.summary, description = excluded.description, location = excluded.location,
-		     start_ms = excluded.start_ms, end_ms = excluded.end_ms, all_day = excluded.all_day,
-		     recurrence = excluded.recurrence, extra = excluded.extra, rdate = excluded.rdate,
-		     exdate = excluded.exdate, recurrence_id = excluded.recurrence_id, time_zone = excluded.time_zone,
-		     alarms = excluded.alarms, organizer = excluded.organizer, attendees = excluded.attendees,
-		     category = excluded.category;`,
-		e.ID(), e.UID(), e.CalendarID(), e.Summary(), e.Description(), e.Location(),
-		e.Start().UnixMilli(), endMs, boolToInt(e.AllDay()), e.Recurrence(), e.Extra(),
-		encodeTimes(e.RDates()), encodeTimes(e.ExDates()), recurrenceIDMs, e.TimeZone(), encodeAlarms(e.Alarms()),
-		organizer, attendees, e.Category())
-	if err != nil {
+	if _, err := s.db.ExecContext(ctx, eventUpsertSQL, args...); err != nil {
 		return fmt.Errorf("save event %q: %w", e.ID(), err)
 	}
 	return nil
