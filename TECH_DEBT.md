@@ -16,6 +16,17 @@ A standing reference to the project's outstanding technical debt. It records wha
 
 `DeleteMany` and `MoveMany` share batch-by-folder scaffolding. A shared helper looks tempting but is ruled out: collapsing them would change error aggregation from one-per-folder to one overall, an observable behaviour change.
 
+## 3. CalDAV two-way sync (added since v0.14.1)
+
+A full-audit pass over everything since the last tag (the CalDAV feature phases 1 and 2, the Windows-TZID import fix, the recurrence whole-second fix, the compose and window fixes) found the code clean bar one bug and a short tail of minor refactor debt. The bug (a `Flush` that pushed every account's pending writes through the one account being synced, a cross-account object leak once two DAV accounts are configured) was fixed in the audit pass, not left, so it is not listed here. What remains is weighed below.
+
+- **Dead and duplicated `CalendarSyncStore.SetPendingCalendarOp`.** The exported port method and its `Store` implementation have no production caller: every pending-intent write now flows through the atomic `SaveEventWithPending` / `DeleteObjectWithPending`, which both run the same `pendingCalendarUpsertSQL` through the private `setPendingCalendarOpTx`. So the public method is both dead and a straight duplicate of the tx helper. It survives the gates because staticcheck's unused-code check does not flag a method that satisfies an exported interface. Worth a quick removal (drop it from the interface, the `Store`, the test fake and its dedicated test, rehoming the pending-ops CRUD test onto `DeleteObjectWithPending`); low urgency since it is inert.
+- **The four hand-rolled list loops in `caldav_sync_store.go`** (`ListSyncedObjects`, `EventsByHref`, `ListRemoteCalendars`, `ListPendingCalendarOps`) each repeat the query-defer-scan-append-return scaffolding the package's own `queryRows[T]` helper already abstracts, and which the same-release `calendar_account_store.go` sibling does route through. A dedup is available but would churn coverage-adjacent infra for little gain, so it is left; fold it in if these files are next touched.
+- **`domain.CalendarAccount.WithDisplayName` is vestigial.** There is no account-rename feature (the accounts manager only adds, removes and syncs), so the copy method mirrors the mail `Account` purely for symmetry and is exercised only by the coverage-gated domain tests. Left unless a rename lands.
+- **`saveObject` and `applyServerObject` share a decode-then-tag-with-calendar-id prefix.** A three-line free helper would remove it, but the persistence tails differ (fatal-and-counting versus best-effort), so the overlap is small and left.
+
+Feature-level deferrals from phase 2 (scoped recurring write-back, the numeric Sync conflict count, the pulled RECURRENCE-ID override id=uid collapse, cross-calendar event moves) are roadmap items tracked in NOTES.md, not refactor debt, and the real-server integration is unverified by design (also NOTES.md).
+
 ---
 
 ## Not debt (do not "fix" these)
