@@ -8,6 +8,8 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/url"
+	"strings"
 
 	"github.com/emersion/go-ical"
 	"github.com/emersion/go-webdav"
@@ -16,23 +18,130 @@ import (
 	"github.com/oernster/pigeonpost/internal/application"
 )
 
-// Client implements application.CalDAVSource over a remote CalDAV server.
+// calendarContentType is the media type of an iCalendar object body sent on a PUT.
+const calendarContentType = "text/calendar; charset=utf-8"
+
+// Client implements the application CalDAVSource read port and the CalDAVWriter write port over a remote
+// CalDAV server. Reads go through go-webdav's caldav client; writes are raw conditional HTTP requests
+// (PUT/DELETE with If-Match/If-None-Match), which go-webdav v0.7.0 does not support.
 type Client struct {
-	dav *dav.Client
+	dav      *dav.Client
+	http     webdav.HTTPClient
+	endpoint string
 }
 
-// Client must satisfy the application read port.
-var _ application.CalDAVSource = (*Client)(nil)
+// Client must satisfy both the read and write ports.
+var (
+	_ application.CalDAVSource = (*Client)(nil)
+	_ application.CalDAVWriter = (*Client)(nil)
+)
 
 // NewClient builds a CalDAV client for a server that authenticates with HTTP Basic auth (an app password).
-// endpoint is the account base URL; username and password are sent on every request.
+// endpoint is the account base URL; username and password are sent on every request. The basic-auth HTTP
+// client and the endpoint are retained so the write path can issue raw conditional requests.
 func NewClient(endpoint, username, password string) (*Client, error) {
 	httpClient := webdav.HTTPClientWithBasicAuth(http.DefaultClient, username, password)
 	client, err := dav.NewClient(httpClient, endpoint)
 	if err != nil {
 		return nil, fmt.Errorf("caldav: new client: %w", err)
 	}
-	return &Client{dav: client}, nil
+	return &Client{dav: client, http: httpClient, endpoint: endpoint}, nil
+}
+
+// PutObject writes an object's iCalendar body at href with a raw conditional PUT. ifMatch, when set, is sent
+// (quoted) as If-Match to guard an update; ifNoneMatch, when set, is sent verbatim as If-None-Match ("*" for
+// a create). A 412 is mapped to application.ErrCalDAVConflict; a 2xx returns the server's new etag (which may
+// be empty when the server omits the header).
+func (c *Client) PutObject(ctx context.Context, href string, ics []byte, ifMatch, ifNoneMatch string) (string, error) {
+	target, err := c.resolve(href)
+	if err != nil {
+		return "", err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPut, target, bytes.NewReader(ics))
+	if err != nil {
+		return "", fmt.Errorf("caldav: build put %q: %w", href, err)
+	}
+	req.Header.Set("Content-Type", calendarContentType)
+	if ifMatch != "" {
+		req.Header.Set("If-Match", quoteETag(ifMatch))
+	}
+	if ifNoneMatch != "" {
+		req.Header.Set("If-None-Match", ifNoneMatch)
+	}
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("caldav: put %q: %w", href, err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusPreconditionFailed {
+		return "", fmt.Errorf("caldav: put %q: %w", href, application.ErrCalDAVConflict)
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return "", fmt.Errorf("caldav: put %q: unexpected status %s", href, resp.Status)
+	}
+	return unquoteETag(resp.Header.Get("ETag")), nil
+}
+
+// DeleteObject removes the object at href with a raw conditional DELETE, sending ifMatch (quoted) as If-Match
+// when set. A 412 is mapped to application.ErrCalDAVConflict; a 404 (already gone) is treated as success.
+func (c *Client) DeleteObject(ctx context.Context, href, ifMatch string) error {
+	target, err := c.resolve(href)
+	if err != nil {
+		return err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, target, nil)
+	if err != nil {
+		return fmt.Errorf("caldav: build delete %q: %w", href, err)
+	}
+	if ifMatch != "" {
+		req.Header.Set("If-Match", quoteETag(ifMatch))
+	}
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return fmt.Errorf("caldav: delete %q: %w", href, err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusPreconditionFailed {
+		return fmt.Errorf("caldav: delete %q: %w", href, application.ErrCalDAVConflict)
+	}
+	if resp.StatusCode == http.StatusNotFound {
+		return nil
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return fmt.Errorf("caldav: delete %q: unexpected status %s", href, resp.Status)
+	}
+	return nil
+}
+
+// resolve turns an object href (an absolute path or a full URL) into an absolute request URL against the
+// account endpoint, so a server-relative href from a listing and a client-built create path both work.
+func (c *Client) resolve(href string) (string, error) {
+	base, err := url.Parse(c.endpoint)
+	if err != nil {
+		return "", fmt.Errorf("caldav: parse endpoint %q: %w", c.endpoint, err)
+	}
+	ref, err := url.Parse(href)
+	if err != nil {
+		return "", fmt.Errorf("caldav: parse href %q: %w", href, err)
+	}
+	return base.ResolveReference(ref).String(), nil
+}
+
+// quoteETag wraps a bare etag value in the double quotes an If-Match/If-None-Match header requires, leaving an
+// already-quoted or weak (W/) etag untouched.
+func quoteETag(etag string) string {
+	if strings.HasPrefix(etag, "\"") || strings.HasPrefix(etag, "W/") {
+		return etag
+	}
+	return "\"" + etag + "\""
+}
+
+// unquoteETag strips the optional weak marker and surrounding quotes from a response ETag header, matching how
+// the read path stores etags, so the stored value is ready to re-quote for the next If-Match.
+func unquoteETag(etag string) string {
+	etag = strings.TrimSpace(etag)
+	etag = strings.TrimPrefix(etag, "W/")
+	return strings.Trim(etag, "\"")
 }
 
 // ListCalendars discovers the account's calendar collections: it resolves the current-user principal, then

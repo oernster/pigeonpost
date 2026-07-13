@@ -2,9 +2,35 @@ package application
 
 import (
 	"context"
+	"errors"
 
 	"github.com/oernster/pigeonpost/internal/domain"
 )
+
+// ErrCalDAVConflict signals a 412 Precondition Failed from a conditional write: the server's copy changed
+// under the write's If-Match, or a create's If-None-Match:* found the object already present. The engine
+// refetches the object and reconciles it last-writer-wins rather than treating the write as a hard failure.
+var ErrCalDAVConflict = errors.New("caldav: conflict")
+
+// CalDAVWriter is the write half of the two-way DAV sync: conditional PUT and DELETE of a collection's
+// objects. go-webdav v0.7.0 cannot send If-Match/If-None-Match or delete a CalDAV object, so the adapter
+// issues these as raw conditional HTTP requests. A 412 is returned as ErrCalDAVConflict.
+type CalDAVWriter interface {
+	// PutObject writes an object's iCalendar body at href. ifMatch guards an update against the object's last
+	// etag (empty to skip the header); ifNoneMatch is the literal If-None-Match header value ("*" for a create
+	// that must not overwrite an existing object, empty to skip). It returns the server's new etag, which may
+	// be empty when the server omits the header on the response.
+	PutObject(ctx context.Context, href string, ics []byte, ifMatch, ifNoneMatch string) (etag string, err error)
+	// DeleteObject removes the object at href, guarded by ifMatch against its last etag. A server 404 (the
+	// object is already gone) is treated as success, since the delete intent is satisfied.
+	DeleteObject(ctx context.Context, href, ifMatch string) error
+}
+
+// CalDAVWriterFactory builds a CalDAVWriter for an account and password, the write counterpart to
+// CalDAVSourceFactory.
+type CalDAVWriterFactory interface {
+	NewWriter(account domain.CalendarAccount, password string) (CalDAVWriter, error)
+}
 
 // CalendarOpKind is the kind of pending write-back held for a remote CalDAV object.
 type CalendarOpKind int
