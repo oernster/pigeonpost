@@ -187,3 +187,9 @@ The single source of truth for the version is the `VERSION` file at the repo roo
 it (embedded via `go:embed`); the Windows build stamps it into the installer, the macOS build stamps
 it into the app bundle's Info.plist and the flatpak build stamps it into the metainfo release entry.
 Do not hardcode a version anywhere else.
+
+## Licence
+
+GPL-3.0 (see [LICENSE](LICENSE)), with credit to the original author (Oliver Ernster) retained in
+all copies and derivative works, under all circumstances. Removing or omitting this attribution is
+not permitted.

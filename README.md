@@ -3,7 +3,7 @@
 A cross-platform desktop email, calendar and address book client. Go core, React front end,
 local-first. A calmer, more predictable alternative to Thunderbird.
 
-![In active development](https://img.shields.io/badge/status-active%20development-blue)
+![Released](https://img.shields.io/badge/status-released-brightgreen)
 
 ## Who it is for
 

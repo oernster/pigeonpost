@@ -616,7 +616,9 @@ GPL-3.0 compatible.
 
 Locked product decisions:
 
-- Licence: GPL-3.0, whole app.
+- Licence: GPL-3.0, whole app, with credit to the original author (Oliver Ernster) retained in all
+  copies and derivative works (an author-attribution additional term of the kind GPLv3 section 7(b)
+  permits). Removing or omitting the attribution is not permitted.
 - Auth: password (or app password) over generic IMAP/POP3 is the core path; XOAUTH2 OAuth is
   implemented and Microsoft uses it (authorization-code plus PKCE, loopback redirect, free Entra
   registration). Gmail personal accounts are supported via an app-password preset; one-click Google
