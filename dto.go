@@ -97,6 +97,22 @@ type MessagePageDTO struct {
 	NextCursorID     string       `json:"nextCursorId"`
 }
 
+// SearchHitDTO is one search result row: the matched message plus a snippet of the matched text. The
+// snippet wraps each matched term between the control characters U+0001 and U+0002; the front end
+// splits on those to render highlights, so message content is never interpreted as markup. The snippet
+// is empty for a purely structural query (one with no search text).
+type SearchHitDTO struct {
+	Message MessageDTO `json:"message"`
+	Snippet string     `json:"snippet"`
+}
+
+// SearchResultDTO carries one search's hits, most relevant first, plus whether the query text failed
+// structural parsing and was searched as plain text (so the UI can hint that operators were ignored).
+type SearchResultDTO struct {
+	Hits     []SearchHitDTO `json:"hits"`
+	Degraded bool           `json:"degraded"`
+}
+
 // AttachmentDTO is the JSON-serialisable metadata of one received attachment. It carries no bytes: the
 // reader lists attachments by name and size, and SaveAttachment resolves the content by index from the
 // cached body when the user saves one.

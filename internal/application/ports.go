@@ -52,8 +52,26 @@ type MailStore interface {
 	UnreadByAccount(ctx context.Context) (map[string]int, error)
 	GetMessageBody(ctx context.Context, messageID string) (domain.MessageBody, error)
 	SaveMessageBody(ctx context.Context, body domain.MessageBody) error
-	SearchMessages(ctx context.Context, query string) ([]domain.MessageSummary, error)
+	// SearchMessages returns the cached messages matching the modelled query, most relevant first,
+	// capped at limit. Each hit's snippet wraps matched terms in SearchMatchStart/SearchMatchEnd.
+	SearchMessages(ctx context.Context, query domain.SearchQuery, limit int) ([]SearchHit, error)
 	DeleteMessage(ctx context.Context, messageID string) error
+}
+
+// SearchMatchStart and SearchMatchEnd delimit each matched term inside a SearchHit's snippet. They are
+// control characters that cannot appear in message text, so the UI can split on them and highlight the
+// matches without ever interpreting message content as markup.
+const (
+	SearchMatchStart = "\x01"
+	SearchMatchEnd   = "\x02"
+)
+
+// SearchHit is one search result: the matched message and a snippet of the matched text with each
+// matched term wrapped in the match markers. The snippet is empty for a purely structural query (one
+// with no search text, such as "is:unread in:INBOX").
+type SearchHit struct {
+	Summary domain.MessageSummary
+	Snippet string
 }
 
 // TagStore persists user-defined coloured tags and their many-to-many association with messages.

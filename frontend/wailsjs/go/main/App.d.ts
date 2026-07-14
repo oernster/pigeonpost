@@ -174,7 +174,7 @@ export function SaveTag(arg1:main.TagRequest):Promise<void>;
 
 export function SaveTemplate(arg1:main.TemplateRequest):Promise<void>;
 
-export function SearchMessages(arg1:string):Promise<Array<main.MessageDTO>>;
+export function SearchMessages(arg1:string,arg2:string,arg3:string):Promise<main.SearchResultDTO>;
 
 export function SendMeetingCancel(arg1:string,arg2:string):Promise<void>;
 

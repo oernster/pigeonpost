@@ -341,7 +341,7 @@ func TestAccountSetupUpdateSaveError(t *testing.T) {
 func TestMailboxServiceFolders(t *testing.T) {
 	store := newFakeMailStore()
 	store.folders["a1"] = []domain.Folder{testFolder(t, "f1", "a1", "INBOX")}
-	svc := NewMailboxService(store)
+	svc := NewMailboxService(store, time.UTC)
 
 	folders, err := svc.Folders(context.Background(), "a1")
 	if err != nil {
@@ -360,7 +360,7 @@ func TestMailboxServiceFolders(t *testing.T) {
 func TestMailboxServiceMessages(t *testing.T) {
 	store := newFakeMailStore()
 	store.messages["f1"] = []domain.MessageSummary{testMessage(t, "m1", "f1")}
-	svc := NewMailboxService(store)
+	svc := NewMailboxService(store, time.UTC)
 
 	messages, err := svc.Messages(context.Background(), "f1")
 	if err != nil {
@@ -395,7 +395,7 @@ func TestMailboxServiceMessagesPage(t *testing.T) {
 		testMessageAt(t, "m2", "f1", 300),
 		testMessageAt(t, "m3", "f1", 200),
 	}
-	svc := NewMailboxService(store)
+	svc := NewMailboxService(store, time.UTC)
 	ctx := context.Background()
 
 	// First page, newest first, limit two: m2 (300) then m3 (200).
@@ -438,7 +438,7 @@ func TestMailboxServiceThreads(t *testing.T) {
 		testMessage(t, "m1", "f1"),
 		testMessage(t, "m2", "f1"),
 	}
-	svc := NewMailboxService(store)
+	svc := NewMailboxService(store, time.UTC)
 
 	threads, err := svc.Threads(context.Background(), "f1")
 	if err != nil {
@@ -457,19 +457,51 @@ func TestMailboxServiceThreads(t *testing.T) {
 
 func TestMailboxServiceSearch(t *testing.T) {
 	store := newFakeMailStore()
-	store.searchResults = []domain.MessageSummary{testMessage(t, "m1", "f1")}
-	svc := NewMailboxService(store)
+	store.searchResults = []SearchHit{{Summary: testMessage(t, "m1", "f1"), Snippet: "a \x01hello\x02 b"}}
+	svc := NewMailboxService(store, time.UTC)
 
-	results, err := svc.Search(context.Background(), "hello")
+	hits, degraded, err := svc.Search(context.Background(), "hello", "f9", "a9")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if len(results) != 1 || results[0].ID() != "m1" {
-		t.Fatalf("Search returned %+v", results)
+	if len(hits) != 1 || hits[0].Summary.ID() != "m1" || hits[0].Snippet == "" {
+		t.Fatalf("Search returned %+v", hits)
 	}
+	if degraded {
+		t.Error("a plain word must not report degraded parsing")
+	}
+	// The UI scope and the result cap are threaded through to the store's modelled query.
+	if store.searchQuery.ScopeFolderID() != "f9" || store.searchQuery.ScopeAccountID() != "a9" {
+		t.Errorf("scope not threaded: %q %q", store.searchQuery.ScopeFolderID(), store.searchQuery.ScopeAccountID())
+	}
+	if store.searchLimit != searchResultLimit {
+		t.Errorf("limit = %d, want %d", store.searchLimit, searchResultLimit)
+	}
+}
 
+func TestMailboxServiceSearchEmptyQuerySkipsStore(t *testing.T) {
+	store := newFakeMailStore()
+	store.searchErr = errBoom // must never be reached
+	svc := NewMailboxService(store, time.UTC)
+	hits, degraded, err := svc.Search(context.Background(), "   ", "", "")
+	if err != nil || len(hits) != 0 || degraded {
+		t.Fatalf("blank query: hits=%v degraded=%v err=%v, want none/false/nil", hits, degraded, err)
+	}
+}
+
+func TestMailboxServiceSearchDegraded(t *testing.T) {
+	store := newFakeMailStore()
+	svc := NewMailboxService(store, time.UTC)
+	if _, degraded, err := svc.Search(context.Background(), `broken "quote`, "", ""); err != nil || !degraded {
+		t.Fatalf("degraded=%v err=%v, want true/nil", degraded, err)
+	}
+}
+
+func TestMailboxServiceSearchError(t *testing.T) {
+	store := newFakeMailStore()
 	store.searchErr = errBoom
-	if _, err := svc.Search(context.Background(), "hello"); !errors.Is(err, errBoom) {
+	svc := NewMailboxService(store, time.UTC)
+	if _, _, err := svc.Search(context.Background(), "hello", "", ""); !errors.Is(err, errBoom) {
 		t.Errorf("Search error = %v, want wrapped boom", err)
 	}
 }
@@ -477,7 +509,7 @@ func TestMailboxServiceSearch(t *testing.T) {
 func TestMailboxServiceUnreadCounts(t *testing.T) {
 	store := newFakeMailStore()
 	store.unreadByAccount = map[string]int{"a1": 2, "a2": 1}
-	svc := NewMailboxService(store)
+	svc := NewMailboxService(store, time.UTC)
 
 	totals, err := svc.UnreadCounts(context.Background())
 	if err != nil {

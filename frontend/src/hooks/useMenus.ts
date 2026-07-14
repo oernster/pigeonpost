@@ -31,6 +31,7 @@ export interface MenusDeps {
     // Edit menu.
     setManagingRules: Dispatch<SetStateAction<boolean>>
     setManagingTemplates: Dispatch<SetStateAction<boolean>>
+    focusSearch: () => void
     // View menu.
     toggleConversationView: () => void
     togglePreview: () => void
@@ -77,8 +78,8 @@ export function useMenus(deps: MenusDeps): Menus {
     const {
         activeMessage, activeOutbox, canMailAct, canReplyAll, isPop3, selectedAccount, accountSyncing,
         isWindows, conversationView, previewEnabled, autoLoadImages, folders, messageTags,
-        saveMessageAs, printMessage, setManagingRules, setManagingTemplates, toggleConversationView, togglePreview,
-        toggleAutoLoadImages,
+        saveMessageAs, printMessage, setManagingRules, setManagingTemplates, focusSearch,
+        toggleConversationView, togglePreview, toggleAutoLoadImages,
         signatureHtml, setComposeInitial, setComposing, setSettingUp, sync, openInNewTab,
         openReply, openReplyAll, openForward, attachToNewMessage, setReadState, toggleFlag, toggleTag,
         moveMessage, copyMessage, markJunk, setMessageToCancelSend, requestDelete, setMessageToPurge,
@@ -125,6 +126,12 @@ export function useMenus(deps: MenusDeps): Menus {
         },
     ]
     const editMenu: MenuItem[] = [
+        {
+            label: 'Search',
+            icon: '\u{1F50D}',
+            shortcut: 'Ctrl+K',
+            onClick: focusSearch,
+        },
         {
             label: 'Rules',
             icon: '\u{1F4CF}',

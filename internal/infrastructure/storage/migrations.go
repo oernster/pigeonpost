@@ -143,6 +143,43 @@ CREATE TABLE IF NOT EXISTS calendar_pending (
 CREATE INDEX IF NOT EXISTS idx_calendar_pending_calendar ON calendar_pending(calendar_id);
 `
 
+// schemaV41 replaces the subject/snippet/sender message_fts with message_search, the full-text search
+// index over everything searchable about a message: subject, snippet, sender, recipients (To and Cc)
+// and, where the lazy caches hold them, the plain body and the attachment filenames. The
+// message_searchable_text view is the single definition of a message's searchable text: every index
+// insert and the rebuild select from it, so the indexed shape cannot drift between sites. The index is
+// a self-contained FTS5 table rather than external-content: the text spans three tables (message,
+// message_body, message_attachment), and external content requires every delete to reproduce the exact
+// values as indexed, which cross-table mutation ordering cannot guarantee; self-contained keeps every
+// consistency path an idempotent DELETE or reinsert by message id, at the cost of the index holding its
+// own copy of the text. The backfill indexes all already-cached mail, bodies included where cached.
+// The step is idempotent (the drops make a partial earlier run harmless): migration steps run outside
+// a transaction and user_version is bumped only after all steps, so a crash mid-step must leave a
+// state the re-run can repair rather than trip over. The backfill here is the first step whose
+// runtime grows with the whole mailbox, which widens that crash window.
+const schemaV41 = `
+DROP VIEW IF EXISTS message_searchable_text;
+DROP TABLE IF EXISTS message_search;
+CREATE VIEW message_searchable_text AS
+SELECT m.rowid AS rowid, m.id AS message_id, m.subject AS subject, m.snippet AS snippet,
+       TRIM(m.from_display || ' ' || m.from_address) AS sender,
+       COALESCE((SELECT GROUP_CONCAT(COALESCE(json_extract(j.value, '$.display'), '') || ' ' ||
+                                     COALESCE(json_extract(j.value, '$.address'), ''), ' ')
+                 FROM json_each(m.to_json) j), '')
+       || ' ' ||
+       COALESCE((SELECT GROUP_CONCAT(COALESCE(json_extract(j.value, '$.display'), '') || ' ' ||
+                                     COALESCE(json_extract(j.value, '$.address'), ''), ' ')
+                 FROM json_each(m.cc_json) j), '') AS recipients,
+       COALESCE(b.plain, '') AS body,
+       COALESCE((SELECT GROUP_CONCAT(a.filename, ' ') FROM message_attachment a
+                 WHERE a.message_id = m.id), '') AS filenames
+FROM message m LEFT JOIN message_body b ON b.message_id = m.id;
+CREATE VIRTUAL TABLE message_search USING fts5(message_id UNINDEXED, subject, snippet, sender, recipients, body, filenames);
+INSERT INTO message_search (message_id, subject, snippet, sender, recipients, body, filenames)
+    SELECT message_id, subject, snippet, sender, recipients, body, filenames FROM message_searchable_text;
+DROP TABLE IF EXISTS message_fts;
+`
+
 // migrations is the ordered list of schema steps. Index i upgrades the database from version i to
 // version i+1, so a fresh database applies them all and an existing one applies only what it lacks.
-var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15, schemaV16, schemaV17, schemaV18, schemaV19, schemaV20, schemaV21, schemaV22, schemaV23, schemaV24, schemaV25, schemaV26, schemaV27, schemaV28, schemaV29, schemaV30, schemaV31, schemaV32, schemaV33, schemaV34, schemaV35, schemaV36, schemaV37, schemaV38, schemaV39, schemaV40}
+var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15, schemaV16, schemaV17, schemaV18, schemaV19, schemaV20, schemaV21, schemaV22, schemaV23, schemaV24, schemaV25, schemaV26, schemaV27, schemaV28, schemaV29, schemaV30, schemaV31, schemaV32, schemaV33, schemaV34, schemaV35, schemaV36, schemaV37, schemaV38, schemaV39, schemaV40, schemaV41}

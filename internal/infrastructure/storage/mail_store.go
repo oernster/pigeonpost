@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/oernster/pigeonpost/internal/domain"
@@ -114,7 +113,7 @@ func (s *Store) DeleteMessage(ctx context.Context, messageID string) error {
 			"DELETE FROM message_attachment WHERE message_id = ?;",
 			"DELETE FROM message_tag WHERE message_id = ?;",
 			"DELETE FROM message_tag_pending WHERE message_id = ?;",
-			"DELETE FROM message_fts WHERE message_id = ?;",
+			"DELETE FROM message_search WHERE message_id = ?;",
 			"DELETE FROM message WHERE id = ?;",
 		} {
 			if _, err := tx.ExecContext(ctx, stmt, messageID); err != nil {
@@ -194,7 +193,7 @@ func (s *Store) SaveMessages(ctx context.Context, folderID string, messages []do
 	return s.inTx(ctx, func(tx *sql.Tx) error {
 		// Clear the index rows for this folder before the messages they mirror are removed.
 		if _, err := tx.ExecContext(ctx,
-			"DELETE FROM message_fts WHERE message_id IN (SELECT id FROM message WHERE folder_id = ?);",
+			"DELETE FROM message_search WHERE message_id IN (SELECT id FROM message WHERE folder_id = ?);",
 			folderID); err != nil {
 			return fmt.Errorf("clear message index: %w", err)
 		}
@@ -220,11 +219,13 @@ func (s *Store) SaveMessages(ctx context.Context, folderID string, messages []do
 				boolToInt(m.HasAttachments()), m.Snippet()); err != nil {
 				return fmt.Errorf("insert message %q: %w", m.ID(), err)
 			}
-			if _, err := tx.ExecContext(ctx,
-				"INSERT INTO message_fts (message_id, subject, snippet, from_address) VALUES (?, ?, ?, ?);",
-				m.ID(), m.Subject(), m.Snippet(), address); err != nil {
-				return fmt.Errorf("index message %q: %w", m.ID(), err)
-			}
+		}
+		// Index the replaced folder in one pass from the searchable-text view. A replaced message whose
+		// body is already cached re-indexes with that body, so a re-sync never narrows what search covers.
+		if _, err := tx.ExecContext(ctx,
+			searchInsertSQL+" WHERE message_id IN (SELECT id FROM message WHERE folder_id = ?);",
+			folderID); err != nil {
+			return fmt.Errorf("index messages for folder %q: %w", folderID, err)
 		}
 		// A folder replace drops the rows of any message expunged on the server without going through
 		// DeleteMessage, so it never cleans their pending tag ops. Sweep any that now have no message left,
@@ -237,78 +238,59 @@ func (s *Store) SaveMessages(ctx context.Context, folderID string, messages []do
 	})
 }
 
-// SearchMessages returns the cached messages matching a free-text query across subject, sender and
-// snippet, most relevant first. An empty query returns no results.
-func (s *Store) SearchMessages(ctx context.Context, query string) ([]domain.MessageSummary, error) {
-	ftsQuery := buildFTSQuery(query)
-	if ftsQuery == "" {
-		return nil, nil
-	}
-	return queryRows(ctx, s.db, "search results",
-		`SELECT m.id, m.folder_id, m.uid, m.message_id, m.from_display, m.from_address, m.to_json,
-		        m.cc_json, m.subject, m.date_ms, m.size, m.flags, m.has_attachments, m.snippet
-		 FROM message m JOIN message_fts f ON f.message_id = m.id
-		 WHERE message_fts MATCH ? ORDER BY rank;`, scanMessage, ftsQuery)
+// messageRow holds one scanned message-summary row before its domain rebuild, shared by the plain
+// message scanner and the search-hit scanner (which reads the same columns plus a snippet).
+type messageRow struct {
+	id, folderID, uid, messageID  string
+	fromDisplay, fromAddress      string
+	toJSON, ccJSON                string
+	subject, snippet              string
+	dateMS                        int64
+	size, flags, hasAttachmentInt int
 }
 
-// buildFTSQuery turns free user input into a safe FTS5 MATCH expression: each whitespace-separated
-// term is quoted (so punctuation cannot be read as FTS syntax) and given a prefix wildcard, and the
-// terms are combined with implicit AND.
-func buildFTSQuery(raw string) string {
-	fields := strings.Fields(raw)
-	terms := make([]string, 0, len(fields))
-	for _, field := range fields {
-		cleaned := strings.ReplaceAll(field, `"`, "")
-		if cleaned == "" {
-			continue
-		}
-		terms = append(terms, `"`+cleaned+`"*`)
-	}
-	return strings.Join(terms, " ")
+// scanFields returns the scan destinations in the shared summary column order.
+func (r *messageRow) scanFields() []any {
+	return []any{&r.id, &r.folderID, &r.uid, &r.messageID, &r.fromDisplay, &r.fromAddress, &r.toJSON,
+		&r.ccJSON, &r.subject, &r.dateMS, &r.size, &r.flags, &r.hasAttachmentInt, &r.snippet}
 }
 
-func scanMessage(row scanner) (domain.MessageSummary, error) {
-	var (
-		id, folderID, messageID       string
-		fromDisplay, fromAddress      string
-		toJSON, ccJSON                string
-		subject, snippet              string
-		uid                           string
-		dateMS                        int64
-		size, flags, hasAttachmentInt int
-	)
-	if err := row.Scan(&id, &folderID, &uid, &messageID, &fromDisplay, &fromAddress, &toJSON, &ccJSON,
-		&subject, &dateMS, &size, &flags, &hasAttachmentInt, &snippet); err != nil {
-		return domain.MessageSummary{}, fmt.Errorf("scan message: %w", err)
-	}
-
+// build rebuilds the validated domain summary from the scanned columns.
+func (r *messageRow) build() (domain.MessageSummary, error) {
 	var from domain.EmailAddress
-	if fromAddress != "" {
-		parsed, err := domain.NewEmailAddress(fromDisplay, fromAddress)
+	if r.fromAddress != "" {
+		parsed, err := domain.NewEmailAddress(r.fromDisplay, r.fromAddress)
 		if err != nil {
-			return domain.MessageSummary{}, fmt.Errorf("rebuild sender for %q: %w", id, err)
+			return domain.MessageSummary{}, fmt.Errorf("rebuild sender for %q: %w", r.id, err)
 		}
 		from = parsed
 	}
-	to, err := unmarshalAddrs(toJSON)
+	to, err := unmarshalAddrs(r.toJSON)
 	if err != nil {
-		return domain.MessageSummary{}, fmt.Errorf("rebuild recipients for %q: %w", id, err)
+		return domain.MessageSummary{}, fmt.Errorf("rebuild recipients for %q: %w", r.id, err)
 	}
-	cc, err := unmarshalAddrs(ccJSON)
+	cc, err := unmarshalAddrs(r.ccJSON)
 	if err != nil {
-		return domain.MessageSummary{}, fmt.Errorf("rebuild cc for %q: %w", id, err)
+		return domain.MessageSummary{}, fmt.Errorf("rebuild cc for %q: %w", r.id, err)
 	}
-
 	message, err := domain.NewMessageSummary(domain.MessageSummaryInput{
-		ID: id, FolderID: folderID, UID: uid, MessageID: messageID, From: from, To: to, Cc: cc,
-		Subject: subject, Date: time.UnixMilli(dateMS).UTC(), Size: size,
-		Flags: domain.NewFlags(domain.Flag(flags)), HasAttachments: hasAttachmentInt != 0,
-		Snippet: snippet,
+		ID: r.id, FolderID: r.folderID, UID: r.uid, MessageID: r.messageID, From: from, To: to, Cc: cc,
+		Subject: r.subject, Date: time.UnixMilli(r.dateMS).UTC(), Size: r.size,
+		Flags: domain.NewFlags(domain.Flag(r.flags)), HasAttachments: r.hasAttachmentInt != 0,
+		Snippet: r.snippet,
 	})
 	if err != nil {
-		return domain.MessageSummary{}, fmt.Errorf("rebuild message %q: %w", id, err)
+		return domain.MessageSummary{}, fmt.Errorf("rebuild message %q: %w", r.id, err)
 	}
 	return message, nil
+}
+
+func scanMessage(row scanner) (domain.MessageSummary, error) {
+	var r messageRow
+	if err := row.Scan(r.scanFields()...); err != nil {
+		return domain.MessageSummary{}, fmt.Errorf("scan message: %w", err)
+	}
+	return r.build()
 }
 
 func senderColumns(from domain.EmailAddress) (display, address string) {
@@ -344,7 +326,7 @@ func (s *Store) DeleteAccountData(ctx context.Context, accountID string) error {
 		if _, err := tx.ExecContext(ctx, "DELETE FROM message_tag_pending WHERE "+bodyOrTagFilter, accountID); err != nil {
 			return fmt.Errorf("clear pending message tags: %w", err)
 		}
-		if _, err := tx.ExecContext(ctx, "DELETE FROM message_fts WHERE "+bodyOrTagFilter, accountID); err != nil {
+		if _, err := tx.ExecContext(ctx, "DELETE FROM message_search WHERE "+bodyOrTagFilter, accountID); err != nil {
 			return fmt.Errorf("clear message index: %w", err)
 		}
 		if _, err := tx.ExecContext(ctx,

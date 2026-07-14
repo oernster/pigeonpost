@@ -3,6 +3,7 @@ package application
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/oernster/pigeonpost/internal/domain"
 )
@@ -11,11 +12,13 @@ import (
 // local store only, so it never blocks on the network.
 type MailboxService struct {
 	mail MailStore
+	loc  *time.Location
 }
 
-// NewMailboxService constructs the service with its injected store.
-func NewMailboxService(mail MailStore) *MailboxService {
-	return &MailboxService{mail: mail}
+// NewMailboxService constructs the service with its injected store and the location the search-query
+// date operators (before:/after:/on:) are interpreted in, normally the user's local time zone.
+func NewMailboxService(mail MailStore, loc *time.Location) *MailboxService {
+	return &MailboxService{mail: mail, loc: loc}
 }
 
 // Folders returns the cached folders for an account.
@@ -79,11 +82,24 @@ func (s *MailboxService) UnreadCounts(ctx context.Context) (UnreadTotals, error)
 	return UnreadTotals{Total: total, ByAccount: byAccount}, nil
 }
 
-// Search returns cached messages matching a free-text query, most relevant first.
-func (s *MailboxService) Search(ctx context.Context, query string) ([]domain.MessageSummary, error) {
-	messages, err := s.mail.SearchMessages(ctx, query)
-	if err != nil {
-		return nil, fmt.Errorf("search messages for %q: %w", query, err)
+// searchResultLimit caps how many hits one search returns, so a two-letter query over a huge cache
+// cannot flood the UI; relevance ordering means the cap drops only the weakest matches.
+const searchResultLimit = 500
+
+// Search parses raw user input through the query grammar and returns the matching cached messages,
+// most relevant first. folderID and accountID are the UI's scope selection (empty for all mail); the
+// in: and account: operators inside the query compose with them. Parsing never fails: structurally
+// unparseable input degrades to plain free text, reported through the degraded flag so the UI can hint
+// that operators were ignored. An empty or blank query returns no results.
+func (s *MailboxService) Search(ctx context.Context, raw, folderID, accountID string) ([]SearchHit, bool, error) {
+	query := domain.ParseSearchQuery(raw, s.loc)
+	if query.IsEmpty() {
+		return nil, query.IsDegraded(), nil
 	}
-	return messages, nil
+	query = query.WithFolderScope(folderID).WithAccountScope(accountID)
+	hits, err := s.mail.SearchMessages(ctx, query, searchResultLimit)
+	if err != nil {
+		return nil, false, fmt.Errorf("search messages for %q: %w", raw, err)
+	}
+	return hits, query.IsDegraded(), nil
 }

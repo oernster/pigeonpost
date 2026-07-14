@@ -76,6 +76,17 @@ func (s *Store) SaveMessageBody(ctx context.Context, body domain.MessageBody) er
 				return fmt.Errorf("save message attachment %q: %w", body.MessageID(), err)
 			}
 		}
+		// Re-index the message now that its body and attachment filenames are cached, in the same
+		// transaction, so search coverage widens in lockstep with the cache. A body cached for a message
+		// no longer in the summary table indexes nothing, which keeps the index free of dangling hits.
+		if _, err := tx.ExecContext(ctx,
+			"DELETE FROM message_search WHERE message_id = ?;", body.MessageID()); err != nil {
+			return fmt.Errorf("clear message index %q: %w", body.MessageID(), err)
+		}
+		if _, err := tx.ExecContext(ctx,
+			searchInsertSQL+" WHERE message_id = ?;", body.MessageID()); err != nil {
+			return fmt.Errorf("reindex message %q: %w", body.MessageID(), err)
+		}
 		return nil
 	})
 }

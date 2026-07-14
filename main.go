@@ -99,7 +99,8 @@ func run() error {
 	setupService := application.NewAccountSetupService(store, vault, mailSource)
 	// The Microsoft account is IMAP, so the router verifies it through the XOAUTH2-aware IMAP adapter.
 	microsoftSetupService := application.NewMicrosoftSetupService(store, vault, mailSource, authorizer, buildMicrosoftAccount)
-	mailboxService := application.NewMailboxService(store)
+	// Search date operators (before:/after:/on:) are read in the user's local calendar.
+	mailboxService := application.NewMailboxService(store, time.Local)
 	// The tag-sync service rounds user tags onto the server as IMAP keywords; the sync service drives its
 	// flush and reconcile, so it is constructed first and injected into the sync.
 	tagSyncService := application.NewTagSyncService(store, store, store, mailSource)

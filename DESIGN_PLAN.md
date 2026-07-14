@@ -3,7 +3,7 @@
 Cross-platform desktop email, calendar and address book client. Go core, React front end,
 local-first. Delivered as a signed download at https://www.pigeonpost.ink.
 
-Status: living roadmap. Working version 0.14.2 (schema v40). The per-version change history lives in the release notes, not in this document.
+Status: living roadmap. Working version 0.14.2 (schema v41). The per-version change history lives in the release notes, not in this document.
 
 This document is the target design and the forward roadmap. It is living: delivered work is exorcised as it lands (a shipped feature lives in the code and the release notes, not here), so section 10 holds only what is not yet built. Sections 2 to 9 still describe the delivered v1 as the standing design reference.
 Author: Oliver Ernster. Licence: GPL-3.0.
@@ -29,7 +29,8 @@ it stops scope re-litigation mid-build.
   junk mark, threading.
 - Compose: plain text and light rich-text HTML, reply/reply-all/forward, attachments, draft autosave,
   per-account signatures.
-- Search: fast local full-text search (SQLite FTS5) plus server-side IMAP SEARCH where available.
+- Search: fast local full-text search (SQLite FTS5) with an operator grammar; server-side IMAP SEARCH
+  is parked (the local index is the product).
 - Message filters/rules: on-arrival actions (move, tag, mark, delete).
 - Address book: contacts with groups, vCard (.vcf) import/export, plus CSV import/export for Outlook
   (whose bulk contact export is CSV, not vCard). Import/export must round-trip with Outlook and
@@ -151,7 +152,9 @@ hardest thing to change later.
 - calendar / event: event with RRULE, reminders, ICS UID for round-trip.
 - filter_rule: condition + action set, evaluated on arrival.
 - outbox_op: queued action (send/move/flag/delete) for offline replay with idempotency key.
-- message_fts: FTS5 virtual table over subject/body/sender for instant local search.
+- message_search: FTS5 table over subject/snippet/sender/recipients/body/filenames for instant local
+  search, fed from the message_searchable_text view (the single definition of a message's searchable
+  text). Bodies index as they are cached on first open.
 
 ---
 
@@ -201,8 +204,10 @@ loss.
 
 ### Search
 
-FTS5 for instant local search; optional server-side IMAP SEARCH for content not yet cached.
-Debounced query use case returns ranked results.
+Local FTS5 with a modelled operator grammar (field operators, structural predicates, phrases, OR and
+negation), BM25 ranking with subject and sender boosted, highlighted match snippets and a scope
+selector; debounced as-you-type. Server-side IMAP SEARCH is parked: the local index is the product.
+Attachment-content indexing and unified mail+calendar+contacts search stay deferred.
 
 ### HTML mail security
 

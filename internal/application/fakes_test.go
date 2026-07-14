@@ -164,7 +164,9 @@ type fakeMailStore struct {
 	unreadByAccount  map[string]int
 	unreadErr        error
 	bodies           map[string]domain.MessageBody
-	searchResults    []domain.MessageSummary
+	searchResults    []SearchHit
+	searchQuery      domain.SearchQuery
+	searchLimit      int
 	deletedMessages  []string
 	forcedMessage    *domain.MessageSummary
 	savedFolderKeys  []string
@@ -322,7 +324,8 @@ func (f *fakeMailStore) SaveMessageBody(_ context.Context, body domain.MessageBo
 	return nil
 }
 
-func (f *fakeMailStore) SearchMessages(_ context.Context, query string) ([]domain.MessageSummary, error) {
+func (f *fakeMailStore) SearchMessages(_ context.Context, query domain.SearchQuery, limit int) ([]SearchHit, error) {
+	f.searchQuery, f.searchLimit = query, limit
 	if f.searchErr != nil {
 		return nil, f.searchErr
 	}

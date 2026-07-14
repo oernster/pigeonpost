@@ -60,6 +60,11 @@ var (
 	ErrInvalidMethod              = errors.New("scheduling method is not valid")
 	ErrNoSchedulingEvents         = errors.New("scheduling message has no events")
 	ErrEmptyCalendarPart          = errors.New("calendar part content is empty")
+
+	ErrEmptySearchTerm      = errors.New("search term is empty")
+	ErrEmptySearchGroup     = errors.New("search group has no terms")
+	ErrNegatedTermInGroup   = errors.New("negated search term does not belong in a positive group")
+	ErrPositiveTermExcluded = errors.New("positive search term does not belong in the exclusions")
 )
 
 // ErrOffline marks a failure caused by the mail server being unreachable (a connection could not be

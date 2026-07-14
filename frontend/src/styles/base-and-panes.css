@@ -189,10 +189,53 @@
 }
 
 .message-search {
-    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 6px;
     padding: 8px;
     border-bottom: 1px solid var(--border);
     flex: none;
+}
+
+/* The input and its clear button share a positioning context so the button sits inside the input's
+   box, with the scope selector alongside. */
+.message-search-box {
+    position: relative;
+    flex: 1;
+    min-width: 0;
+}
+
+.message-search-scope {
+    flex: none;
+    background-color: var(--bg-elev);
+    color: var(--text-dim);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 4px;
+    font-size: 12px;
+    cursor: pointer;
+}
+
+.message-search-scope:enabled:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+
+/* The parse-degraded hint: the query's operators could not be read, so it ran as plain text. */
+.message-search-hint {
+    padding: 3px 10px;
+    font-size: 12px;
+    color: var(--text-dim);
+    border-bottom: 1px solid var(--border);
+    flex: none;
+}
+
+/* A matched term inside a search-result snippet. Tinted rather than browser-default yellow so the
+   highlight reads in both themes. */
+.message-snippet mark {
+    background: transparent;
+    color: var(--accent);
+    font-weight: 600;
 }
 
 .message-search-input {
@@ -212,7 +255,7 @@
 
 .message-search-clear {
     position: absolute;
-    right: 16px;
+    right: 8px;
     top: 50%;
     transform: translateY(-50%);
     background: transparent;

@@ -121,6 +121,23 @@ export interface MessagePage {
 // of messages (a real Trash) would freeze the render if every row were loaded at once, so the list loads
 // one page and fetches the next as the user scrolls.
 export const MESSAGE_PAGE_SIZE = 200
+// SearchHit is one search result: the matched message plus a snippet of the matched text with each
+// matched term wrapped between SEARCH_MATCH_START and SEARCH_MATCH_END. The snippet is empty for a
+// purely structural query (one with no search text, such as "is:unread").
+export interface SearchHit {
+    message: Message
+    snippet: string
+}
+// SearchResult carries one search's hits, most relevant first, plus whether the query text failed
+// structural parsing and was searched as plain text (so the UI can hint that operators were ignored).
+export interface SearchResult {
+    hits: SearchHit[]
+    degraded: boolean
+}
+// The control characters the backend wraps matched terms in. The UI splits on them to render
+// highlights, so message content is never interpreted as markup.
+export const SEARCH_MATCH_START = '\u0001'
+export const SEARCH_MATCH_END = '\u0002'
 export type AboutInfo = main.AboutDTO
 export type Tag = main.TagDTO
 export type Rule = main.RuleDTO
@@ -376,7 +393,10 @@ export const api = {
     listMessagesPage: (
         folderId: string, hasCursor: boolean, cursorDateMs: number, cursorId: string, limit: number, ascending: boolean,
     ): Promise<MessagePage> => ListMessagesPage(folderId, hasCursor, cursorDateMs, cursorId, limit, ascending),
-    searchMessages: (query: string): Promise<Message[]> => SearchMessages(query),
+    // searchMessages runs the operator-grammar search. folderId and accountId scope it to the UI's
+    // selection (empty strings for all mail).
+    searchMessages: (query: string, folderId: string, accountId: string): Promise<SearchResult> =>
+        SearchMessages(query, folderId, accountId),
     messageBody: (messageId: string): Promise<MessageBody> => GetMessageBody(messageId),
     // loadRemoteImages returns the message HTML with its blocked remote images fetched server-side and inlined
     // as data: URIs, so the reader can show images a browser cannot load cross-origin (a sender's

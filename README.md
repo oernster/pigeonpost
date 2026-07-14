@@ -39,7 +39,8 @@ local-first. A calmer, more predictable alternative to Thunderbird.
 - **Compose**: TipTap rich text, To/Cc/Bcc, reply, reply-all and forward, file or message attachments
   (25 MB), reusable message templates, per-account signatures and server Drafts. In-progress writing autosaves locally and is
   offered back after a crash. Sends made offline queue in a per-account outbox and deliver on the next sync.
-- **Organise**: mark read/star, delete to Trash or purge, junk, instant full-text search and colour tags
+- **Organise**: mark read/star, delete to Trash or purge, junk, instant offline full-text search with
+  operators (from:, to:, has:attachment, dates and more) and colour tags
   that sync across devices as IMAP keywords. Move or copy messages by menu or by dragging onto a folder
   (dragging onto a collapsed folder springs it open). Create, rename and delete folders; reorganise the
   tree by dragging a folder to nest it, move it out or reorder its siblings.

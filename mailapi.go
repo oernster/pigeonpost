@@ -5,6 +5,8 @@ package main
 // app.go so the composition root stays within the module-size limit, mirroring calendarapi.go and
 // contactsapi.go.
 
+import "github.com/oernster/pigeonpost/internal/domain"
+
 // ListMessages returns the cached message summaries for a folder.
 func (a *App) ListMessages(folderID string) ([]MessageDTO, error) {
 	messages, err := a.mailbox.Messages(a.ctx, folderID)
@@ -52,18 +54,32 @@ func (a *App) ListThreads(folderID string) ([]ThreadDTO, error) {
 	return toThreadDTOs(threads), nil
 }
 
-// SearchMessages returns cached messages matching a free-text query, most relevant first.
-func (a *App) SearchMessages(query string) ([]MessageDTO, error) {
-	messages, err := a.mailbox.Search(a.ctx, query)
+// SearchMessages returns cached messages matching the query, most relevant first. folderID and
+// accountID scope the search to the UI's selection (empty for all mail). The query text supports the
+// operator grammar: quoted phrases, OR, -negation, from:, to:, subject:, filename:, has:attachment,
+// is:unread / is:read / is:flagged, in:<folder>, account:<name> and before:/after:/on: ISO dates.
+func (a *App) SearchMessages(query, folderID, accountID string) (SearchResultDTO, error) {
+	hits, degraded, err := a.mailbox.Search(a.ctx, query, folderID, accountID)
 	if err != nil {
-		return nil, err
+		return SearchResultDTO{}, err
 	}
-	colours, coloursErr := a.tags.ColoursForMessages(a.ctx, messageIDs(messages))
+	summaries := make([]domain.MessageSummary, 0, len(hits))
+	for _, hit := range hits {
+		summaries = append(summaries, hit.Summary)
+	}
+	colours, coloursErr := a.tags.ColoursForMessages(a.ctx, messageIDs(summaries))
 	if coloursErr != nil {
 		// Tag colours are decorative; a failure to load them must not break the search list.
 		colours = nil
 	}
-	return toMessageDTOs(messages, colours), nil
+	result := SearchResultDTO{Hits: make([]SearchHitDTO, 0, len(hits)), Degraded: degraded}
+	for i, hit := range hits {
+		result.Hits = append(result.Hits, SearchHitDTO{
+			Message: toMessageDTO(summaries[i], colours[hit.Summary.ID()]),
+			Snippet: hit.Snippet,
+		})
+	}
+	return result, nil
 }
 
 // LoadRemoteImages returns the open message's HTML with its blocked remote images fetched server-side and

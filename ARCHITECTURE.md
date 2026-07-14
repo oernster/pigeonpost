@@ -255,11 +255,34 @@ point: it reflects the cross-account total onto both the taskbar overlay badge a
 tray icon composites the app icon with the same red count badge, so the count stays visible even when
 the window is hidden to the tray).
 
-Search: the `MailboxService.Search` use case runs a free-text query against the local cache through
-the `MailStore`. The store keeps a SQLite FTS5 index (`message_fts`, schema v4) in step with the
-message table on every save and turns raw user input into a safe prefix-match MATCH expression, so
-search is instant and offline. The UI runs it debounced and shows the ranked results in place of the
-folder listing.
+Search: local, offline, operator-grammar full-text search over the cached mail. The grammar is a
+domain concept: `domain.ParseSearchQuery` turns raw input into a modelled `SearchQuery` (bare prefix
+words, exact `"phrases"`, `OR` groups, `-negation`, the field operators `from:` `to:` `subject:`
+`filename:` and the structural predicates `has:attachment`, `is:unread`/`is:read`/`is:flagged`,
+`in:<folder>`, `account:<name>` and `before:`/`after:`/`on:` ISO dates). The parser never fails: an
+unclosed quote degrades the whole input to plain free text (flagged so the UI can hint), while an
+unknown operator or operand stays literal search text. `MailboxService.Search` applies policy (the
+UI's folder or account scope, the result cap) and hands the modelled query to the `MailStore`.
+
+The index is `message_search` (FTS5, schema v41): subject, snippet, sender, recipients, the plain
+body and the attachment filenames. Bodies are cached lazily on first open, so body text becomes
+searchable as messages are read (headers and the snippet cover everything from sync); the body-cache
+save re-indexes its message in the same transaction. The `message_searchable_text` view is the single
+definition of a message's searchable text: every insert site and the schema backfill select from it,
+so the indexed shape cannot drift. The index is deliberately self-contained rather than FTS5
+external-content: the text spans three tables (`message`, `message_body`, `message_attachment`), and
+external content requires every delete to reproduce the exact values as indexed, which cross-table
+mutation ordering cannot guarantee; self-contained keeps every consistency path an idempotent DELETE
+or reinsert by message id, at the cost of the index holding its own copy of the text. Folder, account,
+flag and date predicates stay relational (joined in SQL, never indexed), so moves, flag flips and
+scoping need no index maintenance at all. Ranking is BM25 with subject and sender boosted over the
+body; each hit carries a `snippet()` of the matched text with matches wrapped in control-character
+markers the UI splits on, so message content is never interpreted as markup. The consistency contract
+(insert, body cache, folder replace, delete, account removal, flag changes) is pinned by the
+`search_store_test.go` suite; a future index format change ships as a migration that drops and refills
+from the view, the v41 pattern. The UI runs the query debounced with a scope selector (all mail, this
+folder, this account), highlights matches in the result rows and is reachable via Edit > Search
+(Ctrl+K).
 
 Coloured tags: the `TagService` use case manages user-defined tags (a name plus a validated `#rrggbb`
 `Colour`) and their many-to-many association with messages, through the `TagStore` port. Tags and the

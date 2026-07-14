@@ -4,7 +4,7 @@ import {AboutInfo, api, CalendarEvent, Contact, Message, MessageBody, Rule, Temp
 import {OUTBOX_FOLDER_ID, isOutboxMessage, outboxItemToMessage} from './outbox'
 import {applyTheme, loadTheme, Theme} from './theme'
 import {Sidebar} from './components/Sidebar'
-import {MessageList} from './components/MessageList'
+import {MessageList, type SearchScope} from './components/MessageList'
 import {MessageContextMenu} from './components/MessageContextMenu'
 import {Reader} from './components/Reader'
 import {EmailViewerModal} from './components/EmailViewerModal'
@@ -113,6 +113,14 @@ function App() {
     const [messageBody, setMessageBody] = useState<MessageBody | null>(null)
     const [bodyLoading, setBodyLoading] = useState<boolean>(false)
     const [searchQuery, setSearchQuery] = useState<string>('')
+    // The search scope selector, the per-hit matched-text snippets (keyed by message id) and whether the
+    // last query degraded to plain text (its operators could not be parsed).
+    const [searchScope, setSearchScope] = useState<SearchScope>('all')
+    const [searchSnippets, setSearchSnippets] = useState<Map<string, string>>(new Map())
+    const [searchDegraded, setSearchDegraded] = useState<boolean>(false)
+    // searchInputRef lets Edit > Search (Ctrl+K) focus the search box from anywhere.
+    const searchInputRef = useRef<HTMLInputElement>(null)
+    const focusSearch = useCallback(() => searchInputRef.current?.focus(), [])
     const [contextMenu, setContextMenu] = useState<{message: Message; x: number; y: number} | null>(null)
     // The multi-selection built by Ctrl and Shift gestures (the marked ids and the Shift-range anchor)
     // lives in its own hook. Empty marks mean single-select mode, where selectedMessage alone is selected.
@@ -338,18 +346,44 @@ function App() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [selectedMessage?.id])
 
-    // Debounced full-text search: results replace the folder listing while a query is active.
+    // A scope whose anchor disappears (the folder deselected, the account removed) falls back to all
+    // mail visibly, so the selector never claims a narrower scope than the search actually runs with.
+    useEffect(() => {
+        if ((searchScope === 'folder' && !selectedFolder) || (searchScope === 'account' && !selectedAccount)) {
+            setSearchScope('all')
+        }
+    }, [searchScope, selectedFolder, selectedAccount])
+
+    // Debounced full-text search: results replace the folder listing while a query is active. The scope
+    // selector narrows it to the selected folder or account; changing either re-runs the live query. The
+    // stale flag discards a slow response that lands after the query has changed, so an older search can
+    // never overwrite a newer one's results.
     useEffect(() => {
         const q = searchQuery.trim()
         if (q === '') {
             setSearchResults([])
+            setSearchSnippets(new Map())
+            setSearchDegraded(false)
             return
         }
+        let stale = false
+        const folderId = searchScope === 'folder' ? selectedFolder : ''
+        const accountId = searchScope === 'account' ? selectedAccount : ''
         const handle = window.setTimeout(() => {
-            void api.searchMessages(q).then(setSearchResults).catch((e) => setError(String(e)))
+            void api.searchMessages(q, folderId, accountId).then((result) => {
+                if (stale) {
+                    return
+                }
+                setSearchResults(result.hits.map((hit) => hit.message))
+                setSearchSnippets(new Map(result.hits.map((hit) => [hit.message.id, hit.snippet])))
+                setSearchDegraded(result.degraded)
+            }).catch((e) => setError(String(e)))
         }, 250)
-        return () => window.clearTimeout(handle)
-    }, [searchQuery])
+        return () => {
+            stale = true
+            window.clearTimeout(handle)
+        }
+    }, [searchQuery, searchScope, selectedFolder, selectedAccount])
 
     // loadFolderMessages shows a folder's cached messages immediately (so it opens instantly), then
     // refreshes it from the server and updates the list if the user is still on that folder. This is
@@ -739,6 +773,13 @@ function App() {
             searchQuery={searchQuery}
             searchActive={searchActive}
             onSearchChange={setSearchQuery}
+            searchScope={searchScope}
+            onScopeChange={setSearchScope}
+            canScopeFolder={Boolean(selectedFolder)}
+            canScopeAccount={Boolean(selectedAccount)}
+            searchDegraded={searchDegraded}
+            matchSnippets={searchSnippets}
+            searchInputRef={searchInputRef}
             onActivate={activateRow}
             onClearSelection={clearSelection}
             onToggleFlag={(m) => void toggleFlag(m)}
@@ -802,8 +843,8 @@ function App() {
     const {fileMenu, editMenu, viewMenu, mailMenu, helpMenu} = useMenus({
         activeMessage, activeOutbox, canMailAct, canReplyAll, isPop3, selectedAccount, accountSyncing,
         isWindows, conversationView, previewEnabled, autoLoadImages, folders, messageTags,
-        saveMessageAs, printMessage, setManagingRules, setManagingTemplates, toggleConversationView, togglePreview,
-        toggleAutoLoadImages,
+        saveMessageAs, printMessage, setManagingRules, setManagingTemplates, focusSearch,
+        toggleConversationView, togglePreview, toggleAutoLoadImages,
         signatureHtml, setComposeInitial, setComposing, setSettingUp, sync, openInNewTab,
         openReply, openReplyAll, openForward, attachToNewMessage, setReadState, toggleFlag, toggleTag,
         moveMessage, copyMessage, markJunk, setMessageToCancelSend, requestDelete, setMessageToPurge,

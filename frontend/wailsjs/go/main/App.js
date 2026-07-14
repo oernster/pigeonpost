@@ -346,8 +346,8 @@ export function SaveTemplate(arg1) {
   return window['go']['main']['App']['SaveTemplate'](arg1);
 }
 
-export function SearchMessages(arg1) {
-  return window['go']['main']['App']['SearchMessages'](arg1);
+export function SearchMessages(arg1, arg2, arg3) {
+  return window['go']['main']['App']['SearchMessages'](arg1, arg2, arg3);
 }
 
 export function SendMeetingCancel(arg1, arg2) {

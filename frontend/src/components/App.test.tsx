@@ -13,6 +13,7 @@ import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 import {act, cleanup, fireEvent, render, screen, waitFor, within} from '@testing-library/react'
 import App from '../App'
 import type {Account, Folder, Message, OutboxItem} from '../api'
+import {SEARCH_MATCH_END, SEARCH_MATCH_START} from '../api'
 
 const apiSpies = vi.hoisted(() => ({
     version: vi.fn(), author: vi.fn(),
@@ -45,11 +46,14 @@ const runtimeSpies = vi.hoisted(() => ({
 // enum), even though the calendar is never opened in these tests.
 // MESSAGE_PAGE_SIZE is a real runtime export of ../api (the flat view's page size), so the mock must
 // supply it too or useFolderPagination's import throws. Its value is irrelevant here: the stubbed
-// listMessagesPage ignores the limit.
+// listMessagesPage ignores the limit. The search match markers are likewise real runtime exports the
+// message list splits snippets on, so they carry their real control-character values.
 vi.mock('../api', () => ({
     api: apiSpies,
     EventScope: {This: 0, Future: 1, All: 2},
     MESSAGE_PAGE_SIZE: 200,
+    SEARCH_MATCH_START: '\u0001',
+    SEARCH_MATCH_END: '\u0002',
 }))
 // The runtime lives at frontend/wailsjs/runtime, which App reaches as ../wailsjs/runtime from src/; from
 // this test one level deeper it is ../../wailsjs/runtime, the same absolute module both App and
@@ -113,7 +117,7 @@ beforeEach(() => {
     apiSpies.saveTag.mockReset().mockResolvedValue(undefined)
     apiSpies.messageTags.mockReset().mockResolvedValue([])
     apiSpies.messageBody.mockReset().mockResolvedValue({plain: '', html: '', hasInvite: false, attachments: []})
-    apiSpies.searchMessages.mockReset().mockResolvedValue([])
+    apiSpies.searchMessages.mockReset().mockResolvedValue({hits: [], degraded: false})
     apiSpies.setMessageTag.mockReset().mockResolvedValue(undefined)
     apiSpies.listMessages.mockReset().mockResolvedValue([])
     // The flat folder view now loads through listMessagesPage. Its default delegates to listMessages so a
@@ -788,5 +792,56 @@ describe('App: flat-view pagination', () => {
         expect(apiSpies.listMessagesPage).toHaveBeenCalledTimes(2)
         expect(apiSpies.listMessagesPage).toHaveBeenNthCalledWith(1, 'inbox', false, 0, '', 200, false)
         expect(apiSpies.listMessagesPage).toHaveBeenNthCalledWith(2, 'inbox', true, 111, 'c1', 200, false)
+    })
+})
+
+describe('App: search', () => {
+    // Boots the app with one account, one folder and one cached message, ready for a search.
+    async function renderWithInbox() {
+        apiSpies.listAccounts.mockResolvedValue([makeAccount()])
+        apiSpies.listFolders.mockResolvedValue([makeFolder('inbox', 'Inbox', 'inbox')])
+        apiSpies.listMessages.mockResolvedValue([makeMessage({subject: 'Weekly report'})])
+        render(<App/>)
+        await waitFor(() => expect(screen.getByText('Weekly report')).toBeInTheDocument())
+    }
+
+    it('runs the query all-mail by default and renders the highlighted match snippet', async () => {
+        apiSpies.searchMessages.mockResolvedValue({
+            hits: [{
+                message: makeMessage({id: 's1', subject: 'Search hit'}),
+                snippet: 'about the ' + SEARCH_MATCH_START + 'penguin' + SEARCH_MATCH_END + ' colony',
+            }],
+            degraded: false,
+        })
+        await renderWithInbox()
+        fireEvent.change(screen.getByLabelText('Search mail'), {target: {value: 'penguin'}})
+        // The debounce is 250ms; the scope defaults to all mail (empty folder and account ids).
+        await waitFor(() => expect(apiSpies.searchMessages).toHaveBeenCalledWith('penguin', '', ''))
+        expect(await screen.findByText('Search hit')).toBeInTheDocument()
+        const marked = await screen.findByText('penguin', {selector: 'mark'})
+        expect(marked.tagName).toBe('MARK')
+        // The markers themselves never render.
+        expect(marked.closest('.message-snippet')?.textContent).toBe('about the penguin colony')
+        expect(screen.queryByText('Searched as plain text')).not.toBeInTheDocument()
+    })
+
+    it('scopes the search to the selected folder via the scope selector', async () => {
+        await renderWithInbox()
+        fireEvent.change(screen.getByLabelText('Search scope'), {target: {value: 'folder'}})
+        fireEvent.change(screen.getByLabelText('Search mail'), {target: {value: 'report'}})
+        await waitFor(() => expect(apiSpies.searchMessages).toHaveBeenCalledWith('report', 'inbox', ''))
+    })
+
+    it('hints when the query degrades to plain text', async () => {
+        apiSpies.searchMessages.mockResolvedValue({hits: [], degraded: true})
+        await renderWithInbox()
+        fireEvent.change(screen.getByLabelText('Search mail'), {target: {value: 'broken "quote'}})
+        await waitFor(() => expect(screen.getByText('Searched as plain text')).toBeInTheDocument())
+    })
+
+    it('focuses the search box from Ctrl+K (Edit > Search)', async () => {
+        await renderWithInbox()
+        fireEvent.keyDown(document.body, {key: 'k', ctrlKey: true})
+        expect(document.activeElement).toBe(screen.getByLabelText('Search mail'))
     })
 })

@@ -1,7 +1,10 @@
-import {useEffect, useMemo, useRef, type CSSProperties} from 'react'
+import {useEffect, useMemo, useRef, type CSSProperties, type ReactNode, type RefObject} from 'react'
 import {useVirtualizer, VirtualItem} from '@tanstack/react-virtual'
-import {Message} from '../api'
+import {Message, SEARCH_MATCH_END, SEARCH_MATCH_START} from '../api'
 import {ConversationHead} from '../threads'
+
+// SearchScope is the search bar's reach: every account, the selected folder or the selected account.
+export type SearchScope = 'all' | 'folder' | 'account'
 
 // messageDragType is the dataTransfer MIME type carrying a dragged message's id to a folder drop target.
 // When several messages are selected, dropping any one of them moves the whole selection; the parent
@@ -45,6 +48,20 @@ interface MessageListProps {
     searchQuery: string
     searchActive: boolean
     onSearchChange: (query: string) => void
+    // The search scope selector: its current value, the change handler and whether the folder and
+    // account scopes have a selection to bind to (a scope without one is disabled, not silently global).
+    searchScope: SearchScope
+    onScopeChange: (scope: SearchScope) => void
+    canScopeFolder: boolean
+    canScopeAccount: boolean
+    // searchDegraded reports that the query text failed structural parsing and was searched as plain
+    // text, so the bar can hint that operators were ignored.
+    searchDegraded: boolean
+    // matchSnippets maps a message id to its matched-text snippet (terms wrapped in the match markers).
+    // A row with an entry shows it, highlighted, in place of the stored preview snippet.
+    matchSnippets: Map<string, string>
+    // searchInputRef lets Edit > Search (Ctrl+K) focus the search box from outside the list.
+    searchInputRef: RefObject<HTMLInputElement>
     onActivate: (message: Message, mods: ClickMods) => void
     onClearSelection: () => void
     onToggleFlag: (message: Message) => void
@@ -83,6 +100,30 @@ function formatDate(iso: string): string {
 // that are special in CSS), falling back to the raw id where CSS.escape is unavailable.
 function escapeId(id: string): string {
     return typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(id) : id
+}
+
+// renderMarkedSnippet turns a backend match snippet into text nodes with each matched run wrapped in
+// <mark>. It only ever splits on the two control-character markers, so message content is rendered as
+// plain text and never interpreted as markup.
+function renderMarkedSnippet(marked: string): ReactNode[] {
+    const out: ReactNode[] = []
+    const chunks = marked.split(SEARCH_MATCH_START)
+    out.push(chunks[0])
+    for (let i = 1; i < chunks.length; i++) {
+        const end = chunks[i].indexOf(SEARCH_MATCH_END)
+        if (end < 0) {
+            out.push(chunks[i])
+            continue
+        }
+        out.push(<mark key={i}>{chunks[i].slice(0, end)}</mark>)
+        out.push(chunks[i].slice(end + SEARCH_MATCH_END.length))
+    }
+    return out
+}
+
+// stripMarkers removes the match markers for plain-text uses of a match snippet (the row tooltip).
+function stripMarkers(marked: string): string {
+    return marked.split(SEARCH_MATCH_START).join('').split(SEARCH_MATCH_END).join('')
 }
 
 export function MessageList(props: MessageListProps) {
@@ -220,6 +261,7 @@ export function MessageList(props: MessageListProps) {
             )
         }
         const message = row.message
+        const matchSnippet = props.matchSnippets.get(message.id)
         return (
             <li
                 key={row.key}
@@ -293,7 +335,13 @@ export function MessageList(props: MessageListProps) {
                 <div className="message-subject">
                     {message.subject || '(no subject)'}
                 </div>
-                {message.snippet && <div className="message-snippet" title={message.snippet}>{message.snippet}</div>}
+                {matchSnippet ? (
+                    <div className="message-snippet" title={stripMarkers(matchSnippet)}>
+                        {renderMarkedSnippet(matchSnippet)}
+                    </div>
+                ) : (
+                    message.snippet && <div className="message-snippet" title={message.snippet}>{message.snippet}</div>
+                )}
             </li>
         )
     }
@@ -303,19 +351,35 @@ export function MessageList(props: MessageListProps) {
     return (
         <section className="pane message-list">
             <div className="message-search">
-                <input
-                    className="message-search-input"
-                    value={searchQuery}
-                    placeholder="Search mail…"
-                    aria-label="Search mail"
-                    onChange={(e) => props.onSearchChange(e.target.value)}
-                />
-                {searchQuery !== '' && (
-                    <button className="message-search-clear" aria-label="Clear search" onClick={() => props.onSearchChange('')}>
-                        &times;
-                    </button>
-                )}
+                <div className="message-search-box">
+                    <input
+                        ref={props.searchInputRef}
+                        className="message-search-input"
+                        value={searchQuery}
+                        placeholder="Search mail…"
+                        aria-label="Search mail"
+                        onChange={(e) => props.onSearchChange(e.target.value)}
+                    />
+                    {searchQuery !== '' && (
+                        <button className="message-search-clear" aria-label="Clear search" onClick={() => props.onSearchChange('')}>
+                            &times;
+                        </button>
+                    )}
+                </div>
+                <select
+                    className="message-search-scope"
+                    aria-label="Search scope"
+                    value={props.searchScope}
+                    onChange={(e) => props.onScopeChange(e.target.value as SearchScope)}
+                >
+                    <option value="all">All mail</option>
+                    <option value="folder" disabled={!props.canScopeFolder}>This folder</option>
+                    <option value="account" disabled={!props.canScopeAccount}>This account</option>
+                </select>
             </div>
+            {searchActive && props.searchDegraded && (
+                <div className="message-search-hint" role="status">Searched as plain text</div>
+            )}
             {selectionCount > 1 && (
                 <div className="selection-bar" role="status">
                     <span className="selection-count">{selectionCount} selected</span>

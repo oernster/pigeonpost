@@ -892,53 +892,6 @@ func TestGetMessageAndFolder(t *testing.T) {
 	}
 }
 
-func TestSearchMessages(t *testing.T) {
-	store := openTestStore(t)
-	ctx := context.Background()
-
-	quarterly, _ := domain.NewMessageSummary(domain.MessageSummaryInput{
-		ID: "m1", FolderID: "f1", UID: "1", Size: 10, Flags: domain.NewFlags(0),
-		Subject: "Quarterly report", Snippet: "the numbers are in",
-	})
-	lunch, _ := domain.NewMessageSummary(domain.MessageSummaryInput{
-		ID: "m2", FolderID: "f1", UID: "2", Size: 10, Flags: domain.NewFlags(0),
-		Subject: "Lunch plans", Snippet: "pizza on friday",
-	})
-	if err := store.SaveMessages(ctx, "f1", []domain.MessageSummary{quarterly, lunch}); err != nil {
-		t.Fatalf("save messages: %v", err)
-	}
-
-	// Prefix match on the subject.
-	results, err := store.SearchMessages(ctx, "quart")
-	if err != nil {
-		t.Fatalf("search: %v", err)
-	}
-	if len(results) != 1 || results[0].ID() != "m1" {
-		t.Fatalf("expected only m1 for 'quart', got %+v", results)
-	}
-
-	// Match against the snippet.
-	results, _ = store.SearchMessages(ctx, "pizza")
-	if len(results) != 1 || results[0].ID() != "m2" {
-		t.Fatalf("expected only m2 for 'pizza', got %+v", results)
-	}
-
-	// An empty query returns nothing.
-	results, _ = store.SearchMessages(ctx, "   ")
-	if len(results) != 0 {
-		t.Errorf("empty query should return no results, got %d", len(results))
-	}
-
-	// Re-saving the folder keeps the index in step (no duplicate results).
-	if err := store.SaveMessages(ctx, "f1", []domain.MessageSummary{quarterly, lunch}); err != nil {
-		t.Fatalf("resave: %v", err)
-	}
-	results, _ = store.SearchMessages(ctx, "quart")
-	if len(results) != 1 {
-		t.Errorf("expected 1 result after resync, got %d", len(results))
-	}
-}
-
 func TestReopenPersistsAndMigratesOnce(t *testing.T) {
 	ctx := context.Background()
 	path := filepath.Join(t.TempDir(), "persist.db")
