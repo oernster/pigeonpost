@@ -38,7 +38,8 @@ local-first. A calmer, more predictable alternative to Thunderbird.
   progress cue.
 - **Compose**: TipTap rich text, To/Cc/Bcc, reply, reply-all and forward, file or message attachments
   (25 MB), reusable message templates, per-account signatures and server Drafts. In-progress writing autosaves locally and is
-  offered back after a crash. Sends made offline queue in a per-account outbox and deliver on the next sync.
+  offered back after a crash. Undo send holds each message for a few configurable seconds with an Undo
+  that reopens it exactly as written. Sends made offline queue in a per-account outbox and deliver on the next sync.
 - **Organise**: mark read/star, delete to Trash or purge, junk, instant offline full-text search with
   operators (from:, to:, has:attachment, dates and more) and colour tags
   that sync across devices as IMAP keywords. Move or copy messages by menu or by dragging onto a folder

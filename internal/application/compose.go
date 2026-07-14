@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/oernster/pigeonpost/internal/domain"
 )
@@ -121,13 +122,54 @@ func (s *ComposeService) ClearDraftRecovery(ctx context.Context) error {
 // hands it to the transport. When the server is unreachable the message is queued in the outbox
 // instead of failing, and Send returns nil: the message will be delivered on the next replay.
 func (s *ComposeService) Send(ctx context.Context, accountID string, draft Draft) error {
+	account, msg, err := s.buildOutgoing(ctx, accountID, draft)
+	if err != nil {
+		return err
+	}
+	if err := s.transport.Send(ctx, account, msg); err != nil {
+		if errors.Is(err, domain.ErrOffline) {
+			return s.enqueue(ctx, accountID, domain.OutboxSend, msg)
+		}
+		return fmt.Errorf("compose: send: %w", err)
+	}
+	s.saveToSent(ctx, account, msg)
+	return nil
+}
+
+// HoldSend is Send behind an undo-send window: the validated message is queued in the outbox with a
+// hold of holdFor from now and the queued item's id is returned, so the front end can offer Undo
+// (which is CancelOutbox) until the hold elapses and the dispatcher sends it. A holdFor of zero or
+// less means no window: the message sends immediately through Send and the returned id is empty.
+func (s *ComposeService) HoldSend(ctx context.Context, accountID string, draft Draft, holdFor time.Duration) (string, error) {
+	if holdFor <= 0 {
+		return "", s.Send(ctx, accountID, draft)
+	}
+	_, msg, err := s.buildOutgoing(ctx, accountID, draft)
+	if err != nil {
+		return "", err
+	}
+	now := s.clock.Now()
+	item, err := domain.NewOutboxItem(s.newID(), accountID, domain.OutboxSend, msg, now)
+	if err != nil {
+		return "", fmt.Errorf("compose: build held outbox item: %w", err)
+	}
+	item = item.WithHoldUntil(now.Add(holdFor))
+	if err := s.outbox.EnqueueOutbox(ctx, item); err != nil {
+		return "", fmt.Errorf("compose: queue held send: %w", err)
+	}
+	return item.ID(), nil
+}
+
+// buildOutgoing loads the account, resolves the chosen sender identity and builds the validated
+// outgoing message, shared by the immediate and the held send paths.
+func (s *ComposeService) buildOutgoing(ctx context.Context, accountID string, draft Draft) (domain.Account, domain.OutgoingMessage, error) {
 	account, err := s.accounts.GetAccount(ctx, accountID)
 	if err != nil {
-		return fmt.Errorf("compose: load account %q: %w", accountID, err)
+		return domain.Account{}, domain.OutgoingMessage{}, fmt.Errorf("compose: load account %q: %w", accountID, err)
 	}
 	from, ok := account.ResolveSender(draft.From)
 	if !ok {
-		return fmt.Errorf("compose: account %q send as %q: %w", accountID, draft.From, ErrUnknownSender)
+		return domain.Account{}, domain.OutgoingMessage{}, fmt.Errorf("compose: account %q send as %q: %w", accountID, draft.From, ErrUnknownSender)
 	}
 	msg, err := domain.NewOutgoingMessage(domain.OutgoingMessageInput{
 		From:        from,
@@ -140,16 +182,9 @@ func (s *ComposeService) Send(ctx context.Context, accountID string, draft Draft
 		Attachments: draft.Attachments,
 	})
 	if err != nil {
-		return fmt.Errorf("compose: build message: %w", err)
+		return domain.Account{}, domain.OutgoingMessage{}, fmt.Errorf("compose: build message: %w", err)
 	}
-	if err := s.transport.Send(ctx, account, msg); err != nil {
-		if errors.Is(err, domain.ErrOffline) {
-			return s.enqueue(ctx, accountID, domain.OutboxSend, msg)
-		}
-		return fmt.Errorf("compose: send: %w", err)
-	}
-	s.saveToSent(ctx, account, msg)
-	return nil
+	return account, msg, nil
 }
 
 // SaveDraft stores an in-progress message in the account's Drafts mailbox on the server. Unlike Send,
@@ -187,99 +222,6 @@ func (s *ComposeService) SaveDraft(ctx context.Context, accountID string, draft 
 			return s.enqueue(ctx, accountID, domain.OutboxDraft, msg)
 		}
 		return fmt.Errorf("compose: save draft: %w", err)
-	}
-	return nil
-}
-
-// PendingOutbox returns the number of operations currently queued for replay.
-func (s *ComposeService) PendingOutbox(ctx context.Context) (int, error) {
-	items, err := s.outbox.ListOutbox(ctx)
-	if err != nil {
-		return 0, fmt.Errorf("compose: list outbox: %w", err)
-	}
-	return len(items), nil
-}
-
-// OutboxItems returns the queued outgoing operations, oldest first, so the user can review or cancel
-// mail waiting to be sent.
-func (s *ComposeService) OutboxItems(ctx context.Context) ([]domain.OutboxItem, error) {
-	items, err := s.outbox.ListOutbox(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("compose: list outbox: %w", err)
-	}
-	return items, nil
-}
-
-// CancelOutbox removes a queued operation before it is sent, discarding it.
-func (s *ComposeService) CancelOutbox(ctx context.Context, id string) error {
-	if err := s.outbox.DeleteOutbox(ctx, id); err != nil {
-		return fmt.Errorf("compose: cancel outbox item %q: %w", id, err)
-	}
-	return nil
-}
-
-// ReplayOutbox attempts every queued operation, oldest first. A successful operation is removed from
-// the queue. If the server is still unreachable, replay stops and the remaining items stay queued. An
-// operation that fails for any other reason (the account is gone, the message is rejected) is kept in
-// the queue and stamped with its failure reason, so it surfaces in the outbox for the user to see and
-// act on rather than vanishing. An item already marked failed is skipped, not retried. Its error is
-// also collected and returned. It returns how many operations succeeded.
-func (s *ComposeService) ReplayOutbox(ctx context.Context) (int, error) {
-	items, err := s.outbox.ListOutbox(ctx)
-	if err != nil {
-		return 0, fmt.Errorf("compose: list outbox: %w", err)
-	}
-	replayed := 0
-	var failures []error
-	for _, item := range items {
-		if item.Failed() {
-			continue
-		}
-		err := s.replayItem(ctx, item)
-		if errors.Is(err, domain.ErrOffline) {
-			return replayed, nil
-		}
-		if err != nil {
-			if markErr := s.outbox.MarkOutboxFailed(ctx, item.ID(), err.Error()); markErr != nil {
-				return replayed, fmt.Errorf("compose: mark outbox item %q failed: %w", item.ID(), markErr)
-			}
-			failures = append(failures, fmt.Errorf("compose: outbox item %q failed: %w", item.ID(), err))
-			continue
-		}
-		replayed++
-		if delErr := s.outbox.DeleteOutbox(ctx, item.ID()); delErr != nil {
-			return replayed, fmt.Errorf("compose: remove replayed item %q: %w", item.ID(), delErr)
-		}
-	}
-	return replayed, errors.Join(failures...)
-}
-
-// replayItem performs one queued operation against the server, dispatching on its kind.
-func (s *ComposeService) replayItem(ctx context.Context, item domain.OutboxItem) error {
-	account, err := s.accounts.GetAccount(ctx, item.AccountID())
-	if err != nil {
-		return fmt.Errorf("load account %q: %w", item.AccountID(), err)
-	}
-	switch item.Kind() {
-	case domain.OutboxDraft:
-		draftsPath, err := s.draftsPath(ctx, item.AccountID())
-		if err != nil {
-			return err
-		}
-		return s.drafts.SaveDraft(ctx, account, draftsPath, item.Message())
-	default:
-		return s.transport.Send(ctx, account, item.Message())
-	}
-}
-
-// enqueue records an outgoing operation in the outbox, stamped with a fresh id and the current time.
-func (s *ComposeService) enqueue(ctx context.Context, accountID string, kind domain.OutboxKind, msg domain.OutgoingMessage) error {
-	item, err := domain.NewOutboxItem(s.newID(), accountID, kind, msg, s.clock.Now())
-	if err != nil {
-		return fmt.Errorf("compose: build outbox item: %w", err)
-	}
-	if err := s.outbox.EnqueueOutbox(ctx, item); err != nil {
-		return fmt.Errorf("compose: queue outbox item: %w", err)
 	}
 	return nil
 }

@@ -57,6 +57,37 @@ func TestOutboxItemFailure(t *testing.T) {
 	}
 }
 
+func TestOutboxItemHold(t *testing.T) {
+	created := time.Date(2026, time.July, 3, 9, 0, 0, 0, time.UTC)
+	item, err := NewOutboxItem("q1", "a1", OutboxSend, outboxMessage(t), created)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !item.HoldUntil().IsZero() || item.HeldAt(created) {
+		t.Errorf("a fresh item must carry no hold: until=%v held=%v", item.HoldUntil(), item.HeldAt(created))
+	}
+
+	holdUntil := created.Add(10 * time.Second)
+	held := item.WithHoldUntil(holdUntil)
+	if !held.HoldUntil().Equal(holdUntil) {
+		t.Errorf("HoldUntil = %v, want %v", held.HoldUntil(), holdUntil)
+	}
+	if !held.HeldAt(created) || !held.HeldAt(holdUntil.Add(-time.Nanosecond)) {
+		t.Error("the item must be held inside its window")
+	}
+	if held.HeldAt(holdUntil) || held.HeldAt(holdUntil.Add(time.Second)) {
+		t.Error("the item must be free once the window has elapsed")
+	}
+	if !item.HoldUntil().IsZero() {
+		t.Error("WithHoldUntil must not mutate the original item")
+	}
+
+	cleared := held.WithHoldUntil(time.Time{})
+	if !cleared.HoldUntil().IsZero() || cleared.HeldAt(created) {
+		t.Error("a zero hold must clear the window")
+	}
+}
+
 func TestNewOutboxItemInvalid(t *testing.T) {
 	valid := outboxMessage(t)
 	cases := map[string]struct {

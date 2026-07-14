@@ -12,7 +12,7 @@ export function ApplyMeetingReply(arg1:string):Promise<void>;
 
 export function Author():Promise<string>;
 
-export function CancelOutboxItem(arg1:string):Promise<void>;
+export function CancelOutboxItem(arg1:string):Promise<boolean>;
 
 export function ClearDraftRecovery():Promise<void>;
 
@@ -180,7 +180,7 @@ export function SendMeetingCancel(arg1:string,arg2:string):Promise<void>;
 
 export function SendMeetingRequest(arg1:string,arg2:string):Promise<void>;
 
-export function SendMessage(arg1:main.ComposeRequest):Promise<void>;
+export function SendMessage(arg1:main.ComposeRequest):Promise<string>;
 
 export function SetMessageTag(arg1:string,arg2:string,arg3:boolean):Promise<void>;
 

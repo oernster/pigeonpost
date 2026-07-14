@@ -31,6 +31,7 @@ func (a *App) startup(ctx context.Context) {
 	}
 	go a.runReminderScheduler()
 	go a.runMailNotifier()
+	go a.runOutboxDispatcher()
 }
 
 // focusOnLaunchDelay lets the window finish showing before the WebView is given keyboard focus, so the

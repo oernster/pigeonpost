@@ -832,13 +832,16 @@ func (f *fakeSentSaver) SaveSent(_ context.Context, _ domain.Account, sentPath s
 
 // fakeOutboxStore is a hand-written in-memory OutboxStore with error-injection fields.
 type fakeOutboxStore struct {
-	items      []domain.OutboxItem
-	enqueueErr error
-	listErr    error
-	deleteErr  error
-	markErr    error
-	deleted    []string
-	failed     map[string]string
+	items        []domain.OutboxItem
+	enqueueErr   error
+	listErr      error
+	deleteErr    error
+	markErr      error
+	clearHoldErr error
+	nextHoldErr  error
+	deleted      []string
+	failed       map[string]string
+	clearedHolds []string
 }
 
 func (f *fakeOutboxStore) EnqueueOutbox(_ context.Context, item domain.OutboxItem) error {
@@ -856,19 +859,51 @@ func (f *fakeOutboxStore) ListOutbox(context.Context) ([]domain.OutboxItem, erro
 	return f.items, nil
 }
 
-func (f *fakeOutboxStore) DeleteOutbox(_ context.Context, id string) error {
+func (f *fakeOutboxStore) DeleteOutbox(_ context.Context, id string) (bool, error) {
 	if f.deleteErr != nil {
-		return f.deleteErr
+		return false, f.deleteErr
 	}
 	f.deleted = append(f.deleted, id)
+	removed := false
 	kept := f.items[:0]
 	for _, item := range f.items {
 		if item.ID() != id {
 			kept = append(kept, item)
+			continue
 		}
+		removed = true
 	}
 	f.items = kept
+	return removed, nil
+}
+
+func (f *fakeOutboxStore) ClearOutboxHold(_ context.Context, id string) error {
+	if f.clearHoldErr != nil {
+		return f.clearHoldErr
+	}
+	f.clearedHolds = append(f.clearedHolds, id)
+	for i, item := range f.items {
+		if item.ID() == id {
+			f.items[i] = item.WithHoldUntil(time.Time{})
+		}
+	}
 	return nil
+}
+
+func (f *fakeOutboxStore) NextOutboxHold(context.Context) (time.Time, bool, error) {
+	if f.nextHoldErr != nil {
+		return time.Time{}, false, f.nextHoldErr
+	}
+	var next time.Time
+	for _, item := range f.items {
+		if item.Failed() || item.HoldUntil().IsZero() {
+			continue
+		}
+		if next.IsZero() || item.HoldUntil().Before(next) {
+			next = item.HoldUntil()
+		}
+	}
+	return next, !next.IsZero(), nil
 }
 
 func (f *fakeOutboxStore) MarkOutboxFailed(_ context.Context, id, reason string) error {

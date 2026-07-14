@@ -100,8 +100,12 @@ func TestOutboxRoundTrip(t *testing.T) {
 		t.Errorf("kinds lost: %v / %v", got.Kind(), items[1].Kind())
 	}
 
-	if err := store.DeleteOutbox(ctx, "q-old"); err != nil {
+	removed, err := store.DeleteOutbox(ctx, "q-old")
+	if err != nil {
 		t.Fatalf("delete: %v", err)
+	}
+	if !removed {
+		t.Error("deleting a queued item must report it was removed")
 	}
 	remaining, err := store.ListOutbox(ctx)
 	if err != nil {
@@ -109,6 +113,85 @@ func TestOutboxRoundTrip(t *testing.T) {
 	}
 	if len(remaining) != 1 || remaining[0].ID() != "q-new" {
 		t.Errorf("expected only q-new to remain, got %+v", remaining)
+	}
+	// Deleting an item that is already gone reports false, the signal the undo race relies on.
+	removed, err = store.DeleteOutbox(ctx, "q-old")
+	if err != nil {
+		t.Fatalf("delete missing: %v", err)
+	}
+	if removed {
+		t.Error("deleting a missing item must report nothing was removed")
+	}
+}
+
+func TestOutboxHoldRoundTripAndClear(t *testing.T) {
+	store := openTestStore(t)
+	ctx := context.Background()
+
+	holdUntil := time.Date(2026, time.July, 14, 12, 0, 10, 0, time.UTC)
+	held := outboxTestItem(t, "q-held", domain.OutboxSend).WithHoldUntil(holdUntil)
+	plain := outboxTestItem(t, "q-plain", domain.OutboxSend)
+	if err := store.EnqueueOutbox(ctx, held); err != nil {
+		t.Fatalf("enqueue held: %v", err)
+	}
+	if err := store.EnqueueOutbox(ctx, plain); err != nil {
+		t.Fatalf("enqueue plain: %v", err)
+	}
+
+	items, err := store.ListOutbox(ctx)
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	byID := map[string]domain.OutboxItem{}
+	for _, item := range items {
+		byID[item.ID()] = item
+	}
+	if !byID["q-held"].HoldUntil().Equal(holdUntil) {
+		t.Errorf("hold not round-tripped: %v", byID["q-held"].HoldUntil())
+	}
+	if !byID["q-plain"].HoldUntil().IsZero() {
+		t.Errorf("a plain item must carry no hold: %v", byID["q-plain"].HoldUntil())
+	}
+
+	next, ok, err := store.NextOutboxHold(ctx)
+	if err != nil {
+		t.Fatalf("next hold: %v", err)
+	}
+	if !ok || !next.Equal(holdUntil) {
+		t.Errorf("next hold = %v ok=%v, want %v", next, ok, holdUntil)
+	}
+
+	if err := store.ClearOutboxHold(ctx, "q-held"); err != nil {
+		t.Fatalf("clear hold: %v", err)
+	}
+	items, err = store.ListOutbox(ctx)
+	if err != nil {
+		t.Fatalf("list after clear: %v", err)
+	}
+	for _, item := range items {
+		if !item.HoldUntil().IsZero() {
+			t.Errorf("hold survived the clear on %q", item.ID())
+		}
+	}
+	if _, ok, err := store.NextOutboxHold(ctx); err != nil || ok {
+		t.Errorf("no hold must remain: ok=%v err=%v", ok, err)
+	}
+}
+
+func TestNextOutboxHoldSkipsFailedItems(t *testing.T) {
+	store := openTestStore(t)
+	ctx := context.Background()
+
+	holdUntil := time.Date(2026, time.July, 14, 12, 0, 10, 0, time.UTC)
+	held := outboxTestItem(t, "q-held", domain.OutboxSend).WithHoldUntil(holdUntil)
+	if err := store.EnqueueOutbox(ctx, held); err != nil {
+		t.Fatalf("enqueue: %v", err)
+	}
+	if err := store.MarkOutboxFailed(ctx, "q-held", "rejected"); err != nil {
+		t.Fatalf("mark failed: %v", err)
+	}
+	if _, ok, err := store.NextOutboxHold(ctx); err != nil || ok {
+		t.Errorf("a failed item must not drive the dispatcher: ok=%v err=%v", ok, err)
 	}
 }
 

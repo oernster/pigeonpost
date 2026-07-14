@@ -57,14 +57,20 @@ interface ComposeModalProps {
     // onMarkReplied / onMarkForwarded record a sent reply or forward on its original message (by id), so the
     // row shows the replied / forwarded glyph at once. They own the server flag, the local cache and the
     // in-memory list update; the composer just reports which original was acted on. Called best-effort after a
-    // successful send, so a failure never disrupts the send.
+    // successful send, so a failure never disrupts the send. For a held send that marking moves to the
+    // undo toast's expiry (via onHeld), so undoing a reply never leaves a wrong answered flag.
     onMarkReplied: (id: string) => void
     onMarkForwarded: (id: string) => void
+    // holdSeconds is the user's undo-send window, passed through to the send request; zero sends
+    // immediately. onHeld reports a held send: the queued item's id (for Undo) and the full compose
+    // state, so an undone send reopens exactly as it was.
+    holdSeconds: number
+    onHeld: (outboxId: string, reopen: ComposeInitial) => void
     onClose: () => void
 }
 
 
-export function ComposeModal({accountId, senders, initial, canSaveDraft, onMarkReplied, onMarkForwarded, onClose}: ComposeModalProps) {
+export function ComposeModal({accountId, senders, initial, canSaveDraft, onMarkReplied, onMarkForwarded, holdSeconds, onHeld, onClose}: ComposeModalProps) {
     const dismiss = useBackdropDismiss(onClose)
     // The chosen From address. It defaults to the reply's delivered-to address when given, otherwise the
     // account's primary (first) sender. The backend validates it against the account's owned addresses.
@@ -138,8 +144,24 @@ export function ComposeModal({accountId, senders, initial, canSaveDraft, onMarkR
             htmlBody: text.trim() === '' ? '' : html,
             attachmentPaths: attachments,
             attachmentMessageIds: messageAttachments.map((m) => m.id),
+            holdSeconds,
         }
     }
+
+    // reopenInitial captures the whole compose state, so an undone send reopens exactly as it was,
+    // including the reply/forward marking intent the toast applies once the window elapses.
+    const reopenInitial = (): ComposeInitial => ({
+        from,
+        to,
+        cc,
+        bcc,
+        subject,
+        bodyHtml: editor?.getHTML() ?? '',
+        attachmentPaths: attachments,
+        messageAttachments,
+        inReplyToId: initial?.inReplyToId,
+        replyKind: initial?.replyKind,
+    })
 
     const removeMessageAttachment = (id: string) => {
         setMessageAttachments((prev) => prev.filter((m) => m.id !== id))
@@ -182,8 +204,15 @@ export function ComposeModal({accountId, senders, initial, canSaveDraft, onMarkR
         setSending(true)
         setError('')
         try {
-            await api.send(buildRequest())
-            markOriginalOnSend()
+            const outboxId = await api.send(buildRequest())
+            if (outboxId === '') {
+                // Sent immediately: mark the original now, exactly as before undo-send existed.
+                markOriginalOnSend()
+            } else {
+                // Held behind the undo window: hand the queued id and the compose state to the toast,
+                // which marks the original only if the window elapses without an undo.
+                onHeld(outboxId, reopenInitial())
+            }
             void api.clearDraftRecovery()
             onClose()
         } catch (e) {

@@ -33,14 +33,16 @@ func (k OutboxKind) Valid() bool {
 	return k == OutboxSend || k == OutboxDraft
 }
 
-// OutboxItem is a single outgoing operation held in the local queue because the server was
-// unreachable when it was requested. It is replayed, oldest first, once connectivity returns.
+// OutboxItem is a single outgoing operation held in the local queue: because the server was
+// unreachable when it was requested (replayed, oldest first, once connectivity returns), or because it
+// is inside its undo-send hold window (sent once the hold elapses, unless the user cancels it first).
 type OutboxItem struct {
 	id        string
 	accountID string
 	kind      OutboxKind
 	message   OutgoingMessage
 	createdAt time.Time
+	holdUntil time.Time
 	failure   string
 }
 
@@ -84,6 +86,23 @@ func (i OutboxItem) Message() OutgoingMessage { return i.message }
 
 // CreatedAt returns the time the item was queued.
 func (i OutboxItem) CreatedAt() time.Time { return i.createdAt }
+
+// HoldUntil returns the end of the item's undo-send hold window, or the zero time when the item
+// carries no hold (an offline-queued item, sent on the next replay).
+func (i OutboxItem) HoldUntil() time.Time { return i.holdUntil }
+
+// HeldAt reports whether the item is still inside its hold window at the given instant, meaning it
+// must not be sent yet: the user may still undo it.
+func (i OutboxItem) HeldAt(now time.Time) bool {
+	return !i.holdUntil.IsZero() && now.Before(i.holdUntil)
+}
+
+// WithHoldUntil returns a copy of the item holding it until the given instant (the undo-send window).
+// The zero time clears the hold, degrading the item to an ordinary queued operation.
+func (i OutboxItem) WithHoldUntil(holdUntil time.Time) OutboxItem {
+	i.holdUntil = holdUntil
+	return i
+}
 
 // Failure returns the reason a permanent replay failure kept the item in the queue, or an empty string
 // when the item has not failed. A permanently failed item (the account is gone, the message was

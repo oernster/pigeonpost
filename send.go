@@ -6,13 +6,16 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/oernster/pigeonpost/internal/application"
 	"github.com/oernster/pigeonpost/internal/domain"
 )
 
 // ComposeRequest is the front-end payload for sending a message. Recipients are comma-free single
-// addresses; the front end splits any user input into this list.
+// addresses; the front end splits any user input into this list. HoldSeconds is the undo-send window:
+// greater than zero queues the send for that long (cancellable via the returned outbox id) and zero or
+// less sends immediately.
 type ComposeRequest struct {
 	AccountID            string   `json:"accountId"`
 	From                 string   `json:"from"`
@@ -24,6 +27,7 @@ type ComposeRequest struct {
 	HTMLBody             string   `json:"htmlBody"`
 	AttachmentPaths      []string `json:"attachmentPaths"`
 	AttachmentMessageIDs []string `json:"attachmentMessageIds"`
+	HoldSeconds          int      `json:"holdSeconds"`
 }
 
 // rfc822ContentType is the MIME type for a whole email attached to another email.
@@ -35,25 +39,27 @@ const (
 	maxTotalAttachmentBytes = maxAttachmentMebibytes * bytesPerMebibyte
 )
 
-// SendMessage parses the request's addresses and sends the message through the compose use case.
-func (a *App) SendMessage(req ComposeRequest) error {
+// SendMessage parses the request's addresses and sends the message through the compose use case. With
+// a positive HoldSeconds the send is queued behind an undo-send window and the queued item's id is
+// returned so the front end can offer Undo; otherwise it sends immediately and the id is empty.
+func (a *App) SendMessage(req ComposeRequest) (string, error) {
 	to, err := parseAddresses(req.To)
 	if err != nil {
-		return err
+		return "", err
 	}
 	cc, err := parseAddresses(req.Cc)
 	if err != nil {
-		return err
+		return "", err
 	}
 	bcc, err := parseAddresses(req.Bcc)
 	if err != nil {
-		return err
+		return "", err
 	}
 	attachments, err := a.composeAttachments(req)
 	if err != nil {
-		return err
+		return "", err
 	}
-	return a.compose.Send(a.ctx, req.AccountID, application.Draft{
+	return a.compose.HoldSend(a.ctx, req.AccountID, application.Draft{
 		From:        req.From,
 		To:          to,
 		Cc:          cc,
@@ -62,7 +68,7 @@ func (a *App) SendMessage(req ComposeRequest) error {
 		Body:        req.Body,
 		HTMLBody:    req.HTMLBody,
 		Attachments: attachments,
-	})
+	}, time.Duration(req.HoldSeconds)*time.Second)
 }
 
 // SaveDraft stores an in-progress message in the account's Drafts mailbox. The message may be

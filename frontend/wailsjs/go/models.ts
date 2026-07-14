@@ -342,6 +342,7 @@ export namespace main {
 	    htmlBody: string;
 	    attachmentPaths: string[];
 	    attachmentMessageIds: string[];
+	    holdSeconds: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new ComposeRequest(source);
@@ -359,6 +360,7 @@ export namespace main {
 	        this.htmlBody = source["htmlBody"];
 	        this.attachmentPaths = source["attachmentPaths"];
 	        this.attachmentMessageIds = source["attachmentMessageIds"];
+	        this.holdSeconds = source["holdSeconds"];
 	    }
 	}
 	export class ContactAddressDTO {
@@ -996,6 +998,7 @@ export namespace main {
 	    to: string[];
 	    body: string;
 	    createdMs: number;
+	    holdMs: number;
 	    failed: boolean;
 	    failure: string;
 	
@@ -1012,6 +1015,7 @@ export namespace main {
 	        this.to = source["to"];
 	        this.body = source["body"];
 	        this.createdMs = source["createdMs"];
+	        this.holdMs = source["holdMs"];
 	        this.failed = source["failed"];
 	        this.failure = source["failure"];
 	    }

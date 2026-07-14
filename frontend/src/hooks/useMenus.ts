@@ -5,6 +5,11 @@ import {MenuItem} from '../components/Menu'
 import {TAG_PALETTE, colourTagId} from '../tagColours'
 import {matchesShortcut} from '../shortcuts'
 
+// undoSendChoices are the offered undo-send windows in seconds; 0 turns the hold off and sends
+// immediately. defaultUndoSendSeconds is the out-of-the-box window.
+export const undoSendChoices = [0, 5, 10, 20, 30] as const
+export const defaultUndoSendSeconds = 10
+
 // MenusDeps is the full action surface the menu bar projects. It is large because the menus touch nearly
 // everything; each field is used verbatim by the item that names it. The derived gating flags (canMailAct and
 // the rest) are computed in App because the titlebar buttons share them, so they are passed in rather than
@@ -22,6 +27,9 @@ export interface MenusDeps {
     conversationView: boolean
     previewEnabled: boolean
     autoLoadImages: boolean
+    // The undo-send window in seconds (0 = off) and its setter, shown as a Mail-menu submenu of ticks.
+    undoSendSeconds: number
+    setUndoSendSeconds: (seconds: number) => void
     // The folder list (Move/Copy targets) and the open message's tags (the applied ticks).
     folders: Folder[]
     messageTags: Tag[]
@@ -77,7 +85,8 @@ export interface Menus {
 export function useMenus(deps: MenusDeps): Menus {
     const {
         activeMessage, activeOutbox, canMailAct, canReplyAll, isPop3, selectedAccount, accountSyncing,
-        isWindows, conversationView, previewEnabled, autoLoadImages, folders, messageTags,
+        isWindows, conversationView, previewEnabled, autoLoadImages, undoSendSeconds, setUndoSendSeconds,
+        folders, messageTags,
         saveMessageAs, printMessage, setManagingRules, setManagingTemplates, focusSearch,
         toggleConversationView, togglePreview, toggleAutoLoadImages,
         signatureHtml, setComposeInitial, setComposing, setSettingUp, sync, openInNewTab,
@@ -181,6 +190,15 @@ export function useMenus(deps: MenusDeps): Menus {
             shortcut: 'F9',
             disabled: !selectedAccount || accountSyncing,
             onClick: () => void sync(),
+        },
+        {
+            label: 'Undo send',
+            icon: '\u{23F3}',
+            submenu: undoSendChoices.map((seconds) => ({
+                label: seconds === 0 ? 'Off' : `${seconds} seconds`,
+                checked: undoSendSeconds === seconds,
+                onClick: () => setUndoSendSeconds(seconds),
+            })),
         },
         ...(isWindows
             ? [{

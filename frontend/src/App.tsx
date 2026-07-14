@@ -15,7 +15,9 @@ import {DraftRecoveryDialog} from './components/DraftRecoveryDialog'
 import {AboutModal} from './components/AboutModal'
 import {LicenceModal} from './components/LicenceModal'
 import {arrangeByConversation, sortByDate} from './threads'
-import {ComposeModal} from './components/ComposeModal'
+import {ComposeModal, type ComposeInitial} from './components/ComposeModal'
+import {UndoSendToast} from './components/UndoSendToast'
+import {EventsOn} from '../wailsjs/runtime'
 import {MessagePickerDialog} from './components/MessagePickerDialog'
 import {AccountSetupModal} from './components/AccountSetupModal'
 import {ConfirmDialog} from './components/ConfirmDialog'
@@ -43,7 +45,7 @@ import {useSync} from './hooks/useSync'
 import {useTags} from './hooks/useTags'
 import {useComposeLauncher} from './hooks/useComposeLauncher'
 import {useAppEvents} from './hooks/useAppEvents'
-import {useMenus} from './hooks/useMenus'
+import {defaultUndoSendSeconds, undoSendChoices, useMenus} from './hooks/useMenus'
 import {useMessageListKeyboard} from './hooks/useMessageListKeyboard'
 import {useFolderPagination} from './hooks/useFolderPagination'
 
@@ -167,6 +169,16 @@ function App() {
     } = useComposeLauncher({accounts, selectedAccount, setSelectedAccount, messageBody, setError})
 
     const searchActive = searchQuery.trim() !== ''
+    // undoSendSeconds is the undo-send window: how long a sent message is held (cancellable) before it
+    // actually leaves. Zero disables the hold. Chosen from the Mail menu, remembered across launches.
+    const [undoSendSeconds, setUndoSendSecondsState] = useState<number>(() => {
+        const stored = Number(localStorage.getItem('undoSendSeconds'))
+        return (undoSendChoices as readonly number[]).includes(stored) ? stored : defaultUndoSendSeconds
+    })
+    const setUndoSendSeconds = useCallback((seconds: number) => {
+        setUndoSendSecondsState(seconds)
+        localStorage.setItem('undoSendSeconds', String(seconds))
+    }, [])
     // conversationView groups the folder's messages into conversations; it does not apply to search
     // results, which stay ranked by relevance. The choice is remembered across launches.
     const [conversationView, setConversationView] = useState<boolean>(() => localStorage.getItem('conversationView') === '1')
@@ -305,6 +317,64 @@ function App() {
         requestDelete, deleteMessage, deletePermanent, toggleFlag, moveMessage, markJunk, copyMessage,
         setReadState, toggleRead, markReadOnView, markReplied, markForwarded,
     } = useMessageActions({store, displayMessages, searchActive, loadUnread, refreshFolders, setError})
+
+    // undoToast is the live undo-send window: the queued item to cancel, when the window ends and the
+    // compose state to restore on undo. One send at a time: a new held send replaces the toast (the
+    // previous message's window keeps running in the backend, it just loses its button, and the Outbox
+    // folder still offers Cancel send).
+    const millisecondsPerSecond = 1000
+    const [undoToast, setUndoToast] = useState<{outboxId: string; expiresAt: number; reopen: ComposeInitial} | null>(null)
+
+    const onHeldSend = useCallback((outboxId: string, reopen: ComposeInitial) => {
+        setUndoToast({outboxId, expiresAt: Date.now() + undoSendSeconds * millisecondsPerSecond, reopen})
+    }, [undoSendSeconds])
+
+    // undoHeldSend stops the queued send and reopens the composer exactly as it was. When the cancel
+    // loses the race (the message left in the same instant), it says so instead of pretending.
+    const undoHeldSend = useCallback(async () => {
+        if (!undoToast) {
+            return
+        }
+        const toast = undoToast
+        setUndoToast(null)
+        try {
+            const stopped = await api.cancelOutboxItem(toast.outboxId)
+            await refreshOutbox()
+            if (!stopped) {
+                setError('That message had already been sent.')
+                return
+            }
+            setComposeInitial(toast.reopen)
+            setComposing(true)
+        } catch (e) {
+            setError(String(e))
+        }
+    }, [undoToast, refreshOutbox])
+
+    // heldSendElapsed drops the toast once the window ends and applies the deferred reply/forward
+    // marking: the message is now leaving, so the original's glyph becomes true the way an immediate
+    // send's would have been.
+    const heldSendElapsed = useCallback(() => {
+        if (!undoToast) {
+            return
+        }
+        const {reopen} = undoToast
+        setUndoToast(null)
+        if (reopen.inReplyToId) {
+            if (reopen.replyKind === 'reply') {
+                void markReplied(reopen.inReplyToId)
+            } else if (reopen.replyKind === 'forward') {
+                void markForwarded(reopen.inReplyToId)
+            }
+        }
+    }, [undoToast, markReplied, markForwarded])
+
+    // The backend dispatcher announces a held send leaving, so the outbox count and views refresh the
+    // moment it goes rather than on the next manual action.
+    useEffect(() => EventsOn('outbox:changed', () => {
+        void refreshOutbox()
+        void loadUnread()
+    }), [refreshOutbox, loadUnread])
 
     // Fetch (and cache) the full body of the selected message. Keyed on the id so re-selecting the
     // same message after a flag change does not re-fetch.
@@ -858,7 +928,8 @@ function App() {
     // set are computed inside it.
     const {fileMenu, editMenu, viewMenu, mailMenu, helpMenu} = useMenus({
         activeMessage, activeOutbox, canMailAct, canReplyAll, isPop3, selectedAccount, accountSyncing,
-        isWindows, conversationView, previewEnabled, autoLoadImages, folders, messageTags,
+        isWindows, conversationView, previewEnabled, autoLoadImages, undoSendSeconds, setUndoSendSeconds,
+        folders, messageTags,
         saveMessageAs, printMessage, setManagingRules, setManagingTemplates, focusSearch,
         toggleConversationView, togglePreview, toggleAutoLoadImages,
         signatureHtml, setComposeInitial, setComposing, setSettingUp, sync, openInNewTab,
@@ -891,6 +962,13 @@ function App() {
             />
             {splashVisible && <Splash version={appVersion} author={appAuthor} fading={splashFading}/>}
             <ReminderNotifications onOpen={openReminderEvent}/>
+            {undoToast && (
+                <UndoSendToast
+                    expiresAt={undoToast.expiresAt}
+                    onUndo={() => void undoHeldSend()}
+                    onExpired={heldSendElapsed}
+                />
+            )}
             <TitleBar
                 unreadCounts={unreadCounts}
                 fileMenu={fileMenu}
@@ -986,6 +1064,8 @@ function App() {
                     canSaveDraft={!isPop3}
                     onMarkReplied={(id) => void markReplied(id)}
                     onMarkForwarded={(id) => void markForwarded(id)}
+                    holdSeconds={undoSendSeconds}
+                    onHeld={onHeldSend}
                     onClose={() => {
                         setComposing(false)
                         setComposeInitial(undefined)

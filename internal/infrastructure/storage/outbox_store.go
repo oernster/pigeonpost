@@ -46,29 +46,71 @@ func (s *Store) EnqueueOutbox(ctx context.Context, item domain.OutboxItem) error
 	}
 	if _, err := s.db.ExecContext(ctx,
 		`INSERT INTO outbox (id, account_id, kind, from_display, from_address, to_json, cc_json,
-		        bcc_json, subject, body, html_body, attachments_json, created_ms)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+		        bcc_json, subject, body, html_body, attachments_json, created_ms, hold_until_ms)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
 		item.ID(), item.AccountID(), int(item.Kind()), display, address, toJSON, ccJSON,
-		bccJSON, msg.Subject(), msg.Body(), msg.HTMLBody(), attachmentsJSON, item.CreatedAt().UnixMilli()); err != nil {
+		bccJSON, msg.Subject(), msg.Body(), msg.HTMLBody(), attachmentsJSON, item.CreatedAt().UnixMilli(),
+		holdUntilMillis(item.HoldUntil())); err != nil {
 		return fmt.Errorf("insert outbox item %q: %w", item.ID(), err)
 	}
 	return nil
+}
+
+// holdUntilMillis maps a hold instant to its stored form: 0 for no hold, otherwise Unix milliseconds.
+func holdUntilMillis(holdUntil time.Time) int64 {
+	if holdUntil.IsZero() {
+		return 0
+	}
+	return holdUntil.UnixMilli()
 }
 
 // ListOutbox returns the queued operations, oldest first.
 func (s *Store) ListOutbox(ctx context.Context) ([]domain.OutboxItem, error) {
 	return queryRows(ctx, s.db, "outbox",
 		`SELECT id, account_id, kind, from_display, from_address, to_json, cc_json,
-		        bcc_json, subject, body, html_body, attachments_json, created_ms, failure
+		        bcc_json, subject, body, html_body, attachments_json, created_ms, hold_until_ms, failure
 		 FROM outbox ORDER BY created_ms ASC, id ASC;`, scanOutbox)
 }
 
-// DeleteOutbox removes a queued operation by id, after it has been replayed or dropped.
-func (s *Store) DeleteOutbox(ctx context.Context, id string) error {
-	if _, err := s.db.ExecContext(ctx, "DELETE FROM outbox WHERE id = ?;", id); err != nil {
-		return fmt.Errorf("delete outbox item %q: %w", id, err)
+// DeleteOutbox removes a queued operation by id and reports whether an item was actually removed:
+// false means it was already gone, which the undo path uses to tell the user the message had left
+// before the cancel arrived.
+func (s *Store) DeleteOutbox(ctx context.Context, id string) (bool, error) {
+	result, err := s.db.ExecContext(ctx, "DELETE FROM outbox WHERE id = ?;", id)
+	if err != nil {
+		return false, fmt.Errorf("delete outbox item %q: %w", id, err)
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return false, fmt.Errorf("delete outbox item %q: %w", id, err)
+	}
+	return affected > 0, nil
+}
+
+// ClearOutboxHold removes an item's undo-send hold, degrading it to an ordinary queued operation that
+// the next replay sends. Used when a due item's send attempt finds the server unreachable, so the
+// dispatcher does not retry it on every tick.
+func (s *Store) ClearOutboxHold(ctx context.Context, id string) error {
+	if _, err := s.db.ExecContext(ctx, "UPDATE outbox SET hold_until_ms = 0 WHERE id = ?;", id); err != nil {
+		return fmt.Errorf("clear outbox hold %q: %w", id, err)
 	}
 	return nil
+}
+
+// NextOutboxHold returns the earliest undo-send hold among unfailed queued items and reports whether
+// one exists, so the dispatcher can wake exactly when the next held item comes due.
+func (s *Store) NextOutboxHold(ctx context.Context) (time.Time, bool, error) {
+	var holdMS int64
+	err := s.db.QueryRowContext(ctx,
+		"SELECT COALESCE(MIN(hold_until_ms), 0) FROM outbox WHERE hold_until_ms > 0 AND failure = '';").
+		Scan(&holdMS)
+	if err != nil {
+		return time.Time{}, false, fmt.Errorf("next outbox hold: %w", err)
+	}
+	if holdMS == 0 {
+		return time.Time{}, false, nil
+	}
+	return time.UnixMilli(holdMS).UTC(), true, nil
 }
 
 // MarkOutboxFailed stamps a permanent-failure reason on a queued operation so it is kept in the outbox
@@ -88,11 +130,11 @@ func scanOutbox(row scanner) (domain.OutboxItem, error) {
 		toJSON, ccJSON, bccJSON  string
 		subject, body, htmlBody  string
 		attachmentsJSON          string
-		createdMS                int64
+		createdMS, holdUntilMS   int64
 		failure                  string
 	)
 	if err := row.Scan(&id, &accountID, &kind, &fromDisplay, &fromAddress, &toJSON, &ccJSON,
-		&bccJSON, &subject, &body, &htmlBody, &attachmentsJSON, &createdMS, &failure); err != nil {
+		&bccJSON, &subject, &body, &htmlBody, &attachmentsJSON, &createdMS, &holdUntilMS, &failure); err != nil {
 		return domain.OutboxItem{}, fmt.Errorf("scan outbox item: %w", err)
 	}
 
@@ -132,6 +174,9 @@ func scanOutbox(row scanner) (domain.OutboxItem, error) {
 	item, err := domain.NewOutboxItem(id, accountID, domain.OutboxKind(kind), msg, time.UnixMilli(createdMS).UTC())
 	if err != nil {
 		return domain.OutboxItem{}, fmt.Errorf("rebuild outbox item %q: %w", id, err)
+	}
+	if holdUntilMS != 0 {
+		item = item.WithHoldUntil(time.UnixMilli(holdUntilMS).UTC())
 	}
 	if failure != "" {
 		item = item.WithFailure(failure)

@@ -182,8 +182,14 @@ type SentSaver interface {
 type OutboxStore interface {
 	EnqueueOutbox(ctx context.Context, item domain.OutboxItem) error
 	ListOutbox(ctx context.Context) ([]domain.OutboxItem, error)
-	DeleteOutbox(ctx context.Context, id string) error
+	// DeleteOutbox removes an item and reports whether one was actually removed: false means it was
+	// already gone, which the undo-send path surfaces as "the message had already left".
+	DeleteOutbox(ctx context.Context, id string) (bool, error)
 	MarkOutboxFailed(ctx context.Context, id, reason string) error
+	// ClearOutboxHold removes an item's undo-send hold so it degrades to an ordinary queued operation.
+	ClearOutboxHold(ctx context.Context, id string) error
+	// NextOutboxHold returns the earliest undo-send hold among unfailed items and whether one exists.
+	NextOutboxHold(ctx context.Context) (time.Time, bool, error)
 }
 
 // DraftRecoveryStore persists a single local snapshot of an in-progress compose window, so a message

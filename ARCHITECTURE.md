@@ -205,8 +205,21 @@ attachments in v9 so a queued message keeps them on replay) and returns success;
 queue as a per-account outbox folder where the waiting messages can be reviewed or cancelled. After the
 next successful sync the UI calls replay, which drains the queue oldest-first: each item is re-sent or
 re-appended, removed on success, left in place if still offline, and dropped (with its error reported)
-if it can never succeed. The queue covers outgoing mail only; message flag/delete/move actions remain
-online-only by design.
+if it can never succeed. A replayed send keeps the same best-effort Sent copy a direct send leaves. The
+queue covers outgoing mail only; message flag/delete/move actions remain online-only by design.
+
+Undo send: every send passes through `ComposeService.HoldSend` with the user's undo window (a Mail-menu
+choice of 0 to 30 seconds, default 10, persisted locally). A positive window queues the message in the
+same outbox with a hold instant (`hold_until_ms`, schema v43) and returns the queued id; the front end
+shows a countdown toast whose Undo cancels the item and reopens the composer exactly as it was, with a
+reply's answered-flag marking deferred to the window's expiry so an undone reply never flags its
+original. A held item is invisible to the ordinary replay (no path may send it early); once the hold
+elapses, a small dispatcher goroutine in the composition root (`runOutboxDispatcher`, woken by a short
+tick and gated on the store's earliest hold) sends it and announces the change over the `outbox:changed`
+event. An undo that loses the race is told so: cancel reports whether the item was still queued. A due
+item that finds the server unreachable has its hold cleared, degrading it to an ordinary offline-queued
+item for the next sync rather than being retried every tick, and a hold outlasting an app restart sends
+on the next launch.
 
 Junk, conversations and list order: marking a message as junk moves it to the account's Junk folder
 through the same online path as Move (`MessageActionService.MarkJunk`, resolving the Junk folder by kind).

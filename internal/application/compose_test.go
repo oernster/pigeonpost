@@ -393,15 +393,29 @@ func TestComposeOutboxItems(t *testing.T) {
 
 func TestComposeCancelOutbox(t *testing.T) {
 	d := newComposeDeps().withAccount(t)
-	if err := d.service().CancelOutbox(context.Background(), "q1"); err != nil {
+	d.outbox.items = []domain.OutboxItem{outboxItem(t, "q1", "a1", domain.OutboxSend)}
+	cancelled, err := d.service().CancelOutbox(context.Background(), "q1")
+	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+	if !cancelled {
+		t.Error("cancelling a queued item must report it was stopped")
 	}
 	if len(d.outbox.deleted) != 1 || d.outbox.deleted[0] != "q1" {
 		t.Errorf("deleted = %v, want [q1]", d.outbox.deleted)
 	}
 
+	// Cancelling again reports the item was already gone: an undo that lost the race must say so.
+	cancelled, err = d.service().CancelOutbox(context.Background(), "q1")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cancelled {
+		t.Error("cancelling a missing item must report the message had already left")
+	}
+
 	d.outbox.deleteErr = errBoom
-	if err := d.service().CancelOutbox(context.Background(), "q1"); !errors.Is(err, errBoom) {
+	if _, err := d.service().CancelOutbox(context.Background(), "q1"); !errors.Is(err, errBoom) {
 		t.Errorf("error = %v, want wrapped boom", err)
 	}
 }
@@ -618,6 +632,208 @@ func TestComposeClearDraftRecovery(t *testing.T) {
 		d := newComposeDeps()
 		d.recovery.clearErr = errBoom
 		if err := d.service().ClearDraftRecovery(context.Background()); !errors.Is(err, errBoom) {
+			t.Errorf("error = %v, want wrapped boom", err)
+		}
+	})
+}
+
+// heldItem builds a queued send carrying an undo-send hold ending at holdUntil.
+func heldItem(t *testing.T, id string, holdUntil time.Time) domain.OutboxItem {
+	t.Helper()
+	return outboxItem(t, id, "a1", domain.OutboxSend).WithHoldUntil(holdUntil)
+}
+
+func TestComposeHoldSend(t *testing.T) {
+	epoch := time.Unix(0, 0).UTC()
+
+	t.Run("queues the send behind the window and returns its id", func(t *testing.T) {
+		d := newComposeDeps().withAccount(t)
+		id, err := d.service().HoldSend(context.Background(), "a1", draftTo(t, "f@example.com"), 10*time.Second)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if id != "queued-id" {
+			t.Errorf("id = %q, want queued-id", id)
+		}
+		if len(d.transport.sent) != 0 {
+			t.Error("a held send must not reach the transport yet")
+		}
+		if len(d.outbox.items) != 1 {
+			t.Fatalf("queued items = %d, want 1", len(d.outbox.items))
+		}
+		item := d.outbox.items[0]
+		if item.Kind() != domain.OutboxSend || !item.HoldUntil().Equal(epoch.Add(10*time.Second)) {
+			t.Errorf("queued item wrong: kind=%v hold=%v", item.Kind(), item.HoldUntil())
+		}
+	})
+
+	t.Run("a zero window sends immediately", func(t *testing.T) {
+		d := newComposeDeps().withAccount(t)
+		id, err := d.service().HoldSend(context.Background(), "a1", draftTo(t, "f@example.com"), 0)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if id != "" {
+			t.Errorf("id = %q, want empty for an immediate send", id)
+		}
+		if len(d.transport.sent) != 1 || len(d.outbox.items) != 0 {
+			t.Errorf("expected a direct send, got sent=%d queued=%d", len(d.transport.sent), len(d.outbox.items))
+		}
+	})
+
+	t.Run("wraps an unknown account", func(t *testing.T) {
+		d := newComposeDeps()
+		if _, err := d.service().HoldSend(context.Background(), "missing", draftTo(t, "f@example.com"), 10*time.Second); err == nil {
+			t.Error("expected an error for an unknown account")
+		}
+	})
+
+	t.Run("wraps an enqueue failure", func(t *testing.T) {
+		d := newComposeDeps().withAccount(t)
+		d.outbox.enqueueErr = errBoom
+		if _, err := d.service().HoldSend(context.Background(), "a1", draftTo(t, "f@example.com"), 10*time.Second); !errors.Is(err, errBoom) {
+			t.Errorf("error = %v, want wrapped boom", err)
+		}
+	})
+
+	t.Run("wraps an id generator yielding no id", func(t *testing.T) {
+		d := newComposeDeps().withAccount(t)
+		svc := NewComposeService(d.accounts, d.store, d.transport, d.drafts, d.sent, d.outbox, d.recovery,
+			fakeClock{now: epoch}, func() string { return "" })
+		if _, err := svc.HoldSend(context.Background(), "a1", draftTo(t, "f@example.com"), 10*time.Second); !errors.Is(err, domain.ErrEmptyOutboxID) {
+			t.Errorf("error = %v, want ErrEmptyOutboxID", err)
+		}
+	})
+}
+
+func TestComposeReplayDueHeld(t *testing.T) {
+	epoch := time.Unix(0, 0).UTC()
+
+	t.Run("sends only the due held items and keeps the Sent copy", func(t *testing.T) {
+		d := newComposeDeps().withAccount(t).withSent(t)
+		d.outbox.items = []domain.OutboxItem{
+			heldItem(t, "q-due", epoch),
+			heldItem(t, "q-future", epoch.Add(time.Minute)),
+			outboxItem(t, "q-plain", "a1", domain.OutboxSend),
+			heldItem(t, "q-failed", epoch).WithFailure("rejected"),
+		}
+		sent, err := d.service().ReplayDueHeld(context.Background())
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if sent != 1 || len(d.transport.sent) != 1 {
+			t.Errorf("sent = %d (transport %d), want exactly the due item", sent, len(d.transport.sent))
+		}
+		if len(d.sent.saved) != 1 {
+			t.Errorf("a delivered held send must keep its Sent copy, saved = %d", len(d.sent.saved))
+		}
+		if len(d.outbox.deleted) != 1 || d.outbox.deleted[0] != "q-due" {
+			t.Errorf("deleted = %v, want [q-due]", d.outbox.deleted)
+		}
+	})
+
+	t.Run("an offline attempt clears the hold instead of retrying", func(t *testing.T) {
+		d := newComposeDeps().withAccount(t)
+		d.transport.sendErr = domain.ErrOffline
+		d.outbox.items = []domain.OutboxItem{heldItem(t, "q-due", epoch)}
+		sent, err := d.service().ReplayDueHeld(context.Background())
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if sent != 0 {
+			t.Errorf("sent = %d, want 0 while offline", sent)
+		}
+		if len(d.outbox.clearedHolds) != 1 || d.outbox.clearedHolds[0] != "q-due" {
+			t.Errorf("clearedHolds = %v, want [q-due]", d.outbox.clearedHolds)
+		}
+		if len(d.outbox.deleted) != 0 {
+			t.Error("an undelivered item must stay queued")
+		}
+	})
+
+	t.Run("wraps a clear-hold failure", func(t *testing.T) {
+		d := newComposeDeps().withAccount(t)
+		d.transport.sendErr = domain.ErrOffline
+		d.outbox.clearHoldErr = errBoom
+		d.outbox.items = []domain.OutboxItem{heldItem(t, "q-due", epoch)}
+		if _, err := d.service().ReplayDueHeld(context.Background()); !errors.Is(err, errBoom) {
+			t.Errorf("error = %v, want wrapped boom", err)
+		}
+	})
+
+	t.Run("stamps a permanent failure on the item", func(t *testing.T) {
+		d := newComposeDeps().withAccount(t)
+		d.transport.sendErr = errBoom
+		d.outbox.items = []domain.OutboxItem{heldItem(t, "q-due", epoch)}
+		_, err := d.service().ReplayDueHeld(context.Background())
+		if !errors.Is(err, errBoom) {
+			t.Errorf("error = %v, want the collected failure", err)
+		}
+		if d.outbox.failed["q-due"] == "" {
+			t.Error("the failure must be stamped on the item")
+		}
+		if len(d.outbox.deleted) != 0 {
+			t.Error("a failed item must stay in the outbox")
+		}
+	})
+
+	t.Run("wraps a mark-failed failure", func(t *testing.T) {
+		d := newComposeDeps().withAccount(t)
+		d.transport.sendErr = errBoom
+		d.outbox.markErr = errBoom
+		d.outbox.items = []domain.OutboxItem{heldItem(t, "q-due", epoch)}
+		if _, err := d.service().ReplayDueHeld(context.Background()); !errors.Is(err, errBoom) {
+			t.Errorf("error = %v, want wrapped boom", err)
+		}
+	})
+
+	t.Run("wraps a delete failure", func(t *testing.T) {
+		d := newComposeDeps().withAccount(t)
+		d.outbox.deleteErr = errBoom
+		d.outbox.items = []domain.OutboxItem{heldItem(t, "q-due", epoch)}
+		if _, err := d.service().ReplayDueHeld(context.Background()); !errors.Is(err, errBoom) {
+			t.Errorf("error = %v, want wrapped boom", err)
+		}
+	})
+
+	t.Run("wraps a list failure", func(t *testing.T) {
+		d := newComposeDeps()
+		d.outbox.listErr = errBoom
+		if _, err := d.service().ReplayDueHeld(context.Background()); !errors.Is(err, errBoom) {
+			t.Errorf("error = %v, want wrapped boom", err)
+		}
+	})
+}
+
+func TestComposeNextHold(t *testing.T) {
+	epoch := time.Unix(0, 0).UTC()
+
+	t.Run("returns the earliest hold", func(t *testing.T) {
+		d := newComposeDeps()
+		d.outbox.items = []domain.OutboxItem{
+			heldItem(t, "q-later", epoch.Add(time.Minute)),
+			heldItem(t, "q-sooner", epoch.Add(10*time.Second)),
+		}
+		next, ok, err := d.service().NextHold(context.Background())
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !ok || !next.Equal(epoch.Add(10*time.Second)) {
+			t.Errorf("next = %v ok=%v, want the sooner hold", next, ok)
+		}
+	})
+
+	t.Run("reports no hold", func(t *testing.T) {
+		d := newComposeDeps()
+		if _, ok, err := d.service().NextHold(context.Background()); err != nil || ok {
+			t.Errorf("ok=%v err=%v, want no hold and no error", ok, err)
+		}
+	})
+
+	t.Run("wraps a store failure", func(t *testing.T) {
+		d := newComposeDeps()
+		d.outbox.nextHoldErr = errBoom
+		if _, _, err := d.service().NextHold(context.Background()); !errors.Is(err, errBoom) {
 			t.Errorf("error = %v, want wrapped boom", err)
 		}
 	})

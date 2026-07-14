@@ -294,6 +294,9 @@ export interface ComposeInput {
     htmlBody: string
     attachmentPaths: string[]
     attachmentMessageIds: string[]
+    // holdSeconds is the undo-send window: greater than zero queues the send for that long (send returns
+    // the queued item's id, cancellable until it elapses) and zero sends immediately (send returns '').
+    holdSeconds: number
 }
 
 // DraftRecoveryInput is a local snapshot of the compose window, autosaved for crash and
@@ -451,7 +454,7 @@ export const api = {
     openReleases: (): Promise<void> => OpenReleasesPage(),
     minimiseToTray: (): Promise<void> => MinimiseToTray(),
     requestQuit: (): Promise<void> => RequestQuit(),
-    send: (req: ComposeInput): Promise<void> => SendMessage(main.ComposeRequest.createFrom(req)),
+    send: (req: ComposeInput): Promise<string> => SendMessage(main.ComposeRequest.createFrom(req)),
     saveDraft: (req: ComposeInput): Promise<void> => SaveDraft(main.ComposeRequest.createFrom(req)),
     saveDraftRecovery: (req: DraftRecoveryInput): Promise<void> =>
         SaveDraftRecovery(main.DraftRecoveryRequest.createFrom(req)),
@@ -459,7 +462,9 @@ export const api = {
     clearDraftRecovery: (): Promise<void> => ClearDraftRecovery(),
     outboxCount: (): Promise<number> => OutboxCount(),
     listOutbox: (): Promise<OutboxItem[]> => ListOutbox(),
-    cancelOutboxItem: (id: string): Promise<void> => CancelOutboxItem(id),
+    // cancelOutboxItem resolves true when the item was still queued and is now stopped; false means the
+    // message had already been sent, so an undo that lost the race can say so.
+    cancelOutboxItem: (id: string): Promise<boolean> => CancelOutboxItem(id),
     // A cancelled file dialog returns a Go nil slice, which arrives as null; coalesce it to an empty array
     // so callers can always read .length and filter it.
     pickAttachments: async (): Promise<string[]> => (await PickAttachments()) ?? [],

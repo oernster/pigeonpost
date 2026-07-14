@@ -301,3 +301,29 @@
     padding: 32px;
 }
 
+
+/* The undo-send countdown toast, shown bottom-centre after a held send. */
+.undo-send-toast {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 3000;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 10px 16px;
+    background: var(--bg);
+    border: 1px solid var(--accent);
+    border-radius: 8px;
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.35);
+}
+
+.undo-send-text {
+    color: var(--text);
+    font-weight: 600;
+}
+
+.undo-send-btn {
+    font-weight: 600;
+}
