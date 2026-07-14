@@ -304,7 +304,7 @@ function App() {
         messageToPurge, setMessageToPurge, purgingMessage,
         requestDelete, deleteMessage, deletePermanent, toggleFlag, moveMessage, markJunk, copyMessage,
         setReadState, toggleRead, markReadOnView, markReplied, markForwarded,
-    } = useMessageActions({store, displayMessages, searchActive, loadUnread, setError})
+    } = useMessageActions({store, displayMessages, searchActive, loadUnread, refreshFolders, setError})
 
     // Fetch (and cache) the full body of the selected message. Keyed on the id so re-selecting the
     // same message after a flag change does not re-fetch.

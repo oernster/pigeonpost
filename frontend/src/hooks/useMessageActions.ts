@@ -5,12 +5,15 @@ import type {MessageStore} from './useMessageStore'
 
 // MessageActionsDeps is what the single-message actions need from the rest of App: the message store they
 // mutate, the visible list and the search flag (used to pick the next selection after a removal), the
-// unread-count refresher and the error sink.
+// two badge refreshers and the error sink. loadUnread refreshes the per-account and titlebar unread
+// badges; refreshFolders reloads the folder tree, whose rows carry the per-folder unread badge. Every
+// action that can change a folder's unread count must refresh both, or the folder badge goes stale.
 export interface MessageActionsDeps {
     store: MessageStore
     displayMessages: Message[]
     searchActive: boolean
     loadUnread: () => Promise<void>
+    refreshFolders: () => Promise<void>
     setError: (message: string) => void
 }
 
@@ -40,7 +43,7 @@ export interface MessageActions {
 // it shows wherever the message appears. Bulk actions, tag actions and the outbox cancel live in their own
 // hooks.
 export function useMessageActions(deps: MessageActionsDeps): MessageActions {
-    const {store, displayMessages, searchActive, loadUnread, setError} = deps
+    const {store, displayMessages, searchActive, loadUnread, refreshFolders, setError} = deps
     const {
         searchResults, setMessages, setSearchResults, setTabs, setSelectedMessage,
         applyToAllLists, removeFromAllLists,
@@ -50,6 +53,14 @@ export function useMessageActions(deps: MessageActionsDeps): MessageActions {
     const [deletingMessage, setDeletingMessage] = useState<boolean>(false)
     const [messageToPurge, setMessageToPurge] = useState<Message | null>(null)
     const [purgingMessage, setPurgingMessage] = useState<boolean>(false)
+
+    // refreshBadges refreshes every surface that shows an unread count (the account and titlebar badges
+    // and the folder tree's per-folder badges) after an action that can change one. It is one shared
+    // refresher precisely so no action can update one badge and forget the other, which is how a read
+    // message used to leave its folder's badge stale until relaunch.
+    const refreshBadges = useCallback(async () => {
+        await Promise.all([loadUnread(), refreshFolders()])
+    }, [loadUnread, refreshFolders])
 
     const deleteMessage = useCallback(async () => {
         if (!messageToDelete) {
@@ -67,13 +78,13 @@ export function useMessageActions(deps: MessageActionsDeps): MessageActions {
             setTabs((prev) => prev.filter((m) => m.id !== id))
             setSelectedMessage((prev) => (prev?.id === id ? next : prev))
             setMessageToDelete(null)
-            await loadUnread()
+            await refreshBadges()
         } catch (e) {
             setError(String(e))
         } finally {
             setDeletingMessage(false)
         }
-    }, [messageToDelete, searchActive, searchResults, displayMessages, loadUnread])
+    }, [messageToDelete, searchActive, searchResults, displayMessages, refreshBadges])
 
     // deletePermanent is the confirmed, irreversible delete behind Shift+Delete: it removes the message
     // from the server without moving it to Trash, then advances the selection.
@@ -93,13 +104,13 @@ export function useMessageActions(deps: MessageActionsDeps): MessageActions {
             setTabs((prev) => prev.filter((m) => m.id !== id))
             setSelectedMessage((prev) => (prev?.id === id ? next : prev))
             setMessageToPurge(null)
-            await loadUnread()
+            await refreshBadges()
         } catch (e) {
             setError(String(e))
         } finally {
             setPurgingMessage(false)
         }
-    }, [messageToPurge, searchActive, searchResults, displayMessages, loadUnread])
+    }, [messageToPurge, searchActive, searchResults, displayMessages, refreshBadges])
 
     // requestDelete always asks for confirmation before deleting. The confirmed delete moves the message to
     // Trash where the account has one, or removes it permanently otherwise (the dialog says which). Shared
@@ -149,16 +160,18 @@ export function useMessageActions(deps: MessageActionsDeps): MessageActions {
     }, [applyToAllLists])
 
     // moveMessageById moves a message to a folder by id. It backs moveMessage; a same-folder drop is a
-    // no-op on the server.
+    // no-op on the server. Moving an unread message changes both folders' unread counts, so the badges
+    // are refreshed.
     const moveMessageById = useCallback(async (messageId: string, destFolderId: string) => {
         setError('')
         try {
             await api.moveMessage(messageId, destFolderId)
             removeFromAllLists(new Set([messageId]))
+            await refreshBadges()
         } catch (e) {
             setError(String(e))
         }
-    }, [removeFromAllLists])
+    }, [removeFromAllLists, refreshBadges])
 
     const moveMessage = useCallback(
         (message: Message, destFolderId: string) => moveMessageById(message.id, destFolderId),
@@ -178,11 +191,11 @@ export function useMessageActions(deps: MessageActionsDeps): MessageActions {
             setSearchResults((prev) => prev.filter((m) => m.id !== id))
             setTabs((prev) => prev.filter((m) => m.id !== id))
             setSelectedMessage((prev) => (prev?.id === id ? next : prev))
-            await loadUnread()
+            await refreshBadges()
         } catch (e) {
             setError(String(e))
         }
-    }, [searchActive, searchResults, displayMessages, loadUnread])
+    }, [searchActive, searchResults, displayMessages, refreshBadges])
 
     // Copy leaves the original in place; the duplicate appears in the destination folder on next sync, so
     // there is no local list change to make here.
@@ -196,16 +209,17 @@ export function useMessageActions(deps: MessageActionsDeps): MessageActions {
     }, [])
 
     // setReadState sets a message's read flag on the server and optimistically in the on-screen lists, so
-    // it bolds or un-bolds at once. Used by the Mark submenu (explicit read/unread) and on view.
+    // it bolds or un-bolds at once, then refreshes the account and folder badges. Used by the Mark
+    // submenu (explicit read/unread) and on view.
     const setReadState = useCallback(async (message: Message, read: boolean) => {
         applyToAllLists((m) => (m.id === message.id ? {...m, read} : m))
         try {
             await api.markRead(message.id, read)
-            await loadUnread()
+            await refreshBadges()
         } catch (e) {
             setError(String(e))
         }
-    }, [applyToAllLists, loadUnread])
+    }, [applyToAllLists, refreshBadges])
 
     // toggleRead flips a message's read flag by delegating to setReadState, which updates the flag in place
     // across every list (the open reader included) and refreshes the unread counts. It does not reload the
