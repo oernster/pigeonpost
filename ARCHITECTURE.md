@@ -83,7 +83,9 @@ Sync and read:
    read and star marks kept locally since POP3 carries no server flags. The message server handle is an
    opaque string (schema v11) that holds an IMAP UID or a POP3 UIDL. Folder unread and total counts are
    computed from the cached messages, so the per-folder, per-account and total badges are populated
-   without a separate server STATUS pass.
+   without a separate server STATUS pass. On the front end, every message action that can change an
+   unread count (mark read/unread, delete, junk, move, the bulk forms) refreshes the account badges and
+   the folder tree together through one shared refresher, so no badge surface can go stale alone.
 
 Add account:
 
