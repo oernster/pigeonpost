@@ -10,9 +10,13 @@ const PAPER_INK = '#1a1a1a'
 const PAPER_BACKGROUND_DARK = '#1a1a1a'
 const PAPER_INK_DARK = '#e6e6e6'
 const FRAME_PADDING_PX = 12
-const FRAME_FONT_SIZE_PX = 14
-const FRAME_LINE_HEIGHT = 1.55
-const FRAME_FONT_STACK = "-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif"
+// 15px with a 1.6 leading, matching the app's own reading surfaces: email is read at length, so the frame
+// gets the full base size rather than a compacted UI size. Segoe UI Variable Text leads the stack for the
+// same reason as the app stylesheet: it is the Windows 11 text face and renders clearer in WebView2 than
+// classic Segoe UI, which stays behind it as the fallback.
+const FRAME_FONT_SIZE_PX = 15
+const FRAME_LINE_HEIGHT = 1.6
+const FRAME_FONT_STACK = "'Segoe UI Variable Text','Segoe UI',-apple-system,BlinkMacSystemFont,system-ui,sans-serif"
 
 // paperStyle gives the email a page with readable defaults and stops a wide image or table overflowing the
 // reader. The message's own inline styles and <style> blocks layer on top of it. It is authored once and

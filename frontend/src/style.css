@@ -8,7 +8,9 @@
     --border: #303743;
     --text: #e6e9ef;
     --text-strong: #ffffff;
-    --text-dim: #9aa4b2;
+    /* Dim text still has to be comfortably readable: this sits at roughly 9.4:1 against --bg (the old
+       #9aa4b2 was 7.1:1 and read as murky grey on the dark panes). */
+    --text-dim: #b3bdcb;
     --accent: #7fb0ff;
     --accent-ink: #0b1220;
     /* Primary buttons use a warm fill (banana yellow here) so the teal --ring focus/hover outline
@@ -17,7 +19,10 @@
     --primary-ink: #0b1220;
     --danger: #ff6b6b;
     --ring: #5eead4;
-    --font: -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Helvetica Neue", sans-serif;
+    /* Segoe UI Variable Text leads the stack: it is the Windows 11 text-optimised face and renders
+       noticeably heavier and clearer than classic Segoe UI at UI sizes in WebView2. The classic face and
+       the Apple/generic entries remain as fallbacks for Windows 10 and the planned macOS/Linux builds. */
+    --font: "Segoe UI Variable Text", "Segoe UI", -apple-system, BlinkMacSystemFont, "Roboto", "Helvetica Neue", sans-serif;
 }
 
 :root[data-theme="light"] {
@@ -28,7 +33,8 @@
     --border: #d5d9e0;
     --text: #1c2028;
     --text-strong: #000000;
-    --text-dim: #5b6472;
+    /* Darkened from #5b6472 (5.9:1 on white) to about 7.7:1 so secondary text holds up in light mode too. */
+    --text-dim: #4b5461;
     --accent: #2f6fed;
     --accent-ink: #ffffff;
     /* Light theme: a light mauve fill with dark ink, again for contrast against the deep-teal --ring. */
@@ -47,12 +53,14 @@ html, body, #root {
     margin: 0;
 }
 
+/* 15px base (up from 14px): the app is read for long stretches and 14px Segoe was hard work. No
+   font-smoothing override: -webkit-font-smoothing is a no-op on Windows and "antialiased" thins glyphs
+   on macOS, which would make the planned macOS build harder to read, not easier. */
 body {
     background-color: var(--bg);
     color: var(--text);
     font-family: var(--font);
-    font-size: 14px;
-    -webkit-font-smoothing: antialiased;
+    font-size: 15px;
 }
 
 button {

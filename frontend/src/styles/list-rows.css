@@ -12,7 +12,7 @@
 }
 
 .item-sub {
-    font-size: 12px;
+    font-size: 13px;
     color: var(--text-dim);
 }
 
@@ -173,7 +173,7 @@
 
 .message-subject {
     margin-top: 3px;
-    font-size: 14px;
+    font-size: 15px;
 }
 
 .attach {
@@ -195,7 +195,7 @@
 
 .message-snippet {
     margin-top: 3px;
-    font-size: 13px;
+    font-size: 14px;
     color: var(--text-dim);
     overflow: hidden;
     text-overflow: ellipsis;

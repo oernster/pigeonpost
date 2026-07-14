@@ -6,19 +6,21 @@
     border-radius: 4px;
 }
 
+/* Message body text is the app's primary reading surface, so it gets the full 15px base and a slightly
+   looser leading than the chrome around it. */
 .reader-text {
     margin: 0;
     white-space: pre-wrap;
     word-break: break-word;
     font-family: inherit;
-    font-size: 14px;
-    line-height: 1.55;
+    font-size: 15px;
+    line-height: 1.6;
     color: var(--text);
 }
 
 .reader-html {
-    font-size: 14px;
-    line-height: 1.55;
+    font-size: 15px;
+    line-height: 1.6;
     color: var(--text);
     word-break: break-word;
 }
@@ -116,7 +118,7 @@
 .reader-html h4,
 .reader-html h5,
 .reader-html h6 {
-    font-size: 14px;
+    font-size: 15px;
 }
 
 .reader-html pre {
