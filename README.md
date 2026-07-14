@@ -27,8 +27,10 @@ local-first. A calmer, more predictable alternative to Thunderbird.
   and StartMail, plus a manual host/port/security path), credentials verified before saving. A preset
   whose provider needs an app password says so plainly (a normal login password will not work) and links
   to the page that creates one. Microsoft accounts
-  via one-click OAuth. A separate inbox per account (no unified inbox), send-as addresses and drag or
-  button reordering. POP3 downloads into one local mailbox with read and star marks kept locally.
+  via one-click OAuth. Each account keeps its own inbox, with an optional unified mailbox (a View tick)
+  that merges every inbox into one list, each row dotted with its account's colour; replies from it send
+  from the row's own account. Send-as addresses and drag or button reordering. POP3 downloads into one
+  local mailbox with read and star marks kept locally.
 - **Mail**: folders and summaries cached to local SQLite and read offline; bodies fetched on open and
   cached. HTML renders faithfully in a sandboxed frame that keeps the sender's own styles while running
   no scripts and making no remote requests; remote images are blocked by default until you load them

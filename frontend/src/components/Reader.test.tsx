@@ -43,6 +43,7 @@ function makeMessage(overrides: Partial<Message> = {}): Message {
     return {
         id: 'm1',
         folderId: 'inbox',
+        accountId: '',
         subject: 'Hello there',
         fromName: 'Alice Example',
         fromAddress: 'alice@example.com',

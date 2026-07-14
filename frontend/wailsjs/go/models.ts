@@ -896,6 +896,7 @@ export namespace main {
 	export class MessageDTO {
 	    id: string;
 	    folderId: string;
+	    accountId: string;
 	    subject: string;
 	    fromName: string;
 	    fromAddress: string;
@@ -919,6 +920,7 @@ export namespace main {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
 	        this.folderId = source["folderId"];
+	        this.accountId = source["accountId"];
 	        this.subject = source["subject"];
 	        this.fromName = source["fromName"];
 	        this.fromAddress = source["fromAddress"];

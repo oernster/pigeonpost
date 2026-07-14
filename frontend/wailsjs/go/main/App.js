@@ -190,6 +190,14 @@ export function ListThreads(arg1) {
   return window['go']['main']['App']['ListThreads'](arg1);
 }
 
+export function ListUnifiedMessages() {
+  return window['go']['main']['App']['ListUnifiedMessages']();
+}
+
+export function ListUnifiedMessagesPage(arg1, arg2, arg3, arg4, arg5) {
+  return window['go']['main']['App']['ListUnifiedMessagesPage'](arg1, arg2, arg3, arg4, arg5);
+}
+
 export function LoadRemoteImages(arg1) {
   return window['go']['main']['App']['LoadRemoteImages'](arg1);
 }
@@ -376,6 +384,10 @@ export function SignInMicrosoft(arg1) {
 
 export function SyncAccount(arg1) {
   return window['go']['main']['App']['SyncAccount'](arg1);
+}
+
+export function SyncAllInboxes() {
+  return window['go']['main']['App']['SyncAllInboxes']();
 }
 
 export function SyncCalDAV(arg1) {

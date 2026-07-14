@@ -27,6 +27,7 @@ export default defineConfig({
         'src/calendarModel.ts',
         'src/replyDraft.ts',
         'src/caldavAccount.ts',
+        'src/unified.ts',
       ],
       thresholds: {lines: 100, functions: 100, statements: 100, branches: 100},
     },

@@ -54,6 +54,7 @@ const ACCOUNTS = [makeAccount('a1', 'Alice', 'alice@x.com'), makeAccount('a2', '
 
 function renderSidebar(overrides: Partial<SidebarProps> = {}) {
     const handlers = {
+        onSelectUnified: vi.fn(),
         onSelectAccount: vi.fn(),
         onSelectFolder: vi.fn(),
         onEditAccount: vi.fn(),
@@ -68,6 +69,9 @@ function renderSidebar(overrides: Partial<SidebarProps> = {}) {
     const props: SidebarProps = {
         accounts: ACCOUNTS,
         selectedAccount: 'a1',
+        unifiedEnabled: false,
+        unifiedSelected: false,
+        unifiedUnread: 0,
         syncingAccountIds: new Set<string>(),
         unreadByAccount: {},
         folders: [],
@@ -331,5 +335,34 @@ describe('Sidebar: folder drag and drop', () => {
         dropOn(folderRow('work')!, makeDataTransfer({[folderDragType]: 'personal'}), 10)
         expect(onReparentFolder).not.toHaveBeenCalled()
         expect(localStorage.getItem(folderOrderKey('a1'))).toBe('["Work","Personal"]')
+    })
+})
+
+describe('Sidebar: unified mailbox entry', () => {
+    it('is absent while the View tick is off', () => {
+        const {container} = renderSidebar()
+        expect(container.querySelector('[data-unified-entry]')).toBeNull()
+    })
+
+    it('shows the badged All-inboxes entry and selects the combined view on click', () => {
+        const {container, onSelectUnified} = renderSidebar({
+            unifiedEnabled: true, unifiedSelected: true, unifiedUnread: 7,
+        })
+        const entry = container.querySelector<HTMLElement>('[data-unified-entry] .list-item')
+        expect(entry).not.toBeNull()
+        expect(entry!.classList.contains('selected')).toBe(true)
+        expect(entry!.textContent).toContain('All inboxes')
+        expect(entry!.textContent).toContain('7')
+        fireEvent.click(entry!)
+        expect(onSelectUnified).toHaveBeenCalled()
+    })
+
+    it('hides the badge at zero unread and selects on Enter', () => {
+        const {container, onSelectUnified} = renderSidebar({unifiedEnabled: true})
+        const entry = container.querySelector<HTMLElement>('[data-unified-entry] .list-item')
+        expect(entry!.querySelector('.badge')).toBeNull()
+        expect(entry!.classList.contains('selected')).toBe(false)
+        fireEvent.keyDown(entry!, {key: 'Enter'})
+        expect(onSelectUnified).toHaveBeenCalled()
     })
 })

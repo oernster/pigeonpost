@@ -5,7 +5,10 @@ package main
 // app.go so the composition root stays within the module-size limit, mirroring calendarapi.go and
 // contactsapi.go.
 
-import "github.com/oernster/pigeonpost/internal/domain"
+import (
+	"github.com/oernster/pigeonpost/internal/application"
+	"github.com/oernster/pigeonpost/internal/domain"
+)
 
 // ListMessages returns the cached message summaries for a folder.
 func (a *App) ListMessages(folderID string) ([]MessageDTO, error) {
@@ -80,6 +83,60 @@ func (a *App) SearchMessages(query, folderID, accountID string) (SearchResultDTO
 		})
 	}
 	return result, nil
+}
+
+// ListUnifiedMessages returns every account's cached inbox messages merged into one newest-first list,
+// each row stamped with its owning account, for the unified mailbox's conversation view (which needs the
+// whole combined set to thread it).
+func (a *App) ListUnifiedMessages() ([]MessageDTO, error) {
+	merged, err := a.unified.Messages(a.ctx)
+	if err != nil {
+		return nil, err
+	}
+	return toUnifiedMessageDTOs(merged, a.unifiedColours(merged)), nil
+}
+
+// ListUnifiedMessagesPage returns one keyset page of the combined inbox list for the unified mailbox's
+// flat view, with the same cursor mechanics as ListMessagesPage: the first call passes hasCursor false
+// and each later call passes the previous page's NextCursor* values back.
+func (a *App) ListUnifiedMessagesPage(hasCursor bool, cursorDateMs int64, cursorID string, limit int, ascending bool) (MessagePageDTO, error) {
+	merged, err := a.unified.MessagesPage(a.ctx, hasCursor, cursorDateMs, cursorID, limit, ascending)
+	if err != nil {
+		return MessagePageDTO{}, err
+	}
+	page := MessagePageDTO{Messages: toUnifiedMessageDTOs(merged, a.unifiedColours(merged)), HasMore: len(merged) == limit}
+	if len(merged) > 0 {
+		last := merged[len(merged)-1].Summary
+		page.NextCursorDateMs = last.Date().UnixMilli()
+		page.NextCursorID = last.ID()
+	}
+	return page, nil
+}
+
+// unifiedColours batch-loads the tag colours for a merged listing's rows. Tag colours are decorative;
+// a failure to load them must not break the list, so it degrades to none.
+func (a *App) unifiedColours(merged []application.UnifiedMessage) map[string][]string {
+	ids := make([]string, len(merged))
+	for i, m := range merged {
+		ids[i] = m.Summary.ID()
+	}
+	colours, err := a.tags.ColoursForMessages(a.ctx, ids)
+	if err != nil {
+		return nil
+	}
+	return colours
+}
+
+// toUnifiedMessageDTOs maps merged unified rows to DTOs, stamping each with its owning account so the
+// front end can label the row.
+func toUnifiedMessageDTOs(merged []application.UnifiedMessage, coloursByID map[string][]string) []MessageDTO {
+	out := make([]MessageDTO, 0, len(merged))
+	for _, m := range merged {
+		dto := toMessageDTO(m.Summary, coloursByID[m.Summary.ID()])
+		dto.AccountID = m.AccountID
+		out = append(out, dto)
+	}
+	return out
 }
 
 // LoadRemoteImages returns the open message's HTML with its blocked remote images fetched server-side and

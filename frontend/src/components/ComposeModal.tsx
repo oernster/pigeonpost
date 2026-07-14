@@ -21,6 +21,10 @@ export interface MessageAttachment {
 }
 
 export interface ComposeInitial {
+    // accountId names the account this compose sends from when it is not the selected one: a reply or
+    // forward opened from a unified-mailbox row must send from the row's own account. Unset falls back
+    // to the selected account.
+    accountId?: string
     // from preselects the sender address (used by reply to send as the address the message was delivered
     // to). Empty falls back to the account's primary address.
     from?: string
@@ -151,6 +155,7 @@ export function ComposeModal({accountId, senders, initial, canSaveDraft, onMarkR
     // reopenInitial captures the whole compose state, so an undone send reopens exactly as it was,
     // including the reply/forward marking intent the toast applies once the window elapses.
     const reopenInitial = (): ComposeInitial => ({
+        accountId,
         from,
         to,
         cc,

@@ -66,8 +66,12 @@ type AddressDTO struct {
 
 // MessageDTO is the JSON-serialisable view of a message summary.
 type MessageDTO struct {
-	ID             string       `json:"id"`
-	FolderID       string       `json:"folderId"`
+	ID       string `json:"id"`
+	FolderID string `json:"folderId"`
+	// AccountID is the owning account, stamped only by the unified-mailbox listings so their rows can be
+	// labelled per account. It is empty on a per-folder listing, which is already scoped to one account
+	// the front end knows.
+	AccountID      string       `json:"accountId"`
 	Subject        string       `json:"subject"`
 	FromName       string       `json:"fromName"`
 	FromAddress    string       `json:"fromAddress"`

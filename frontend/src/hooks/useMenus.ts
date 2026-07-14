@@ -20,13 +20,17 @@ export interface MenusDeps {
     activeOutbox: boolean
     canMailAct: boolean
     canReplyAll: boolean
-    isPop3: boolean
+    // canMoveCopy gates Move to, Copy to and Mark as junk: false for POP3 (no server-side folders) and
+    // in the unified mailbox (its rows span accounts while the folder targets belong to one).
+    canMoveCopy: boolean
     selectedAccount: string
     accountSyncing: boolean
     isWindows: boolean
     conversationView: boolean
     previewEnabled: boolean
     autoLoadImages: boolean
+    // unifiedMailbox is the View tick that shows the combined all-inboxes entry in the sidebar.
+    unifiedMailbox: boolean
     // The undo-send window in seconds (0 = off) and its setter, shown as a Mail-menu submenu of ticks.
     undoSendSeconds: number
     setUndoSendSeconds: (seconds: number) => void
@@ -44,6 +48,7 @@ export interface MenusDeps {
     toggleConversationView: () => void
     togglePreview: () => void
     toggleAutoLoadImages: () => void
+    toggleUnifiedMailbox: () => void
     // Mail menu.
     signatureHtml: () => string
     setComposeInitial: Dispatch<SetStateAction<ComposeInitial | undefined>>
@@ -84,11 +89,11 @@ export interface Menus {
 // items for the global keydown handler, which is suppressed while a dialog or the context menu is open.
 export function useMenus(deps: MenusDeps): Menus {
     const {
-        activeMessage, activeOutbox, canMailAct, canReplyAll, isPop3, selectedAccount, accountSyncing,
-        isWindows, conversationView, previewEnabled, autoLoadImages, undoSendSeconds, setUndoSendSeconds,
+        activeMessage, activeOutbox, canMailAct, canReplyAll, canMoveCopy, selectedAccount, accountSyncing,
+        isWindows, conversationView, previewEnabled, autoLoadImages, unifiedMailbox, undoSendSeconds, setUndoSendSeconds,
         folders, messageTags,
         saveMessageAs, printMessage, setManagingRules, setManagingTemplates, focusSearch,
-        toggleConversationView, togglePreview, toggleAutoLoadImages,
+        toggleConversationView, togglePreview, toggleAutoLoadImages, toggleUnifiedMailbox,
         signatureHtml, setComposeInitial, setComposing, setSettingUp, sync, openInNewTab,
         openReply, openReplyAll, openForward, attachToNewMessage, setReadState, toggleFlag, toggleTag,
         moveMessage, copyMessage, markJunk, setMessageToCancelSend, requestDelete, setMessageToPurge,
@@ -157,6 +162,11 @@ export function useMenus(deps: MenusDeps): Menus {
             label: 'Conversation view',
             checked: conversationView,
             onClick: toggleConversationView,
+        },
+        {
+            label: 'Unified mailbox',
+            checked: unifiedMailbox,
+            onClick: toggleUnifiedMailbox,
         },
         {
             label: 'Reading pane',
@@ -249,7 +259,7 @@ export function useMenus(deps: MenusDeps): Menus {
         {label: '', separator: true},
         {
             label: 'Move to',
-            disabled: !canMailAct || isPop3 || mailMoveTargets.length === 0,
+            disabled: !canMailAct || !canMoveCopy || mailMoveTargets.length === 0,
             submenu: mailMoveTargets.map((f) => ({
                 label: f.name,
                 onClick: () => activeMessage && void moveMessage(activeMessage, f.id),
@@ -257,7 +267,7 @@ export function useMenus(deps: MenusDeps): Menus {
         },
         {
             label: 'Copy to',
-            disabled: !canMailAct || isPop3 || mailMoveTargets.length === 0,
+            disabled: !canMailAct || !canMoveCopy || mailMoveTargets.length === 0,
             submenu: mailMoveTargets.map((f) => ({
                 label: f.name,
                 onClick: () => activeMessage && void copyMessage(activeMessage, f.id),
@@ -265,7 +275,7 @@ export function useMenus(deps: MenusDeps): Menus {
         },
         {
             label: 'Mark as junk',
-            disabled: !canMailAct || isPop3,
+            disabled: !canMailAct || !canMoveCopy,
             onClick: () => activeMessage && void markJunk(activeMessage),
         },
         {label: '', separator: true},

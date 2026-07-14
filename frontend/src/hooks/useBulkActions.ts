@@ -1,15 +1,16 @@
 import {Dispatch, SetStateAction, useCallback, useState} from 'react'
-import {api, Message} from '../api'
+import {api, Folder, Message} from '../api'
 import {OUTBOX_FOLDER_ID, isOutboxMessage} from '../outbox'
 import type {MessageStore} from './useMessageStore'
 import type {Selection} from './useSelection'
 
 // BulkActionsDeps is what the multi-selection actions need from the rest of App: the message store they
-// mutate, the selection they read and clear, the unread-count refresher, the folder-list refresher and the
-// error sink.
+// mutate, the selection they read and clear, the folder list (a drop target's account gates which rows
+// may move onto it), the unread-count refresher, the folder-list refresher and the error sink.
 export interface BulkActionsDeps {
     store: MessageStore
     selection: Selection
+    folders: Folder[]
     loadUnread: () => Promise<void>
     refreshFolders: () => Promise<void>
     setError: (message: string) => void
@@ -34,7 +35,7 @@ export interface BulkActions {
 // change goes through the message store, so it shows wherever a message appears, and the selection is
 // cleared after a delete or move. The single-message actions live in useMessageActions.
 export function useBulkActions(deps: BulkActionsDeps): BulkActions {
-    const {store, selection, loadUnread, refreshFolders, setError} = deps
+    const {store, selection, folders, loadUnread, refreshFolders, setError} = deps
     const {
         messages, searchResults, setMessages, setSearchResults, setSelectedMessage,
         applyToAllLists, removeFromAllLists,
@@ -78,21 +79,24 @@ export function useBulkActions(deps: BulkActionsDeps): BulkActions {
 
     // dropMessageOnFolder is the drag-and-drop target handler. Dropping a row that is part of the
     // multi-selection moves the whole selection; dropping any other row moves just that one. Messages
-    // already in the target folder and synthetic outbox items are skipped. The move is batched, so a
-    // large drop stays under Gmail's connection cap.
+    // already in the target folder, synthetic outbox items and rows belonging to a different account
+    // than the target folder (a unified-list row cannot move across accounts) are skipped. The move is
+    // batched, so a large drop stays under Gmail's connection cap.
     const dropMessageOnFolder = useCallback((messageId: string, folderId: string) => {
         if (folderId === OUTBOX_FOLDER_ID) {
             return
         }
+        const targetAccount = folders.find((f) => f.id === folderId)?.accountId ?? ''
         const ids = markedIds.has(messageId) && markedIds.size > 1 ? [...markedIds] : [messageId]
         const movable = ids.filter((id) => {
             const source = messages.find((m) => m.id === id) ?? searchResults.find((m) => m.id === id)
             return source !== undefined && source.folderId !== folderId && !isOutboxMessage(source)
+                && (!source.accountId || source.accountId === targetAccount)
         })
         setMarkedIds(new Set())
         setAnchorId(null)
         void bulkMoveIds(movable, folderId)
-    }, [markedIds, messages, searchResults, bulkMoveIds])
+    }, [markedIds, messages, searchResults, folders, bulkMoveIds])
 
     // runBulkDelete carries out a confirmed bulk delete or permanent delete over the selected messages in
     // one batched backend call: the server groups them by folder and issues a single delete per folder,

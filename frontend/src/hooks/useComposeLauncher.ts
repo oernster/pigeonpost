@@ -110,17 +110,25 @@ export function useComposeLauncher(deps: ComposeLauncherDeps): ComposeLauncher {
     // message and above the quoted text on a reply or forward.
     const signatureHtml = (): string => signatureHtmlFor(accounts.find((a) => a.id === selectedAccount))
 
+    // composeAccountFor resolves which account a reply or forward of a message sends from: the row's own
+    // account when it carries one (a unified-mailbox row can belong to any account), otherwise the
+    // selected account. The From address and the signature are derived from the same account.
+    const composeAccountFor = (message: Message): string =>
+        message.accountId || selectedAccount
+
     // replyFrom picks which of the account's own addresses a reply is sent from (see replyDraft.replyFromAddress).
-    const replyFrom = (message: Message): string =>
-        replyFromAddress(message, sendersFor(accounts.find((a) => a.id === selectedAccount)))
+    const replyFrom = (message: Message, accountId: string): string =>
+        replyFromAddress(message, sendersFor(accounts.find((a) => a.id === accountId)))
 
     const openReply = (message: Message) => {
+        const accountId = composeAccountFor(message)
         setComposeInitial({
             ...buildReply(message, {
-                from: replyFrom(message),
-                signatureHtml: signatureHtml(),
+                from: replyFrom(message, accountId),
+                signatureHtml: signatureHtmlFor(accounts.find((a) => a.id === accountId)),
                 quotedHtml: quoteFor(message, messageBody),
             }),
+            accountId,
             inReplyToId: message.id,
             replyKind: 'reply',
         })
@@ -128,12 +136,14 @@ export function useComposeLauncher(deps: ComposeLauncherDeps): ComposeLauncher {
     }
 
     const openReplyAll = (message: Message) => {
+        const accountId = composeAccountFor(message)
         setComposeInitial({
-            ...buildReplyAll(message, selectedAccount, {
-                from: replyFrom(message),
-                signatureHtml: signatureHtml(),
+            ...buildReplyAll(message, accountId, {
+                from: replyFrom(message, accountId),
+                signatureHtml: signatureHtmlFor(accounts.find((a) => a.id === accountId)),
                 quotedHtml: quoteFor(message, messageBody),
             }),
+            accountId,
             inReplyToId: message.id,
             replyKind: 'reply',
         })
@@ -141,11 +151,13 @@ export function useComposeLauncher(deps: ComposeLauncherDeps): ComposeLauncher {
     }
 
     const openForward = (message: Message) => {
+        const accountId = composeAccountFor(message)
         setComposeInitial({
             ...buildForward(message, {
-                signatureHtml: signatureHtml(),
+                signatureHtml: signatureHtmlFor(accounts.find((a) => a.id === accountId)),
                 quotedHtml: quoteFor(message, messageBody),
             }),
+            accountId,
             inReplyToId: message.id,
             replyKind: 'forward',
         })

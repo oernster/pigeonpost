@@ -101,6 +101,8 @@ func run() error {
 	microsoftSetupService := application.NewMicrosoftSetupService(store, vault, mailSource, authorizer, buildMicrosoftAccount)
 	// Search date operators (before:/after:/on:) are read in the user's local calendar.
 	mailboxService := application.NewMailboxService(store, time.Local)
+	// The unified mailbox reads the same local cache, merged across every account's inbox.
+	unifiedService := application.NewUnifiedMailboxService(store, store)
 	// The tag-sync service rounds user tags onto the server as IMAP keywords; the sync service drives its
 	// flush and reconcile, so it is constructed first and injected into the sync.
 	tagSyncService := application.NewTagSyncService(store, store, store, mailSource)
@@ -147,7 +149,7 @@ func run() error {
 	// rather than waiting for the poll; it authenticates through the same keychain vault as fetches.
 	watcher := imap.NewWatcher(vault, tokenManager)
 
-	app = NewApp(store.Close, overlay, flasher, tray, watcher, accountService, setupService, microsoftSetupService, mailboxService, syncService, composeService, tagService, tagSyncService, bodyService, actionService, folderService, ruleService, templateService, contactService, calendarService, calendarEditService, schedulingService, remoteImageService, caldavService)
+	app = NewApp(store.Close, overlay, flasher, tray, watcher, accountService, setupService, microsoftSetupService, mailboxService, unifiedService, syncService, composeService, tagService, tagSyncService, bodyService, actionService, folderService, ruleService, templateService, contactService, calendarService, calendarEditService, schedulingService, remoteImageService, caldavService)
 	app.title = windowTitle
 
 	err = wails.Run(&options.App{

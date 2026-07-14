@@ -19,6 +19,8 @@ import {
     LicenceText,
     ListMessages,
     ListMessagesPage,
+    ListUnifiedMessages,
+    ListUnifiedMessagesPage,
     ListTags,
     LoadRemoteImages,
     MarkFlagged,
@@ -94,6 +96,7 @@ import {
     SetMessageTag,
     ShowDefaultAppSettings,
     SyncAccount,
+    SyncAllInboxes,
     SyncFolder,
     UnreadCounts,
     UpdateAccount,
@@ -101,6 +104,7 @@ import {
     Version,
 } from '../wailsjs/go/main/App'
 import {main} from '../wailsjs/go/models'
+import {isUnifiedFolder} from './unified'
 
 export type Account = main.AccountDTO
 export type Folder = main.FolderDTO
@@ -388,14 +392,21 @@ export const api = {
         SetMessageTag(messageId, tagId, assigned),
     listFolders: (accountId: string): Promise<Folder[]> => ListFolders(accountId),
     unreadCounts: (): Promise<UnreadCountsResult> => UnreadCounts(),
-    listMessages: (folderId: string): Promise<Message[]> => ListMessages(folderId),
+    // listMessages routes the synthetic unified folder to the merged cross-account inbox listing, so the
+    // folder-driven callers (the conversation view's whole-set load) work on it unchanged.
+    listMessages: (folderId: string): Promise<Message[]> =>
+        isUnifiedFolder(folderId) ? ListUnifiedMessages() : ListMessages(folderId),
     // listMessagesPage fetches one keyset page of a folder's flat listing. The first call passes
     // hasCursor false (the cursor arguments are ignored); each later call passes hasCursor true with the
     // previous page's nextCursorDateMs and nextCursorId to walk to strictly older (or newer, when
-    // ascending) rows. ascending matches the list's sort direction.
+    // ascending) rows. ascending matches the list's sort direction. The synthetic unified folder routes
+    // to the merged cross-account page with the identical cursor mechanics.
     listMessagesPage: (
         folderId: string, hasCursor: boolean, cursorDateMs: number, cursorId: string, limit: number, ascending: boolean,
-    ): Promise<MessagePage> => ListMessagesPage(folderId, hasCursor, cursorDateMs, cursorId, limit, ascending),
+    ): Promise<MessagePage> =>
+        isUnifiedFolder(folderId)
+            ? ListUnifiedMessagesPage(hasCursor, cursorDateMs, cursorId, limit, ascending)
+            : ListMessagesPage(folderId, hasCursor, cursorDateMs, cursorId, limit, ascending),
     // searchMessages runs the operator-grammar search. folderId and accountId scope it to the UI's
     // selection (empty strings for all mail).
     searchMessages: (query: string, folderId: string, accountId: string): Promise<SearchResult> =>
@@ -407,7 +418,10 @@ export const api = {
     loadRemoteImages: (html: string): Promise<string> => LoadRemoteImages(html),
     openExternal: (url: string): Promise<void> => OpenExternal(url),
     syncAccount: (accountId: string): Promise<void> => SyncAccount(accountId),
-    syncFolder: (folderId: string): Promise<void> => SyncFolder(folderId),
+    // syncFolder routes the synthetic unified folder to the every-inbox refresh, so opening it and the
+    // background poll refresh what the combined list actually shows.
+    syncFolder: (folderId: string): Promise<void> =>
+        isUnifiedFolder(folderId) ? SyncAllInboxes() : SyncFolder(folderId),
     markRead: (messageId: string, read: boolean): Promise<void> => MarkRead(messageId, read),
     markFlagged: (messageId: string, flagged: boolean): Promise<void> => MarkFlagged(messageId, flagged),
     // markReplied / markForwarded record that a message has been replied to (\Answered) or forwarded

@@ -6,6 +6,12 @@ import {FolderTree} from './FolderTree'
 interface SidebarProps {
     accounts: Account[]
     selectedAccount: string
+    // The unified mailbox entry: shown while the View tick is on, highlighted while it is the open view,
+    // badged with the cross-account unread total. Selecting it opens the combined all-inboxes list.
+    unifiedEnabled: boolean
+    unifiedSelected: boolean
+    unifiedUnread: number
+    onSelectUnified: () => void
     // syncingAccountIds holds the ids of accounts whose mailbox sync is in progress, so each row can show a
     // small syncing cue and stays independent of the others.
     syncingAccountIds: ReadonlySet<string>
@@ -55,6 +61,27 @@ function SidebarContent(props: SidebarProps) {
     const {selectedAccount, folders, selectedFolder} = props
     return (
         <>
+            {props.unifiedEnabled && (
+                <ul className="list" data-unified-entry="">
+                    <li
+                        className={'list-item folder unified' + (props.unifiedSelected ? ' selected' : '')}
+                        tabIndex={0}
+                        onClick={props.onSelectUnified}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                                e.preventDefault()
+                                props.onSelectUnified()
+                            }
+                        }}
+                    >
+                        <span className="folder-name">
+                            <span className="folder-icon">{'\u{1F4EC}'}</span>
+                            All inboxes
+                        </span>
+                        {props.unifiedUnread > 0 && <span className="badge">{props.unifiedUnread}</span>}
+                    </li>
+                </ul>
+            )}
             <AccountList
                 accounts={props.accounts}
                 selectedAccount={selectedAccount}

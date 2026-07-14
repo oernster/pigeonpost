@@ -171,6 +171,16 @@
     border: 1px solid rgba(0, 0, 0, 0.25);
 }
 
+/* The per-account dot on a unified-mailbox row, before the sender, so the combined list shows at a
+   glance which account each message belongs to. The account's email is the tooltip. */
+.account-dot {
+    flex-shrink: 0;
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    border: 1px solid rgba(0, 0, 0, 0.25);
+}
+
 .message-subject {
     margin-top: 3px;
     font-size: 15px;

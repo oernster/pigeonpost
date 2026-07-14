@@ -2,6 +2,7 @@ import {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from
 import './App.css'
 import {AboutInfo, api, CalendarEvent, Contact, Message, MessageBody, Rule, Template, UnreadCountsResult} from './api'
 import {OUTBOX_FOLDER_ID, isOutboxMessage, outboxItemToMessage} from './outbox'
+import {UNIFIED_FOLDER_ID, accountChips, isUnifiedFolder} from './unified'
 import {applyTheme, loadTheme, Theme} from './theme'
 import {Sidebar} from './components/Sidebar'
 import {MessageList, type SearchScope} from './components/MessageList'
@@ -189,6 +190,11 @@ function App() {
             return next
         })
     }, [])
+    // unifiedMailbox is the View tick that shows the sidebar's All-inboxes entry: every account's inbox
+    // merged into one list. Off by default, remembered across launches. Its toggle (toggleUnifiedMailbox)
+    // is defined below, after selectFolder, because turning it on opens the combined view and turning it
+    // off while that view is open falls back to the inbox.
+    const [unifiedMailbox, setUnifiedMailbox] = useState<boolean>(() => localStorage.getItem('unifiedMailbox') === '1')
     // autoLoadImages, when on, loads a message's remote images immediately instead of holding them behind the
     // Load images bar. It is off by default to protect privacy (a remote image can report that the message was
     // opened) and is remembered across launches. The View menu toggles it.
@@ -416,10 +422,12 @@ function App() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [selectedMessage?.id])
 
-    // A scope whose anchor disappears (the folder deselected, the account removed) falls back to all
-    // mail visibly, so the selector never claims a narrower scope than the search actually runs with.
+    // A scope whose anchor disappears (the folder deselected or synthetic, the account removed) falls
+    // back to all mail visibly, so the selector never claims a narrower scope than the search actually
+    // runs with. The unified mailbox is not a real folder, so it cannot anchor a folder scope.
     useEffect(() => {
-        if ((searchScope === 'folder' && !selectedFolder) || (searchScope === 'account' && !selectedAccount)) {
+        if ((searchScope === 'folder' && (!selectedFolder || isUnifiedFolder(selectedFolder)))
+            || (searchScope === 'account' && !selectedAccount)) {
             setSearchScope('all')
         }
     }, [searchScope, selectedFolder, selectedAccount])
@@ -598,6 +606,30 @@ function App() {
             setError(String(e))
         }
     }, [loadFolderMessages, outboxForAccount])
+
+    // toggleUnifiedMailbox shows or hides the sidebar's All-inboxes entry and persists the choice.
+    // Turning it on opens the combined view immediately (that is the point of the tick); turning it off
+    // while the combined view is open falls back to the selected account's inbox, mirroring the Outbox's
+    // empty-queue fallback.
+    const toggleUnifiedMailbox = useCallback(() => {
+        const next = !unifiedMailbox
+        localStorage.setItem('unifiedMailbox', next ? '1' : '0')
+        setUnifiedMailbox(next)
+        if (next) {
+            void selectFolder(UNIFIED_FOLDER_ID)
+            return
+        }
+        if (selectedFolder === UNIFIED_FOLDER_ID) {
+            const fallback = folders.find((f) => f.kind === 'inbox') ?? folders[0]
+            if (fallback) {
+                void selectFolder(fallback.id)
+            } else {
+                selectedFolderRef.current = ''
+                setSelectedFolder('')
+                setMessages([])
+            }
+        }
+    }, [unifiedMailbox, selectedFolder, folders, selectFolder])
 
     // On first load (or after the account list changes) open the default account automatically, so the
     // app lands on a populated inbox rather than an empty pane.
@@ -792,7 +824,7 @@ function App() {
         bulkToDelete, setBulkToDelete, bulkDeleting,
         bulkToPurge, setBulkToPurge, bulkPurging,
         runBulkDelete, bulkSetRead, bulkSetFlag, bulkMove, dropMessageOnFolder,
-    } = useBulkActions({store, selection, loadUnread, refreshFolders, setError})
+    } = useBulkActions({store, selection, folders, loadUnread, refreshFolders, setError})
 
     // A message shown in the reader (the preview pane, or the full-width reader when the pane is off)
     // counts as read, so viewing or double-clicking a message un-bolds it. Auto-read fires once per
@@ -830,6 +862,23 @@ function App() {
     // mailbox, so those actions are hidden and a delete is permanent rather than a move to Trash.
     const activeAccount = accounts.find((a) => a.id === selectedAccount)
     const isPop3 = activeAccount?.protocol === 'pop3'
+    // The unified mailbox merges every account's inbox into one list. Move and Copy (and Junk) are
+    // unavailable there: the folder targets belong to one account while the rows span them all, so those
+    // actions live in the message's real folder instead.
+    const unifiedSelected = isUnifiedFolder(selectedFolder)
+    const canMoveCopy = !isPop3 && !unifiedSelected
+    // messagePop3 resolves a message's own account (a unified row can belong to any account, other rows
+    // fall back to the selected one) to word its delete confirmation honestly: POP3 has no Trash.
+    const messagePop3 = (message: Message | null): boolean => {
+        const owner = accounts.find((a) => a.id === (message?.accountId || selectedAccount))
+        return owner?.protocol === 'pop3'
+    }
+    // accountDots colours each account for the unified list's per-account row dot, by sidebar order.
+    const accountDots = useMemo(() => accountChips(accounts), [accounts])
+    // The composer sends from the account the launcher resolved (a reply to a unified row must send from
+    // that row's own account), falling back to the selected one for a fresh compose.
+    const composeAccountId = composeInitial?.accountId || selectedAccount
+    const composeAccount = accounts.find((a) => a.id === composeAccountId)
 
     // Derived selection: the visible list, the set of highlighted rows (the Ctrl/Shift selection, or just
     // the active message when there is none), the messages any bulk action operates on, and whether more
@@ -861,10 +910,11 @@ function App() {
             onSearchChange={setSearchQuery}
             searchScope={searchScope}
             onScopeChange={setSearchScope}
-            canScopeFolder={Boolean(selectedFolder)}
+            canScopeFolder={Boolean(selectedFolder) && !unifiedSelected}
             canScopeAccount={Boolean(selectedAccount)}
             searchDegraded={searchDegraded}
             matchSnippets={searchSnippets}
+            accountChips={accountDots}
             searchInputRef={searchInputRef}
             onActivate={activateRow}
             onClearSelection={clearSelection}
@@ -896,7 +946,7 @@ function App() {
             folders={folders}
             onMove={(m, dest) => void moveMessage(m, dest)}
             onCopy={(m, dest) => void copyMessage(m, dest)}
-            canMoveCopy={!isPop3}
+            canMoveCopy={canMoveCopy}
             autoLoadImages={autoLoadImages}
             dark={theme === 'dark'}
             tags={tags}
@@ -927,11 +977,11 @@ function App() {
     // action handler, and returns the arrays the Menu components render. mailMoveTargets and the applied-tag
     // set are computed inside it.
     const {fileMenu, editMenu, viewMenu, mailMenu, helpMenu} = useMenus({
-        activeMessage, activeOutbox, canMailAct, canReplyAll, isPop3, selectedAccount, accountSyncing,
-        isWindows, conversationView, previewEnabled, autoLoadImages, undoSendSeconds, setUndoSendSeconds,
+        activeMessage, activeOutbox, canMailAct, canReplyAll, canMoveCopy, selectedAccount, accountSyncing,
+        isWindows, conversationView, previewEnabled, autoLoadImages, unifiedMailbox, undoSendSeconds, setUndoSendSeconds,
         folders, messageTags,
         saveMessageAs, printMessage, setManagingRules, setManagingTemplates, focusSearch,
-        toggleConversationView, togglePreview, toggleAutoLoadImages,
+        toggleConversationView, togglePreview, toggleAutoLoadImages, toggleUnifiedMailbox,
         signatureHtml, setComposeInitial, setComposing, setSettingUp, sync, openInNewTab,
         openReply, openReplyAll, openForward, attachToNewMessage, setReadState, toggleFlag, toggleTag,
         moveMessage, copyMessage, markJunk, setMessageToCancelSend, requestDelete, setMessageToPurge,
@@ -1005,6 +1055,10 @@ function App() {
                 <Sidebar
                     accounts={accounts}
                     selectedAccount={selectedAccount}
+                    unifiedEnabled={unifiedMailbox}
+                    unifiedSelected={unifiedSelected}
+                    unifiedUnread={unreadCounts.total}
+                    onSelectUnified={() => void selectFolder(UNIFIED_FOLDER_ID)}
                     syncingAccountIds={syncingAccounts}
                     unreadByAccount={unreadCounts.byAccount}
                     folders={sidebarFolders}
@@ -1056,12 +1110,12 @@ function App() {
                     onCancel={() => setCloseChoice(false)}
                 />
             )}
-            {composing && selectedAccount && (
+            {composing && composeAccountId && (
                 <ComposeModal
-                    accountId={selectedAccount}
-                    senders={sendersFor(activeAccount)}
+                    accountId={composeAccountId}
+                    senders={sendersFor(composeAccount)}
                     initial={composeInitial}
-                    canSaveDraft={!isPop3}
+                    canSaveDraft={composeAccount?.protocol !== 'pop3'}
                     onMarkReplied={(id) => void markReplied(id)}
                     onMarkForwarded={(id) => void markForwarded(id)}
                     holdSeconds={undoSendSeconds}
@@ -1136,7 +1190,7 @@ function App() {
             {messageToDelete && (
                 <ConfirmDialog
                     title="Delete message"
-                    message={isPop3
+                    message={messagePop3(messageToDelete)
                         ? `Delete "${messageToDelete.subject || '(no subject)'}"? POP3 has no Trash, so it is permanently removed from the server and cannot be recovered.`
                         : `Delete "${messageToDelete.subject || '(no subject)'}"? It is moved to Trash, or deleted permanently if it is already in Trash or the account has no Trash folder.`}
                     confirmLabel="Delete"
@@ -1197,7 +1251,7 @@ function App() {
                     onToggleFlag={(m) => void toggleFlag(m)}
                     onMove={(m, dest) => void moveMessage(m, dest)}
                     onCopy={(m, dest) => void copyMessage(m, dest)}
-                    canMoveCopy={!isPop3}
+                    canMoveCopy={canMoveCopy}
                     onSetTag={(id, tagId, assigned) => void setMessageTagById(id, tagId, assigned)}
                     onOpenInNewTab={openInNewTab}
                     onSaveAs={(m) => void saveMessageAs(m)}

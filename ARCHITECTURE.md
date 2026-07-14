@@ -237,6 +237,19 @@ total order so no row is skipped or repeated. Toggling a message read or unread 
 refreshes only the unread counts rather than refetching the folder, so a folder of tens of thousands of
 messages never reloads every row.
 
+Unified mailbox: a View tick shows an All-inboxes entry in the sidebar whose list merges every account's
+inbox, newest first. It is read-side aggregation only: `UnifiedMailboxService` fans the same keyset
+cursor out to each inbox folder through the existing `MailStore.ListMessagesPage`, merges the returned
+pages in the store's `(date_ms, id)` order and keeps the first page-worth, so the walk stays total and
+no storage changes. In the UI the view is the synthetic folder `__unified__` (the Outbox pattern): the
+api module routes its listing, paging and sync calls to the unified endpoints, so pagination, the
+conversation view, sorting and the background poll (which refreshes every inbox via
+`SyncService.SyncInboxes`) all work on it unchanged. Each row carries its owning account: a colour dot
+labels it in the list and a reply or forward composes from that account, not the sidebar selection.
+Move, copy and junk are unavailable in the combined view (the folder targets belong to one account) and
+a drag onto a folder of a different account is filtered out; the message's real folder offers all of
+them.
+
 Delete a message: after a confirmation modal, the UI calls the facade, routed through the
 `MessageActionService`. It resolves the message's folder and account, then via the `MailActions` port
 moves the message to the account's Trash folder when one exists, or deletes it permanently (mark
@@ -583,4 +596,7 @@ Locked product decisions:
   whether 412 is the conflict status, whether a server accepts a client-chosen object name, CTag
   support) are unproven until a first real account exercises them.
 - Compose: light TipTap rich-text plus a plain-text toggle; no full HTML-editor parity.
-- Inboxes: each account keeps its own separate inbox; there is no unified/combined inbox.
+- Inboxes: each account keeps its own separate inbox in storage; the unified mailbox is a read-side
+  merge of the cached inboxes (a synthetic folder in the UI, aggregation in gated application code),
+  never a storage-level combination. Move, copy and junk stay per-account actions, so the combined view
+  does not offer them.

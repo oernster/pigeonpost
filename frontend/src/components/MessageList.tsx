@@ -2,6 +2,7 @@ import {useEffect, useMemo, useRef, type CSSProperties, type ReactNode, type Ref
 import {useVirtualizer, VirtualItem} from '@tanstack/react-virtual'
 import {Message, SEARCH_MATCH_END, SEARCH_MATCH_START} from '../api'
 import {ConversationHead} from '../threads'
+import type {AccountChip} from '../unified'
 
 // SearchScope is the search bar's reach: every account, the selected folder or the selected account.
 export type SearchScope = 'all' | 'folder' | 'account'
@@ -60,6 +61,9 @@ interface MessageListProps {
     // matchSnippets maps a message id to its matched-text snippet (terms wrapped in the match markers).
     // A row with an entry shows it, highlighted, in place of the stored preview snippet.
     matchSnippets: Map<string, string>
+    // accountChips labels a row carrying an accountId (a unified-mailbox row) with its account's colour
+    // dot and email tooltip. Rows without an accountId (every per-folder listing) show nothing.
+    accountChips: Map<string, AccountChip>
     // searchInputRef lets Edit > Search (Ctrl+K) focus the search box from outside the list.
     searchInputRef: RefObject<HTMLInputElement>
     onActivate: (message: Message, mods: ClickMods) => void
@@ -262,6 +266,7 @@ export function MessageList(props: MessageListProps) {
         }
         const message = row.message
         const matchSnippet = props.matchSnippets.get(message.id)
+        const accountChip = message.accountId ? props.accountChips.get(message.accountId) : undefined
         return (
             <li
                 key={row.key}
@@ -319,6 +324,14 @@ export function MessageList(props: MessageListProps) {
                         <span className="attach" title="Has attachments" aria-label="Has attachments">
                             {'\u{1F4CE}'}
                         </span>
+                    )}
+                    {accountChip && (
+                        <span
+                            className="account-dot"
+                            style={{backgroundColor: accountChip.colour}}
+                            title={accountChip.label}
+                            aria-label={`Account ${accountChip.label}`}
+                        />
                     )}
                     <span className="message-from" title={message.fromName || message.fromAddress || '(unknown sender)'}>
                         {message.fromName || message.fromAddress || '(unknown sender)'}

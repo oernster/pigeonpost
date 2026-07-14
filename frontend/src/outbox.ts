@@ -23,6 +23,7 @@ export function outboxItemToMessage(item: OutboxItem): Message {
     return {
         id: item.id,
         folderId: OUTBOX_FOLDER_ID,
+        accountId: '',
         subject: item.failed ? `(Not sent) ${item.subject}` : item.subject,
         fromName: recipients ? `To: ${recipients}` : '(no recipient)',
         fromAddress: item.to[0] ?? '',

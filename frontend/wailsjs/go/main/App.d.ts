@@ -96,6 +96,10 @@ export function ListTemplates():Promise<Array<main.TemplateDTO>>;
 
 export function ListThreads(arg1:string):Promise<Array<main.ThreadDTO>>;
 
+export function ListUnifiedMessages():Promise<Array<main.MessageDTO>>;
+
+export function ListUnifiedMessagesPage(arg1:boolean,arg2:number,arg3:string,arg4:number,arg5:boolean):Promise<main.MessagePageDTO>;
+
 export function LoadRemoteImages(arg1:string):Promise<string>;
 
 export function MarkFlagged(arg1:string,arg2:boolean):Promise<void>;
@@ -189,6 +193,8 @@ export function ShowDefaultAppSettings():Promise<void>;
 export function SignInMicrosoft(arg1:string):Promise<string>;
 
 export function SyncAccount(arg1:string):Promise<void>;
+
+export function SyncAllInboxes():Promise<void>;
 
 export function SyncCalDAV(arg1:string):Promise<void>;
 

@@ -57,6 +57,7 @@ type App struct {
 	setup        *application.AccountSetupService
 	msSetup      *application.MicrosoftSetupService
 	mailbox      *application.MailboxService
+	unified      *application.UnifiedMailboxService
 	sync         *application.SyncService
 	compose      *application.ComposeService
 	tags         *application.TagService
@@ -85,6 +86,7 @@ func NewApp(
 	setup *application.AccountSetupService,
 	microsoftSetup *application.MicrosoftSetupService,
 	mailbox *application.MailboxService,
+	unified *application.UnifiedMailboxService,
 	sync *application.SyncService,
 	compose *application.ComposeService,
 	tags *application.TagService,
@@ -112,6 +114,7 @@ func NewApp(
 		setup:        setup,
 		msSetup:      microsoftSetup,
 		mailbox:      mailbox,
+		unified:      unified,
 		sync:         sync,
 		compose:      compose,
 		tags:         tags,
@@ -280,6 +283,15 @@ func (a *App) SyncAccount(accountID string) error {
 // is opened rather than syncing the whole account.
 func (a *App) SyncFolder(folderID string) error {
 	return a.sync.SyncFolder(a.ctx, folderID)
+}
+
+// SyncAllInboxes refreshes every account's inbox folders from their servers, the unified mailbox's
+// counterpart to SyncFolder. The arrivals SyncInboxes reports are discarded: they feed the new-mail
+// notifier's own passes, and mail fetched here is cached before that pass exactly as an opened folder's
+// sync caches what the user is already looking at.
+func (a *App) SyncAllInboxes() error {
+	_, err := a.sync.SyncInboxes(a.ctx)
+	return err
 }
 
 // MarkRead sets or clears a message's read (Seen) state on the server and in the local cache.
