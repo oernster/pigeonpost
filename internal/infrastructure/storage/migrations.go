@@ -180,6 +180,23 @@ INSERT INTO message_search (message_id, subject, snippet, sender, recipients, bo
 DROP TABLE IF EXISTS message_fts;
 `
 
+// schemaV42 clears the cached message bodies once more so each is re-parsed with the href-normalising
+// HTML preparation: an anchor whose href was wrapped across source lines (a tab, newline or encoded
+// line break inside the URL, which bulk senders routinely emit) was deleted outright by the sanitiser,
+// leaving the email's buttons styled but dead in the cached HTML. A body is a cache of server data, so
+// dropping it loses nothing that cannot be fetched again on next open. The search index holds its own
+// copy of indexed body text, so it is rebuilt from message_searchable_text (the single definition of a
+// message's searchable text) after the clear: the view LEFT JOINs the now-empty body cache, so subject,
+// snippet, sender, recipients and filenames stay searchable while body text drops out until a body is
+// cached again, exactly as for a message never opened. Every statement is an idempotent re-run, as the
+// migration crash-window rule for steps outside a transaction requires.
+const schemaV42 = `
+DELETE FROM message_body;
+DELETE FROM message_search;
+INSERT INTO message_search (message_id, subject, snippet, sender, recipients, body, filenames)
+    SELECT message_id, subject, snippet, sender, recipients, body, filenames FROM message_searchable_text;
+`
+
 // migrations is the ordered list of schema steps. Index i upgrades the database from version i to
 // version i+1, so a fresh database applies them all and an existing one applies only what it lacks.
-var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15, schemaV16, schemaV17, schemaV18, schemaV19, schemaV20, schemaV21, schemaV22, schemaV23, schemaV24, schemaV25, schemaV26, schemaV27, schemaV28, schemaV29, schemaV30, schemaV31, schemaV32, schemaV33, schemaV34, schemaV35, schemaV36, schemaV37, schemaV38, schemaV39, schemaV40, schemaV41}
+var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15, schemaV16, schemaV17, schemaV18, schemaV19, schemaV20, schemaV21, schemaV22, schemaV23, schemaV24, schemaV25, schemaV26, schemaV27, schemaV28, schemaV29, schemaV30, schemaV31, schemaV32, schemaV33, schemaV34, schemaV35, schemaV36, schemaV37, schemaV38, schemaV39, schemaV40, schemaV41, schemaV42}

@@ -166,6 +166,47 @@ func TestSearchBodyCoversCachedBodies(t *testing.T) {
 	wantOnly(t, "xylophone resave", searchFor(t, store, "xylophone"), "m1")
 }
 
+func TestSchemaV42ClearsBodiesAndRebuildsSearchIndex(t *testing.T) {
+	// schemaV42 clears the cached bodies (so each re-parses with the href-normalising HTML preparation)
+	// and rebuilds the search index from message_searchable_text so the index never matches body text
+	// the cache no longer holds. Run against a populated store, exactly as the migration runner executes
+	// it on an upgraded database; run twice to pin the idempotent re-run the crash-window rule requires.
+	store := openTestStore(t)
+	ctx := context.Background()
+	saveSearchFolder(t, store, "f1", "a1", "INBOX")
+	msg := buildSearchMessage(t, searchMsg{id: "m1", folderID: "f1", subject: "Password reset", snippet: "reset requested"})
+	if err := store.SaveMessages(ctx, "f1", []domain.MessageSummary{msg}); err != nil {
+		t.Fatalf("save: %v", err)
+	}
+	body, err := domain.NewMessageBody("m1", "click the tamarind button", "<p>click the tamarind button</p>")
+	if err != nil {
+		t.Fatalf("body: %v", err)
+	}
+	if err := store.SaveMessageBody(ctx, body); err != nil {
+		t.Fatalf("save body: %v", err)
+	}
+	wantOnly(t, "tamarind", searchFor(t, store, "tamarind"), "m1")
+
+	for run := 1; run <= 2; run++ {
+		if _, err := store.db.ExecContext(ctx, schemaV42); err != nil {
+			t.Fatalf("apply schemaV42 (run %d): %v", run, err)
+		}
+	}
+
+	var cached int
+	if err := store.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM message_body;").Scan(&cached); err != nil {
+		t.Fatalf("count bodies: %v", err)
+	}
+	if cached != 0 {
+		t.Errorf("cached bodies after schemaV42 = %d, want 0", cached)
+	}
+	if hits := searchFor(t, store, "tamarind"); len(hits) != 0 {
+		t.Errorf("cleared body text must not stay searchable: %v", hitIDs(hits))
+	}
+	// Header-derived text survives the rebuild, exactly as for a message never opened.
+	wantOnly(t, "subject after clear", searchFor(t, store, "password"), "m1")
+}
+
 func TestSearchAttachmentFilenames(t *testing.T) {
 	store := openTestStore(t)
 	ctx := context.Background()
