@@ -51,7 +51,8 @@ interface ReaderProps {
     tabs: Message[]
     onSelectTab: (message: Message) => void
     onCloseTab: (id: string) => void
-    // onBack is set only when the reader is shown full-width (reading pane off); it returns to the list.
+    // onBack is set only when the reader is shown full-width (the reading pane off, or a message opened
+    // in its own right by double-click, Enter or Open in new tab); it returns to the list.
     onBack?: () => void
     // bodyRef is attached to the scrollable email body so the parent can move focus onto it when a message
     // is opened, so the keyboard lands on the email rather than jumping back to the start of the ring.

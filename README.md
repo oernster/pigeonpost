@@ -54,8 +54,8 @@ local-first. A calmer, more predictable alternative to Thunderbird.
   One folder each holds Inbox, Sent, Drafts, Trash, Junk and Archive, leading a collapsible tree with
   unread badges per folder, account and total. On-arrival rules mark or flag by From, To, Cc or Subject.
 - **Read**: an optional reading pane (mark-on-view, F8 toggle), a right-click context menu, in-app
-  reader tabs, mouse and keyboard multi-select with bulk actions, plus full keyboard control through an
-  explicit focus ring. The list stays fluid in folders of tens of thousands of messages. A Date sort and
+  reader tabs (double-click or Enter opens a message full-width, Back returns to the list), mouse and
+  keyboard multi-select with bulk actions, plus full keyboard control through an explicit focus ring. The list stays fluid in folders of tens of thousands of messages. A Date sort and
   an optional threaded conversation view. A `.eml` file opens in an in-app viewer; on Windows PigeonPost
   can be set as the default `.eml` handler. Print a message through the system print dialog.
 - **Notifications**: new mail raises a native desktop notification and updates a Windows taskbar badge.

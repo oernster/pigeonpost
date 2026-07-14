@@ -967,6 +967,10 @@ function App() {
             onLoadMore={() => void loadMoreMessages()}
         />
     )
+    // fullReaderOpen is an email opened in its own right (double-click, Enter or Open in new tab):
+    // the reader takes the whole pane area in both reading-pane modes, with Back returning to the
+    // list. A single click with the pane on stays a preview and never sets it.
+    const fullReaderOpen = readingFull && selectedMessage !== null
     const readerEl = multiSelected ? (
         <SelectionSummary
             markedIds={markedIds}
@@ -1000,7 +1004,7 @@ function App() {
             tabs={tabs}
             onSelectTab={setSelectedMessage}
             onCloseTab={closeTab}
-            onBack={previewEnabled ? undefined : () => setReadingFull(false)}
+            onBack={fullReaderOpen ? () => setReadingFull(false) : undefined}
         />
     )
 
@@ -1095,7 +1099,7 @@ function App() {
             {accounts.length === 0 && !splashVisible ? (
                 <WelcomeScreen setSettingUp={setSettingUp}/>
             ) : (
-            <div className={'panes' + (previewEnabled ? '' : ' no-preview')}>
+            <div className={'panes' + (previewEnabled && !fullReaderOpen ? '' : ' no-preview')}>
                 <Sidebar
                     accounts={accounts}
                     selectedAccount={selectedAccount}
@@ -1122,13 +1126,13 @@ function App() {
                     onDropMessage={dropMessageOnFolder}
                     canManageFolders={!isPop3}
                 />
-                {previewEnabled ? (
+                {fullReaderOpen ? (
+                    readerEl
+                ) : previewEnabled ? (
                     <>
                         {messageListEl}
                         {readerEl}
                     </>
-                ) : readingFull && selectedMessage ? (
-                    readerEl
                 ) : (
                     messageListEl
                 )}
