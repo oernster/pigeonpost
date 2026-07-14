@@ -205,6 +205,18 @@ const schemaV43 = `
 ALTER TABLE outbox ADD COLUMN hold_until_ms INTEGER NOT NULL DEFAULT 0;
 `
 
+// schemaV44 adds snooze: a message with a row here is hidden from its folder's listings until the
+// until_ms instant (Unix milliseconds) passes, then reappears untouched. The row is local-only state
+// (nothing goes to the server) and is deleted when it comes due or the user unsnoozes. The index lets
+// the resurface scheduler find the earliest due time without a scan.
+const schemaV44 = `
+CREATE TABLE message_snooze (
+    message_id TEXT PRIMARY KEY,
+    until_ms   INTEGER NOT NULL
+);
+CREATE INDEX idx_message_snooze_until ON message_snooze (until_ms);
+`
+
 // migrations is the ordered list of schema steps. Index i upgrades the database from version i to
 // version i+1, so a fresh database applies them all and an existing one applies only what it lacks.
-var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15, schemaV16, schemaV17, schemaV18, schemaV19, schemaV20, schemaV21, schemaV22, schemaV23, schemaV24, schemaV25, schemaV26, schemaV27, schemaV28, schemaV29, schemaV30, schemaV31, schemaV32, schemaV33, schemaV34, schemaV35, schemaV36, schemaV37, schemaV38, schemaV39, schemaV40, schemaV41, schemaV42, schemaV43}
+var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15, schemaV16, schemaV17, schemaV18, schemaV19, schemaV20, schemaV21, schemaV22, schemaV23, schemaV24, schemaV25, schemaV26, schemaV27, schemaV28, schemaV29, schemaV30, schemaV31, schemaV32, schemaV33, schemaV34, schemaV35, schemaV36, schemaV37, schemaV38, schemaV39, schemaV40, schemaV41, schemaV42, schemaV43, schemaV44}

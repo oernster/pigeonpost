@@ -15,7 +15,8 @@ import (
 // ComposeRequest is the front-end payload for sending a message. Recipients are comma-free single
 // addresses; the front end splits any user input into this list. HoldSeconds is the undo-send window:
 // greater than zero queues the send for that long (cancellable via the returned outbox id) and zero or
-// less sends immediately.
+// less sends immediately. SendAtMs is send-later: a Unix-millisecond instant queues the send held until
+// then (cancellable from the Outbox) and takes precedence over the undo window; zero means no schedule.
 type ComposeRequest struct {
 	AccountID            string   `json:"accountId"`
 	From                 string   `json:"from"`
@@ -28,6 +29,7 @@ type ComposeRequest struct {
 	AttachmentPaths      []string `json:"attachmentPaths"`
 	AttachmentMessageIDs []string `json:"attachmentMessageIds"`
 	HoldSeconds          int      `json:"holdSeconds"`
+	SendAtMs             int64    `json:"sendAtMs"`
 }
 
 // rfc822ContentType is the MIME type for a whole email attached to another email.
@@ -40,8 +42,9 @@ const (
 )
 
 // SendMessage parses the request's addresses and sends the message through the compose use case. With
-// a positive HoldSeconds the send is queued behind an undo-send window and the queued item's id is
-// returned so the front end can offer Undo; otherwise it sends immediately and the id is empty.
+// a SendAtMs the send is scheduled for that instant; with a positive HoldSeconds it is queued behind an
+// undo-send window. Both return the queued item's id (Cancel send and Undo are CancelOutboxItem);
+// otherwise it sends immediately and the id is empty.
 func (a *App) SendMessage(req ComposeRequest) (string, error) {
 	to, err := parseAddresses(req.To)
 	if err != nil {
@@ -59,7 +62,7 @@ func (a *App) SendMessage(req ComposeRequest) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return a.compose.HoldSend(a.ctx, req.AccountID, application.Draft{
+	draft := application.Draft{
 		From:        req.From,
 		To:          to,
 		Cc:          cc,
@@ -68,7 +71,11 @@ func (a *App) SendMessage(req ComposeRequest) (string, error) {
 		Body:        req.Body,
 		HTMLBody:    req.HTMLBody,
 		Attachments: attachments,
-	}, time.Duration(req.HoldSeconds)*time.Second)
+	}
+	if req.SendAtMs > 0 {
+		return a.compose.ScheduleSend(a.ctx, req.AccountID, draft, time.UnixMilli(req.SendAtMs))
+	}
+	return a.compose.HoldSend(a.ctx, req.AccountID, draft, time.Duration(req.HoldSeconds)*time.Second)
 }
 
 // SaveDraft stores an in-progress message in the account's Drafts mailbox. The message may be

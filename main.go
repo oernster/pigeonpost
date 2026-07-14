@@ -100,9 +100,11 @@ func run() error {
 	// The Microsoft account is IMAP, so the router verifies it through the XOAUTH2-aware IMAP adapter.
 	microsoftSetupService := application.NewMicrosoftSetupService(store, vault, mailSource, authorizer, buildMicrosoftAccount)
 	// Search date operators (before:/after:/on:) are read in the user's local calendar.
-	mailboxService := application.NewMailboxService(store, time.Local)
+	mailboxService := application.NewMailboxService(store, time.Local, clock)
 	// The unified mailbox reads the same local cache, merged across every account's inbox.
-	unifiedService := application.NewUnifiedMailboxService(store, store)
+	unifiedService := application.NewUnifiedMailboxService(store, store, clock)
+	// Snooze hides a message from the visible listings until its chosen instant; local-only state.
+	snoozeService := application.NewSnoozeService(store, clock)
 	// The tag-sync service rounds user tags onto the server as IMAP keywords; the sync service drives its
 	// flush and reconcile, so it is constructed first and injected into the sync.
 	tagSyncService := application.NewTagSyncService(store, store, store, mailSource)
@@ -149,7 +151,7 @@ func run() error {
 	// rather than waiting for the poll; it authenticates through the same keychain vault as fetches.
 	watcher := imap.NewWatcher(vault, tokenManager)
 
-	app = NewApp(store.Close, overlay, flasher, tray, watcher, accountService, setupService, microsoftSetupService, mailboxService, unifiedService, syncService, composeService, tagService, tagSyncService, bodyService, actionService, folderService, ruleService, templateService, contactService, calendarService, calendarEditService, schedulingService, remoteImageService, caldavService)
+	app = NewApp(store.Close, overlay, flasher, tray, watcher, accountService, setupService, microsoftSetupService, mailboxService, unifiedService, snoozeService, syncService, composeService, tagService, tagSyncService, bodyService, actionService, folderService, ruleService, templateService, contactService, calendarService, calendarEditService, schedulingService, remoteImageService, caldavService)
 	app.title = windowTitle
 
 	err = wails.Run(&options.App{

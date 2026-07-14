@@ -89,6 +89,9 @@ type MessageDTO struct {
 	Snippet   string `json:"snippet"`
 	// TagColours are the hex colours of the tags on this message, for the coloured dots shown on the row.
 	TagColours []string `json:"tagColours"`
+	// SnoozedUntilMs is when a snoozed message resurfaces (Unix milliseconds), stamped only by the
+	// Snoozed listing so its rows can show the due time and offer Unsnooze. Zero everywhere else.
+	SnoozedUntilMs int64 `json:"snoozedUntilMs"`
 }
 
 // MessagePageDTO is one keyset page of a folder's messages for the reading list's incremental load. The

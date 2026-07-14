@@ -55,6 +55,7 @@ const ACCOUNTS = [makeAccount('a1', 'Alice', 'alice@x.com'), makeAccount('a2', '
 function renderSidebar(overrides: Partial<SidebarProps> = {}) {
     const handlers = {
         onSelectUnified: vi.fn(),
+        onSelectSnoozed: vi.fn(),
         onSelectAccount: vi.fn(),
         onSelectFolder: vi.fn(),
         onEditAccount: vi.fn(),
@@ -72,6 +73,8 @@ function renderSidebar(overrides: Partial<SidebarProps> = {}) {
         unifiedEnabled: false,
         unifiedSelected: false,
         unifiedUnread: 0,
+        snoozedCount: 0,
+        snoozedSelected: false,
         syncingAccountIds: new Set<string>(),
         unreadByAccount: {},
         folders: [],
@@ -364,5 +367,29 @@ describe('Sidebar: unified mailbox entry', () => {
         expect(entry!.classList.contains('selected')).toBe(false)
         fireEvent.keyDown(entry!, {key: 'Enter'})
         expect(onSelectUnified).toHaveBeenCalled()
+    })
+})
+
+describe('Sidebar: snoozed entry', () => {
+    it('is absent while nothing is snoozed', () => {
+        const {container} = renderSidebar()
+        expect(container.querySelector('[data-snoozed-entry]')).toBeNull()
+    })
+
+    it('shows the badged Snoozed entry and opens the view on click', () => {
+        const {container, onSelectSnoozed} = renderSidebar({snoozedCount: 3, snoozedSelected: true})
+        const entry = container.querySelector<HTMLElement>('[data-snoozed-entry] .list-item')
+        expect(entry).not.toBeNull()
+        expect(entry!.classList.contains('selected')).toBe(true)
+        expect(entry!.textContent).toContain('Snoozed')
+        expect(entry!.textContent).toContain('3')
+        fireEvent.click(entry!)
+        expect(onSelectSnoozed).toHaveBeenCalled()
+    })
+
+    it('opens the view on Enter', () => {
+        const {container, onSelectSnoozed} = renderSidebar({snoozedCount: 1})
+        fireEvent.keyDown(container.querySelector<HTMLElement>('[data-snoozed-entry] .list-item')!, {key: 'Enter'})
+        expect(onSelectSnoozed).toHaveBeenCalled()
     })
 })

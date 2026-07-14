@@ -52,6 +52,35 @@
     flex: 1;
 }
 
+/* The send-later row: preset moments, a native date-time field and the Schedule action, shown above
+   the send buttons when Send later is pressed. It mirrors the link-row surface. The note states the
+   local-first constraint plainly: a scheduled send fires only while the app runs, or at next launch. */
+.compose-schedule-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    padding: 6px;
+    background-color: var(--bg-elev);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    margin-top: 8px;
+}
+
+.compose-schedule-input {
+    background-color: var(--bg);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 5px 8px;
+}
+
+.compose-schedule-note {
+    flex-basis: 100%;
+    font-size: 12px;
+    color: var(--text-dim);
+}
+
 /* The template picker is the inline dropdown of message templates shown under the toolbar when the
    Template button is pressed. It mirrors the link-row surface so it reads as part of the toolbar. */
 .compose-template-picker {

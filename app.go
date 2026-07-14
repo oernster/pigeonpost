@@ -58,6 +58,7 @@ type App struct {
 	msSetup      *application.MicrosoftSetupService
 	mailbox      *application.MailboxService
 	unified      *application.UnifiedMailboxService
+	snooze       *application.SnoozeService
 	sync         *application.SyncService
 	compose      *application.ComposeService
 	tags         *application.TagService
@@ -87,6 +88,7 @@ func NewApp(
 	microsoftSetup *application.MicrosoftSetupService,
 	mailbox *application.MailboxService,
 	unified *application.UnifiedMailboxService,
+	snooze *application.SnoozeService,
 	sync *application.SyncService,
 	compose *application.ComposeService,
 	tags *application.TagService,
@@ -115,6 +117,7 @@ func NewApp(
 		msSetup:      microsoftSetup,
 		mailbox:      mailbox,
 		unified:      unified,
+		snooze:       snooze,
 		sync:         sync,
 		compose:      compose,
 		tags:         tags,

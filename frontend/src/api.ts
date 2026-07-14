@@ -19,6 +19,7 @@ import {
     LicenceText,
     ListMessages,
     ListMessagesPage,
+    ListSnoozedMessages,
     ListUnifiedMessages,
     ListUnifiedMessagesPage,
     ListTags,
@@ -83,6 +84,9 @@ import {
     ReorderAccounts,
     ReplayOutbox,
     SignInMicrosoft,
+    SnoozeMessage,
+    SnoozedCount,
+    UnsnoozeMessage,
     SaveDraft,
     SaveDraftRecovery,
     OpenAttachment,
@@ -105,6 +109,7 @@ import {
 } from '../wailsjs/go/main/App'
 import {main} from '../wailsjs/go/models'
 import {isUnifiedFolder} from './unified'
+import {isSnoozedFolder} from './snooze'
 
 export type Account = main.AccountDTO
 export type Folder = main.FolderDTO
@@ -301,6 +306,10 @@ export interface ComposeInput {
     // holdSeconds is the undo-send window: greater than zero queues the send for that long (send returns
     // the queued item's id, cancellable until it elapses) and zero sends immediately (send returns '').
     holdSeconds: number
+    // sendAtMs is send-later: a Unix-millisecond instant queues the send held until then (cancellable
+    // from the Outbox; send returns the queued id) and takes precedence over holdSeconds. Zero means no
+    // schedule.
+    sendAtMs: number
 }
 
 // DraftRecoveryInput is a local snapshot of the compose window, autosaved for crash and
@@ -392,21 +401,31 @@ export const api = {
         SetMessageTag(messageId, tagId, assigned),
     listFolders: (accountId: string): Promise<Folder[]> => ListFolders(accountId),
     unreadCounts: (): Promise<UnreadCountsResult> => UnreadCounts(),
-    // listMessages routes the synthetic unified folder to the merged cross-account inbox listing, so the
-    // folder-driven callers (the conversation view's whole-set load) work on it unchanged.
+    // listMessages routes the synthetic folders: the unified id to the merged cross-account inbox
+    // listing and the snoozed id to the hidden-message listing, so the folder-driven callers (the
+    // conversation view's whole-set load) work on them unchanged.
     listMessages: (folderId: string): Promise<Message[]> =>
-        isUnifiedFolder(folderId) ? ListUnifiedMessages() : ListMessages(folderId),
+        isUnifiedFolder(folderId) ? ListUnifiedMessages()
+            : isSnoozedFolder(folderId) ? ListSnoozedMessages()
+                : ListMessages(folderId),
     // listMessagesPage fetches one keyset page of a folder's flat listing. The first call passes
     // hasCursor false (the cursor arguments are ignored); each later call passes hasCursor true with the
     // previous page's nextCursorDateMs and nextCursorId to walk to strictly older (or newer, when
     // ascending) rows. ascending matches the list's sort direction. The synthetic unified folder routes
-    // to the merged cross-account page with the identical cursor mechanics.
-    listMessagesPage: (
+    // to the merged cross-account page with the identical cursor mechanics; the snoozed view is small,
+    // so it arrives whole as a single page.
+    listMessagesPage: async (
         folderId: string, hasCursor: boolean, cursorDateMs: number, cursorId: string, limit: number, ascending: boolean,
-    ): Promise<MessagePage> =>
-        isUnifiedFolder(folderId)
-            ? ListUnifiedMessagesPage(hasCursor, cursorDateMs, cursorId, limit, ascending)
-            : ListMessagesPage(folderId, hasCursor, cursorDateMs, cursorId, limit, ascending),
+    ): Promise<MessagePage> => {
+        if (isUnifiedFolder(folderId)) {
+            return ListUnifiedMessagesPage(hasCursor, cursorDateMs, cursorId, limit, ascending)
+        }
+        if (isSnoozedFolder(folderId)) {
+            const messages = await ListSnoozedMessages()
+            return {messages, hasMore: false, nextCursorDateMs: 0, nextCursorId: ''}
+        }
+        return ListMessagesPage(folderId, hasCursor, cursorDateMs, cursorId, limit, ascending)
+    },
     // searchMessages runs the operator-grammar search. folderId and accountId scope it to the UI's
     // selection (empty strings for all mail).
     searchMessages: (query: string, folderId: string, accountId: string): Promise<SearchResult> =>
@@ -418,10 +437,18 @@ export const api = {
     loadRemoteImages: (html: string): Promise<string> => LoadRemoteImages(html),
     openExternal: (url: string): Promise<void> => OpenExternal(url),
     syncAccount: (accountId: string): Promise<void> => SyncAccount(accountId),
-    // syncFolder routes the synthetic unified folder to the every-inbox refresh, so opening it and the
-    // background poll refresh what the combined list actually shows.
+    // syncFolder routes the synthetic folders: the unified id refreshes every inbox (so opening it and
+    // the background poll refresh what the combined list actually shows) and the snoozed id does
+    // nothing (snooze is local state with no server side to sync).
     syncFolder: (folderId: string): Promise<void> =>
-        isUnifiedFolder(folderId) ? SyncAllInboxes() : SyncFolder(folderId),
+        isUnifiedFolder(folderId) ? SyncAllInboxes()
+            : isSnoozedFolder(folderId) ? Promise.resolve()
+                : SyncFolder(folderId),
+    // snoozeMessage hides a message until the given instant (Unix milliseconds, must be in the future);
+    // unsnoozeMessage brings it back at once; snoozedCount sizes the sidebar entry's badge.
+    snoozeMessage: (messageId: string, untilMs: number): Promise<void> => SnoozeMessage(messageId, untilMs),
+    unsnoozeMessage: (messageId: string): Promise<void> => UnsnoozeMessage(messageId),
+    snoozedCount: (): Promise<number> => SnoozedCount(),
     markRead: (messageId: string, read: boolean): Promise<void> => MarkRead(messageId, read),
     markFlagged: (messageId: string, flagged: boolean): Promise<void> => MarkFlagged(messageId, flagged),
     // markReplied / markForwarded record that a message has been replied to (\Answered) or forwarded

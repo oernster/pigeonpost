@@ -9,16 +9,19 @@ import (
 )
 
 // MailboxService is the use-case boundary for reading cached folders and messages. It reads from the
-// local store only, so it never blocks on the network.
+// local store only, so it never blocks on the network. Its listings are the visible views: a message
+// hidden by an unexpired snooze is excluded until it comes due, which is why the clock is injected.
 type MailboxService struct {
-	mail MailStore
-	loc  *time.Location
+	mail  MailStore
+	loc   *time.Location
+	clock domain.Clock
 }
 
-// NewMailboxService constructs the service with its injected store and the location the search-query
-// date operators (before:/after:/on:) are interpreted in, normally the user's local time zone.
-func NewMailboxService(mail MailStore, loc *time.Location) *MailboxService {
-	return &MailboxService{mail: mail, loc: loc}
+// NewMailboxService constructs the service with its injected store, the location the search-query
+// date operators (before:/after:/on:) are interpreted in (normally the user's local time zone) and the
+// clock that decides which snoozed messages are currently hidden.
+func NewMailboxService(mail MailStore, loc *time.Location, clock domain.Clock) *MailboxService {
+	return &MailboxService{mail: mail, loc: loc, clock: clock}
 }
 
 // Folders returns the cached folders for an account.
@@ -30,9 +33,10 @@ func (s *MailboxService) Folders(ctx context.Context, accountID string) ([]domai
 	return folders, nil
 }
 
-// Messages returns the cached message summaries for a folder.
+// Messages returns the cached message summaries visible in a folder: a snoozed message stays hidden
+// until it comes due.
 func (s *MailboxService) Messages(ctx context.Context, folderID string) ([]domain.MessageSummary, error) {
-	messages, err := s.mail.ListMessages(ctx, folderID)
+	messages, err := s.mail.ListMessagesVisible(ctx, folderID, s.clock.Now())
 	if err != nil {
 		return nil, fmt.Errorf("list messages for folder %q: %w", folderID, err)
 	}
@@ -43,7 +47,7 @@ func (s *MailboxService) Messages(ctx context.Context, folderID string) ([]domai
 // hasCursor false; each later page passes the previous page's last row (date and id) so the reading list
 // can load a large folder incrementally rather than all at once.
 func (s *MailboxService) MessagesPage(ctx context.Context, folderID string, hasCursor bool, cursorDateMs int64, cursorID string, limit int, ascending bool) ([]domain.MessageSummary, error) {
-	messages, err := s.mail.ListMessagesPage(ctx, folderID, hasCursor, cursorDateMs, cursorID, limit, ascending)
+	messages, err := s.mail.ListMessagesPageVisible(ctx, folderID, hasCursor, cursorDateMs, cursorID, limit, ascending, s.clock.Now())
 	if err != nil {
 		return nil, fmt.Errorf("page messages for folder %q: %w", folderID, err)
 	}
@@ -54,7 +58,7 @@ func (s *MailboxService) MessagesPage(ctx context.Context, folderID string, hasC
 // Grouping is done in the domain from the same summaries Messages returns, so a threaded and a flat view
 // read the identical cache.
 func (s *MailboxService) Threads(ctx context.Context, folderID string) ([]domain.Thread, error) {
-	messages, err := s.mail.ListMessages(ctx, folderID)
+	messages, err := s.mail.ListMessagesVisible(ctx, folderID, s.clock.Now())
 	if err != nil {
 		return nil, fmt.Errorf("list messages for folder %q: %w", folderID, err)
 	}
@@ -71,7 +75,7 @@ type UnreadTotals struct {
 // computed from the local cache. The per-account map never contains a nil value; an account with no
 // unread messages is simply absent.
 func (s *MailboxService) UnreadCounts(ctx context.Context) (UnreadTotals, error) {
-	byAccount, err := s.mail.UnreadByAccount(ctx)
+	byAccount, err := s.mail.UnreadByAccount(ctx, s.clock.Now())
 	if err != nil {
 		return UnreadTotals{}, fmt.Errorf("unread counts: %w", err)
 	}

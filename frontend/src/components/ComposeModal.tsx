@@ -11,6 +11,7 @@ import {useLinkEditor} from '../hooks/useLinkEditor'
 import {useDraftAutosave} from '../hooks/useDraftAutosave'
 import {useSeparatorCorrection} from '../hooks/useSeparatorCorrection'
 import {bodyMentionsAttachment} from '../composeAttachment'
+import {fromDatetimeLocal, isSchedulable, sendLaterChoices} from '../schedule'
 
 // ComposeInitial pre-fills the compose window, used by reply, reply-all and forward.
 // MessageAttachment is an existing email attached to a new message: its id (fetched and rendered as a
@@ -133,7 +134,9 @@ export function ComposeModal({accountId, senders, initial, canSaveDraft, onMarkR
         to, cc, bcc, setTo, setCc, setBcc, setError, markDirty: autosave.markDirty,
     })
 
-    const buildRequest = (): ComposeInput => {
+    // buildRequest packs the compose state for the backend. at is the send-later instant (null for an
+    // immediate or undo-held send); it takes precedence over the undo window server-side.
+    const buildRequest = (at: Date | null = null): ComposeInput => {
         const text = editor?.getText() ?? ''
         const html = editor?.getHTML() ?? ''
         return {
@@ -149,6 +152,7 @@ export function ComposeModal({accountId, senders, initial, canSaveDraft, onMarkR
             attachmentPaths: attachments,
             attachmentMessageIds: messageAttachments.map((m) => m.id),
             holdSeconds,
+            sendAtMs: at === null ? 0 : at.getTime(),
         }
     }
 
@@ -204,19 +208,25 @@ export function ComposeModal({accountId, senders, initial, canSaveDraft, onMarkR
         }
     }
 
-    const send = async () => {
+    // send delivers the message now (at null) or schedules it for the chosen instant. A scheduled send
+    // waits in the Outbox with Cancel send: it shows no undo toast, and it does not mark a reply or
+    // forward's original (a schedule cancelled days later must not have already flagged it; the glyph is
+    // an accepted gap for scheduled sends).
+    const send = async (at: Date | null) => {
         autosave.stopAutosave()
         setSending(true)
         setError('')
         try {
-            const outboxId = await api.send(buildRequest())
-            if (outboxId === '') {
-                // Sent immediately: mark the original now, exactly as before undo-send existed.
-                markOriginalOnSend()
-            } else {
-                // Held behind the undo window: hand the queued id and the compose state to the toast,
-                // which marks the original only if the window elapses without an undo.
-                onHeld(outboxId, reopenInitial())
+            const outboxId = await api.send(buildRequest(at))
+            if (at === null) {
+                if (outboxId === '') {
+                    // Sent immediately: mark the original now, exactly as before undo-send existed.
+                    markOriginalOnSend()
+                } else {
+                    // Held behind the undo window: hand the queued id and the compose state to the toast,
+                    // which marks the original only if the window elapses without an undo.
+                    onHeld(outboxId, reopenInitial())
+                }
             }
             void api.clearDraftRecovery()
             onClose()
@@ -228,6 +238,12 @@ export function ComposeModal({accountId, senders, initial, canSaveDraft, onMarkR
     }
 
     const [attachWarn, setAttachWarn] = useState(false)
+    // sendLaterOpen shows the schedule row; sendAtValue is its datetime-local field. scheduleAtRef
+    // carries a chosen moment through the attachment-reminder dialog, so "Send anyway" schedules
+    // rather than sending now.
+    const [sendLaterOpen, setSendLaterOpen] = useState(false)
+    const [sendAtValue, setSendAtValue] = useState('')
+    const scheduleAtRef = useRef<Date | null>(null)
 
     // canSend mirrors the Send button's enabled state, so Ctrl+Enter behaves exactly like the button.
     const canSend = () => !sending && !savingDraft && to.trim() !== ''
@@ -238,26 +254,27 @@ export function ComposeModal({accountId, senders, initial, canSaveDraft, onMarkR
     // only earlier in the thread must not trigger the reminder.
     const mentionsAttachment = () => bodyMentionsAttachment(subject, editor?.getHTML() ?? '')
 
-    // attemptSend is the single entry point for both the Send button and Ctrl+Enter. It offers to fix a wrong
-    // address separator, then warns once when the message mentions an attachment but none is attached,
-    // otherwise it sends straight away.
-    const attemptSend = () => {
+    // attemptSend is the single entry point for the Send button, Ctrl+Enter and the send-later choices
+    // (which pass their instant). It offers to fix a wrong address separator, then warns once when the
+    // message mentions an attachment but none is attached, otherwise it sends or schedules straight away.
+    const attemptSend = (at: Date | null = null) => {
         if (!canSend()) return
         if (correction.offer()) return
         if (mentionsAttachment() && !hasAttachments()) {
+            scheduleAtRef.current = at
             setAttachWarn(true)
             return
         }
-        void send()
+        void send(at)
     }
-    attemptSendRef.current = attemptSend
+    attemptSendRef.current = () => attemptSend()
 
     const saveDraft = async () => {
         autosave.stopAutosave()
         setSavingDraft(true)
         setError('')
         try {
-            await api.saveDraft(buildRequest())
+            await api.saveDraft(buildRequest(null))
             void api.clearDraftRecovery()
             onClose()
         } catch (e) {
@@ -482,6 +499,49 @@ export function ComposeModal({accountId, senders, initial, canSaveDraft, onMarkR
                     )}
                 </div>
 
+                {sendLaterOpen && (
+                    <div className="compose-schedule-row" role="menu" aria-label="Send later">
+                        {sendLaterChoices(new Date()).map((choice) => (
+                            <button
+                                key={choice.label}
+                                type="button"
+                                role="menuitem"
+                                className="btn"
+                                onClick={() => {
+                                    setSendLaterOpen(false)
+                                    attemptSend(choice.at)
+                                }}
+                            >
+                                {choice.label}
+                            </button>
+                        ))}
+                        <input
+                            type="datetime-local"
+                            className="compose-schedule-input"
+                            aria-label="Send at"
+                            value={sendAtValue}
+                            onChange={(e) => setSendAtValue(e.target.value)}
+                        />
+                        <button
+                            type="button"
+                            className="btn primary"
+                            disabled={!isSchedulable(fromDatetimeLocal(sendAtValue), new Date())}
+                            onClick={() => {
+                                const at = fromDatetimeLocal(sendAtValue)
+                                if (at) {
+                                    setSendLaterOpen(false)
+                                    attemptSend(at)
+                                }
+                            }}
+                        >
+                            Schedule
+                        </button>
+                        <div className="compose-schedule-note">
+                            Sends at the chosen time while PigeonPost is running, or at the next launch after it.
+                            Cancel any time from the Outbox.
+                        </div>
+                    </div>
+                )}
                 <div className="modal-actions spread">
                     <button className="btn" onClick={onClose} disabled={sending || savingDraft}>Cancel</button>
                     <div className="compose-send-group">
@@ -490,7 +550,17 @@ export function ComposeModal({accountId, senders, initial, canSaveDraft, onMarkR
                                 {savingDraft ? 'Saving...' : 'Save draft'}
                             </button>
                         )}
-                        <button className="btn primary" onClick={attemptSend} disabled={sending || savingDraft || to.trim() === ''}
+                        <button
+                            className="btn"
+                            onClick={() => setSendLaterOpen((open) => !open)}
+                            disabled={sending || savingDraft || to.trim() === ''}
+                            aria-haspopup="menu"
+                            aria-expanded={sendLaterOpen}
+                            title="Send at a chosen time"
+                        >
+                            Send later
+                        </button>
+                        <button className="btn primary" onClick={() => attemptSend()} disabled={sending || savingDraft || to.trim() === ''}
                                 title="Send (Ctrl+Enter)">
                             {sending ? 'Sending...' : 'Send'}
                         </button>
@@ -506,7 +576,7 @@ export function ComposeModal({accountId, senders, initial, canSaveDraft, onMarkR
                     busy={sending}
                     onConfirm={() => {
                         setAttachWarn(false)
-                        void send()
+                        void send(scheduleAtRef.current)
                     }}
                     onCancel={() => setAttachWarn(false)}
                 />

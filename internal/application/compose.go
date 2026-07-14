@@ -144,16 +144,34 @@ func (s *ComposeService) HoldSend(ctx context.Context, accountID string, draft D
 	if holdFor <= 0 {
 		return "", s.Send(ctx, accountID, draft)
 	}
+	return s.queueHeldSend(ctx, accountID, draft, s.clock.Now().Add(holdFor))
+}
+
+// ScheduleSend is send-later: the validated message is queued in the outbox held until the chosen
+// instant and the queued item's id is returned, so the Outbox offers Cancel send until the dispatcher
+// delivers it. It rides the undo-send hold machinery end to end: a hold still pending at quit fires on
+// the next launch, and a due send that finds the server unreachable degrades to the plain offline
+// queue for the next sync. A sendAt that is not in the future is rejected, so a stale picker can never
+// fire a message the moment it is scheduled.
+func (s *ComposeService) ScheduleSend(ctx context.Context, accountID string, draft Draft, sendAt time.Time) (string, error) {
+	if !sendAt.After(s.clock.Now()) {
+		return "", ErrScheduleInPast
+	}
+	return s.queueHeldSend(ctx, accountID, draft, sendAt)
+}
+
+// queueHeldSend validates the draft and queues it in the outbox held until holdUntil, shared by the
+// undo-send window and the send-later schedule. The dispatcher sends it once the hold elapses.
+func (s *ComposeService) queueHeldSend(ctx context.Context, accountID string, draft Draft, holdUntil time.Time) (string, error) {
 	_, msg, err := s.buildOutgoing(ctx, accountID, draft)
 	if err != nil {
 		return "", err
 	}
-	now := s.clock.Now()
-	item, err := domain.NewOutboxItem(s.newID(), accountID, domain.OutboxSend, msg, now)
+	item, err := domain.NewOutboxItem(s.newID(), accountID, domain.OutboxSend, msg, s.clock.Now())
 	if err != nil {
 		return "", fmt.Errorf("compose: build held outbox item: %w", err)
 	}
-	item = item.WithHoldUntil(now.Add(holdFor))
+	item = item.WithHoldUntil(holdUntil)
 	if err := s.outbox.EnqueueOutbox(ctx, item); err != nil {
 		return "", fmt.Errorf("compose: queue held send: %w", err)
 	}

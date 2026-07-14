@@ -4,6 +4,7 @@ import {ComposeInitial} from '../components/ComposeModal'
 import {MenuItem} from '../components/Menu'
 import {TAG_PALETTE, colourTagId} from '../tagColours'
 import {matchesShortcut} from '../shortcuts'
+import {snoozeChoices} from '../schedule'
 
 // undoSendChoices are the offered undo-send windows in seconds; 0 turns the hold off and sends
 // immediately. defaultUndoSendSeconds is the out-of-the-box window.
@@ -66,6 +67,11 @@ export interface MenusDeps {
     moveMessage: (message: Message, destFolderId: string) => Promise<void>
     copyMessage: (message: Message, destFolderId: string) => Promise<void>
     markJunk: (message: Message) => Promise<void>
+    // Snooze: hide the active message until a chosen moment (a preset, or the picker dialog), and bring
+    // a hidden one back.
+    snoozeTo: (message: Message, at: Date) => Promise<void>
+    unsnooze: (message: Message) => Promise<void>
+    setSnoozePickerFor: Dispatch<SetStateAction<Message | null>>
     setMessageToCancelSend: Dispatch<SetStateAction<Message | null>>
     requestDelete: (message: Message) => void
     setMessageToPurge: Dispatch<SetStateAction<Message | null>>
@@ -96,7 +102,8 @@ export function useMenus(deps: MenusDeps): Menus {
         toggleConversationView, togglePreview, toggleAutoLoadImages, toggleUnifiedMailbox,
         signatureHtml, setComposeInitial, setComposing, setSettingUp, sync, openInNewTab,
         openReply, openReplyAll, openForward, attachToNewMessage, setReadState, toggleFlag, toggleTag,
-        moveMessage, copyMessage, markJunk, setMessageToCancelSend, requestDelete, setMessageToPurge,
+        moveMessage, copyMessage, markJunk, snoozeTo, unsnooze, setSnoozePickerFor,
+        setMessageToCancelSend, requestDelete, setMessageToPurge,
         showAbout, showLicence, checkUpdates,
     } = deps
 
@@ -256,6 +263,25 @@ export function useMenus(deps: MenusDeps): Menus {
                 return {label: c.name, swatch: c.colour, checked: on, onClick: () => void toggleTag(id, !on)}
             }),
         },
+        ...(activeMessage && activeMessage.snoozedUntilMs > 0
+            ? [{
+                label: 'Unsnooze',
+                icon: '\u{23F0}',
+                disabled: !canMailAct,
+                onClick: () => activeMessage && void unsnooze(activeMessage),
+            }]
+            : [{
+                label: 'Snooze',
+                icon: '\u{23F0}',
+                disabled: !canMailAct,
+                submenu: [
+                    ...snoozeChoices(new Date()).map((choice) => ({
+                        label: choice.label,
+                        onClick: () => activeMessage && void snoozeTo(activeMessage, choice.at),
+                    })),
+                    {label: 'Pick a time...', onClick: () => activeMessage && setSnoozePickerFor(activeMessage)},
+                ],
+            }]),
         {label: '', separator: true},
         {
             label: 'Move to',

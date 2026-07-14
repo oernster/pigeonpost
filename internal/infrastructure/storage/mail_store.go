@@ -79,29 +79,7 @@ func (s *Store) ListMessages(ctx context.Context, folderID string) ([]domain.Mes
 // once. The (date_ms, id) tie-break gives a total order, so no row is skipped or repeated when several
 // share a timestamp.
 func (s *Store) ListMessagesPage(ctx context.Context, folderID string, hasCursor bool, cursorDateMs int64, cursorID string, limit int, ascending bool) ([]domain.MessageSummary, error) {
-	const cols = `id, folder_id, uid, message_id, from_display, from_address, to_json, cc_json, subject,
-	              date_ms, size, flags, has_attachments, snippet`
-	order, cmp := "DESC", "<"
-	if ascending {
-		order, cmp = "ASC", ">"
-	}
-	var (
-		query string
-		args  []any
-	)
-	if hasCursor {
-		query = fmt.Sprintf(
-			`SELECT %s FROM message
-			 WHERE folder_id = ? AND (date_ms %s ? OR (date_ms = ? AND id %s ?))
-			 ORDER BY date_ms %s, id %s LIMIT ?;`, cols, cmp, cmp, order, order)
-		args = []any{folderID, cursorDateMs, cursorDateMs, cursorID, limit}
-	} else {
-		query = fmt.Sprintf(
-			`SELECT %s FROM message WHERE folder_id = ?
-			 ORDER BY date_ms %s, id %s LIMIT ?;`, cols, order, order)
-		args = []any{folderID, limit}
-	}
-	return queryRows(ctx, s.db, "messages", query, scanMessage, args...)
+	return s.listMessagesPage(ctx, folderID, hasCursor, cursorDateMs, cursorID, limit, ascending, false, 0)
 }
 
 // DeleteMessage removes a cached message and everything derived from it (body, tags, index row) in a
@@ -114,6 +92,7 @@ func (s *Store) DeleteMessage(ctx context.Context, messageID string) error {
 			"DELETE FROM message_tag WHERE message_id = ?;",
 			"DELETE FROM message_tag_pending WHERE message_id = ?;",
 			"DELETE FROM message_search WHERE message_id = ?;",
+			"DELETE FROM message_snooze WHERE message_id = ?;",
 			"DELETE FROM message WHERE id = ?;",
 		} {
 			if _, err := tx.ExecContext(ctx, stmt, messageID); err != nil {
@@ -160,11 +139,14 @@ func (s *Store) GetFolder(ctx context.Context, folderID string) (domain.Folder, 
 
 // UnreadByAccount returns each account's unread message count summed across all of its folders, keyed
 // by account id. An account with no unread messages is absent from the map. Unread means the Seen bit
-// is clear, matching the per-folder count.
-func (s *Store) UnreadByAccount(ctx context.Context) (map[string]int, error) {
+// is clear, matching the per-folder count. A message hidden by a snooze not yet due at visibleAt is
+// not counted: hidden mail must not badge the folder it is hidden from.
+func (s *Store) UnreadByAccount(ctx context.Context, visibleAt time.Time) (map[string]int, error) {
 	rows, err := s.db.QueryContext(ctx, fmt.Sprintf(
 		`SELECT f.account_id, COUNT(*) FROM message m JOIN folder f ON f.id = m.folder_id
-		 WHERE (m.flags & %d) = 0 GROUP BY f.account_id;`, int(domain.FlagSeen)))
+		 WHERE (m.flags & %d) = 0
+		   AND NOT EXISTS (SELECT 1 FROM message_snooze sn WHERE sn.message_id = m.id AND sn.until_ms > ?)
+		 GROUP BY f.account_id;`, int(domain.FlagSeen)), visibleAt.UnixMilli())
 	if err != nil {
 		return nil, fmt.Errorf("query unread by account: %w", err)
 	}
@@ -233,6 +215,12 @@ func (s *Store) SaveMessages(ctx context.Context, folderID string, messages []do
 		if _, err := tx.ExecContext(ctx,
 			"DELETE FROM message_tag_pending WHERE message_id NOT IN (SELECT id FROM message);"); err != nil {
 			return fmt.Errorf("sweep orphaned pending tags: %w", err)
+		}
+		// The same sweep for snoozes: a snoozed message expunged (or moved, which changes its id) on the
+		// server leaves its snooze orphaned; drop it so it neither lingers nor resurfaces as a ghost.
+		if _, err := tx.ExecContext(ctx,
+			"DELETE FROM message_snooze WHERE message_id NOT IN (SELECT id FROM message);"); err != nil {
+			return fmt.Errorf("sweep orphaned snoozes: %w", err)
 		}
 		return nil
 	})
@@ -328,6 +316,9 @@ func (s *Store) DeleteAccountData(ctx context.Context, accountID string) error {
 		}
 		if _, err := tx.ExecContext(ctx, "DELETE FROM message_search WHERE "+bodyOrTagFilter, accountID); err != nil {
 			return fmt.Errorf("clear message index: %w", err)
+		}
+		if _, err := tx.ExecContext(ctx, "DELETE FROM message_snooze WHERE "+bodyOrTagFilter, accountID); err != nil {
+			return fmt.Errorf("clear message snoozes: %w", err)
 		}
 		if _, err := tx.ExecContext(ctx,
 			`DELETE FROM message WHERE folder_id IN (SELECT id FROM folder WHERE account_id = ?);`,

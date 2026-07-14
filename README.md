@@ -41,10 +41,14 @@ local-first. A calmer, more predictable alternative to Thunderbird.
 - **Compose**: TipTap rich text, To/Cc/Bcc, reply, reply-all and forward, file or message attachments
   (25 MB), reusable message templates, per-account signatures and server Drafts. In-progress writing autosaves locally and is
   offered back after a crash. Undo send holds each message for a few configurable seconds with an Undo
-  that reopens it exactly as written. Sends made offline queue in a per-account outbox and deliver on the next sync.
+  that reopens it exactly as written. Send later schedules a message for a chosen moment (presets or an
+  exact date and time); it waits in the Outbox with Cancel send and leaves while the app is running, or
+  at the next launch after the chosen time. Sends made offline queue in a per-account outbox and deliver on the next sync.
 - **Organise**: mark read/star, delete to Trash or purge, junk, instant offline full-text search with
   operators (from:, to:, has:attachment, dates and more) and colour tags
-  that sync across devices as IMAP keywords. Move or copy messages by menu or by dragging onto a folder
+  that sync across devices as IMAP keywords. Snooze hides a message until a chosen time then returns it
+  untouched with a desktop notification (while the app is running, or at the next launch); hidden
+  messages wait in a Snoozed view with their due times and an Unsnooze. Move or copy messages by menu or by dragging onto a folder
   (dragging onto a collapsed folder springs it open). Create, rename and delete folders; reorganise the
   tree by dragging a folder to nest it, move it out or reorder its siblings.
   One folder each holds Inbox, Sent, Drafts, Trash, Junk and Archive, leading a collapsible tree with

@@ -320,7 +320,7 @@ func TestUnreadByAccount(t *testing.T) {
 	mustSave("f3", buildMessageIn(t, "m4", "f3", false))
 	mustSave("f4", buildMessageIn(t, "m5", "f4", true))
 
-	counts, err := store.UnreadByAccount(ctx)
+	counts, err := store.UnreadByAccount(ctx, time.Now())
 	if err != nil {
 		t.Fatalf("unread by account: %v", err)
 	}
@@ -919,5 +919,157 @@ func TestReopenPersistsAndMigratesOnce(t *testing.T) {
 	}
 	if len(accounts) != 1 {
 		t.Errorf("expected persisted account after reopen, got %d", len(accounts))
+	}
+}
+
+func TestSnoozeHidesFromVisibleListingsOnly(t *testing.T) {
+	store := openTestStore(t)
+	ctx := context.Background()
+	now := time.Date(2026, time.July, 14, 12, 0, 0, 0, time.UTC)
+
+	if err := store.SaveMessages(ctx, "f1", []domain.MessageSummary{
+		buildMessage(t, "m1", now.Add(-2*time.Hour), true),
+		buildMessage(t, "m2", now.Add(-time.Hour), true),
+	}); err != nil {
+		t.Fatalf("save messages: %v", err)
+	}
+	if err := store.SetSnooze(ctx, "m2", now.Add(time.Hour)); err != nil {
+		t.Fatalf("set snooze: %v", err)
+	}
+
+	visible, err := store.ListMessagesVisible(ctx, "f1", now)
+	if err != nil {
+		t.Fatalf("visible: %v", err)
+	}
+	if len(visible) != 1 || visible[0].ID() != "m1" {
+		t.Fatalf("visible = %v, want only m1", visible)
+	}
+	all, err := store.ListMessages(ctx, "f1")
+	if err != nil {
+		t.Fatalf("all: %v", err)
+	}
+	if len(all) != 2 {
+		t.Fatalf("plain listing = %d rows, want both (sync must see snoozed rows)", len(all))
+	}
+	page, err := store.ListMessagesPageVisible(ctx, "f1", false, 0, "", 10, false, now)
+	if err != nil {
+		t.Fatalf("visible page: %v", err)
+	}
+	if len(page) != 1 || page[0].ID() != "m1" {
+		t.Fatalf("visible page = %v, want only m1", page)
+	}
+
+	// Once the instant passes, the message is visible again without any write.
+	later, err := store.ListMessagesVisible(ctx, "f1", now.Add(2*time.Hour))
+	if err != nil {
+		t.Fatalf("visible later: %v", err)
+	}
+	if len(later) != 2 {
+		t.Fatalf("visible after due = %d rows, want both", len(later))
+	}
+}
+
+func TestSnoozeListPopNextAndClear(t *testing.T) {
+	store := openTestStore(t)
+	ctx := context.Background()
+	now := time.Date(2026, time.July, 14, 12, 0, 0, 0, time.UTC)
+	until := now.Add(time.Hour)
+
+	if err := store.SaveMessages(ctx, "f1", []domain.MessageSummary{
+		buildMessage(t, "m1", now.Add(-2*time.Hour), true),
+		buildMessage(t, "m2", now.Add(-time.Hour), true),
+	}); err != nil {
+		t.Fatalf("save messages: %v", err)
+	}
+	if err := store.SetSnooze(ctx, "m2", until); err != nil {
+		t.Fatalf("set snooze: %v", err)
+	}
+
+	inbox, _ := domain.NewFolder("f1", "a1", "INBOX", domain.FolderInbox, 0, 0)
+	if err := store.SaveFolders(ctx, "a1", []domain.Folder{inbox}); err != nil {
+		t.Fatalf("save folders: %v", err)
+	}
+	snoozed, err := store.ListSnoozed(ctx)
+	if err != nil {
+		t.Fatalf("list snoozed: %v", err)
+	}
+	if len(snoozed) != 1 || snoozed[0].Summary.ID() != "m2" || !snoozed[0].Until.Equal(until) {
+		t.Fatalf("snoozed = %+v, want m2 until %v", snoozed, until)
+	}
+	if snoozed[0].AccountID != "a1" {
+		t.Errorf("snoozed account = %q, want a1 (resolved through the folder)", snoozed[0].AccountID)
+	}
+	next, ok, err := store.NextSnooze(ctx)
+	if err != nil || !ok || !next.Equal(until) {
+		t.Fatalf("next = %v ok %t err %v, want %v", next, ok, err, until)
+	}
+
+	// Popping before the instant does nothing; after it, the message is returned once and the snooze
+	// is gone.
+	popped, err := store.PopDueSnoozed(ctx, now)
+	if err != nil || len(popped) != 0 {
+		t.Fatalf("early pop = %v err %v, want none", popped, err)
+	}
+	popped, err = store.PopDueSnoozed(ctx, now.Add(2*time.Hour))
+	if err != nil || len(popped) != 1 || popped[0].ID() != "m2" {
+		t.Fatalf("due pop = %v err %v, want m2", popped, err)
+	}
+	if _, ok, _ := store.NextSnooze(ctx); ok {
+		t.Error("a popped snooze must be gone")
+	}
+
+	// ClearSnooze restores visibility at once.
+	if err := store.SetSnooze(ctx, "m1", until); err != nil {
+		t.Fatalf("re-snooze: %v", err)
+	}
+	if err := store.ClearSnooze(ctx, "m1"); err != nil {
+		t.Fatalf("clear snooze: %v", err)
+	}
+	visible, err := store.ListMessagesVisible(ctx, "f1", now)
+	if err != nil || len(visible) != 2 {
+		t.Fatalf("visible after clear = %v err %v, want both", visible, err)
+	}
+}
+
+func TestSnoozeExcludedFromUnreadAndSweptWithItsMessage(t *testing.T) {
+	store := openTestStore(t)
+	ctx := context.Background()
+	now := time.Date(2026, time.July, 14, 12, 0, 0, 0, time.UTC)
+
+	inbox, _ := domain.NewFolder("f1", "a1", "INBOX", domain.FolderInbox, 0, 0)
+	if err := store.SaveFolders(ctx, "a1", []domain.Folder{inbox}); err != nil {
+		t.Fatalf("save folders: %v", err)
+	}
+	if err := store.SaveMessages(ctx, "f1", []domain.MessageSummary{
+		buildMessageIn(t, "m1", "f1", false),
+		buildMessageIn(t, "m2", "f1", false),
+	}); err != nil {
+		t.Fatalf("save messages: %v", err)
+	}
+	if err := store.SetSnooze(ctx, "m2", now.Add(time.Hour)); err != nil {
+		t.Fatalf("set snooze: %v", err)
+	}
+
+	counts, err := store.UnreadByAccount(ctx, now)
+	if err != nil {
+		t.Fatalf("unread: %v", err)
+	}
+	if counts["a1"] != 1 {
+		t.Errorf("unread with hidden message = %d, want 1", counts["a1"])
+	}
+	counts, err = store.UnreadByAccount(ctx, now.Add(2*time.Hour))
+	if err != nil {
+		t.Fatalf("unread later: %v", err)
+	}
+	if counts["a1"] != 2 {
+		t.Errorf("unread after due = %d, want 2", counts["a1"])
+	}
+
+	// A folder replace that drops the snoozed message (expunged server-side) sweeps its snooze too.
+	if err := store.SaveMessages(ctx, "f1", []domain.MessageSummary{buildMessageIn(t, "m1", "f1", false)}); err != nil {
+		t.Fatalf("replace messages: %v", err)
+	}
+	if _, ok, _ := store.NextSnooze(ctx); ok {
+		t.Error("an orphaned snooze must be swept with its message")
 	}
 }

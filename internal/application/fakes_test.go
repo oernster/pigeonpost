@@ -172,6 +172,13 @@ type fakeMailStore struct {
 	savedFolderKeys  []string
 	savedMessageKeys []string
 	deletedData      []string
+	// snoozes maps a message id to its snooze-until instant, mirroring the message_snooze table.
+	snoozes       map[string]time.Time
+	setSnoozeErr  error
+	clearErr      error
+	listSnoozeErr error
+	popDueErr     error
+	nextErr       error
 }
 
 func newFakeMailStore() *fakeMailStore {
@@ -179,6 +186,7 @@ func newFakeMailStore() *fakeMailStore {
 		folders:  map[string][]domain.Folder{},
 		messages: map[string][]domain.MessageSummary{},
 		bodies:   map[string]domain.MessageBody{},
+		snoozes:  map[string]time.Time{},
 	}
 }
 
@@ -249,11 +257,118 @@ func (f *fakeMailStore) ListMessagesPage(_ context.Context, folderID string, has
 	return page, nil
 }
 
-func (f *fakeMailStore) UnreadByAccount(_ context.Context) (map[string]int, error) {
+func (f *fakeMailStore) UnreadByAccount(_ context.Context, _ time.Time) (map[string]int, error) {
 	if f.unreadErr != nil {
 		return nil, f.unreadErr
 	}
 	return f.unreadByAccount, nil
+}
+
+// hiddenAt reports whether a message is hidden by an unexpired snooze at the given instant.
+func (f *fakeMailStore) hiddenAt(messageID string, at time.Time) bool {
+	until, ok := f.snoozes[messageID]
+	return ok && until.After(at)
+}
+
+func (f *fakeMailStore) ListMessagesVisible(ctx context.Context, folderID string, visibleAt time.Time) ([]domain.MessageSummary, error) {
+	all, err := f.ListMessages(ctx, folderID)
+	if err != nil {
+		return nil, err
+	}
+	visible := make([]domain.MessageSummary, 0, len(all))
+	for _, m := range all {
+		if !f.hiddenAt(m.ID(), visibleAt) {
+			visible = append(visible, m)
+		}
+	}
+	return visible, nil
+}
+
+// ListMessagesPageVisible mirrors the store: the snooze filter applies before paging, so a page holds
+// limit visible rows.
+func (f *fakeMailStore) ListMessagesPageVisible(ctx context.Context, folderID string, hasCursor bool, cursorDateMs int64, cursorID string, limit int, ascending bool, visibleAt time.Time) ([]domain.MessageSummary, error) {
+	page, err := f.ListMessagesPage(ctx, folderID, hasCursor, cursorDateMs, cursorID, limit, ascending)
+	if err != nil {
+		return nil, err
+	}
+	visible := make([]domain.MessageSummary, 0, len(page))
+	for _, m := range page {
+		if !f.hiddenAt(m.ID(), visibleAt) {
+			visible = append(visible, m)
+		}
+	}
+	return visible, nil
+}
+
+func (f *fakeMailStore) SetSnooze(_ context.Context, messageID string, until time.Time) error {
+	if f.setSnoozeErr != nil {
+		return f.setSnoozeErr
+	}
+	f.snoozes[messageID] = until
+	return nil
+}
+
+func (f *fakeMailStore) ClearSnooze(_ context.Context, messageID string) error {
+	if f.clearErr != nil {
+		return f.clearErr
+	}
+	delete(f.snoozes, messageID)
+	return nil
+}
+
+func (f *fakeMailStore) ListSnoozed(ctx context.Context) ([]SnoozedMessage, error) {
+	if f.listSnoozeErr != nil {
+		return nil, f.listSnoozeErr
+	}
+	var out []SnoozedMessage
+	for messageID, until := range f.snoozes {
+		summary, err := f.GetMessage(ctx, messageID)
+		if err != nil {
+			continue
+		}
+		accountID := ""
+		for accID, folders := range f.folders {
+			for _, folder := range folders {
+				if folder.ID() == summary.FolderID() {
+					accountID = accID
+				}
+			}
+		}
+		out = append(out, SnoozedMessage{Summary: summary, Until: until, AccountID: accountID})
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Until.Before(out[j].Until) })
+	return out, nil
+}
+
+func (f *fakeMailStore) PopDueSnoozed(ctx context.Context, now time.Time) ([]domain.MessageSummary, error) {
+	if f.popDueErr != nil {
+		return nil, f.popDueErr
+	}
+	var due []domain.MessageSummary
+	for messageID, until := range f.snoozes {
+		if until.After(now) {
+			continue
+		}
+		delete(f.snoozes, messageID)
+		if summary, err := f.GetMessage(ctx, messageID); err == nil {
+			due = append(due, summary)
+		}
+	}
+	sort.Slice(due, func(i, j int) bool { return due[i].ID() < due[j].ID() })
+	return due, nil
+}
+
+func (f *fakeMailStore) NextSnooze(_ context.Context) (time.Time, bool, error) {
+	if f.nextErr != nil {
+		return time.Time{}, false, f.nextErr
+	}
+	var next time.Time
+	for _, until := range f.snoozes {
+		if next.IsZero() || until.Before(next) {
+			next = until
+		}
+	}
+	return next, !next.IsZero(), nil
 }
 
 func (f *fakeMailStore) SaveMessages(_ context.Context, folderID string, messages []domain.MessageSummary) error {

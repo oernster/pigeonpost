@@ -343,6 +343,7 @@ export namespace main {
 	    attachmentPaths: string[];
 	    attachmentMessageIds: string[];
 	    holdSeconds: number;
+    sendAtMs: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new ComposeRequest(source);
@@ -361,6 +362,7 @@ export namespace main {
 	        this.attachmentPaths = source["attachmentPaths"];
 	        this.attachmentMessageIds = source["attachmentMessageIds"];
 	        this.holdSeconds = source["holdSeconds"];
+	        this.sendAtMs = source["sendAtMs"];
 	    }
 	}
 	export class ContactAddressDTO {
@@ -911,6 +913,7 @@ export namespace main {
 	    forwarded: boolean;
 	    snippet: string;
 	    tagColours: string[];
+    snoozedUntilMs: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new MessageDTO(source);
@@ -935,6 +938,7 @@ export namespace main {
 	        this.forwarded = source["forwarded"];
 	        this.snippet = source["snippet"];
 	        this.tagColours = source["tagColours"];
+        this.snoozedUntilMs = source["snoozedUntilMs"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

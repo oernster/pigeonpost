@@ -37,6 +37,8 @@ export interface MessageListKeyboardDeps {
     contextMenu: {message: Message; x: number; y: number} | null
     bulkToDelete: Message[] | null
     bulkToPurge: Message[] | null
+    // snoozePickerFor is the message whose custom snooze dialog is open; the dialog suppresses list keys.
+    snoozePickerFor: Message | null
     folders: Folder[]
     requestDelete: (message: Message) => void
     openInNewTab: (message: Message, fromKeyboard?: boolean) => void
@@ -58,7 +60,7 @@ export function useMessageListKeyboard(deps: MessageListKeyboardDeps): void {
         markedIds, setMarkedIds, anchorId, setAnchorId, setReadingFull,
         splashVisible, composing, settingUp, accountToEdit, managingRules, managingTemplates, managingContacts, managingCalendar,
         about, licence, folderPrompt, messageToCancelSend, messageToDelete, accountToDelete, folderToDelete,
-        messageToPurge, contextMenu, bulkToDelete, bulkToPurge, folders,
+        messageToPurge, contextMenu, bulkToDelete, bulkToPurge, snoozePickerFor, folders,
         requestDelete, openInNewTab, setMessageToPurge, setBulkToPurge, setBulkToDelete, setFolderToDelete,
         togglePreview,
     } = deps
@@ -73,7 +75,8 @@ export function useMessageListKeyboard(deps: MessageListKeyboardDeps): void {
             managingRules || managingTemplates || managingContacts || managingCalendar || Boolean(about) || Boolean(licence) || Boolean(folderPrompt) ||
             Boolean(messageToCancelSend) ||
             Boolean(messageToDelete) || Boolean(accountToDelete) || Boolean(folderToDelete) ||
-            Boolean(messageToPurge) || Boolean(contextMenu) || Boolean(bulkToDelete) || Boolean(bulkToPurge)
+            Boolean(messageToPurge) || Boolean(contextMenu) || Boolean(bulkToDelete) || Boolean(bulkToPurge) ||
+            Boolean(snoozePickerFor)
         const list = searchActive ? searchResults : displayMessages
         const onKeyDown = (e: KeyboardEvent) => {
             const target = e.target as HTMLElement | null
@@ -306,6 +309,6 @@ export function useMessageListKeyboard(deps: MessageListKeyboardDeps): void {
         searchActive, searchResults, displayMessages, selectedMessage, requestDelete, markedIds, anchorId,
         splashVisible, composing, settingUp, accountToEdit, managingRules, managingTemplates, managingContacts, managingCalendar, about,
         licence, folderPrompt, messageToDelete, accountToDelete, folderToDelete, messageToPurge,
-        contextMenu, messageToCancelSend, bulkToDelete, bulkToPurge, togglePreview, folders,
+        contextMenu, messageToCancelSend, bulkToDelete, bulkToPurge, snoozePickerFor, togglePreview, folders,
     ])
 }

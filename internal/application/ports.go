@@ -35,12 +35,16 @@ type AccountVerifier interface {
 }
 
 // MailStore is the local cache of folders and message summaries. The UI reads from here so it works
-// offline; the sync service writes to it.
+// offline; the sync service writes to it. The Visible listing variants exclude messages hidden by an
+// unexpired snooze and back the reading views; the plain variants see everything and back the sync
+// (whose known-message sets and flag carry-over must include snoozed rows) and search.
 type MailStore interface {
 	ListFolders(ctx context.Context, accountID string) ([]domain.Folder, error)
 	SaveFolders(ctx context.Context, accountID string, folders []domain.Folder) error
 	ListMessages(ctx context.Context, folderID string) ([]domain.MessageSummary, error)
 	ListMessagesPage(ctx context.Context, folderID string, hasCursor bool, cursorDateMs int64, cursorID string, limit int, ascending bool) ([]domain.MessageSummary, error)
+	ListMessagesVisible(ctx context.Context, folderID string, visibleAt time.Time) ([]domain.MessageSummary, error)
+	ListMessagesPageVisible(ctx context.Context, folderID string, hasCursor bool, cursorDateMs int64, cursorID string, limit int, ascending bool, visibleAt time.Time) ([]domain.MessageSummary, error)
 	SaveMessages(ctx context.Context, folderID string, messages []domain.MessageSummary) error
 	SetSeen(ctx context.Context, messageID string, seen bool) error
 	SetFlagged(ctx context.Context, messageID string, flagged bool) error
@@ -49,13 +53,42 @@ type MailStore interface {
 	DeleteAccountData(ctx context.Context, accountID string) error
 	GetMessage(ctx context.Context, messageID string) (domain.MessageSummary, error)
 	GetFolder(ctx context.Context, folderID string) (domain.Folder, error)
-	UnreadByAccount(ctx context.Context) (map[string]int, error)
+	// UnreadByAccount counts only messages visible at the given instant, so a snoozed unread message
+	// does not badge the folder it is hidden from until it resurfaces.
+	UnreadByAccount(ctx context.Context, visibleAt time.Time) (map[string]int, error)
 	GetMessageBody(ctx context.Context, messageID string) (domain.MessageBody, error)
 	SaveMessageBody(ctx context.Context, body domain.MessageBody) error
 	// SearchMessages returns the cached messages matching the modelled query, most relevant first,
 	// capped at limit. Each hit's snippet wraps matched terms in SearchMatchStart/SearchMatchEnd.
+	// Snoozed messages stay searchable: hiding is a folder-view concern, not an existence one.
 	SearchMessages(ctx context.Context, query domain.SearchQuery, limit int) ([]SearchHit, error)
 	DeleteMessage(ctx context.Context, messageID string) error
+}
+
+// SnoozedMessage pairs a hidden message with the instant it resurfaces and its owning account (the
+// Snoozed view spans accounts, so each row must say whose it is), for the Snoozed view.
+type SnoozedMessage struct {
+	Summary   domain.MessageSummary
+	Until     time.Time
+	AccountID string
+}
+
+// SnoozeStore is the local snooze state: a message with a snooze row is hidden from the visible
+// listings until its instant passes, then reappears untouched. It is local-only (nothing reaches the
+// server) and implemented by the same SQLite store as MailStore; it is a separate contract so the
+// snooze service depends only on what it uses.
+type SnoozeStore interface {
+	SetSnooze(ctx context.Context, messageID string, until time.Time) error
+	ClearSnooze(ctx context.Context, messageID string) error
+	// ListSnoozed returns every snoozed message with its due instant, soonest first.
+	ListSnoozed(ctx context.Context) ([]SnoozedMessage, error)
+	// PopDueSnoozed removes every snooze whose instant has passed and returns the messages that just
+	// resurfaced, for the caller to announce. A snooze orphaned by its message's deletion is removed
+	// without being returned.
+	PopDueSnoozed(ctx context.Context, now time.Time) ([]domain.MessageSummary, error)
+	// NextSnooze returns the earliest pending snooze instant and whether one exists, so the resurface
+	// scheduler only does work when something is actually due.
+	NextSnooze(ctx context.Context) (time.Time, bool, error)
 }
 
 // SearchMatchStart and SearchMatchEnd delimit each matched term inside a SearchHit's snippet. They are

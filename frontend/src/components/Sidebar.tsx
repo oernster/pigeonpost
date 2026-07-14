@@ -12,6 +12,11 @@ interface SidebarProps {
     unifiedSelected: boolean
     unifiedUnread: number
     onSelectUnified: () => void
+    // The Snoozed entry: shown while any message is hidden (like the Outbox it appears only when it has
+    // contents), badged with how many. Selecting it lists the hidden messages with their due times.
+    snoozedCount: number
+    snoozedSelected: boolean
+    onSelectSnoozed: () => void
     // syncingAccountIds holds the ids of accounts whose mailbox sync is in progress, so each row can show a
     // small syncing cue and stays independent of the others.
     syncingAccountIds: ReadonlySet<string>
@@ -79,6 +84,27 @@ function SidebarContent(props: SidebarProps) {
                             All inboxes
                         </span>
                         {props.unifiedUnread > 0 && <span className="badge">{props.unifiedUnread}</span>}
+                    </li>
+                </ul>
+            )}
+            {props.snoozedCount > 0 && (
+                <ul className="list" data-snoozed-entry="">
+                    <li
+                        className={'list-item folder snoozed' + (props.snoozedSelected ? ' selected' : '')}
+                        tabIndex={0}
+                        onClick={props.onSelectSnoozed}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                                e.preventDefault()
+                                props.onSelectSnoozed()
+                            }
+                        }}
+                    >
+                        <span className="folder-name">
+                            <span className="folder-icon">{'\u{23F0}'}</span>
+                            Snoozed
+                        </span>
+                        <span className="badge">{props.snoozedCount}</span>
                     </li>
                 </ul>
             )}

@@ -3,6 +3,7 @@ import './App.css'
 import {AboutInfo, api, CalendarEvent, Contact, Message, MessageBody, Rule, Template, UnreadCountsResult} from './api'
 import {OUTBOX_FOLDER_ID, isOutboxMessage, outboxItemToMessage} from './outbox'
 import {UNIFIED_FOLDER_ID, accountChips, isUnifiedFolder} from './unified'
+import {SNOOZED_FOLDER_ID, isSnoozedFolder} from './snooze'
 import {applyTheme, loadTheme, Theme} from './theme'
 import {Sidebar} from './components/Sidebar'
 import {MessageList, type SearchScope} from './components/MessageList'
@@ -49,6 +50,8 @@ import {useAppEvents} from './hooks/useAppEvents'
 import {defaultUndoSendSeconds, undoSendChoices, useMenus} from './hooks/useMenus'
 import {useMessageListKeyboard} from './hooks/useMessageListKeyboard'
 import {useFolderPagination} from './hooks/useFolderPagination'
+import {useSnooze} from './hooks/useSnooze'
+import {ScheduleDialog} from './components/ScheduleDialog'
 
 function App() {
     const [selectedAccount, setSelectedAccount] = useState<string>('')
@@ -315,6 +318,13 @@ function App() {
         void loadUnread()
     }, [loadUnread])
 
+    // The snooze actions (hide until a moment, bring back, the custom picker) and the Snoozed entry's
+    // count live in useSnooze. Snooze is local-only state: the backend hides the message from the
+    // visible listings until it comes due.
+    const {
+        snoozedCount, refreshSnoozedCount, snoozeTo, unsnooze, snoozePickerFor, setSnoozePickerFor,
+    } = useSnooze({store, loadUnread, setError})
+
     // The single-message actions (delete, move, flag, read, junk, copy) and their single-delete confirm
     // state live in useMessageActions, wired to the message store and the loaders they need.
     const {
@@ -426,7 +436,7 @@ function App() {
     // back to all mail visibly, so the selector never claims a narrower scope than the search actually
     // runs with. The unified mailbox is not a real folder, so it cannot anchor a folder scope.
     useEffect(() => {
-        if ((searchScope === 'folder' && (!selectedFolder || isUnifiedFolder(selectedFolder)))
+        if ((searchScope === 'folder' && (!selectedFolder || isUnifiedFolder(selectedFolder) || isSnoozedFolder(selectedFolder)))
             || (searchScope === 'account' && !selectedAccount)) {
             setSearchScope('all')
         }
@@ -665,6 +675,38 @@ function App() {
             prev && isOutboxMessage(prev) && !outboxForAccount.some((o) => o.id === prev.id) ? null : prev)
     }, [outboxForAccount, selectedFolder, folders, loadFolderMessages])
 
+    // The backend scheduler announces resurfaced snoozes, so the badges and the open view (the inbox a
+    // message returns to, or the Snoozed view it leaves) refresh the moment it comes back.
+    useEffect(() => EventsOn('snooze:changed', () => {
+        void refreshSnoozedCount()
+        void loadUnread()
+        const folderId = selectedFolderRef.current
+        if (folderId && folderId !== OUTBOX_FOLDER_ID) {
+            void loadFolderMessages(folderId, {skipSync: true})
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }), [refreshSnoozedCount, loadUnread, loadFolderMessages])
+
+    // The Snoozed view empties as messages resurface or are unsnoozed; once nothing is hidden its
+    // sidebar entry disappears, so fall back to the inbox, mirroring the Outbox's empty-queue fallback.
+    useEffect(() => {
+        if (selectedFolder !== SNOOZED_FOLDER_ID || snoozedCount > 0) {
+            return
+        }
+        const fallback = folders.find((f) => f.kind === 'inbox') ?? folders[0]
+        if (fallback) {
+            selectedFolderRef.current = fallback.id
+            setSelectedFolder(fallback.id)
+            setSelectedMessage(null)
+            void loadFolderMessages(fallback.id)
+        } else {
+            selectedFolderRef.current = ''
+            setSelectedFolder('')
+            setMessages([])
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [selectedFolder, snoozedCount, folders, loadFolderMessages])
+
     // The mailbox sync (a manual full-account sync and the periodic light refresh of the open folder) and
     // the per-account "is syncing" state live in useSync.
     const {syncingAccounts, sync, accountSyncing} = useSync({
@@ -853,7 +895,7 @@ function App() {
         markedIds, setMarkedIds, anchorId, setAnchorId, setReadingFull,
         splashVisible, composing, settingUp, accountToEdit, managingRules, managingTemplates, managingContacts, managingCalendar,
         about, licence, folderPrompt, messageToCancelSend, messageToDelete, accountToDelete, folderToDelete,
-        messageToPurge, contextMenu, bulkToDelete, bulkToPurge, folders,
+        messageToPurge, contextMenu, bulkToDelete, bulkToPurge, snoozePickerFor, folders,
         requestDelete, openInNewTab, setMessageToPurge, setBulkToPurge, setBulkToDelete, setFolderToDelete,
         togglePreview,
     })
@@ -862,11 +904,12 @@ function App() {
     // mailbox, so those actions are hidden and a delete is permanent rather than a move to Trash.
     const activeAccount = accounts.find((a) => a.id === selectedAccount)
     const isPop3 = activeAccount?.protocol === 'pop3'
-    // The unified mailbox merges every account's inbox into one list. Move and Copy (and Junk) are
-    // unavailable there: the folder targets belong to one account while the rows span them all, so those
-    // actions live in the message's real folder instead.
+    // The unified mailbox and the Snoozed view span accounts. Move and Copy (and Junk) are unavailable
+    // in both: the folder targets belong to one account while the rows span them all, so those actions
+    // live in the message's real folder instead.
     const unifiedSelected = isUnifiedFolder(selectedFolder)
-    const canMoveCopy = !isPop3 && !unifiedSelected
+    const snoozedSelected = isSnoozedFolder(selectedFolder)
+    const canMoveCopy = !isPop3 && !unifiedSelected && !snoozedSelected
     // messagePop3 resolves a message's own account (a unified row can belong to any account, other rows
     // fall back to the selected one) to word its delete confirmation honestly: POP3 has no Trash.
     const messagePop3 = (message: Message | null): boolean => {
@@ -910,7 +953,7 @@ function App() {
             onSearchChange={setSearchQuery}
             searchScope={searchScope}
             onScopeChange={setSearchScope}
-            canScopeFolder={Boolean(selectedFolder) && !unifiedSelected}
+            canScopeFolder={Boolean(selectedFolder) && !unifiedSelected && !snoozedSelected}
             canScopeAccount={Boolean(selectedAccount)}
             searchDegraded={searchDegraded}
             matchSnippets={searchSnippets}
@@ -984,7 +1027,8 @@ function App() {
         toggleConversationView, togglePreview, toggleAutoLoadImages, toggleUnifiedMailbox,
         signatureHtml, setComposeInitial, setComposing, setSettingUp, sync, openInNewTab,
         openReply, openReplyAll, openForward, attachToNewMessage, setReadState, toggleFlag, toggleTag,
-        moveMessage, copyMessage, markJunk, setMessageToCancelSend, requestDelete, setMessageToPurge,
+        moveMessage, copyMessage, markJunk, snoozeTo, unsnooze, setSnoozePickerFor,
+        setMessageToCancelSend, requestDelete, setMessageToPurge,
         showAbout, showLicence, checkUpdates,
     })
 
@@ -1059,6 +1103,9 @@ function App() {
                     unifiedSelected={unifiedSelected}
                     unifiedUnread={unreadCounts.total}
                     onSelectUnified={() => void selectFolder(UNIFIED_FOLDER_ID)}
+                    snoozedCount={snoozedCount}
+                    snoozedSelected={snoozedSelected}
+                    onSelectSnoozed={() => void selectFolder(SNOOZED_FOLDER_ID)}
                     syncingAccountIds={syncingAccounts}
                     unreadByAccount={unreadCounts.byAccount}
                     folders={sidebarFolders}
@@ -1258,6 +1305,9 @@ function App() {
                     onPrint={(m) => void printMessage(m)}
                     onAttachToNew={attachToNewMessage}
                     onMarkJunk={(m) => void markJunk(m)}
+                    onSnooze={(m, at) => void snoozeTo(m, at)}
+                    onSnoozeCustom={(m) => setSnoozePickerFor(m)}
+                    onUnsnooze={(m) => void unsnooze(m)}
                     onDelete={requestDelete}
                     onDeletePermanent={(m) => setMessageToPurge(m)}
                     onCancelSend={(m) => setMessageToCancelSend(m)}
@@ -1287,6 +1337,19 @@ function App() {
                     busy={folderBusy}
                     onSubmit={(value) => void submitFolderPrompt(value)}
                     onCancel={() => setFolderPrompt(null)}
+                />
+            )}
+            {snoozePickerFor && (
+                <ScheduleDialog
+                    title="Snooze until"
+                    label="Bring this message back at"
+                    confirmLabel="Snooze"
+                    onSubmit={(at) => {
+                        const target = snoozePickerFor
+                        setSnoozePickerFor(null)
+                        void snoozeTo(target, at)
+                    }}
+                    onCancel={() => setSnoozePickerFor(null)}
                 />
             )}
             {folderToDelete && (

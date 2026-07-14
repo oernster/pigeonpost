@@ -10,16 +10,22 @@ export function isOutboxMessage(message: Message): boolean {
     return message.folderId === OUTBOX_FOLDER_ID
 }
 
+// snippetLimit caps the outbox row's preview text, matching the stored-snippet scale of real mail rows.
+const snippetLimit = 200
+
 // outboxItemToMessage maps a queued item to the message shape the list and reader render. The sender
 // column shows the recipients (this is outgoing mail), and the plain body doubles as the snippet. A
-// permanently failed item is marked so it does not read as merely waiting: the subject is prefixed and
-// the snippet leads with the failure reason, so the user sees it did not send and why.
+// held item (an undo window or a scheduled send-later) leads its snippet with when it sends, so the
+// Outbox states the schedule at a glance. A permanently failed item is marked so it does not read as
+// merely waiting: the subject is prefixed and the snippet leads with the failure reason, so the user
+// sees it did not send and why.
 export function outboxItemToMessage(item: OutboxItem): Message {
     const recipients = item.to.join(', ')
     const preview = item.body.replace(/\s+/g, ' ').trim()
+    const sendsAt = item.holdMs > 0 ? `Sends ${new Date(item.holdMs).toLocaleString()}. ` : ''
     const snippet = item.failed
-        ? `Failed to send: ${item.failure}`.slice(0, 200)
-        : preview.slice(0, 200)
+        ? `Failed to send: ${item.failure}`.slice(0, snippetLimit)
+        : (sendsAt + preview).slice(0, snippetLimit)
     return {
         id: item.id,
         folderId: OUTBOX_FOLDER_ID,
@@ -39,5 +45,6 @@ export function outboxItemToMessage(item: OutboxItem): Message {
         forwarded: false,
         snippet,
         tagColours: [],
+        snoozedUntilMs: 0,
     }
 }

@@ -294,3 +294,50 @@ describe('ComposeModal: draft autosave', () => {
         expect(apiSpies.saveDraftRecovery).not.toHaveBeenCalled()
     })
 })
+
+describe('ComposeModal: send later', () => {
+    const MS_PER_HOUR = 60 * 60 * 1000
+
+    it('schedules a preset moment and closes without the undo toast or the reply mark', async () => {
+        apiSpies.send.mockResolvedValue('ob-9')
+        const {onClose, onHeld, onMarkReplied} = renderCompose({
+            holdSeconds: 10,
+            initial: {to: 'x@y.com', subject: 'Hi', inReplyToId: 'orig1', replyKind: 'reply'},
+        })
+        fireEvent.click(screen.getByRole('button', {name: 'Send later'}))
+        fireEvent.click(screen.getByRole('menuitem', {name: 'Tomorrow morning (09:00)'}))
+        await waitFor(() => expect(onClose).toHaveBeenCalled())
+        expect(apiSpies.send.mock.calls[0][0].sendAtMs).toBeGreaterThan(Date.now())
+        // A scheduled send waits in the Outbox: no undo toast, and the reply mark stays honest (the
+        // schedule may yet be cancelled), so neither callback fires.
+        expect(onHeld).not.toHaveBeenCalled()
+        expect(onMarkReplied).not.toHaveBeenCalled()
+    })
+
+    it('schedules a custom future moment from the date-time field', async () => {
+        renderCompose({initial: {to: 'x@y.com'}})
+        fireEvent.click(screen.getByRole('button', {name: 'Send later'}))
+        const scheduleButton = screen.getByRole('button', {name: 'Schedule'})
+        expect(scheduleButton).toBeDisabled()
+        const {toDatetimeLocal} = await import('../schedule')
+        fireEvent.change(screen.getByLabelText('Send at'), {
+            target: {value: toDatetimeLocal(new Date(Date.now() + MS_PER_HOUR))},
+        })
+        expect(scheduleButton).toBeEnabled()
+        fireEvent.click(scheduleButton)
+        await waitFor(() => expect(apiSpies.send).toHaveBeenCalled())
+        expect(apiSpies.send.mock.calls[0][0].sendAtMs).toBeGreaterThan(Date.now())
+    })
+
+    it('keeps a past custom moment unschedulable', () => {
+        renderCompose({initial: {to: 'x@y.com'}})
+        fireEvent.click(screen.getByRole('button', {name: 'Send later'}))
+        fireEvent.change(screen.getByLabelText('Send at'), {target: {value: '2000-01-01T00:00'}})
+        expect(screen.getByRole('button', {name: 'Schedule'})).toBeDisabled()
+    })
+
+    it('is unavailable without a recipient', () => {
+        renderCompose()
+        expect(screen.getByRole('button', {name: 'Send later'})).toBeDisabled()
+    })
+})

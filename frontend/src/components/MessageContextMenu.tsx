@@ -2,6 +2,7 @@ import {ReactNode, useEffect, useLayoutEffect, useRef, useState} from 'react'
 import {api, Folder, Message, Tag} from '../api'
 import {TAG_PALETTE, colourTagId} from '../tagColours'
 import {isOutboxMessage} from '../outbox'
+import {snoozeChoices} from '../schedule'
 
 interface MessageContextMenuProps {
     message: Message
@@ -31,6 +32,11 @@ interface MessageContextMenuProps {
     // onMarkJunk files a message into the account's Junk folder; offered only when the account has
     // server-side folders (not POP3), like Move.
     onMarkJunk: (message: Message) => void
+    // onSnooze hides the message until the given moment; onSnoozeCustom opens the pick-a-moment dialog;
+    // onUnsnooze brings a hidden message back (offered only on a row carrying a snooze).
+    onSnooze: (message: Message, at: Date) => void
+    onSnoozeCustom: (message: Message) => void
+    onUnsnooze: (message: Message) => void
     onDelete: (message: Message) => void
     onDeletePermanent: (message: Message) => void
     // onCancelSend discards a queued outbox item; the menu offers only this for an outbox row.
@@ -284,6 +290,26 @@ export function MessageContextMenu(props: MessageContextMenuProps) {
                             {colourRow}
                         </SubMenu>
                     </SubMenu>
+                    <div className="context-sep"/>
+                    {message.snoozedUntilMs > 0 ? (
+                        <button className="context-item" role="menuitem" onClick={act(() => props.onUnsnooze(message))}>
+                            Unsnooze
+                        </button>
+                    ) : (
+                        <SubMenu label="Snooze">
+                            {snoozeChoices(new Date()).map((choice) => (
+                                <button key={choice.label} className="context-item" role="menuitem"
+                                        onClick={act(() => props.onSnooze(message, choice.at))}>
+                                    {choice.label}
+                                </button>
+                            ))}
+                            <div className="context-sep"/>
+                            <button className="context-item" role="menuitem"
+                                    onClick={act(() => props.onSnoozeCustom(message))}>
+                                Pick a time...
+                            </button>
+                        </SubMenu>
+                    )}
                     {props.canMoveCopy && movable.length > 0 && (
                         <>
                             <div className="context-sep"/>

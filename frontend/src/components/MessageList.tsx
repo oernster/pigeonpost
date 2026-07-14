@@ -3,6 +3,7 @@ import {useVirtualizer, VirtualItem} from '@tanstack/react-virtual'
 import {Message, SEARCH_MATCH_END, SEARCH_MATCH_START} from '../api'
 import {ConversationHead} from '../threads'
 import type {AccountChip} from '../unified'
+import {snoozedUntilLabel} from '../snooze'
 
 // SearchScope is the search bar's reach: every account, the selected folder or the selected account.
 export type SearchScope = 'all' | 'folder' | 'account'
@@ -341,6 +342,11 @@ export function MessageList(props: MessageListProps) {
                             {message.tagColours.map((colour, i) => (
                                 <span key={i} className="message-tag-dot" style={{backgroundColor: colour}}/>
                             ))}
+                        </span>
+                    )}
+                    {message.snoozedUntilMs > 0 && (
+                        <span className="snoozed-until" title="Snoozed until">
+                            {snoozedUntilLabel(message.snoozedUntilMs)}
                         </span>
                     )}
                     <span className="message-date">{formatDate(message.date)}</span>

@@ -178,6 +178,10 @@ export function ListRules() {
   return window['go']['main']['App']['ListRules']();
 }
 
+export function ListSnoozedMessages() {
+  return window['go']['main']['App']['ListSnoozedMessages']();
+}
+
 export function ListTags() {
   return window['go']['main']['App']['ListTags']();
 }
@@ -382,6 +386,14 @@ export function SignInMicrosoft(arg1) {
   return window['go']['main']['App']['SignInMicrosoft'](arg1);
 }
 
+export function SnoozeMessage(arg1, arg2) {
+  return window['go']['main']['App']['SnoozeMessage'](arg1, arg2);
+}
+
+export function SnoozedCount() {
+  return window['go']['main']['App']['SnoozedCount']();
+}
+
 export function SyncAccount(arg1) {
   return window['go']['main']['App']['SyncAccount'](arg1);
 }
@@ -400,6 +412,10 @@ export function SyncFolder(arg1) {
 
 export function UnreadCounts() {
   return window['go']['main']['App']['UnreadCounts']();
+}
+
+export function UnsnoozeMessage(arg1) {
+  return window['go']['main']['App']['UnsnoozeMessage'](arg1);
 }
 
 export function UpdateAccount(arg1) {

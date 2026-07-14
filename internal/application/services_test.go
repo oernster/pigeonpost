@@ -341,7 +341,7 @@ func TestAccountSetupUpdateSaveError(t *testing.T) {
 func TestMailboxServiceFolders(t *testing.T) {
 	store := newFakeMailStore()
 	store.folders["a1"] = []domain.Folder{testFolder(t, "f1", "a1", "INBOX")}
-	svc := NewMailboxService(store, time.UTC)
+	svc := NewMailboxService(store, time.UTC, fakeClock{now: time.Unix(0, 0).UTC()})
 
 	folders, err := svc.Folders(context.Background(), "a1")
 	if err != nil {
@@ -360,7 +360,7 @@ func TestMailboxServiceFolders(t *testing.T) {
 func TestMailboxServiceMessages(t *testing.T) {
 	store := newFakeMailStore()
 	store.messages["f1"] = []domain.MessageSummary{testMessage(t, "m1", "f1")}
-	svc := NewMailboxService(store, time.UTC)
+	svc := NewMailboxService(store, time.UTC, fakeClock{now: time.Unix(0, 0).UTC()})
 
 	messages, err := svc.Messages(context.Background(), "f1")
 	if err != nil {
@@ -395,7 +395,7 @@ func TestMailboxServiceMessagesPage(t *testing.T) {
 		testMessageAt(t, "m2", "f1", 300),
 		testMessageAt(t, "m3", "f1", 200),
 	}
-	svc := NewMailboxService(store, time.UTC)
+	svc := NewMailboxService(store, time.UTC, fakeClock{now: time.Unix(0, 0).UTC()})
 	ctx := context.Background()
 
 	// First page, newest first, limit two: m2 (300) then m3 (200).
@@ -438,7 +438,7 @@ func TestMailboxServiceThreads(t *testing.T) {
 		testMessage(t, "m1", "f1"),
 		testMessage(t, "m2", "f1"),
 	}
-	svc := NewMailboxService(store, time.UTC)
+	svc := NewMailboxService(store, time.UTC, fakeClock{now: time.Unix(0, 0).UTC()})
 
 	threads, err := svc.Threads(context.Background(), "f1")
 	if err != nil {
@@ -458,7 +458,7 @@ func TestMailboxServiceThreads(t *testing.T) {
 func TestMailboxServiceSearch(t *testing.T) {
 	store := newFakeMailStore()
 	store.searchResults = []SearchHit{{Summary: testMessage(t, "m1", "f1"), Snippet: "a \x01hello\x02 b"}}
-	svc := NewMailboxService(store, time.UTC)
+	svc := NewMailboxService(store, time.UTC, fakeClock{now: time.Unix(0, 0).UTC()})
 
 	hits, degraded, err := svc.Search(context.Background(), "hello", "f9", "a9")
 	if err != nil {
@@ -482,7 +482,7 @@ func TestMailboxServiceSearch(t *testing.T) {
 func TestMailboxServiceSearchEmptyQuerySkipsStore(t *testing.T) {
 	store := newFakeMailStore()
 	store.searchErr = errBoom // must never be reached
-	svc := NewMailboxService(store, time.UTC)
+	svc := NewMailboxService(store, time.UTC, fakeClock{now: time.Unix(0, 0).UTC()})
 	hits, degraded, err := svc.Search(context.Background(), "   ", "", "")
 	if err != nil || len(hits) != 0 || degraded {
 		t.Fatalf("blank query: hits=%v degraded=%v err=%v, want none/false/nil", hits, degraded, err)
@@ -491,7 +491,7 @@ func TestMailboxServiceSearchEmptyQuerySkipsStore(t *testing.T) {
 
 func TestMailboxServiceSearchDegraded(t *testing.T) {
 	store := newFakeMailStore()
-	svc := NewMailboxService(store, time.UTC)
+	svc := NewMailboxService(store, time.UTC, fakeClock{now: time.Unix(0, 0).UTC()})
 	if _, degraded, err := svc.Search(context.Background(), `broken "quote`, "", ""); err != nil || !degraded {
 		t.Fatalf("degraded=%v err=%v, want true/nil", degraded, err)
 	}
@@ -500,7 +500,7 @@ func TestMailboxServiceSearchDegraded(t *testing.T) {
 func TestMailboxServiceSearchError(t *testing.T) {
 	store := newFakeMailStore()
 	store.searchErr = errBoom
-	svc := NewMailboxService(store, time.UTC)
+	svc := NewMailboxService(store, time.UTC, fakeClock{now: time.Unix(0, 0).UTC()})
 	if _, _, err := svc.Search(context.Background(), "hello", "", ""); !errors.Is(err, errBoom) {
 		t.Errorf("Search error = %v, want wrapped boom", err)
 	}
@@ -509,7 +509,7 @@ func TestMailboxServiceSearchError(t *testing.T) {
 func TestMailboxServiceUnreadCounts(t *testing.T) {
 	store := newFakeMailStore()
 	store.unreadByAccount = map[string]int{"a1": 2, "a2": 1}
-	svc := NewMailboxService(store, time.UTC)
+	svc := NewMailboxService(store, time.UTC, fakeClock{now: time.Unix(0, 0).UTC()})
 
 	totals, err := svc.UnreadCounts(context.Background())
 	if err != nil {

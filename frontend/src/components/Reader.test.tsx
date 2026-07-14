@@ -58,6 +58,7 @@ function makeMessage(overrides: Partial<Message> = {}): Message {
         forwarded: false,
         snippet: 'A short snippet',
         tagColours: [],
+        snoozedUntilMs: 0,
         ...overrides,
     }
 }

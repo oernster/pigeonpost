@@ -15,11 +15,13 @@ import (
 type UnifiedMailboxService struct {
 	accounts AccountStore
 	mail     MailStore
+	clock    domain.Clock
 }
 
-// NewUnifiedMailboxService constructs the service with its injected stores.
-func NewUnifiedMailboxService(accounts AccountStore, mail MailStore) *UnifiedMailboxService {
-	return &UnifiedMailboxService{accounts: accounts, mail: mail}
+// NewUnifiedMailboxService constructs the service with its injected stores and the clock that decides
+// which snoozed messages are currently hidden from the combined view.
+func NewUnifiedMailboxService(accounts AccountStore, mail MailStore, clock domain.Clock) *UnifiedMailboxService {
+	return &UnifiedMailboxService{accounts: accounts, mail: mail, clock: clock}
 }
 
 // UnifiedMessage pairs a cached message summary with the id of the account whose inbox holds it, so the
@@ -60,7 +62,7 @@ func (s *UnifiedMailboxService) Messages(ctx context.Context) ([]UnifiedMessage,
 	}
 	var merged []UnifiedMessage
 	for _, folder := range inboxes {
-		messages, err := s.mail.ListMessages(ctx, folder.ID())
+		messages, err := s.mail.ListMessagesVisible(ctx, folder.ID(), s.clock.Now())
 		if err != nil {
 			return nil, fmt.Errorf("unified: list messages for folder %q: %w", folder.ID(), err)
 		}
@@ -84,7 +86,7 @@ func (s *UnifiedMailboxService) MessagesPage(ctx context.Context, hasCursor bool
 	}
 	var merged []UnifiedMessage
 	for _, folder := range inboxes {
-		page, err := s.mail.ListMessagesPage(ctx, folder.ID(), hasCursor, cursorDateMs, cursorID, limit, ascending)
+		page, err := s.mail.ListMessagesPageVisible(ctx, folder.ID(), hasCursor, cursorDateMs, cursorID, limit, ascending, s.clock.Now())
 		if err != nil {
 			return nil, fmt.Errorf("unified: page messages for folder %q: %w", folder.ID(), err)
 		}

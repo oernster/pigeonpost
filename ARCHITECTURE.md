@@ -221,6 +221,31 @@ item that finds the server unreachable has its hold cleared, degrading it to an 
 item for the next sync rather than being retried every tick, and a hold outlasting an app restart sends
 on the next launch.
 
+Send later: a scheduled send is the same hold with a chosen instant. The composer's Send later control
+(presets plus a date-time field) passes `sendAtMs` on the compose request; `ComposeService.ScheduleSend`
+validates the instant is in the future and queues the message exactly as an undo hold, so everything
+above carries over: the Outbox shows it with its send time and offers Cancel send, no replay may send it
+early, the dispatcher delivers it when due, a due-but-offline item degrades to the ordinary queue and a
+schedule outlasting a restart sends on the next launch. There is no undo toast (the Outbox is the
+cancel surface) and a scheduled reply does not flag its original (a schedule cancelled days later must
+not have already marked it); the composer states the local-first constraint plainly: the message leaves
+while the app runs, or at the next launch after the chosen time.
+
+Snooze: a message can be hidden until a chosen moment (context-menu or Mail-menu presets, or a
+pick-a-time dialog). Snooze is local-only state, one row per message in `message_snooze` (schema v44):
+nothing reaches the server and read/flag state is untouched. The visible listings
+(`MailStore.ListMessagesVisible`, `ListMessagesPageVisible` and the snooze-aware `UnreadByAccount`)
+exclude a hidden message until its instant passes, while the plain listings the sync and the new-mail
+notifier read see everything, so known-message sets and POP3 flag carry-over are unaffected; search also
+still finds hidden messages. The Snoozed view is the synthetic folder `__snoozed__` (the Outbox
+pattern), listing every hidden message across accounts with its due time, an Unsnooze action and the
+same per-account dots and cross-account rules as the unified mailbox (rows compose from their own
+account; Move, Copy and Junk live in the real folder). A scheduler goroutine (`runSnoozeScheduler`,
+gated on the store's earliest snooze) pops due snoozes in one transaction, raises a desktop notification
+(a snooze is an alarm the user set) and announces `snooze:changed`; a snooze missed while the app was
+closed pops on the first tick after launch, and a snooze orphaned by its message's deletion or move is
+swept rather than resurfacing as a ghost.
+
 Junk, conversations and list order: marking a message as junk moves it to the account's Junk folder
 through the same online path as Move (`MessageActionService.MarkJunk`, resolving the Junk folder by kind).
 Conversation grouping and list order are read-side concerns over the same cached summaries the flat list

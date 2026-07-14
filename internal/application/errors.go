@@ -23,6 +23,14 @@ var ErrUnknownSender = errors.New("account cannot send as that address")
 // (spam) mailbox to file it in.
 var ErrNoJunkFolder = errors.New("account has no junk folder")
 
+// ErrScheduleInPast is returned when a send-later request names an instant that is not in the future,
+// so a stale picker can never fire a message the moment it is scheduled.
+var ErrScheduleInPast = errors.New("the scheduled send time is in the past")
+
+// ErrSnoozeInPast is returned when a snooze names an instant that is not in the future, so a stale
+// picker can never hide a message that would resurface immediately.
+var ErrSnoozeInPast = errors.New("the snooze time is in the past")
+
 // ErrAlreadyJunk is returned when a message that already lives in the Junk folder is marked as junk.
 var ErrAlreadyJunk = errors.New("message is already in the junk folder")
 

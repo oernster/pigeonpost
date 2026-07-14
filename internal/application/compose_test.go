@@ -838,3 +838,50 @@ func TestComposeNextHold(t *testing.T) {
 		}
 	})
 }
+
+func TestComposeScheduleSend(t *testing.T) {
+	epoch := time.Unix(0, 0).UTC()
+
+	t.Run("queues the send held until the chosen instant and returns its id", func(t *testing.T) {
+		d := newComposeDeps().withAccount(t)
+		at := epoch.Add(2 * time.Hour)
+		id, err := d.service().ScheduleSend(context.Background(), "a1", draftTo(t, "f@example.com"), at)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if id != "queued-id" {
+			t.Errorf("id = %q, want queued-id", id)
+		}
+		if len(d.transport.sent) != 0 {
+			t.Error("a scheduled send must not reach the transport yet")
+		}
+		if len(d.outbox.items) != 1 || !d.outbox.items[0].HoldUntil().Equal(at) {
+			t.Fatalf("outbox = %v, want one item held until %v", d.outbox.items, at)
+		}
+	})
+
+	t.Run("rejects an instant that is not in the future", func(t *testing.T) {
+		d := newComposeDeps().withAccount(t)
+		if _, err := d.service().ScheduleSend(context.Background(), "a1", draftTo(t, "f@example.com"), epoch); !errors.Is(err, ErrScheduleInPast) {
+			t.Errorf("error = %v, want ErrScheduleInPast", err)
+		}
+		if len(d.outbox.items) != 0 {
+			t.Error("a rejected schedule must queue nothing")
+		}
+	})
+
+	t.Run("propagates a build failure", func(t *testing.T) {
+		d := newComposeDeps() // no account registered
+		if _, err := d.service().ScheduleSend(context.Background(), "a1", draftTo(t, "f@example.com"), epoch.Add(time.Hour)); err == nil {
+			t.Error("expected an unknown-account error")
+		}
+	})
+
+	t.Run("propagates a queue failure", func(t *testing.T) {
+		d := newComposeDeps().withAccount(t)
+		d.outbox.enqueueErr = errBoom
+		if _, err := d.service().ScheduleSend(context.Background(), "a1", draftTo(t, "f@example.com"), epoch.Add(time.Hour)); !errors.Is(err, errBoom) {
+			t.Errorf("error = %v, want wrapped boom", err)
+		}
+	})
+}

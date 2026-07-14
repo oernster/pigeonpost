@@ -54,7 +54,7 @@ func newUnifiedFixture(t *testing.T) (*fakeAccountStore, *fakeMailStore, *Unifie
 	// The sent folder holds the newest message of all; it must still never surface in the unified list.
 	mail.messages["fs"] = []domain.MessageSummary{testDatedMessage(t, "mS", "fs", d5)}
 
-	return accounts, mail, NewUnifiedMailboxService(accounts, mail)
+	return accounts, mail, NewUnifiedMailboxService(accounts, mail, fakeClock{now: time.Unix(0, 0).UTC()})
 }
 
 func unifiedIDs(merged []UnifiedMessage) []string {

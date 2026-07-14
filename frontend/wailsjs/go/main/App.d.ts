@@ -90,6 +90,8 @@ export function ListOutbox():Promise<Array<main.OutboxItemDTO>>;
 
 export function ListRules():Promise<Array<main.RuleDTO>>;
 
+export function ListSnoozedMessages():Promise<Array<main.MessageDTO>>;
+
 export function ListTags():Promise<Array<main.TagDTO>>;
 
 export function ListTemplates():Promise<Array<main.TemplateDTO>>;
@@ -192,6 +194,10 @@ export function ShowDefaultAppSettings():Promise<void>;
 
 export function SignInMicrosoft(arg1:string):Promise<string>;
 
+export function SnoozeMessage(arg1:string,arg2:number):Promise<void>;
+
+export function SnoozedCount():Promise<number>;
+
 export function SyncAccount(arg1:string):Promise<void>;
 
 export function SyncAllInboxes():Promise<void>;
@@ -201,6 +207,8 @@ export function SyncCalDAV(arg1:string):Promise<void>;
 export function SyncFolder(arg1:string):Promise<void>;
 
 export function UnreadCounts():Promise<main.UnreadCountsDTO>;
+
+export function UnsnoozeMessage(arg1:string):Promise<void>;
 
 export function UpdateAccount(arg1:main.AccountSetupRequest):Promise<void>;
 
