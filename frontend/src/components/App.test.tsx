@@ -177,7 +177,7 @@ describe('App: mount and splash', () => {
             () => expect(screen.getByText('Welcome to PigeonPost')).toBeInTheDocument(),
             {timeout: 3000},
         )
-        expect(screen.getByText(/Add a mail account to start/)).toBeInTheDocument()
+        expect(screen.getByText(/Add your mail account and you are in/)).toBeInTheDocument()
     })
 
     // The welcome empty state moves into WelcomeScreen.tsx (Phase 3.15). The render is pinned above; this pins

@@ -13,7 +13,8 @@ export function WelcomeScreen({setSettingUp}: WelcomeScreenProps) {
             <img className="welcome-brand" src={brandIcon} alt="" aria-hidden="true"/>
             <div className="empty-card">
                 <h2>Welcome to PigeonPost</h2>
-                <p>Add a mail account to start reading and sending messages.</p>
+                <p>Add your mail account and you are in: PigeonPost syncs it straight away; your mail
+                    stays on your server.</p>
                 <button className="btn primary" onClick={() => setSettingUp(true)}>Add account</button>
             </div>
         </div>

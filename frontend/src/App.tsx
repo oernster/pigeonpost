@@ -571,12 +571,28 @@ function App() {
         refreshOutbox, loadUnread, setError,
     })
 
+    // syncAfterSave holds the id of an account just saved, so the effect below can sync it once the
+    // selection has settled. sync() is bound to selectedAccount, so calling it directly inside
+    // onAccountSaved would sync the previously selected account (or nothing, on first run).
+    const [syncAfterSave, setSyncAfterSave] = useState<string>('')
+
     const onAccountSaved = useCallback(async (email: string) => {
         setSettingUp(false)
         setAccountToEdit(null)
         await loadAccounts()
         await selectAccount(email)
+        setSyncAfterSave(email)
     }, [loadAccounts, selectAccount])
+
+    // A saved account syncs straight away, so adding an account is the whole switch: the first-run user
+    // never has to discover the Sync control to see their mail, and an edited account picks up its
+    // changed server settings immediately.
+    useEffect(() => {
+        if (syncAfterSave && selectedAccount === syncAfterSave) {
+            setSyncAfterSave('')
+            void sync()
+        }
+    }, [syncAfterSave, selectedAccount, sync])
 
     const closeContextMenu = useCallback(() => setContextMenu(null), [])
 
