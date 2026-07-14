@@ -32,6 +32,8 @@ func prepareHTML(source string, inline map[string]inlineImage) string {
 				parkElementSource(n, inline)
 			case "style":
 				stripStyleElementURLs(n)
+			case "a":
+				normaliseAnchorHref(n)
 			}
 			stripStyleAttrURLs(n)
 		}
@@ -100,6 +102,27 @@ func hasElementChild(n *html.Node) bool {
 		}
 	}
 	return false
+}
+
+// urlControlWhitespace removes the ASCII tab, line feed and carriage return characters that the URL
+// standard strips from every URL before parsing. Bulk-mail senders wrap long href attribute values
+// across source lines, so these characters routinely appear inside real hrefs; browsers remove them
+// and follow the link, but Go's url.Parse rejects them, which made the sanitiser silently delete the
+// whole anchor and leave the email's button styled but dead.
+var urlControlWhitespace = strings.NewReplacer("\t", "", "\n", "", "\r", "")
+
+// normaliseAnchorHref rewrites an anchor's href the way a browser would read it: control whitespace
+// removed, the edges trimmed and any interior space percent-encoded, so a link a browser would follow
+// survives sanitising with the same target. It runs before the sanitiser, so scheme policy is
+// unaffected: a javascript: href that this normalisation makes legible is exactly what the sanitiser
+// then rejects, which is safer than passing the obfuscated form through.
+func normaliseAnchorHref(n *html.Node) {
+	for i, attr := range n.Attr {
+		if strings.EqualFold(attr.Key, "href") {
+			href := strings.TrimSpace(urlControlWhitespace.Replace(attr.Val))
+			n.Attr[i].Val = strings.ReplaceAll(href, " ", "%20")
+		}
+	}
 }
 
 // parkElementSource rewrites an image element's src for safe display and drops srcset. An embedded

@@ -523,6 +523,59 @@ func TestParseBodyKeepsStyleBlockAndClassButStripsScriptAndHandlers(t *testing.T
 	}
 }
 
+func TestParseBodyNormalisesWrappedHrefsSoLinksSurvive(t *testing.T) {
+	// Bulk-mail senders wrap long href values across source lines, leaving tabs, newlines or encoded
+	// line breaks inside the URL. The URL standard strips those characters and browsers follow the link,
+	// but Go's url.Parse rejects them, so without normalisation the sanitiser deleted the whole anchor
+	// and every button in such an email rendered styled but dead. Each wrapped form must survive
+	// ParseBody as a working link with the joined target.
+	cases := []struct {
+		name string
+		body string
+		want string
+	}{
+		{"newline inside href", "<a href=\"https://example.com/re\nset?token=abc\">Go</a>", "https://example.com/reset?token=abc"},
+		{"crlf inside href", "<a href=\"https://example.com/re\r\nset?token=abc\">Go</a>", "https://example.com/reset?token=abc"},
+		{"tab inside href", "<a href=\"https://example.com/re\tset?token=abc\">Go</a>", "https://example.com/reset?token=abc"},
+		{"encoded newline inside href", `<a href="https://example.com/re&#10;set?token=abc">Go</a>`, "https://example.com/reset?token=abc"},
+		{"padded href", `<a href="   https://example.com/reset?token=abc  ">Go</a>`, "https://example.com/reset?token=abc"},
+		{"interior space percent-encoded", `<a href="https://example.com/a b/c">Go</a>`, "https://example.com/a%20b/c"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			raw := "MIME-Version: 1.0\r\n" +
+				"Content-Type: text/html; charset=utf-8\r\n" +
+				"\r\n" +
+				"<html><body>" + tc.body + "</body></html>\r\n"
+			parsed, err := ParseBody([]byte(raw))
+			if err != nil {
+				t.Fatalf("ParseBody: %v", err)
+			}
+			if !strings.Contains(parsed.HTML, `href="`+tc.want+`"`) {
+				t.Errorf("wrapped href should survive as %q: %s", tc.want, parsed.HTML)
+			}
+		})
+	}
+}
+
+func TestParseBodyStillRejectsObfuscatedJavascriptHref(t *testing.T) {
+	// Href normalisation runs before the sanitiser, so a javascript: URL obfuscated with an embedded
+	// newline (the classic filter-evasion form) is made legible first and then rejected by the scheme
+	// policy. The de-obfuscated scheme must never survive into the rendered HTML.
+	raw := "MIME-Version: 1.0\r\n" +
+		"Content-Type: text/html; charset=utf-8\r\n" +
+		"\r\n" +
+		"<a href=\"java\nscript:alert(1)\">Go</a>\r\n"
+
+	parsed, err := ParseBody([]byte(raw))
+	if err != nil {
+		t.Fatalf("ParseBody: %v", err)
+	}
+	if strings.Contains(strings.ToLower(parsed.HTML), "javascript") {
+		t.Errorf("obfuscated javascript: href must not survive sanitising: %s", parsed.HTML)
+	}
+}
+
 func TestParseBodyKeepsBackgroundColourButDropsRemoteImageURL(t *testing.T) {
 	// The relaxed sanitiser keeps background styling, but the remote-url stripping in prepareHTML must still
 	// neutralise a CSS url() tracker end to end: the colour survives, the tracker host does not.
