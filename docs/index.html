@@ -676,6 +676,13 @@
                 <h3>📥 Mail</h3>
                 <ul>
                     <li>Multiple accounts, each a separate inbox, with send-as addresses</li>
+                    <li>An optional unified mailbox that merges every inbox into one list, each row dotted
+                        with its account's colour</li>
+                    <li>Undo send holds each message for a few configurable seconds with a countdown toast</li>
+                    <li>Send later from presets or an exact time; the message waits in the Outbox with
+                        Cancel send and leaves while the app runs or at the next launch after that time</li>
+                    <li>Snooze hides a message until a chosen time then returns it untouched with a
+                        notification</li>
                     <li>Rich-text compose with To, Cc and Bcc, per-account signatures, reply, reply-all and
                         forward</li>
                     <li>Attach files or forward a message as an attachment</li>
@@ -697,6 +704,8 @@
                     <li>.ics round-trip with Outlook and Thunderbird</li>
                     <li>Meeting invites over iTIP and iMIP with accept, tentative and decline</li>
                     <li>Teams, Meet, Zoom and Webex join links open in your browser</li>
+                    <li>Early two-way CalDAV sync with a calendar server over an app password, server-wins
+                        on conflict</li>
                 </ul>
             </div>
             <div class="group">
@@ -810,30 +819,26 @@
             today.</p>
         <div class="grid">
             <div class="card">
-                <div class="ico">🔎</div>
-                <h3>Richer search</h3>
-                <p>Search operators and the full message body, on top of today's instant local index.</p>
-            </div>
-            <div class="card">
-                <div class="ico">📨</div>
-                <h3>Unified inbox</h3>
-                <p>One combined view across your accounts, off by default and with each account still
-                    identifiable.</p>
-            </div>
-            <div class="card">
-                <div class="ico">⏱️</div>
-                <h3>Inbox control</h3>
-                <p>Undo-send, snooze and send-later, kept local-first with no hosted relay.</p>
-            </div>
-            <div class="card">
                 <div class="ico">💻</div>
                 <h3>More platforms</h3>
                 <p>Native macOS and Linux builds alongside the Windows release.</p>
             </div>
             <div class="card">
                 <div class="ico">🔄</div>
-                <h3>Two-way sync</h3>
-                <p>CalDAV and CardDAV so calendars and contacts sync both ways, not just import and export.</p>
+                <h3>Two-way contact sync</h3>
+                <p>CardDAV so contacts sync both ways, joining the calendar's existing CalDAV sync.</p>
+            </div>
+            <div class="card">
+                <div class="ico">📂</div>
+                <h3>Rules that move and delete</h3>
+                <p>On-arrival filter rules that can move or delete a message, joining today's mark and
+                    flag actions.</p>
+            </div>
+            <div class="card">
+                <div class="ico">⏰</div>
+                <h3>System calendar alarms</h3>
+                <p>Calendar alarms delivered by the OS, so a reminder fires even when PigeonPost is not
+                    running.</p>
             </div>
         </div>
     </section>
