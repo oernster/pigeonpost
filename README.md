@@ -110,6 +110,6 @@ bash build_flatpak.sh    # build and install the Flatpak (Linux)
 
 ## Licence
 
-You are free to apply the GPL3 LICENSE below — provided that credit to the original author (Oliver Ernster) is retained in all copies and derivative works, under all circumstances. Removing or omitting this attribution is not permitted.
+You are free to apply the GPL3 LICENSE below - provided that credit to the original author (Oliver Ernster) is retained in all copies and derivative works, under all circumstances. Removing or omitting this attribution is not permitted.
 
 GPL-3.0. See [LICENSE](LICENSE). The full text is also available in the app under Help > Licence.
