@@ -3,6 +3,7 @@
 //
 //	build/appicon.png              (512, used by Wails)
 //	build/windows/icon.ico         (multi-size PNG-in-ICO for the Windows exe and installer)
+//	build/linux/icons/pigeonpost_<size>.png (the hicolor set installed by build_flatpak.sh)
 //	frontend/src/assets/pigeonpost.png (256, used by the in-app About dialog)
 //
 // Run from the repo root: go run ./tools/genicons
@@ -23,6 +24,8 @@ import (
 const masterFile = "pigeonpost.png"
 
 var icoSizes = []int{16, 24, 32, 48, 64, 128, 256}
+
+var hicolorSizes = []int{16, 24, 32, 48, 64, 128, 256, 512}
 
 func main() {
 	if err := run(); err != nil {
@@ -52,7 +55,14 @@ func run() error {
 	if err := writeICO(filepath.Join("build", "windows", "icon.ico"), images); err != nil {
 		return err
 	}
-	fmt.Println("genicons: wrote appicon.png, icon.ico and the About asset")
+
+	for _, size := range hicolorSizes {
+		name := fmt.Sprintf("pigeonpost_%d.png", size)
+		if err := writePNG(filepath.Join("build", "linux", "icons", name), resize(square, size)); err != nil {
+			return err
+		}
+	}
+	fmt.Println("genicons: wrote appicon.png, icon.ico, the hicolor set and the About asset")
 	return nil
 }
 

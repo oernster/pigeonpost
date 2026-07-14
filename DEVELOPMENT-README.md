@@ -137,6 +137,13 @@ anywhere else.
 
 ## Cross-platform packaging
 
-The Windows path (Nuitka-free: `wails build` plus the Go installer) is implemented. macOS (`.dmg`,
-codesign, notarize) and Linux (AppImage / `.deb` / Flatpak) packaging are planned; the Go core and the
-React front end are already portable.
+- **Windows**: `./build.ps1` (above) builds the app and the bespoke installer.
+- **macOS (Apple Silicon)**: `bash builddmg.sh` on an arm64 Mac builds the app with
+  `wails build -platform darwin/arm64`, stamps the bundle version from `VERSION`, codesigns it,
+  wraps it in a drag-to-Applications DMG (`dist-dmg/PigeonPost-<version>-macos-arm64.dmg`) and
+  notarizes when `APPLE_ID` and `APPLE_APP_PASSWORD` are set.
+- **Linux**: `bash build_flatpak.sh` builds a Flatpak against the GNOME runtime (which carries the
+  webkit2gtk-4.1 that Wails renders through), installs it for the current user and exports a
+  distributable `pigeonpost.flatpak`; `bash clean_flatpak.sh` removes the install and every flatpak
+  artefact. The build runs inside the flatpak sandbox using the golang and node SDK extensions, so
+  the host needs only `flatpak` and `flatpak-builder`.
