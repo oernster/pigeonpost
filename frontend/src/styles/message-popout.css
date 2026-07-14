@@ -2,8 +2,11 @@
    Thunderbird-style open. The dialog hosts the ordinary reader, so it scrolls and acts like the
    reading pane at a comfortable reading width. */
 .message-popout {
-    width: min(92vw, 860px);
-    height: min(88vh, 720px);
+    /* The base .modal caps max-width at 460px (sized for confirms); the popout is a reading
+       window, so it overrides both. */
+    width: 1320px;
+    max-width: 94vw;
+    height: min(90vh, 900px);
     display: flex;
     flex-direction: column;
     padding: 16px 0 0;
