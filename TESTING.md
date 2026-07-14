@@ -65,6 +65,7 @@ documented here.
 | internal/application | 100% | gated |
 | internal/infrastructure/message | 100% | the RFC 5322 MIME builder (pure) |
 | internal/infrastructure/mailrouter | 100% | per-protocol dispatch (pure) |
+| internal/infrastructure/keychain | 100% | account and CalDAV calendar password paths via go-keyring's in-memory mock |
 | internal/infrastructure/recurrence | ~97% | RRULE expansion and truncation; a few defensive edges uncovered |
 | internal/infrastructure/vcard | ~97% | vCard codec round-trip |
 | internal/infrastructure/oauth | ~95% | token flow against stubbed endpoints; real-network edges excluded |
@@ -74,7 +75,6 @@ documented here.
 | internal/infrastructure/remoteimage | ~90% | the SSRF guard and resolver against stub servers; the live-wired constructor excluded |
 | internal/infrastructure/caldav | ~82% | request and parse logic against a stub server; live-server edges and the live-wired writer factory excluded |
 | internal/infrastructure/storage | ~79% | logic and error paths covered, including keyset message pagination and the atomic tag-keyword sync writes; see exclusions |
-| internal/infrastructure/keychain | ~58% | the account-password paths via go-keyring's in-memory mock; the CalDAV calendar-password wrappers currently uncovered |
 | internal/infrastructure/pop3 | ~40% | response and UIDL parsing covered; the live dial and download excluded |
 | internal/installer | ~26% | extract and paths covered; Win32 side effects excluded |
 | internal/infrastructure/imap | ~25% | the source adapter's pure helpers; the wire-to-domain and HTML logic now lives in `mailparse`, and live fetch/append plus the IDLE watcher are excluded |

@@ -75,6 +75,56 @@ func TestVaultPurgeAll(t *testing.T) {
 	}
 }
 
+func testCalendarAccount(t *testing.T) domain.CalendarAccount {
+	t.Helper()
+	account, err := domain.NewCalendarAccount("cal-1", "Test Calendar", "https://dav.example.com", "user@example.com", domain.AuthPassword)
+	if err != nil {
+		t.Fatalf("calendar account: %v", err)
+	}
+	return account
+}
+
+func TestVaultCalendarRoundTrip(t *testing.T) {
+	keyring.MockInit()
+	vault := NewVault()
+	account := testCalendarAccount(t)
+
+	if err := vault.SetCalendarPassword(context.Background(), account, "s3cret"); err != nil {
+		t.Fatalf("set: %v", err)
+	}
+	secret, err := vault.CalendarPassword(context.Background(), account)
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	if secret != "s3cret" {
+		t.Errorf("secret = %q, want s3cret", secret)
+	}
+
+	if err := vault.DeleteCalendarPassword(context.Background(), account); err != nil {
+		t.Fatalf("delete: %v", err)
+	}
+	if _, err := vault.CalendarPassword(context.Background(), account); err == nil {
+		t.Error("expected error reading a deleted secret")
+	}
+}
+
+func TestVaultCalendarWrapsErrors(t *testing.T) {
+	boom := errors.New("keychain unavailable")
+	keyring.MockInitWithError(boom)
+	vault := NewVault()
+	account := testCalendarAccount(t)
+
+	if err := vault.SetCalendarPassword(context.Background(), account, "x"); !errors.Is(err, boom) {
+		t.Errorf("SetCalendarPassword error = %v, want wrapped boom", err)
+	}
+	if _, err := vault.CalendarPassword(context.Background(), account); !errors.Is(err, boom) {
+		t.Errorf("CalendarPassword error = %v, want wrapped boom", err)
+	}
+	if err := vault.DeleteCalendarPassword(context.Background(), account); !errors.Is(err, boom) {
+		t.Errorf("DeleteCalendarPassword error = %v, want wrapped boom", err)
+	}
+}
+
 func TestVaultWrapsErrors(t *testing.T) {
 	boom := errors.New("keychain unavailable")
 	keyring.MockInitWithError(boom)
