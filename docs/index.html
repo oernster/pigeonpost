@@ -3,10 +3,74 @@
 <head>
     <meta charset="UTF-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-    <title>PigeonPost - a calmer email client you are never locked into</title>
+    <title>PigeonPost: free, open-source desktop email client for Windows, macOS and Linux</title>
     <meta name="description"
-          content="A calm, local-first desktop email, calendar and contacts client for people leaving Thunderbird or Outlook. Your email stays with your provider, so nothing is migrated in and nothing is stranded if you leave. GPL-3.0 and free."/>
+          content="A calm, free, open-source desktop email client with calendar and contacts for Windows, macOS and Linux. A predictable Thunderbird alternative that never locks you in: your mail stays with your provider and reads offline."/>
+    <link rel="canonical" href="https://pigeonpost.ink/"/>
+    <meta name="robots" content="index, follow"/>
+    <meta name="author" content="Oliver Ernster"/>
+    <meta name="theme-color" content="#16181d"/>
+    <meta property="og:type" content="website"/>
+    <meta property="og:site_name" content="PigeonPost"/>
+    <meta property="og:url" content="https://pigeonpost.ink/"/>
+    <meta property="og:title" content="PigeonPost: the calm, open-source email client that never locks you in"/>
+    <meta property="og:description"
+          content="Free desktop email, calendar and contacts for Windows, macOS and Linux. Local-first and private: your mail stays with your provider, searches instantly and reads offline."/>
+    <meta property="og:image" content="https://pigeonpost.ink/screenshots/add-account.png"/>
+    <meta property="og:locale" content="en_GB"/>
+    <meta name="twitter:card" content="summary_large_image"/>
+    <meta name="twitter:title" content="PigeonPost: the calm, open-source email client that never locks you in"/>
+    <meta name="twitter:description"
+          content="Free desktop email, calendar and contacts for Windows, macOS and Linux. Local-first and private: your mail stays with your provider, searches instantly and reads offline."/>
+    <meta name="twitter:image" content="https://pigeonpost.ink/screenshots/add-account.png"/>
     <link rel="icon" type="image/png" href="pigeonpost.png"/>
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "PigeonPost",
+        "operatingSystem": "Windows, macOS, Linux",
+        "applicationCategory": "CommunicationApplication",
+        "applicationSubCategory": "Email client",
+        "description": "A calm, local-first, free and open-source desktop email client with calendar and contacts for Windows, macOS and Linux. Your mail stays with your provider over IMAP or POP3, cached locally for instant offline search.",
+        "url": "https://pigeonpost.ink/",
+        "downloadUrl": "https://github.com/oernster/pigeonpost/releases",
+        "softwareHelp": "https://github.com/oernster/pigeonpost",
+        "license": "https://www.gnu.org/licenses/gpl-3.0.html",
+        "image": "https://pigeonpost.ink/pigeonpost.png",
+        "screenshot": "https://pigeonpost.ink/screenshots/add-account.png",
+        "offers": {"@type": "Offer", "price": "0", "priceCurrency": "USD"},
+        "author": {"@type": "Person", "name": "Oliver Ernster", "url": "https://github.com/oernster"}
+    }
+    </script>
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "mainEntity": [
+            {"@type": "Question", "name": "Will I have to migrate years of mail?",
+             "acceptedAnswer": {"@type": "Answer", "text": "No. PigeonPost talks to your existing account and caches a local copy. The mail itself never leaves your provider."}},
+            {"@type": "Question", "name": "What if I try it and want to go back?",
+             "acceptedAnswer": {"@type": "Answer", "text": "Then you close it and nothing has changed. Your accounts were never moved, so they are still live in your old client. Your calendar and contacts export back out in standard files."}},
+            {"@type": "Question", "name": "Does my Gmail or iCloud account work?",
+             "acceptedAnswer": {"@type": "Answer", "text": "Yes, through an app password. A wizard fills in the servers for Gmail, iCloud, Yahoo, Zoho, Fastmail and StartMail. Microsoft accounts (Outlook.com, Hotmail) sign in through Microsoft OAuth."}},
+            {"@type": "Question", "name": "Does a Google Workspace work account function?",
+             "acceptedAnswer": {"@type": "Answer", "text": "No. Workspace is OAuth-only, so an app password is refused by Google. Personal Gmail works with an app password."}},
+            {"@type": "Question", "name": "Is my Microsoft password safe?",
+             "acceptedAnswer": {"@type": "Answer", "text": "You sign in through Microsoft in your own browser, so PigeonPost never sees your password. It keeps your Microsoft sign-in token in your OS keychain."}},
+            {"@type": "Question", "name": "Can opening a message track me?",
+             "acceptedAnswer": {"@type": "Answer", "text": "No. HTML renders in a sandboxed frame that runs no scripts and makes no remote requests. Remote images stay blocked until you load them, so opening a message cannot tell the sender you read it."}},
+            {"@type": "Question", "name": "It is one developer. What if it stops?",
+             "acceptedAnswer": {"@type": "Answer", "text": "It is GPL-3.0 with the full source on GitHub, free to read, fork or continue. Your mail stays with your provider and your calendar and contacts live in standard files, so nothing is trapped."}},
+            {"@type": "Question", "name": "Does it work offline?",
+             "acceptedAnswer": {"@type": "Answer", "text": "Yes. Cached mail reads with no connection. Anything you write offline queues in a per-account outbox and delivers when you reconnect."}},
+            {"@type": "Question", "name": "Which platforms does it run on?",
+             "acceptedAnswer": {"@type": "Answer", "text": "Windows, macOS (Apple Silicon) and Linux, each with its own native installer: a Windows setup program, a DMG and a Flatpak."}},
+            {"@type": "Question", "name": "Will it choke on huge folders?",
+             "acceptedAnswer": {"@type": "Answer", "text": "No. The message list is virtualised and stays fluid in folders of tens of thousands of messages."}}
+        ]
+    }
+    </script>
     <style>
         :root {
             --bg: #16181d;
@@ -448,12 +512,12 @@
     <section class="hero">
         <img class="mark" src="pigeonpost.png" alt="PigeonPost icon"/>
         <span class="eyebrow">Coming from Thunderbird or Outlook?</span>
-        <h1>Your mail was never locked in</h1>
+        <h1>The email client that never locks you in</h1>
         <p class="tagline">
-            PigeonPost is a calm, local-first desktop client for email, calendar and contacts. Your email
-            stays where it already lives, with your provider (Gmail, Hotmail and Outlook.com, iCloud,
-            Fastmail and friends), so nothing has to move in and nothing is stranded if you leave. No cloud
-            in between. No account to create. No subscription.
+            PigeonPost is a calm, local-first desktop email client with a built-in calendar and contacts,
+            free and open source. Your email stays where it already lives, with your provider (Gmail,
+            Hotmail and Outlook.com, iCloud, Fastmail and friends), so nothing has to move in and nothing
+            is stranded if you leave. No cloud in between. No account to create. No subscription.
         </p>
         <p class="switch">Because your mail stays in your existing account, trying PigeonPost costs you
             nothing and leaving costs you nothing.</p>
@@ -653,7 +717,7 @@
         <div class="grid two">
             <div>
                 <div class="shot-frame">
-                    <img src="screenshots/compose.png"
+                    <img src="screenshots/compose.png" loading="lazy" decoding="async"
                          alt="The New message window: To, Cc, Bcc and Subject fields, a rich-text toolbar with a Template button, a signature in the body, plus Attach files, Save draft and Send buttons."/>
                 </div>
                 <p class="shot-cap">Writing a message: rich text with a signature, reusable templates and
@@ -661,7 +725,7 @@
             </div>
             <div>
                 <div class="shot-frame">
-                    <img src="screenshots/calendar.png"
+                    <img src="screenshots/calendar.png" loading="lazy" decoding="async"
                          alt="The calendar month view for July 2026, showing a multi-day Vacation event as one continuous bar spanning 13 to 22 July across two week rows, alongside single-day events with emoji categories."/>
                 </div>
                 <p class="shot-cap">The calendar: a multi-day event spans its days as one bar, alongside
@@ -760,7 +824,7 @@
     </section>
 
     <section class="section" id="compare">
-        <h2>An honest comparison</h2>
+        <h2>An honest comparison with Thunderbird and Outlook</h2>
         <p class="lead">Where PigeonPost sits next to two clients you may be leaving. Both are good tools.
             This stays factual, including where PigeonPost is behind.</p>
         <div class="compare-scroll">
