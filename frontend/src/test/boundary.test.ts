@@ -14,7 +14,7 @@ const PURE_MODULES = [
     'tz', 'folderPaths', 'threads', 'outbox', 'tagColours',
     'messageText', 'shortcuts', 'print',
     'readerFormat', 'composeAddresses', 'accountProviders', 'sidebarDnd',
-    'calendarModel', 'replyDraft', 'categories', 'caldavAccount', 'unified', 'schedule', 'snooze',
+    'calendarModel', 'replyDraft', 'categories', 'caldavAccount', 'unified', 'schedule', 'snooze', 'toolbarNav',
 ]
 
 // The raw source of every src/*.ts, read at build time by Vite (no node:fs, so the frontend

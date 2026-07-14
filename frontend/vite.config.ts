@@ -30,6 +30,7 @@ export default defineConfig({
         'src/unified.ts',
         'src/schedule.ts',
         'src/snooze.ts',
+        'src/toolbarNav.ts',
       ],
       thresholds: {lines: 100, functions: 100, statements: 100, branches: 100},
     },

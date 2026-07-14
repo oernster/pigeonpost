@@ -1,4 +1,4 @@
-import {useRef, useState} from 'react'
+import {Fragment, useRef, useState} from 'react'
 import {useBackdropDismiss} from './useBackdropDismiss'
 import {EditorContent, useEditor} from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
@@ -12,6 +12,20 @@ import {useDraftAutosave} from '../hooks/useDraftAutosave'
 import {useSeparatorCorrection} from '../hooks/useSeparatorCorrection'
 import {bodyMentionsAttachment} from '../composeAttachment'
 import {fromDatetimeLocal, isSchedulable, sendLaterChoices} from '../schedule'
+import {ToolButton} from './ToolButton'
+import {useToolbarNav} from '../hooks/useToolbarNav'
+
+// ComposeTool is one entry in the formatting strip: its button face, its editor action and its
+// place in the strip's visual grouping.
+interface ComposeTool {
+    glyph: string
+    name: string
+    shortcut?: string
+    active: boolean
+    run: () => void
+    sepAfter?: boolean
+    hasPopup?: boolean
+}
 
 // ComposeInitial pre-fills the compose window, used by reply, reply-all and forward.
 // MessageAttachment is an existing email attached to a new message: its id (fetched and rendered as a
@@ -313,19 +327,21 @@ export function ComposeModal({accountId, senders, initial, canSaveDraft, onMarkR
         autosave.markDirty()
     }
 
-    const btn = (active: boolean, label: string, title: string, onClick: () => void) => (
-        <button
-            type="button"
-            className={'compose-tool' + (active ? ' active' : '')}
-            title={title}
-            aria-label={title}
-            aria-pressed={active}
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={onClick}
-        >
-            {label}
-        </button>
-    )
+    // The formatting strip is one focus-ring stop (roving tabindex; see useToolbarNav): the tools
+    // are data so the toolbar renders and navigates from one list. A separator follows the tools
+    // that end a visual group.
+    const tools: ComposeTool[] = [
+        {glyph: 'B', name: 'Bold', shortcut: 'Ctrl+B', active: editor?.isActive('bold') ?? false, run: () => editor?.chain().focus().toggleBold().run()},
+        {glyph: 'I', name: 'Italic', shortcut: 'Ctrl+I', active: editor?.isActive('italic') ?? false, run: () => editor?.chain().focus().toggleItalic().run()},
+        {glyph: 'S', name: 'Strikethrough', shortcut: 'Ctrl+Shift+X', active: editor?.isActive('strike') ?? false, run: () => editor?.chain().focus().toggleStrike().run(), sepAfter: true},
+        {glyph: 'H', name: 'Heading', shortcut: 'Ctrl+Alt+2', active: editor?.isActive('heading', {level: 2}) ?? false, run: () => editor?.chain().focus().toggleHeading({level: 2}).run()},
+        {glyph: '•', name: 'Bullet list', shortcut: 'Ctrl+Shift+8', active: editor?.isActive('bulletList') ?? false, run: () => editor?.chain().focus().toggleBulletList().run()},
+        {glyph: '1.', name: 'Numbered list', shortcut: 'Ctrl+Shift+7', active: editor?.isActive('orderedList') ?? false, run: () => editor?.chain().focus().toggleOrderedList().run()},
+        {glyph: '”', name: 'Quote', shortcut: 'Ctrl+Shift+B', active: editor?.isActive('blockquote') ?? false, run: () => editor?.chain().focus().toggleBlockquote().run(), sepAfter: true},
+        {glyph: '🔗', name: 'Link', active: editor?.isActive('link') ?? false, run: link.openLink, sepAfter: true},
+        {glyph: 'Template', name: 'Insert template', active: templatePicker, run: () => void openTemplatePicker(), hasPopup: true},
+    ]
+    const toolbar = useToolbarNav(tools.length)
 
     return (
         <div className="modal-backdrop" {...dismiss}>
@@ -394,31 +410,22 @@ export function ComposeModal({accountId, senders, initial, canSaveDraft, onMarkR
                     }}/>
                 </label>
 
-                <div className="compose-toolbar">
-                    {btn(editor?.isActive('bold') ?? false, 'B', 'Bold', () => editor?.chain().focus().toggleBold().run())}
-                    {btn(editor?.isActive('italic') ?? false, 'I', 'Italic', () => editor?.chain().focus().toggleItalic().run())}
-                    {btn(editor?.isActive('strike') ?? false, 'S', 'Strikethrough', () => editor?.chain().focus().toggleStrike().run())}
-                    <span className="compose-tool-sep"/>
-                    {btn(editor?.isActive('heading', {level: 2}) ?? false, 'H', 'Heading', () => editor?.chain().focus().toggleHeading({level: 2}).run())}
-                    {btn(editor?.isActive('bulletList') ?? false, '•', 'Bullet list', () => editor?.chain().focus().toggleBulletList().run())}
-                    {btn(editor?.isActive('orderedList') ?? false, '1.', 'Numbered list', () => editor?.chain().focus().toggleOrderedList().run())}
-                    {btn(editor?.isActive('blockquote') ?? false, '”', 'Quote', () => editor?.chain().focus().toggleBlockquote().run())}
-                    <span className="compose-tool-sep"/>
-                    {btn(editor?.isActive('link') ?? false, '🔗', 'Link', link.openLink)}
-                    <span className="compose-tool-sep"/>
-                    <button
-                        type="button"
-                        className={'compose-tool' + (templatePicker ? ' active' : '')}
-                        title="Insert template"
-                        aria-label="Insert template"
-                        aria-pressed={templatePicker}
-                        aria-haspopup="menu"
-                        aria-expanded={templatePicker}
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => void openTemplatePicker()}
-                    >
-                        Template
-                    </button>
+                <div className="compose-toolbar" aria-label="Formatting" {...toolbar.toolbarProps}>
+                    {tools.map((tool, index) => (
+                        <Fragment key={tool.name}>
+                            <ToolButton
+                                active={tool.active}
+                                glyph={tool.glyph}
+                                name={tool.name}
+                                shortcut={tool.shortcut}
+                                tabIndex={toolbar.toolTabIndex(index)}
+                                onActivate={tool.run}
+                                hasPopup={tool.hasPopup}
+                                expanded={tool.hasPopup ? templatePicker : undefined}
+                            />
+                            {tool.sepAfter && <span className="compose-tool-sep"/>}
+                        </Fragment>
+                    ))}
                 </div>
                 {templatePicker && (
                     <div className="compose-template-picker" role="menu" aria-label="Message templates">

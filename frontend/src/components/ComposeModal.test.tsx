@@ -341,3 +341,60 @@ describe('ComposeModal: send later', () => {
         expect(screen.getByRole('button', {name: 'Send later'})).toBeDisabled()
     })
 })
+
+describe('formatting toolbar keyboard navigation', () => {
+    const toolbar = () => screen.getByRole('toolbar', {name: 'Formatting'})
+    const toolButtons = () => Array.from(toolbar().querySelectorAll<HTMLButtonElement>('button.compose-tool'))
+
+    it('is a single tab stop: exactly one tool is tabbable', () => {
+        renderCompose()
+        const tabbable = toolButtons().filter((b) => b.tabIndex === 0)
+        expect(tabbable).toHaveLength(1)
+        expect(tabbable[0]).toHaveAccessibleName('Bold')
+    })
+
+    it('moves the roving stop with the arrow keys, wrapping at the ends', () => {
+        renderCompose()
+        const buttons = toolButtons()
+        buttons[0].focus()
+        fireEvent.keyDown(toolbar(), {key: 'ArrowRight'})
+        expect(document.activeElement).toBe(buttons[1])
+        expect(buttons[1].tabIndex).toBe(0)
+        expect(buttons[0].tabIndex).toBe(-1)
+        fireEvent.keyDown(toolbar(), {key: 'ArrowLeft'})
+        fireEvent.keyDown(toolbar(), {key: 'ArrowLeft'})
+        expect(document.activeElement).toBe(buttons[buttons.length - 1])
+        expect(buttons[buttons.length - 1].tabIndex).toBe(0)
+    })
+
+    it('jumps to the last tool with End and back with Home', () => {
+        renderCompose()
+        const buttons = toolButtons()
+        buttons[0].focus()
+        fireEvent.keyDown(toolbar(), {key: 'End'})
+        expect(document.activeElement).toBe(buttons[buttons.length - 1])
+        fireEvent.keyDown(toolbar(), {key: 'Home'})
+        expect(document.activeElement).toBe(buttons[0])
+    })
+
+    it('keeps focus on the tool after a keyboard activation', () => {
+        renderCompose()
+        const bold = toolButtons()[0]
+        bold.focus()
+        // A keyboard-driven click carries detail 0, the browser's signal for a non-pointer click.
+        fireEvent.click(bold, {detail: 0})
+        expect(document.activeElement).toBe(bold)
+    })
+
+    it('leaves focus with the editor after a mouse activation', () => {
+        renderCompose()
+        const bold = toolButtons()[0]
+        fireEvent.click(bold, {detail: 1})
+        expect(document.activeElement).not.toBe(bold)
+    })
+
+    it('shows the editor shortcut in the tooltip', () => {
+        renderCompose()
+        expect(toolButtons()[0]).toHaveAttribute('title', 'Bold (Ctrl+B)')
+    })
+})
