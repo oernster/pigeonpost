@@ -73,7 +73,8 @@ local-first. A calmer, more predictable alternative to Thunderbird.
   and external links opened in your browser.
 
 Planned: move/delete rules, OS-delivered calendar alarms, macOS and Linux builds, two-way
-CardDAV contact sync.
+CardDAV contact sync. The candidates parked beyond these are triaged with their rationale in
+[FEATURES_PLAN.md](FEATURES_PLAN.md).
 
 ## Stack
 
@@ -93,6 +94,8 @@ CardDAV contact sync.
 - [ARCHITECTURE.md](ARCHITECTURE.md): the clean-architecture invariants and how they are enforced.
 - [TESTING.md](TESTING.md): the test strategy, the coverage gate and how to run everything.
 - [TECH_DEBT.md](TECH_DEBT.md): the standing technical-debt reference.
+- [FEATURES_PLAN.md](FEATURES_PLAN.md): the triaged feature backlog (parked candidates and confirmed
+  won't-dos, each with its rationale).
 
 ## Quick start
 

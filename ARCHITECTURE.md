@@ -22,7 +22,9 @@ enforced by a test in `tests/structural/boundary_test.go`, not by convention.
   the injected `Clock`. This is where correctness lives and where the 100% coverage gate applies.
 - **Application** (`internal/application`): use cases plus the port interfaces they depend on
   (`AccountStore`, `CredentialStore`, `AccountVerifier`, `MailStore`, `MailSource`, `MailActions`,
-  `MailTransport`, `FolderActions`, `DraftSaver`, `OutboxStore`, `TagStore`, `RuleStore`, `Clock`). The
+  `MailTransport`, `FolderActions`, `DraftSaver`, `OutboxStore`, `TagStore`, `RuleStore`, `Clock`,
+  plus the later feature ports for contacts, calendar, recurrence, scheduling, draft recovery,
+  remote images and CalDAV, each introduced with its feature below). The
   `MailSource`, `MailActions` and `AccountVerifier` ports are satisfied by the `mailrouter` adapter,
   which dispatches to the IMAP or POP3 implementation per account protocol. Depends on Domain and the
   standard library only. Never imports Infrastructure or the Wails runtime.
@@ -34,14 +36,17 @@ enforced by a test in `tests/structural/boundary_test.go`, not by convention.
   (`mailrouter`, which routes reads, verification and actions to the IMAP or POP3 adapter by account
   protocol), the reminder and unread surfaces (`taskbar`: the Windows taskbar unread-overlay badge and
   reminder flash, no-ops off Windows, plus the notification tray, a Windows tray icon that also carries
-  the unread badge, or a native desktop notification elsewhere) and the OS keychain (`keychain`); later
-  ICS and vCard. Never imported by Domain or Application. The
-  `installer` package holds the setup program's install logic and is consumed by the `installer/` Wails
-  setup app.
-- **UI**: the React front end plus the thin Wails facade in package `main` (`app.go` with its
-  per-feature binding files `about.go`, `accountsetup.go`, `send.go`, `export.go`, `outbox.go`,
-  `rulesapi.go` and `tagsapi.go`, the `dto.go` DTO mappers and the `clock.go` clock). The facade is a
-  client of the Application use cases only; it maps domain results to DTOs and holds no business logic.
+  the unread badge, or a native desktop notification elsewhere), the OS keychain (`keychain`), the
+  calendar and contacts codecs (`ics`, `recurrence`, `vcard` and `csv`), the CalDAV sync client
+  (`caldav`), the Microsoft OAuth token flow (`oauth`) and the SSRF-guarded remote-image fetcher
+  (`remoteimage`). Never imported by Domain or Application. The
+  separate `internal/installer` package holds the setup program's install logic and is consumed by the
+  `installer/` Wails setup app.
+- **UI**: the React front end plus the thin Wails facade in package `main` (`app.go` with one binding
+  file per feature surface: accounts, mail, folders, send, draft recovery, outbox, snooze, tags, rules,
+  templates, calendar, CalDAV, contacts, scheduling, export, `.eml` files and About, plus the `dto.go`
+  DTO mappers and the `clock.go` clock). The facade is a client of the Application use cases only; it
+  maps domain results to DTOs and holds no business logic.
 
 ## Composition root
 
@@ -579,6 +584,8 @@ in the tray simply brings it back.
 ## Design decisions
 
 The standing choices behind the stack and the product shape, recorded so they are not relitigated.
+The feature backlog beyond these decisions (parked candidates and confirmed won't-dos) is triaged in
+[FEATURES_PLAN.md](FEATURES_PLAN.md).
 
 Go + Wails + React was chosen over Rust + Tauri because the Emersion Go mail suite covers the entire
 email, calendar and contacts surface in one coherent family (including CalDAV/CardDAV via go-webdav),

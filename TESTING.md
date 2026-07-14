@@ -45,6 +45,13 @@ documented here.
 | `internal/infrastructure/smtp` | none (live send only; MIME building lives in `message`) | n/a |
 | `internal/infrastructure/imap` | unit on the source adapter's pure helpers (parsing moved to `mailparse`) | none |
 | `internal/infrastructure/pop3` | unit on the response and UIDL parsing; live download excluded | none |
+| `internal/infrastructure/ics` | unit on the RFC 5545 codec round-trip, recurrence and scheduling payloads | none |
+| `internal/infrastructure/recurrence` | unit on RRULE expansion and truncation | none |
+| `internal/infrastructure/vcard` | unit on the vCard codec round-trip | none |
+| `internal/infrastructure/csv` | unit on the Outlook CSV codec round-trip | none |
+| `internal/infrastructure/caldav` | unit against a local stub CalDAV server (httptest) | local HTTP server |
+| `internal/infrastructure/oauth` | unit against stubbed token endpoints (httptest) | local HTTP server |
+| `internal/infrastructure/remoteimage` | unit on the SSRF guard and resolver against local stub servers (httptest) | local HTTP server |
 | `internal/infrastructure/keychain` | unit via go-keyring's in-memory mock | none |
 | `internal/infrastructure/taskbar` | unit on the pure label formatting; Win32 overlay excluded | none |
 | `internal/installer` | unit on payload extraction and paths | temp dir |
@@ -58,14 +65,21 @@ documented here.
 | internal/application | 100% | gated |
 | internal/infrastructure/message | 100% | the RFC 5322 MIME builder (pure) |
 | internal/infrastructure/mailrouter | 100% | per-protocol dispatch (pure) |
-| internal/infrastructure/keychain | 100% | go-keyring mock |
-| internal/infrastructure/mailparse | ~92% | MIME body parsing, HTML sanitising, image blocking and hidden-preheader removal that keeps MJML layout wrappers and mso-hide content (pure); a few defensive decode branches uncovered |
-| internal/infrastructure/storage | ~78% | logic and error paths covered, including keyset message pagination and the atomic tag-keyword sync writes; see exclusions |
-| internal/infrastructure/pop3 | ~44% | response and UIDL parsing covered; the live dial and download excluded |
-| internal/infrastructure/taskbar | ~22% | the pure label formatting and no-op stub covered; the Windows-only Win32 overlay excluded |
-| internal/infrastructure/imap | ~24% | the source adapter's pure helpers; the wire-to-domain and HTML logic now lives in `mailparse`, and live fetch/append plus the IDLE watcher are excluded |
+| internal/infrastructure/recurrence | ~97% | RRULE expansion and truncation; a few defensive edges uncovered |
+| internal/infrastructure/vcard | ~97% | vCard codec round-trip |
+| internal/infrastructure/oauth | ~95% | token flow against stubbed endpoints; real-network edges excluded |
+| internal/infrastructure/mailparse | ~94% | MIME body parsing, HTML sanitising, image blocking and hidden-preheader removal that keeps MJML layout wrappers and mso-hide content (pure); a few defensive decode branches uncovered |
+| internal/infrastructure/ics | ~92% | RFC 5545 codec round-trip, recurrence and scheduling payloads |
+| internal/infrastructure/csv | ~91% | Outlook CSV codec round-trip |
+| internal/infrastructure/remoteimage | ~90% | the SSRF guard and resolver against stub servers; the live-wired constructor excluded |
+| internal/infrastructure/caldav | ~82% | request and parse logic against a stub server; live-server edges and the live-wired writer factory excluded |
+| internal/infrastructure/storage | ~79% | logic and error paths covered, including keyset message pagination and the atomic tag-keyword sync writes; see exclusions |
+| internal/infrastructure/keychain | ~58% | the account-password paths via go-keyring's in-memory mock; the CalDAV calendar-password wrappers currently uncovered |
+| internal/infrastructure/pop3 | ~40% | response and UIDL parsing covered; the live dial and download excluded |
+| internal/installer | ~26% | extract and paths covered; Win32 side effects excluded |
+| internal/infrastructure/imap | ~25% | the source adapter's pure helpers; the wire-to-domain and HTML logic now lives in `mailparse`, and live fetch/append plus the IDLE watcher are excluded |
+| internal/infrastructure/taskbar | ~17% | the pure label formatting and no-op stub covered; the Windows-only Win32 overlay excluded |
 | internal/infrastructure/smtp | 0% | transport is live `Send` only; MIME building lives in `message` |
-| internal/installer | ~38% | extract and paths covered; Win32 side effects excluded |
 | main package, installer app, tools/genicons | 0% | composition root, GUI and tooling, excluded |
 
 ## Documented exclusions (and why)
@@ -77,6 +91,10 @@ documented here.
   pure logic is separated out and covered independently: MIME body parsing plus HTML sanitising and
   image-blocking in the shared `internal/infrastructure/mailparse` package, the RFC 5322 MIME builder in
   `internal/infrastructure/message`, and the response and UIDL parsing in `pop3`.
+- **Live CalDAV, OAuth and remote-image network paths** (`caldav`, `oauth`, `remoteimage`): the
+  request, parse and guard logic is tested against local `httptest` stub servers; the live-wired
+  constructors and real-network edges (a real CalDAV server, the browser hand-off, a real image host)
+  are excluded.
 - **Windows taskbar overlay** (`taskbar/overlay_windows.go`): the Win32 `ITaskbarList3` calls that draw
   the unread badge are Windows-only and build-tagged; the no-op stub and the pure label formatting are
   covered.
@@ -86,10 +104,11 @@ documented here.
 - **Installer GUI** (`installer/`, a Wails app) and its facade: driven by the WebView, verified by
   running the setup program, not by unit tests.
 - **Composition root and startup** (the whole `main` package: `main.go` plus the Wails facade files,
-  namely `app.go`, the per-feature `*api.go` bindings (send, export, outbox, rules, tags, calendar,
-  contacts and scheduling), the background new-mail notifier and reminder scheduler, and the DTO mappers
-  and clock) and the **icon tool** (`tools/genicons`): wiring and one-shot programs, verified by the app
-  and the build succeeding.
+  namely `app.go`, one binding file per feature surface (accounts, mail, folders, send, draft recovery,
+  outbox, snooze, tags, rules, templates, calendar, CalDAV, contacts, scheduling, export and `.eml`
+  files), the background goroutines (the new-mail notifier, the reminder scheduler, the outbox
+  dispatcher and the snooze scheduler) plus the DTO mappers and clock) and the **icon tool**
+  (`tools/genicons`): wiring and one-shot programs, verified by the app and the build succeeding.
 - **A few defensive branches in storage** (a commit failing after a successful transaction, a driver
   read error mid-iteration): not reachably triggerable with a real SQLite file.
 
