@@ -332,9 +332,9 @@ place. Keep `App.css` a manifest (only `@import` lines); never inline component 
 per-component file own a shared global. Split a concern file over ~500 lines again at a top-level comment
 boundary, keeping the import order intact.
 
-## Calendar and contacts (0.7.0)
+## Calendar and contacts
 
-Shipped in 0.7.0. This section records the shape of the address book and calendar; each piece is held to
+This section records the shape of the address book and calendar; each piece is held to
 the same layer rules and tests as the body above.
 The invariant is unchanged: `UI -> Application -> Domain <- Infrastructure`, same layer rules, same
 composition root, same 100% domain gate. The address book is built before the calendar because it is
@@ -495,7 +495,7 @@ matched by host) surfaces as a Join button in the event editor, and any other li
 clickable; both open in the external browser through the existing `OpenExternal` facade method, so this
 adds no new port.
 
-**New-mail notifications and IMAP IDLE (0.8.0).** New mail is surfaced the moment it arrives. A
+**New-mail notifications and IMAP IDLE.** New mail is surfaced the moment it arrives. A
 `runMailNotifier` goroutine in the composition root owns the flow: it primes a baseline first (an existing
 inbox is cached, not announced), then feeds two detection paths through one serialised `checkMail`, so a
 push and the backstop poll can never double-notify. `SyncInboxes` (application) refreshes every account's
@@ -522,3 +522,50 @@ Only one PigeonPost runs per user, enforced by Wails' `SingleInstanceLock` (a na
 A second launch does not open a new window: the running instance's `OnSecondInstanceLaunch` reveals its
 window through the same `WindowShow`/`WindowUnminimise` path the tray uses, so relaunching an app hidden
 in the tray simply brings it back.
+
+## Design decisions
+
+The standing choices behind the stack and the product shape, recorded so they are not relitigated.
+
+Go + Wails + React was chosen over Rust + Tauri because the Emersion Go mail suite covers the entire
+email, calendar and contacts surface in one coherent family (including CalDAV/CardDAV via go-webdav),
+it matches the proven native-Go-on-Wails delivery lineage (locus, focus-reader) and it avoids learning
+async Rust under load on a protocol-heavy app. All chosen dependencies are permissive (MIT/BSD) and
+GPL-3.0 compatible.
+
+| Concern | Choice | Rationale |
+|---|---|---|
+| Shell | Wails v2 (WebView2/WebKit hosting React + TS) | Proven delivery lineage; single small binary. |
+| Backend | Go 1.21+ | Second first-class language; native cross-platform. |
+| IMAP | emersion/go-imap (v2, IDLE) | Async push, mature. |
+| POP3 | small hand-rolled client | POP3 is a small protocol. |
+| SMTP send | emersion/go-smtp | Pairs with the suite. |
+| MIME parse/build | emersion/go-message | Production-tested in real clients. |
+| SASL | emersion/go-sasl | SASL PLAIN for SMTP AUTH. |
+| Calendar ICS | emersion/go-ical | RFC 5545 round-trip (Thunderbird and Outlook). |
+| Contacts vCard | emersion/go-vcard | vCard 3/4 round-trip. |
+| Contacts CSV | stdlib encoding/csv | Outlook bulk contact import/export (Outlook exports CSV, not vCard). |
+| CalDAV / CardDAV | emersion/go-webdav | Two-way sync affordable in Go. |
+| Storage | modernc.org/sqlite (pure Go, no CGO) + FTS5 | Local-first, single-writer/multi-reader. |
+| Credentials | zalando/go-keyring | OS keychain; never in the DB. |
+| Front end | React 18 + TypeScript (Vite) | Existing React/TS + Wails lineage. |
+| List virtualization | @tanstack/react-virtual | 100k-message folders scroll smoothly. |
+| Drag/drop | native HTML5 drag-and-drop | Message-to-folder, account reorder, folder reparent and reorder. |
+| Rich-text compose | TipTap (ProseMirror) | Clean, sanitisable, email-safe HTML. |
+| HTML mail render | sandboxed iframe + sanitiser | Untrusted HTML is the top security surface. |
+
+Locked product decisions:
+
+- Licence: GPL-3.0, whole app.
+- Auth: password (or app password) over generic IMAP/POP3 is the core path; XOAUTH2 OAuth is
+  implemented and Microsoft uses it (authorization-code plus PKCE, loopback redirect, free Entra
+  registration). Gmail personal accounts are supported via an app-password preset; one-click Google
+  sign-in is declined (annual CASA fee) and Workspace accounts are OAuth-only, so they are not covered
+  by the personal preset.
+- Calendar/contacts: file ICS/vCard import/export, read-only ICS subscription and two-way CalDAV
+  calendar sync are delivered; two-way CardDAV contact sync is planned. The delivered CalDAV sync has
+  not yet been exercised against a live server, so its per-provider edges (ETag and href formats,
+  whether 412 is the conflict status, whether a server accepts a client-chosen object name, CTag
+  support) are unproven until a first real account exercises them.
+- Compose: light TipTap rich-text plus a plain-text toggle; no full HTML-editor parity.
+- Inboxes: each account keeps its own separate inbox; there is no unified/combined inbox.

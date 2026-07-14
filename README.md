@@ -58,14 +58,15 @@ local-first. A calmer, more predictable alternative to Thunderbird.
   emoji-labelled event categories, on-screen reminders and ICS import/export (RFC 5545) that round-trips
   with Outlook and Thunderbird. Meeting
   invites over iTIP/iMIP (accept, decline, cancel, reply) with clickable join links (Teams, Meet, Zoom,
-  Webex).
+  Webex). Early two-way CalDAV sync: a calendar-server account (app password) syncs events both ways,
+  server-wins on conflict with the losing local edit kept as a copy.
 - **Contacts**: an address book with postal addresses and birthdays, plus vCard (.vcf) and CSV
   import/export that round-trips with Outlook and Thunderbird.
 - **Trust**: a dark theme with a light toggle, passwords held in the OS keychain (never the database)
   and external links opened in your browser.
 
 Planned: move/delete rules, OS-delivered calendar alarms, macOS and Linux builds, two-way
-CalDAV/CardDAV. See [DESIGN_PLAN.md](DESIGN_PLAN.md) for the full roadmap.
+CardDAV contact sync.
 
 ## Stack
 
@@ -84,7 +85,6 @@ CalDAV/CardDAV. See [DESIGN_PLAN.md](DESIGN_PLAN.md) for the full roadmap.
 - [DEVELOPMENT-README.md](DEVELOPMENT-README.md): prerequisites, running, building and packaging.
 - [ARCHITECTURE.md](ARCHITECTURE.md): the clean-architecture invariants and how they are enforced.
 - [TESTING.md](TESTING.md): the test strategy, the coverage gate and how to run everything.
-- [DESIGN_PLAN.md](DESIGN_PLAN.md): the product design and phased roadmap.
 - [TECH_DEBT.md](TECH_DEBT.md): the standing technical-debt reference.
 
 ## Quick start
