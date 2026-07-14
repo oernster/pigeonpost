@@ -86,7 +86,7 @@ Sync and read:
    adapter by account protocol: an IMAP account lists its server folders, while a POP3 account
    downloads into a single local inbox (POP3 has no server-side folders), deduped by its UIDL, with
    read and star marks kept locally since POP3 carries no server flags. The message server handle is an
-   opaque string (schema v11) that holds an IMAP UID or a POP3 UIDL. Folder unread and total counts are
+   opaque string that holds an IMAP UID or a POP3 UIDL. Folder unread and total counts are
    computed from the cached messages, so the per-folder, per-account and total badges are populated
    without a separate server STATUS pass. On the front end, every message action that can change an
    unread count (mark read/unread, delete, junk, move, the bulk forms) refreshes the account badges and
@@ -124,11 +124,11 @@ Read a message body:
 1. Opening a message calls the facade's `GetMessageBody`.
 2. The `MessageBodyService` serves the cached body when present; on a miss it resolves the message,
    its folder and account through the stores, fetches the full body from the `MailSource`, caches it
-   (schema v3 `message_body` table) and returns it. The message therefore reads offline after its
-   first open. The parser also extracts attachment parts, cached alongside the body (schema v26
+   (the `message_body` table) and returns it. The message therefore reads offline after its
+   first open. The parser also extracts attachment parts, cached alongside the body (the
    `message_attachment` table) so a received attachment can be saved offline from the reader; the list
    shows a paperclip for a message whose fetched IMAP body structure (BODYSTRUCTURE) has an
-   attachment-disposition part. Schema v27 clears the cached bodies once so each re-fetches with the
+   attachment-disposition part. A one-off migration clears the cached bodies so each re-fetches with the
    attachment-aware parser. Subjects and display names are RFC 2047 decoded (through a charset reader, so
    windows-1252 and the like decode) and HTML-entity unescaped in the mail-source mapping via
    `mailparse.DecodeHeader`, shared by the IMAP envelope path and POP3, so encoded-word and
@@ -177,7 +177,7 @@ Send (also reply, reply-all and forward, which just pre-fill the same compose wi
 identical send path runs: reply pre-fills the sender; reply-all pre-fills the sender plus the original
 To and Cc with the reader's own address and duplicates removed; forward pre-fills the quoted original;
 all set a `Re:`/`Fwd:` subject). Reply-all is possible because the cached message summary now stores the
-original To and Cc (schema v6):
+original To and Cc:
 
 1. The UI submits a compose request (recipients, subject, body) to the facade.
 2. The facade parses the addresses into domain value objects and calls the compose use case.
@@ -186,8 +186,8 @@ original To and Cc (schema v6):
    and delivers it. The compose editor is TipTap rich text: the draft carries both a plain-text body
    and an optional HTML body, and when HTML is present the shared `message` MIME builder emits a
    `multipart/alternative` message (plain text first, HTML second) so plain-text clients still render.
-   Bcc recipients (schema v8) are added to the SMTP envelope (de-duplicated with To and Cc) but never
-   written to the headers. Attachments (schema v9) turn the body into `multipart/mixed`: files chosen
+   Bcc recipients are added to the SMTP envelope (de-duplicated with To and Cc) but never
+   written to the headers. Attachments turn the body into `multipart/mixed`: files chosen
    from disk plus, optionally, an existing message fetched as a `message/rfc822` part, bounded by a
    total-size cap in the facade.
 
@@ -199,14 +199,14 @@ Unlike a send, a draft may be incomplete (no recipients, empty body), so it is b
 
 Draft recovery: separately from the server-side Save draft, the compose window autosaves its in-progress
 content (debounced, once the user has edited it) to a single-row local slot through the
-`DraftRecoveryStore` port (schema v25 `draft_recovery` table). It is local only and never sent to the
+`DraftRecoveryStore` port (the `draft_recovery` table). It is local only and never sent to the
 server; on the next launch the UI offers to restore it; sending, saving a server draft or discarding
 it clears the slot.
 
 Offline outbox: the SMTP and IMAP adapters wrap a failed dial with the `ErrOffline` sentinel. When the
 compose use case sees `ErrOffline` from a send or a draft append, instead of failing it queues the
-operation through the `OutboxStore` port (schema v5 `outbox` table, extended with Bcc in v8 and
-attachments in v9 so a queued message keeps them on replay) and returns success; the UI surfaces the
+operation through the `OutboxStore` port (the `outbox` table, which also carries Bcc and
+attachments so a queued message keeps them on replay) and returns success; the UI surfaces the
 queue as a per-account outbox folder where the waiting messages can be reviewed or cancelled. After the
 next successful sync the UI calls replay, which drains the queue oldest-first: each item is re-sent or
 re-appended, removed on success, left in place if still offline, and dropped (with its error reported)
@@ -215,7 +215,7 @@ queue covers outgoing mail only; message flag/delete/move actions remain online-
 
 Undo send: every send passes through `ComposeService.HoldSend` with the user's undo window (a Mail-menu
 choice of 0 to 30 seconds, default 10, persisted locally). A positive window queues the message in the
-same outbox with a hold instant (`hold_until_ms`, schema v43) and returns the queued id; the front end
+same outbox with a hold instant (`hold_until_ms`) and returns the queued id; the front end
 shows a countdown toast whose Undo cancels the item and reopens the composer exactly as it was, with a
 reply's answered-flag marking deferred to the window's expiry so an undone reply never flags its
 original. A held item is invisible to the ordinary replay (no path may send it early); once the hold
@@ -237,7 +237,7 @@ not have already marked it); the composer states the local-first constraint plai
 while the app runs, or at the next launch after the chosen time.
 
 Snooze: a message can be hidden until a chosen moment (context-menu or Mail-menu presets, or a
-pick-a-time dialog). Snooze is local-only state, one row per message in `message_snooze` (schema v44):
+pick-a-time dialog). Snooze is local-only state, one row per message in `message_snooze`:
 nothing reaches the server and read/flag state is untouched. The visible listings
 (`MailStore.ListMessagesVisible`, `ListMessagesPageVisible` and the snooze-aware `UnreadByAccount`)
 exclude a hidden message until its instant passes, while the plain listings the sync and the new-mail
@@ -261,8 +261,8 @@ optimistic changes, keeping the domain function as the single tested definition.
 
 Large folders: the message list is fully virtualized (`@tanstack/react-virtual`) so only on-screen rows
 exist in the DOM and it loads in pages of 200 through keyset pagination. `Store.ListMessagesPage`, exposed
-as `MailboxService.MessagesPage`, walks an indexed `(folder_id, date_ms, id)` order (schema v33 index
-`idx_message_folder_date`) and resumes strictly after the last row returned, its `(date_ms, id)` tie-break a
+as `MailboxService.MessagesPage`, walks an indexed `(folder_id, date_ms, id)` order (the
+`idx_message_folder_date` index) and resumes strictly after the last row returned, its `(date_ms, id)` tie-break a
 total order so no row is skipped or repeated. Toggling a message read or unread mutates the row in place and
 refreshes only the unread counts rather than refetching the folder, so a folder of tens of thousands of
 messages never reloads every row.
@@ -292,8 +292,8 @@ server via the `MailActions` port and removes the local copy (the destination fo
 its new server UID, on the next sync). Copy is the same path without removing the original.
 
 Folder operations: the `FolderService` creates, renames and deletes mailboxes on the server through the
-`FolderActions` port. Each cached `Folder` records the server's mailbox hierarchy delimiter (schema
-v10), captured from the IMAP `LIST` response, so the leaf name and a rename's destination path are
+`FolderActions` port. Each cached `Folder` records the server's mailbox hierarchy delimiter,
+captured from the IMAP `LIST` response, so the leaf name and a rename's destination path are
 derived with the real separator ("." on StartMail, not the default "/"); a folder with an unknown
 delimiter falls back to "/". `FolderService.Move` reparents a folder, moving it under a new parent through
 the same path-to-path rename (an empty parent is the top level) and rejecting a move across accounts or
@@ -322,7 +322,7 @@ unclosed quote degrades the whole input to plain free text (flagged so the UI ca
 unknown operator or operand stays literal search text. `MailboxService.Search` applies policy (the
 UI's folder or account scope, the result cap) and hands the modelled query to the `MailStore`.
 
-The index is `message_search` (FTS5, schema v41): subject, snippet, sender, recipients, the plain
+The index is `message_search` (FTS5): subject, snippet, sender, recipients, the plain
 body and the attachment filenames. Bodies are cached lazily on first open, so body text becomes
 searchable as messages are read (headers and the snippet cover everything from sync); the body-cache
 save re-indexes its message in the same transaction. The `message_searchable_text` view is the single
@@ -338,29 +338,29 @@ body; each hit carries a `snippet()` of the matched text with matches wrapped in
 markers the UI splits on, so message content is never interpreted as markup. The consistency contract
 (insert, body cache, folder replace, delete, account removal, flag changes) is pinned by the
 `search_store_test.go` suite; a future index format change ships as a migration that drops and refills
-from the view, the v41 pattern. The UI runs the query debounced with a scope selector (all mail, this
+from the view, the pattern that built the current index. The UI runs the query debounced with a scope selector (all mail, this
 folder, this account), highlights matches in the result rows and is reachable via Edit > Search
 (Ctrl+K).
 
 Coloured tags: the `TagService` use case manages user-defined tags (a name plus a validated `#rrggbb`
 `Colour`) and their many-to-many association with messages, through the `TagStore` port. Tags and the
-`message_tag` link table are added by schema v2; migrations apply incrementally from the recorded
+`message_tag` link table have their own migration; migrations apply incrementally from the recorded
 `user_version`. Tags now round-trip onto IMAP keywords so an assignment made on one device reconciles on
 another. Each `Tag` carries a frozen keyword, `$PPtag_` followed by the lowercase hex of the tag name's
-UTF-8 bytes (domain `KeywordForName`, backfilled into a new `tag.keyword` column by schema v37), so the same
+UTF-8 bytes (domain `KeywordForName`, backfilled into a new `tag.keyword` column by a migration), so the same
 tag derives the same keyword everywhere and a rename never rewrites it. Every assign or unassign writes the
-local `message_tag` row and a row in the `message_tag_pending` intent table (schema v36) in one SQLite
+local `message_tag` row and a row in the `message_tag_pending` intent table in one SQLite
 transaction, so the assignment and its sync intent can never drift. The application `TagSyncService` flushes
 each pending intent to the server through the `MailActions.SetKeyword` port (an IMAP STORE of the custom
 keyword, retried best-effort until it lands); when a folder is fetched it reconciles the server's own tag
 keywords back into local assignments, clearing a pending intent once the server agrees. POP3 accounts skip
-all of this by design, since POP3 messages carry no keywords. The store is at schema v38.
+all of this by design, since POP3 messages carry no keywords.
 
 Filter rules: the `RuleService` use case manages user-defined rules through the `RuleStore` port and
 applies them to arriving messages. A domain `Rule` matches one field (From, To, Cc or Subject) against a
 value with an operator (contains, is, starts with, ends with or does not contain) and carries an action
-(mark read or flag). The operator column is schema v12 (added by `ALTER TABLE` defaulting to contains,
-so pre-existing rules keep their behaviour). Matching and the action are pure domain logic; move and
+(mark read or flag). The operator column was added by `ALTER TABLE` defaulting to contains,
+so pre-existing rules keep their behaviour. Matching and the action are pure domain logic; move and
 delete on arrival stay deferred because they need UID reconciliation to be safe.
 
 ## Errors
@@ -415,8 +415,8 @@ error)` and `Encode([]domain.Contact) ([]byte, error)`, implemented once per for
 chosen format and reconciles by UID so a re-import updates rather than duplicates.
 
 **Infrastructure.** New adapters implementing the ports: `storage` gains `contact`, `contact_email`,
-`contact_phone`, `contact_group` and `contact_group_member` tables (schema v14), and `calendar` and
-`event` tables (schema v15). Codec adapters: `vcard` (emersion/go-vcard) and `csv`
+`contact_phone`, `contact_group` and `contact_group_member` tables, and `calendar` and
+`event` tables. Codec adapters: `vcard` (emersion/go-vcard) and `csv`
 (stdlib `encoding/csv`) for contacts, and `ical` (emersion/go-ical) for calendar. Two contact codecs
 exist deliberately: vCard covers Thunderbird and single-contact Outlook, and CSV covers Outlook's bulk
 contact export/import (Outlook exports the address book as CSV, not vCard; Thunderbird reads CSV too).
@@ -436,7 +436,7 @@ a PigeonPost export imports back into both without loss, for calendar (ICS) and 
 
 **Calendar recurrence (RFC 5545 expansion).** The `Event` now models the whole recurrence set: the raw
 RRULE plus RDATE and EXDATE occurrence lists and a RECURRENCE-ID for an override event, all as
-already-resolved values so the domain still reads no wall clock (schema v18 stores the date lists as
+already-resolved values so the domain still reads no wall clock (the date lists are stored as
 comma-separated Unix milliseconds and the recurrence id as milliseconds). Expansion needs an RRULE
 parser, which the domain must not depend on, so it lives behind a new Application port,
 `RecurrenceService` (`Expand` an event into `EventInstance` occurrences within a window; `TruncateBefore`
@@ -453,7 +453,7 @@ the split so the forward series carries the remaining count and the two halves k
 extracts and re-emits RDATE, EXDATE and RECURRENCE-ID alongside the existing opaque `Extra`
 pass-through, so the round-trip stays lossless.
 
-**Event timezones.** An `Event` also carries an IANA zone (schema v19 `time_zone`), so a recurring event
+**Event timezones.** An `Event` also carries an IANA zone (the `time_zone` column), so a recurring event
 keeps its local wall-clock time across daylight-saving changes: its Start and End stay absolute instants,
 and the zone says how they are shown and expanded. The expander anchors DTSTART in that zone before
 generating, so a 9am daily event stays 9am local while its UTC instant shifts across the DST boundary;
@@ -471,12 +471,12 @@ saving gets a single STANDARD). RDATE, EXDATE and RECURRENCE-ID are written as U
 **To-dos and journals.** The `ics` codec models only VEVENTs, but a VTODO or VJOURNAL is preserved
 verbatim as a `domain.CalendarPassthrough` (UID, kind, the component re-serialised as a standalone
 VCALENDAR) rather than dropped. `Decode` returns passthrough alongside the events; `ImportEvents` stores
-each in the `calendar_passthrough` table (schema v21, keyed by UID so a re-import replaces); and
+each in the `calendar_passthrough` table (keyed by UID so a re-import replaces); and
 `ExportEvents` re-emits them. So an imported calendar's tasks and notes survive an import and export
 round-trip even though PigeonPost does not yet display them.
 
 **Reminders.** An `Event` carries a list of `Alarm` reminders, each a signed trigger offset from the start
-(schema v20 stores them as comma-separated seconds; the facade exposes them to the UI as whole
+(stored as comma-separated seconds; the facade exposes them to the UI as whole
 minutes-before). The `ics` codec reads relative-trigger `VALARM` children into alarms and re-emits one
 `DISPLAY VALARM` per modelled alarm with a friendly duration (`-PT15M`, not the library's `-PT900S`);
 because it owns the property it strips existing VALARMs first, so an exotic imported alarm (an absolute
@@ -517,7 +517,7 @@ receives the RFC 5546 scheduling messages (REQUEST, REPLY, CANCEL) as RFC 6047 i
 parts. New pure domain value objects carry the data: `Organizer` (a validated address plus an optional
 common name) and `Attendee` (address, common name, a `Role` and a `ParticipationStatus` enum each parsed
 leniently, and an RSVP flag with a `WithStatus` copy method), with `Event` gaining an organizer and an
-attendee list (schema v23 stores them as an `event.organizer` column and a JSON `event.attendees`
+attendee list (stored as an `event.organizer` column and a JSON `event.attendees`
 column). A `scheduling.go` domain file adds the `Method` enum, the `SchedulingMessage` (a method plus its
 events) and the `CalendarPart` (a method plus the encoded bytes) that an outgoing message carries. These
 value objects and their parse rules are held to the 100% domain gate.
@@ -533,7 +533,7 @@ account. A recurring meeting is matched as its series master plus any overrides,
 RECURRENCE-ID.
 
 Mail carries the invites both ways. Incoming: the shared `mailparse` parser diverts a `text/calendar`
-part into a `ParsedBody.Invite`, and the cached `MessageBody` gains an `invite` column (schema v22) with
+part into a `ParsedBody.Invite`, and the cached `MessageBody` gains an `invite` column with
 `HasInvite` / `Invite`, so a message reading offline still shows its invitation. The `MailSource.FetchBody`
 port and both the IMAP and POP3 adapters return the raw calendar bytes alongside the plain and HTML
 parts. Outgoing: an `OutgoingMessage` carries an optional `CalendarPart`, and the shared `message` MIME

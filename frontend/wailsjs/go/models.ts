@@ -343,7 +343,7 @@ export namespace main {
 	    attachmentPaths: string[];
 	    attachmentMessageIds: string[];
 	    holdSeconds: number;
-    sendAtMs: number;
+	    sendAtMs: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new ComposeRequest(source);
@@ -913,7 +913,7 @@ export namespace main {
 	    forwarded: boolean;
 	    snippet: string;
 	    tagColours: string[];
-    snoozedUntilMs: number;
+	    snoozedUntilMs: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new MessageDTO(source);
@@ -938,7 +938,7 @@ export namespace main {
 	        this.forwarded = source["forwarded"];
 	        this.snippet = source["snippet"];
 	        this.tagColours = source["tagColours"];
-        this.snoozedUntilMs = source["snoozedUntilMs"];
+	        this.snoozedUntilMs = source["snoozedUntilMs"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
