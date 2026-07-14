@@ -71,7 +71,9 @@ interface MessageListProps {
     onClearSelection: () => void
     onToggleFlag: (message: Message) => void
     onContextMenu: (message: Message, x: number, y: number) => void
-    onOpenInNewTab: (message: Message, fromKeyboard?: boolean) => void
+    // onPopout opens a message in its own dialog; double-click fires it (Enter does the same through
+    // the window keyboard handler).
+    onPopout: (message: Message) => void
     // onLoadMore is called as the viewport nears the last loaded row, so the flat view can fetch and
     // append the next page. The parent guards it (it is a no-op in conversation view, in search or when
     // there is no more to load or a load is already running), so it is safe to call freely.
@@ -291,7 +293,7 @@ export function MessageList(props: MessageListProps) {
                     }
                 }}
                 onClick={(e) => props.onActivate(message, {ctrl: e.ctrlKey || e.metaKey, shift: e.shiftKey})}
-                onDoubleClick={() => props.onOpenInNewTab(message, false)}
+                onDoubleClick={() => props.onPopout(message)}
                 draggable
                 onDragStart={(e) => {
                     e.dataTransfer.setData(messageDragType, message.id)

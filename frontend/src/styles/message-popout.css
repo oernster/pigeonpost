@@ -1,0 +1,18 @@
+/* The message popout: double-click (or Enter) opens an email in its own dialog over the app, the
+   Thunderbird-style open. The dialog hosts the ordinary reader, so it scrolls and acts like the
+   reading pane at a comfortable reading width. */
+.message-popout {
+    width: min(92vw, 860px);
+    height: min(88vh, 720px);
+    display: flex;
+    flex-direction: column;
+    padding: 16px 0 0;
+    overflow: hidden;
+}
+
+.message-popout .reader {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    border-right: none;
+}

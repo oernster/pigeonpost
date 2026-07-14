@@ -10,6 +10,8 @@ import {MessageList, type SearchScope} from './components/MessageList'
 import {MessageContextMenu} from './components/MessageContextMenu'
 import {Reader} from './components/Reader'
 import {EmailViewerModal} from './components/EmailViewerModal'
+import {ModalClose} from './components/ModalClose'
+import {useBackdropDismiss} from './components/useBackdropDismiss'
 import {TitleBar} from './components/TitleBar'
 import {WelcomeScreen} from './components/WelcomeScreen'
 import {SelectionSummary} from './components/SelectionSummary'
@@ -139,7 +141,10 @@ function App() {
         previewEnabled, readingFull, setReadingFull,
         readerBodyRef, readerSinkRef,
         selectMessage, openInNewTab, closeTab, togglePreview,
+        popoutOpen, openPopout, closePopout,
     } = useReaderTabs({store})
+    // Clicking the popout's backdrop closes it like any other dialog.
+    const popoutDismiss = useBackdropDismiss(closePopout)
     // A neutral, offscreen focus anchor. It takes focus on launch so nothing is highlighted, yet the very
     // first Tab has a starting point and enters the ring. The WebView often does not hold keyboard focus
     // at the instant the window first appears, so focusing once on mount is not enough: the window focus
@@ -875,7 +880,7 @@ function App() {
     // that re-run, so nothing happens; selecting a different message later reads it as expected.
     const autoReadIdRef = useRef<string | null>(null)
     useEffect(() => {
-        if (!(previewEnabled || readingFull) || !selectedMessage) {
+        if (!(previewEnabled || readingFull || popoutOpen) || !selectedMessage) {
             return
         }
         if (autoReadIdRef.current === selectedMessage.id) {
@@ -885,7 +890,7 @@ function App() {
         if (!selectedMessage.read) {
             void markReadOnView(selectedMessage)
         }
-    }, [selectedMessage, previewEnabled, readingFull, markReadOnView])
+    }, [selectedMessage, previewEnabled, readingFull, popoutOpen, markReadOnView])
 
     // The window keydown handler for the message list and the main-window focus ring lives in
     // useMessageListKeyboard. It reads the current view and its selection, every overlay state (list
@@ -896,7 +901,7 @@ function App() {
         splashVisible, composing, settingUp, accountToEdit, managingRules, managingTemplates, managingContacts, managingCalendar,
         about, licence, folderPrompt, messageToCancelSend, messageToDelete, accountToDelete, folderToDelete,
         messageToPurge, contextMenu, bulkToDelete, bulkToPurge, snoozePickerFor, folders,
-        requestDelete, openInNewTab, setMessageToPurge, setBulkToPurge, setBulkToDelete, setFolderToDelete,
+        requestDelete, openMessage: openPopout, setMessageToPurge, setBulkToPurge, setBulkToDelete, setFolderToDelete,
         togglePreview,
     })
 
@@ -963,14 +968,34 @@ function App() {
             onClearSelection={clearSelection}
             onToggleFlag={(m) => void toggleFlag(m)}
             onContextMenu={openContextMenu}
-            onOpenInNewTab={openInNewTab}
+            onPopout={openPopout}
             onLoadMore={() => void loadMoreMessages()}
         />
     )
-    // fullReaderOpen is an email opened in its own right (double-click, Enter or Open in new tab):
-    // the reader takes the whole pane area in both reading-pane modes, with Back returning to the
-    // list. A single click with the pane on stays a preview and never sets it.
-    const fullReaderOpen = readingFull && selectedMessage !== null
+    // readerProps is the reader surface shared by the pane (or full-width) reader and the popout
+    // dialog, so both render the selected message identically.
+    const readerProps = {
+        message: selectedMessage,
+        bodyRef: readerBodyRef,
+        sinkRef: readerSinkRef,
+        onToggleRead: (m: Message) => void toggleRead(m),
+        onReply: openReply,
+        onReplyAll: openReplyAll,
+        onForward: openForward,
+        onDelete: (m: Message) => setMessageToDelete(m),
+        onCancelSend: (m: Message) => setMessageToCancelSend(m),
+        folders,
+        onMove: (m: Message, dest: string) => void moveMessage(m, dest),
+        onCopy: (m: Message, dest: string) => void copyMessage(m, dest),
+        canMoveCopy,
+        autoLoadImages,
+        dark: theme === 'dark',
+        tags,
+        messageTags,
+        onToggleTag: (tagId: string, assigned: boolean) => void toggleTag(tagId, assigned),
+        body: messageBody,
+        bodyLoading,
+    }
     const readerEl = multiSelected ? (
         <SelectionSummary
             markedIds={markedIds}
@@ -981,30 +1006,11 @@ function App() {
         />
     ) : (
         <Reader
-            message={selectedMessage}
-            bodyRef={readerBodyRef}
-            sinkRef={readerSinkRef}
-            onToggleRead={(m) => void toggleRead(m)}
-            onReply={openReply}
-            onReplyAll={openReplyAll}
-            onForward={openForward}
-            onDelete={(m) => setMessageToDelete(m)}
-            onCancelSend={(m) => setMessageToCancelSend(m)}
-            folders={folders}
-            onMove={(m, dest) => void moveMessage(m, dest)}
-            onCopy={(m, dest) => void copyMessage(m, dest)}
-            canMoveCopy={canMoveCopy}
-            autoLoadImages={autoLoadImages}
-            dark={theme === 'dark'}
-            tags={tags}
-            messageTags={messageTags}
-            onToggleTag={(tagId, assigned) => void toggleTag(tagId, assigned)}
-            body={messageBody}
-            bodyLoading={bodyLoading}
+            {...readerProps}
             tabs={tabs}
             onSelectTab={setSelectedMessage}
             onCloseTab={closeTab}
-            onBack={fullReaderOpen ? () => setReadingFull(false) : undefined}
+            onBack={previewEnabled ? undefined : () => setReadingFull(false)}
         />
     )
 
@@ -1099,7 +1105,7 @@ function App() {
             {accounts.length === 0 && !splashVisible ? (
                 <WelcomeScreen setSettingUp={setSettingUp}/>
             ) : (
-            <div className={'panes' + (previewEnabled && !fullReaderOpen ? '' : ' no-preview')}>
+            <div className={'panes' + (previewEnabled ? '' : ' no-preview')}>
                 <Sidebar
                     accounts={accounts}
                     selectedAccount={selectedAccount}
@@ -1126,13 +1132,13 @@ function App() {
                     onDropMessage={dropMessageOnFolder}
                     canManageFolders={!isPop3}
                 />
-                {fullReaderOpen ? (
-                    readerEl
-                ) : previewEnabled ? (
+                {previewEnabled ? (
                     <>
                         {messageListEl}
                         {readerEl}
                     </>
+                ) : readingFull && selectedMessage ? (
+                    readerEl
                 ) : (
                     messageListEl
                 )}
@@ -1148,6 +1154,19 @@ function App() {
             <AboutModal about={about} onClose={() => setAbout(null)}/>
             <LicenceModal text={licence} onClose={() => setLicence(null)}/>
             {launchedEmail && <EmailViewerModal email={launchedEmail} autoLoadImages={autoLoadImages} dark={theme === 'dark'} onClose={() => setLaunchedEmail(null)}/>}
+            {popoutOpen && selectedMessage && !multiSelected && (
+                <div className="modal-backdrop" {...popoutDismiss}>
+                    <div
+                        className="modal message-popout"
+                        role="dialog"
+                        aria-label={selectedMessage.subject || '(no subject)'}
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <ModalClose onClose={closePopout}/>
+                        <Reader {...readerProps} tabs={[]} onSelectTab={setSelectedMessage} onCloseTab={closeTab}/>
+                    </div>
+                </div>
+            )}
             {closeChoice && (
                 <CloseChoiceDialog
                     onMinimise={() => {

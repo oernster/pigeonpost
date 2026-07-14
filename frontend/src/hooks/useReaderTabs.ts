@@ -24,6 +24,11 @@ export interface ReaderTabs {
     openInNewTab: (message: Message, fromKeyboard?: boolean) => void
     closeTab: (id: string) => void
     togglePreview: () => void
+    // popoutOpen shows the selected message in its own dialog over the app (the Thunderbird-style
+    // open, fired by double-click or Enter on a row); openPopout and closePopout drive it.
+    popoutOpen: boolean
+    openPopout: (message: Message) => void
+    closePopout: () => void
 }
 
 // useReaderTabs owns the reading-pane mode and the reader-tab interaction: whether the preview pane is on,
@@ -42,6 +47,8 @@ export function useReaderTabs(deps: ReaderTabsDeps): ReaderTabs {
         }
     })
     const [readingFull, setReadingFull] = useState<boolean>(false)
+    // popoutOpen renders the selected message's reader inside a modal dialog over the app.
+    const [popoutOpen, setPopoutOpen] = useState<boolean>(false)
     // emailOpenTick bumps each time an email is opened; the effect below then moves focus onto the opened
     // email's close cross. readerBodyRef points at the reader's scrollable body (a keyboard scroll stop).
     const [emailOpenTick, setEmailOpenTick] = useState<number>(0)
@@ -67,6 +74,7 @@ export function useReaderTabs(deps: ReaderTabsDeps): ReaderTabs {
     const selectMessage = useCallback((message: Message) => {
         setSelectedMessage(message)
         setReadingFull(false)
+        setPopoutOpen(false)
     }, [])
 
     // openInNewTab pins a message as a reader tab (if not already open) and shows it. With the reading
@@ -100,6 +108,30 @@ export function useReaderTabs(deps: ReaderTabsDeps): ReaderTabs {
         document.querySelector<HTMLElement>('.message-list .message-row')?.focus()
     }, [listReturnTick])
 
+    // openPopout shows a message in its own dialog over the app (the Thunderbird-style open): the
+    // message becomes the selection, so its body loads and mark-on-view applies, and the popout flag
+    // renders the reader inside a modal. The focus effect below lands on the dialog's close cross.
+    const openPopout = useCallback((message: Message) => {
+        setSelectedMessage(message)
+        setReadingFull(false)
+        setPopoutOpen(true)
+    }, [])
+
+    // closePopout shuts the dialog and returns focus to the message list.
+    const closePopout = useCallback(() => {
+        setPopoutOpen(false)
+        setListReturnTick((n) => n + 1)
+    }, [])
+
+    // When the popout opens, focus its close cross (the first stop within the dialog) so it can be
+    // shut with one key; Tab then walks the reader's own controls inside the dialog's focus trap.
+    useEffect(() => {
+        if (!popoutOpen) {
+            return
+        }
+        document.querySelector<HTMLElement>('.message-popout .modal-close')?.focus()
+    }, [popoutOpen])
+
     // togglePreview flips the reading pane and returns to the list, so toggling never strands the user in
     // the full-width reader.
     const togglePreview = useCallback(() => {
@@ -126,5 +158,6 @@ export function useReaderTabs(deps: ReaderTabsDeps): ReaderTabs {
         previewEnabled, readingFull, setReadingFull,
         readerBodyRef, readerSinkRef,
         selectMessage, openInNewTab, closeTab, togglePreview,
+        popoutOpen, openPopout, closePopout,
     }
 }

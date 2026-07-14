@@ -272,22 +272,24 @@ describe('App: reading a message', () => {
         await waitFor(() => expect(screen.queryByRole('button', {name: 'Close Weekly report'})).not.toBeInTheDocument())
     })
 
-    // Double-clicking a row opens the email in its own right: the reader takes the whole pane area
-    // even with the reading pane on, and Back returns to the list-plus-pane layout.
-    it('opens a message full-width on double-click and returns with Back', async () => {
+    // Double-clicking a row pops the email out into its own dialog over the app (the
+    // Thunderbird-style open); closing it returns to the list with the layout untouched.
+    it('pops a message out into its own dialog on double-click', async () => {
         apiSpies.listAccounts.mockResolvedValue([makeAccount()])
         apiSpies.listFolders.mockResolvedValue([makeFolder('inbox', 'Inbox', 'inbox')])
         apiSpies.listMessages.mockResolvedValue([makeMessage({subject: 'Weekly report'})])
         const {container} = render(<App/>)
         const row = await screen.findByText('Weekly report')
-        expect(container.querySelector('.panes.no-preview')).not.toBeInTheDocument()
         fireEvent.doubleClick(row)
-        // The reader now owns the full pane area (the no-preview layout) and offers Back.
-        await waitFor(() => expect(container.querySelector('.panes.no-preview')).toBeInTheDocument())
-        expect(container.querySelector('.pane.message-list')).not.toBeInTheDocument()
-        fireEvent.click(screen.getByRole('button', {name: '← Back'}))
-        await waitFor(() => expect(container.querySelector('.panes.no-preview')).not.toBeInTheDocument())
+        const dialog = await screen.findByRole('dialog', {name: 'Weekly report'})
+        // The dialog hosts the ordinary reader, so its actions are all present.
+        expect(within(dialog).getByRole('button', {name: 'Reply'})).toBeInTheDocument()
+        // The list-plus-pane layout is untouched behind it.
         expect(container.querySelector('.pane.message-list')).toBeInTheDocument()
+        // The dialog's close cross takes focus so one key shuts it.
+        expect(document.activeElement).toBe(within(dialog).getByRole('button', {name: 'Close'}))
+        fireEvent.mouseDown(within(dialog).getByRole('button', {name: 'Close'}))
+        await waitFor(() => expect(screen.queryByRole('dialog', {name: 'Weekly report'})).not.toBeInTheDocument())
     })
 })
 

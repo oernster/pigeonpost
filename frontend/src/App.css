@@ -16,5 +16,6 @@
 @import './styles/accounts-and-folders.css';
 @import './styles/tags-and-pickers.css';
 @import './styles/email-viewer.css';
+@import './styles/message-popout.css';
 @import './styles/calendar.css';
 @import './styles/contacts.css';

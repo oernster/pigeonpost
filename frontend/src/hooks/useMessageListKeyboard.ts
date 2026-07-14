@@ -5,7 +5,7 @@ import type {FolderPrompt} from './useFolders'
 
 // MessageListKeyboardDeps is what the window keyboard handler reads: the current view (the list the arrows and
 // Ctrl+A act on) and its selection, every overlay state (keyboard handling for the list is suppressed while any
-// is open), and the handlers a key fires (open, delete, the folder delete). The setters and openInNewTab are
+// is open), and the handlers a key fires (open, delete, the folder delete). The setters and openMessage are
 // stable, so they are used but deliberately kept out of the effect's dependency array.
 export interface MessageListKeyboardDeps {
     searchActive: boolean
@@ -41,7 +41,9 @@ export interface MessageListKeyboardDeps {
     snoozePickerFor: Message | null
     folders: Folder[]
     requestDelete: (message: Message) => void
-    openInNewTab: (message: Message, fromKeyboard?: boolean) => void
+    // openMessage opens a message in its own right (Enter or Space on a row); App wires it to the
+    // popout dialog so the keyboard open matches the double-click.
+    openMessage: (message: Message) => void
     setMessageToPurge: Dispatch<SetStateAction<Message | null>>
     setBulkToPurge: Dispatch<SetStateAction<Message[] | null>>
     setBulkToDelete: Dispatch<SetStateAction<Message[] | null>>
@@ -61,7 +63,7 @@ export function useMessageListKeyboard(deps: MessageListKeyboardDeps): void {
         splashVisible, composing, settingUp, accountToEdit, managingRules, managingTemplates, managingContacts, managingCalendar,
         about, licence, folderPrompt, messageToCancelSend, messageToDelete, accountToDelete, folderToDelete,
         messageToPurge, contextMenu, bulkToDelete, bulkToPurge, snoozePickerFor, folders,
-        requestDelete, openInNewTab, setMessageToPurge, setBulkToPurge, setBulkToDelete, setFolderToDelete,
+        requestDelete, openMessage, setMessageToPurge, setBulkToPurge, setBulkToDelete, setFolderToDelete,
         togglePreview,
     } = deps
 
@@ -262,7 +264,7 @@ export function useMessageListKeyboard(deps: MessageListKeyboardDeps): void {
                         : selectedMessage
                     if (toOpen) {
                         e.preventDefault()
-                        openInNewTab(toOpen)
+                        openMessage(toOpen)
                         return
                     }
                 }
