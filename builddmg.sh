@@ -42,6 +42,26 @@ require() {
     command -v "$tool" > /dev/null 2>&1 || { echo "error: $tool is required (install: $install)" >&2; exit 1; }
 }
 
+# stamp_dmg_icon gives the .dmg file itself a custom Finder icon. create-dmg only
+# sets the mounted volume icon (.VolumeIcon.icns), so without this the .dmg shows
+# the generic disk-image icon in Finder/Downloads. Cosmetic: warn and skip if the
+# icns or the classic resource tools are unavailable rather than failing the build.
+stamp_dmg_icon() {
+    local dmg="$1" icns="$2" tool
+    [ -f "$icns" ] || { echo "warning: ${icns} missing; DMG file icon not set" >&2; return 0; }
+    for tool in sips DeRez Rez SetFile; do
+        command -v "$tool" > /dev/null 2>&1 || { echo "warning: ${tool} missing; DMG file icon not set" >&2; return 0; }
+    done
+    local work
+    work="$(mktemp -d)"
+    cp "$icns" "${work}/icon.icns"
+    sips -i "${work}/icon.icns" > /dev/null
+    DeRez -only icns "${work}/icon.icns" > "${work}/icon.rsrc"
+    Rez -append "${work}/icon.rsrc" -o "$dmg"
+    SetFile -a C "$dmg"
+    rm -rf "$work"
+}
+
 section "Platform guard"
 [ "$(uname -s)" = "Darwin" ] || { echo "error: this script must run on macOS" >&2; exit 1; }
 [ "$(uname -m)" = "arm64" ] || { echo "error: this script targets Apple Silicon (arm64)" >&2; exit 1; }
@@ -111,6 +131,9 @@ if [ -n "${APPLE_ID}" ] && [ -n "${APPLE_APP_PASSWORD}" ]; then
 else
     section "Notarization skipped (set APPLE_ID and APPLE_APP_PASSWORD to enable)"
 fi
+
+section "Stamping the DMG file icon"
+stamp_dmg_icon "${DMG_PATH}" "${VOLICON}"
 
 section "Done"
 echo "${DMG_PATH}"
