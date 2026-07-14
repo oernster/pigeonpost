@@ -8,6 +8,10 @@
 *.so
 *.dylib
 
+# Extensionless Linux/macOS binary from `go build -o pigeonpost .` (root-anchored so it
+# never matches the tracked pigeonpost.png)
+/pigeonpost
+
 # Test binary, built with `go test -c`
 *.test
 

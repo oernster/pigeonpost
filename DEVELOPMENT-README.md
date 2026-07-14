@@ -170,7 +170,7 @@ distributable bundle.
 Outputs: a user install (`flatpak run uk.codecrafter.PigeonPost`) and `pigeonpost.flatpak`.
 
 ```
-bash clean_flatpak.sh
+bash cleanup_flatpak.sh
 ```
 
 removes the user install and every flatpak build artefact, touching nothing the Windows or macOS

@@ -141,6 +141,7 @@ modules:
       - go run ./tools/genicons
       - go build -tags desktop,production,webkit2_41 -ldflags "-s -w" -o ${BIN_NAME} .
       - install -Dm755 ${BIN_NAME} /app/bin/${BIN_NAME}
+      - chmod -R u+w gopath gocache 2>/dev/null || true
       - install -Dm644 packaging/${APP_ID}.desktop /app/share/applications/${APP_ID}.desktop
       - install -Dm644 packaging/${APP_ID}.metainfo.xml /app/share/metainfo/${APP_ID}.metainfo.xml
 ${ICON_INSTALL_CMDS}    sources:
