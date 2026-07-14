@@ -136,20 +136,21 @@ Outputs:
 
 ### macOS (Apple Silicon)
 
-Prerequisites: an arm64 Mac with the Xcode command line tools, Go, Node and the Wails CLI (the
-same table as above); Homebrew for the tools the script installs itself (`create-dmg`).
+Prerequisites: an arm64 Mac with the Xcode command line tools, Go and Homebrew; the script
+installs the Wails CLI, Node and `create-dmg` itself when they are missing.
 
 ```
 bash builddmg.sh
 ```
 
 The script generates icons, builds the app with `wails build -platform darwin/arm64`, stamps the
-bundle version from `VERSION`, codesigns the `.app` with the hardened runtime and wraps it in a
-drag-to-Applications DMG. The signing identity comes from `DEVELOPER_ID_APPLICATION` (a default is
-built in); notarization runs only when `APPLE_ID` and `APPLE_APP_PASSWORD` are set (with
-`APPLE_TEAM_ID` overridable), otherwise it is skipped and the DMG is still usable locally.
+bundle version from `VERSION`, codesigns the `.app` with the hardened runtime, wraps it in a
+drag-to-Applications DMG and stamps the DMG's own Finder icon. The signing identity comes from
+`DEVELOPER_ID_APPLICATION` (a default is built in); notarization runs only when `APPLE_ID` and
+`APPLE_APP_PASSWORD` are set (with `APPLE_TEAM_ID` overridable), otherwise it is skipped and the
+DMG is still usable locally.
 
-Output: `dist-dmg/PigeonPost-<version>-macos-arm64.dmg`.
+Output: `PigeonPost.dmg` in the repo root.
 
 ### Linux (Flatpak; verified target Ubuntu)
 
@@ -183,5 +184,6 @@ that ships only webkit2gtk-4.1 (Ubuntu 24.04 and later), add `-tags webkit2_41`.
 ## Versioning
 
 The single source of truth for the version is the `VERSION` file at the repo root. The runtime reads
-it (embedded via `go:embed`), and the build stamps it into the installer. Do not hardcode a version
-anywhere else.
+it (embedded via `go:embed`); the Windows build stamps it into the installer, the macOS build stamps
+it into the app bundle's Info.plist and the flatpak build stamps it into the metainfo release entry.
+Do not hardcode a version anywhere else.

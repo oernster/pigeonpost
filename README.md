@@ -72,8 +72,8 @@ local-first. A calmer, more predictable alternative to Thunderbird.
 - **Trust**: a dark theme with a light toggle, passwords held in the OS keychain (never the database)
   and external links opened in your browser.
 
-Planned: move/delete rules, OS-delivered calendar alarms, macOS and Linux builds, two-way
-CardDAV contact sync. The candidates parked beyond these are triaged with their rationale in
+Planned: move/delete rules, OS-delivered calendar alarms, two-way CardDAV contact sync. The
+candidates parked beyond these are triaged with their rationale in
 [FEATURES_PLAN.md](FEATURES_PLAN.md).
 
 ## Stack
@@ -86,7 +86,7 @@ CardDAV contact sync. The candidates parked beyond these are triaged with their 
 | Mail | emersion go-imap / go-smtp / go-message |
 | Storage | modernc.org/sqlite (pure Go) + FTS5 |
 | Credentials | OS keychain (zalando/go-keyring) |
-| Installer | Wails app, same theme as the app |
+| Delivery | Windows installer (a Wails app, same theme), macOS DMG (Apple Silicon), Linux Flatpak |
 
 ## Documentation
 
@@ -103,7 +103,9 @@ CardDAV contact sync. The candidates parked beyond these are triaged with their 
 wails dev        # run the app in development
 go test ./...    # run the Go test suite
 cd frontend && npx vitest run   # run the front-end test suite
-./build.ps1      # build the app exe and the installer (Windows)
+./build.ps1              # build the app exe and the installer (Windows)
+bash builddmg.sh         # build the signed DMG (macOS, Apple Silicon)
+bash build_flatpak.sh    # build and install the Flatpak (Linux)
 ```
 
 ## Licence
