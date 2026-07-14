@@ -65,11 +65,17 @@ func (a *App) OpenReleasesPage() {
 }
 
 // OpenExternal opens an http(s) or mailto link from message content in the user's default browser.
-// Other schemes are ignored so a message cannot drive the app to arbitrary URI handlers.
+// Other schemes are ignored so a message cannot drive the app to arbitrary URI handlers. The launch
+// goes through openExternalURL rather than runtime.BrowserOpenURL: Wails' Windows implementation
+// rejects any URL containing characters it deems shell metacharacters, a set that includes tilde,
+// exclamation mark, asterisk and parentheses, all legal URL characters (RFC 3986 unreserved and
+// sub-delims) that click-tracking links in real email routinely carry. Those links then failed
+// silently, the click apparently doing nothing. The scheme allowlist above is the security boundary
+// here; openExternalURL passes the URL to the OS without a shell, so no metacharacter can execute.
 func (a *App) OpenExternal(url string) {
 	u := strings.TrimSpace(url)
 	if strings.HasPrefix(u, "http://") || strings.HasPrefix(u, "https://") || strings.HasPrefix(u, "mailto:") {
-		runtime.BrowserOpenURL(a.ctx, u)
+		a.openExternalURL(u)
 	}
 }
 
