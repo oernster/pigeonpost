@@ -102,6 +102,11 @@ cd frontend && npx vitest run    # front-end suite (Vitest + jsdom)
 
 ## Building
 
+Each platform has one entry-point script at the repo root; each produces that platform's
+distributable.
+
+### Windows
+
 Build just the application executable:
 
 ```
@@ -129,21 +134,54 @@ Outputs:
 - `dist-installer/PigeonPostSetup.exe`: the per-user setup program that embeds the app, installs to
   `%LOCALAPPDATA%\Programs\PigeonPost`, writes the uninstall registry entry and creates shortcuts.
 
+### macOS (Apple Silicon)
+
+Prerequisites: an arm64 Mac with the Xcode command line tools, Go, Node and the Wails CLI (the
+same table as above); Homebrew for the tools the script installs itself (`create-dmg`).
+
+```
+bash builddmg.sh
+```
+
+The script generates icons, builds the app with `wails build -platform darwin/arm64`, stamps the
+bundle version from `VERSION`, codesigns the `.app` with the hardened runtime and wraps it in a
+drag-to-Applications DMG. The signing identity comes from `DEVELOPER_ID_APPLICATION` (a default is
+built in); notarization runs only when `APPLE_ID` and `APPLE_APP_PASSWORD` are set (with
+`APPLE_TEAM_ID` overridable), otherwise it is skipped and the DMG is still usable locally.
+
+Output: `dist-dmg/PigeonPost-<version>-macos-arm64.dmg`.
+
+### Linux (Flatpak; verified target Ubuntu)
+
+Prerequisites: only `flatpak` and `flatpak-builder` (the script installs them through apt, dnf,
+pacman or zypper if missing). Go, Node and WebKit all come from the flatpak SDKs, so nothing else
+is needed on the host.
+
+```
+bash build_flatpak.sh
+```
+
+The script adds flathub, installs the GNOME runtime (which carries the webkit2gtk-4.1 that Wails
+renders through) plus the golang and node SDK extensions, generates the desktop file, metainfo and
+manifest, then builds the front end and the Go binary inside the sandbox with
+`-tags desktop,production,webkit2_41`. It installs the app for the current user and exports a
+distributable bundle.
+
+Outputs: a user install (`flatpak run uk.codecrafter.PigeonPost`) and `pigeonpost.flatpak`.
+
+```
+bash clean_flatpak.sh
+```
+
+removes the user install and every flatpak build artefact, touching nothing the Windows or macOS
+builds produced.
+
+For a plain `wails dev` or `wails build` on a Linux host instead of the flatpak, install the
+platform packages `wails doctor` lists (gcc, gtk3 and webkit2gtk development headers); on a distro
+that ships only webkit2gtk-4.1 (Ubuntu 24.04 and later), add `-tags webkit2_41`.
+
 ## Versioning
 
 The single source of truth for the version is the `VERSION` file at the repo root. The runtime reads
 it (embedded via `go:embed`), and the build stamps it into the installer. Do not hardcode a version
 anywhere else.
-
-## Cross-platform packaging
-
-- **Windows**: `./build.ps1` (above) builds the app and the bespoke installer.
-- **macOS (Apple Silicon)**: `bash builddmg.sh` on an arm64 Mac builds the app with
-  `wails build -platform darwin/arm64`, stamps the bundle version from `VERSION`, codesigns it,
-  wraps it in a drag-to-Applications DMG (`dist-dmg/PigeonPost-<version>-macos-arm64.dmg`) and
-  notarizes when `APPLE_ID` and `APPLE_APP_PASSWORD` are set.
-- **Linux**: `bash build_flatpak.sh` builds a Flatpak against the GNOME runtime (which carries the
-  webkit2gtk-4.1 that Wails renders through), installs it for the current user and exports a
-  distributable `pigeonpost.flatpak`; `bash clean_flatpak.sh` removes the install and every flatpak
-  artefact. The build runs inside the flatpak sandbox using the golang and node SDK extensions, so
-  the host needs only `flatpak` and `flatpak-builder`.
