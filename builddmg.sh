@@ -11,7 +11,7 @@
 #   DEVELOPER_ID_APPLICATION   signing identity (defaults to Oliver's Developer ID)
 #   APPLE_ID, APPLE_APP_PASSWORD, APPLE_TEAM_ID   notarization credentials (skipped if unset)
 #
-# Output: dist-dmg/PigeonPost-<version>-macos-arm64.dmg
+# Output: PigeonPost.dmg in the repo root
 set -euo pipefail
 
 APP_NAME="PigeonPost"
@@ -20,7 +20,8 @@ APP_BUNDLE="build/bin/${APP_NAME}.app"
 DIST_DIR="dist-dmg"
 STAGE_DIR="${DIST_DIR}/stage"
 VERSION="$(tr -d '[:space:]' < VERSION)"
-DMG_PATH="${DIST_DIR}/${APP_NAME}-${VERSION}-macos-arm64.dmg"
+# DIST_DIR/STAGE_DIR are scratch space; the final DMG lands in the repo root.
+DMG_PATH="${APP_NAME}.dmg"
 
 DEVELOPER_ID="${DEVELOPER_ID_APPLICATION:-Developer ID Application: Oliver Ernster (W7K465GKFJ)}"
 APPLE_ID="${APPLE_ID:-}"
@@ -29,23 +30,29 @@ APPLE_TEAM_ID="${APPLE_TEAM_ID:-W7K465GKFJ}"
 
 section() { printf '\n\033[1m== %s ==\033[0m\n' "$1"; }
 
+# require ensures a tool is on PATH, running the given install command if it is
+# not. The install command is a full shell command (not just a brew formula) so
+# go-installed tools like wails bootstrap the same way brew-installed ones do.
 require() {
-    local tool="$1" hint="$2"
+    local tool="$1" install="$2"
     if ! command -v "$tool" > /dev/null 2>&1; then
-        if command -v brew > /dev/null 2>&1 && [ -n "$hint" ]; then
-            section "Installing missing tool: $tool"
-            brew install "$hint"
-        fi
+        section "Installing missing tool: $tool"
+        eval "$install"
     fi
-    command -v "$tool" > /dev/null 2>&1 || { echo "error: $tool is required (install: $hint)" >&2; exit 1; }
+    command -v "$tool" > /dev/null 2>&1 || { echo "error: $tool is required (install: $install)" >&2; exit 1; }
 }
 
 section "Platform guard"
 [ "$(uname -s)" = "Darwin" ] || { echo "error: this script must run on macOS" >&2; exit 1; }
 [ "$(uname -m)" = "arm64" ] || { echo "error: this script targets Apple Silicon (arm64)" >&2; exit 1; }
-require wails "wails (go install github.com/wailsapp/wails/v2/cmd/wails@latest)"
-require npm "node"
-require create-dmg "create-dmg"
+command -v go > /dev/null 2>&1 || { echo "error: go is required (install from https://go.dev/dl/)" >&2; exit 1; }
+# wails installs into the Go bin dir; put it on PATH so a fresh install resolves.
+GOBIN_DIR="$(go env GOPATH)/bin"
+case ":${PATH}:" in *":${GOBIN_DIR}:"*) ;; *) PATH="${GOBIN_DIR}:${PATH}" ;; esac
+export PATH
+require wails "go install github.com/wailsapp/wails/v2/cmd/wails@latest"
+require npm "brew install node"
+require create-dmg "brew install create-dmg"
 
 section "Building ${APP_NAME} ${VERSION} (${PLATFORM})"
 go run ./tools/genicons
@@ -65,6 +72,7 @@ codesign --verify --deep --strict "${APP_BUNDLE}"
 
 section "Creating the DMG"
 rm -rf "${DIST_DIR}"
+rm -f "${DMG_PATH}"
 mkdir -p "${STAGE_DIR}"
 # ditto preserves the symlinks and metadata the embedded signature depends on.
 ditto "${APP_BUNDLE}" "${STAGE_DIR}/${APP_NAME}.app"
@@ -86,7 +94,7 @@ if [ "${STATUS}" -ne 0 ] && [ "${STATUS}" -ne 2 ]; then
     echo "error: create-dmg failed with exit ${STATUS}" >&2
     exit "${STATUS}"
 fi
-rm -rf "${STAGE_DIR}"
+rm -rf "${DIST_DIR}"
 
 section "Signing the DMG"
 codesign --force --sign "${DEVELOPER_ID}" "${DMG_PATH}"
