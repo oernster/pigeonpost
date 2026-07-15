@@ -30,8 +30,11 @@ interface MessageContextMenuProps {
     onPrint: (message: Message) => void
     onAttachToNew: (message: Message) => void
     // onMarkJunk files a message into the account's Junk folder; offered only when the account has
-    // server-side folders (not POP3), like Move.
+    // server-side folders (not POP3), like Move. On a message already in Junk the menu offers
+    // onMarkNotJunk instead, which rescues it back to the inbox; isJunk says which applies.
     onMarkJunk: (message: Message) => void
+    onMarkNotJunk: (message: Message) => void
+    isJunk: (message: Message) => boolean
     // onSnooze hides the message until the given moment; onSnoozeCustom opens the pick-a-moment dialog;
     // onUnsnooze brings a hidden message back (offered only on a row carrying a snooze).
     onSnooze: (message: Message, at: Date) => void
@@ -334,9 +337,15 @@ export function MessageContextMenu(props: MessageContextMenuProps) {
                     {props.canMoveCopy && (
                         <>
                             <div className="context-sep"/>
-                            <button className="context-item" role="menuitem" onClick={act(() => props.onMarkJunk(message))}>
-                                Mark as junk
-                            </button>
+                            {props.isJunk(message) ? (
+                                <button className="context-item" role="menuitem" onClick={act(() => props.onMarkNotJunk(message))}>
+                                    Not junk
+                                </button>
+                            ) : (
+                                <button className="context-item" role="menuitem" onClick={act(() => props.onMarkJunk(message))}>
+                                    Mark as junk
+                                </button>
+                            )}
                         </>
                     )}
                     <div className="context-sep"/>

@@ -3,6 +3,7 @@ package application
 import (
 	"context"
 	"errors"
+	"reflect"
 	"testing"
 
 	"github.com/oernster/pigeonpost/internal/domain"
@@ -938,6 +939,140 @@ func TestMarkJunkCacheError(t *testing.T) {
 	store.folders["a1"] = append(store.folders["a1"], junkFolder(t, "fj", "a1"))
 	store.deleteMessageErr = errBoom
 	if err := svc.MarkJunk(context.Background(), "m1"); !errors.Is(err, errBoom) {
+		t.Errorf("error = %v, want wrapped boom", err)
+	}
+}
+
+func TestMarkJunkRecordsVerdictKeywords(t *testing.T) {
+	svc, store, accounts, remote := newActionService()
+	seedMessageLocation(t, store, accounts)
+	store.folders["a1"] = append(store.folders["a1"], junkFolder(t, "fj", "a1"))
+
+	if err := svc.MarkJunk(context.Background(), "m1"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	want := []keywordCall{
+		{keyword: "$Junk", set: true}, {keyword: "Junk", set: true},
+		{keyword: "$NotJunk", set: false}, {keyword: "NonJunk", set: false},
+	}
+	if !reflect.DeepEqual(remote.keywordCalls, want) {
+		t.Errorf("keyword calls = %v, want %v", remote.keywordCalls, want)
+	}
+}
+
+// seedJunkedMessage places m1 in the account's Junk folder with an Inbox available to rescue it to.
+func seedJunkedMessage(t *testing.T, store *fakeMailStore, accounts *fakeAccountStore) {
+	t.Helper()
+	accounts.accounts["a1"] = testAccount(t, "a1")
+	store.folders["a1"] = []domain.Folder{testFolder(t, "f1", "a1", "INBOX"), junkFolder(t, "fj", "a1")}
+	store.messages["fj"] = []domain.MessageSummary{testMessage(t, "m1", "fj")}
+}
+
+func TestMarkNotJunkMovesToInboxWithVerdict(t *testing.T) {
+	svc, store, accounts, remote := newActionService()
+	seedJunkedMessage(t, store, accounts)
+
+	if err := svc.MarkNotJunk(context.Background(), "m1"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(remote.moveDestPaths) != 1 || remote.moveDestPaths[0] != "INBOX" {
+		t.Errorf("expected move to INBOX, got %v", remote.moveDestPaths)
+	}
+	if len(store.deletedMessages) != 1 || store.deletedMessages[0] != "m1" {
+		t.Errorf("expected local removal of m1, got %v", store.deletedMessages)
+	}
+	want := []keywordCall{
+		{keyword: "$NotJunk", set: true}, {keyword: "NonJunk", set: true},
+		{keyword: "$Junk", set: false}, {keyword: "Junk", set: false},
+	}
+	if !reflect.DeepEqual(remote.keywordCalls, want) {
+		t.Errorf("keyword calls = %v, want %v", remote.keywordCalls, want)
+	}
+}
+
+func TestMarkNotJunkSucceedsWhenKeywordsRejected(t *testing.T) {
+	svc, store, accounts, remote := newActionService()
+	seedJunkedMessage(t, store, accounts)
+	remote.keywordErr = errBoom // a server that rejects custom keywords must not fail the rescue
+
+	if err := svc.MarkNotJunk(context.Background(), "m1"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(remote.moveDestPaths) != 1 || remote.moveDestPaths[0] != "INBOX" {
+		t.Errorf("expected move to INBOX despite keyword errors, got %v", remote.moveDestPaths)
+	}
+}
+
+func TestMarkNotJunkNotInJunk(t *testing.T) {
+	svc, store, accounts, _ := newActionService()
+	seedMessageLocation(t, store, accounts) // m1 lives in the inbox
+	if err := svc.MarkNotJunk(context.Background(), "m1"); !errors.Is(err, ErrNotInJunk) {
+		t.Errorf("error = %v, want ErrNotInJunk", err)
+	}
+}
+
+func TestMarkNotJunkNoInboxFolder(t *testing.T) {
+	svc, store, accounts, _ := newActionService()
+	accounts.accounts["a1"] = testAccount(t, "a1")
+	store.folders["a1"] = []domain.Folder{junkFolder(t, "fj", "a1")}
+	store.messages["fj"] = []domain.MessageSummary{testMessage(t, "m1", "fj")}
+	if err := svc.MarkNotJunk(context.Background(), "m1"); !errors.Is(err, ErrNoInboxFolder) {
+		t.Errorf("error = %v, want ErrNoInboxFolder", err)
+	}
+}
+
+func TestMarkNotJunkGetMessageError(t *testing.T) {
+	svc, store, _, _ := newActionService()
+	store.getMessageErr = errBoom
+	if err := svc.MarkNotJunk(context.Background(), "m1"); !errors.Is(err, errBoom) {
+		t.Errorf("error = %v, want wrapped boom", err)
+	}
+}
+
+func TestMarkNotJunkGetFolderError(t *testing.T) {
+	svc, store, accounts, _ := newActionService()
+	seedJunkedMessage(t, store, accounts)
+	store.getFolderErr = errBoom
+	if err := svc.MarkNotJunk(context.Background(), "m1"); !errors.Is(err, errBoom) {
+		t.Errorf("error = %v, want wrapped boom", err)
+	}
+}
+
+func TestMarkNotJunkGetAccountError(t *testing.T) {
+	svc, store, accounts, _ := newActionService()
+	seedJunkedMessage(t, store, accounts)
+	accounts.getErr = errBoom
+	if err := svc.MarkNotJunk(context.Background(), "m1"); !errors.Is(err, errBoom) {
+		t.Errorf("error = %v, want wrapped boom", err)
+	}
+}
+
+func TestMarkNotJunkResolveError(t *testing.T) {
+	svc, store, accounts, _ := newActionService()
+	seedJunkedMessage(t, store, accounts)
+	store.listFoldersErr = errBoom
+	if err := svc.MarkNotJunk(context.Background(), "m1"); !errors.Is(err, errBoom) {
+		t.Errorf("error = %v, want wrapped boom", err)
+	}
+}
+
+func TestMarkNotJunkServerError(t *testing.T) {
+	svc, store, accounts, remote := newActionService()
+	seedJunkedMessage(t, store, accounts)
+	remote.moveErr = errBoom
+	if err := svc.MarkNotJunk(context.Background(), "m1"); !errors.Is(err, errBoom) {
+		t.Errorf("error = %v, want wrapped boom", err)
+	}
+	if len(store.deletedMessages) != 0 {
+		t.Error("cache changed despite a server failure")
+	}
+}
+
+func TestMarkNotJunkCacheError(t *testing.T) {
+	svc, store, accounts, _ := newActionService()
+	seedJunkedMessage(t, store, accounts)
+	store.deleteMessageErr = errBoom
+	if err := svc.MarkNotJunk(context.Background(), "m1"); !errors.Is(err, errBoom) {
 		t.Errorf("error = %v, want wrapped boom", err)
 	}
 }

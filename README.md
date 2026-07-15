@@ -44,7 +44,8 @@ local-first. A calmer, more predictable alternative to Thunderbird.
   that reopens it exactly as written. Send later schedules a message for a chosen moment (presets or an
   exact date and time); it waits in the Outbox with Cancel send and leaves while the app is running, or
   at the next launch after the chosen time. Sends made offline queue in a per-account outbox and deliver on the next sync.
-- **Organise**: mark read/star, delete to Trash or purge, junk, instant offline full-text search with
+- **Organise**: mark read/star, delete to Trash or purge, junk and not-junk (a wrongly junked message
+  moves back to the inbox with the server told the verdict), instant offline full-text search with
   operators (from:, to:, has:attachment, dates and more) and colour tags
   that sync across devices as IMAP keywords. Snooze hides a message until a chosen time then returns it
   untouched with a desktop notification (while the app is running, or at the next launch); hidden

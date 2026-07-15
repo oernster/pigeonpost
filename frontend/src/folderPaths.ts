@@ -58,6 +58,15 @@ export function folderRank(kind: string): number {
     return idx === -1 ? specialFolderOrder.length : idx
 }
 
+// isJunkFolderMessage reports whether a message currently lives in a Junk folder, deciding whether
+// the junk action reads "Mark as junk" or "Not junk" (the rescue back to the inbox).
+export function isJunkFolderMessage(
+    message: {folderId: string},
+    folders: ReadonlyArray<{id: string; kind: string}>,
+): boolean {
+    return folders.some((f) => f.id === message.folderId && f.kind === 'junk')
+}
+
 // orderFolders reorders the folders for display so the well-known mailboxes lead (see folderRank) while
 // every subtree stays contiguous under its parent. It walks the tree from the roots, sorting siblings at
 // each level by rank first, then by the caller's persisted local order (orderPaths, a list of folder

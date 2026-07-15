@@ -30,6 +30,7 @@ export interface MessageActions {
     toggleFlag: (message: Message) => Promise<void>
     moveMessage: (message: Message, destFolderId: string) => Promise<void>
     markJunk: (message: Message) => Promise<void>
+    markNotJunk: (message: Message) => Promise<void>
     copyMessage: (message: Message, destFolderId: string) => Promise<void>
     setReadState: (message: Message, read: boolean) => Promise<void>
     toggleRead: (message: Message) => Promise<void>
@@ -197,6 +198,26 @@ export function useMessageActions(deps: MessageActionsDeps): MessageActions {
         }
     }, [searchActive, searchResults, displayMessages, refreshBadges])
 
+    // markNotJunk rescues a wrongly junked message back to the account's inbox: the row leaves the
+    // Junk view at once and the inbox re-lists it on the next sync, the same shape as markJunk in
+    // the other direction.
+    const markNotJunk = useCallback(async (message: Message) => {
+        const id = message.id
+        const list = searchActive ? searchResults : displayMessages
+        const next = neighbourAfterRemoval(list, id)
+        setError('')
+        try {
+            await api.markNotJunk(id)
+            setMessages((prev) => prev.filter((m) => m.id !== id))
+            setSearchResults((prev) => prev.filter((m) => m.id !== id))
+            setTabs((prev) => prev.filter((m) => m.id !== id))
+            setSelectedMessage((prev) => (prev?.id === id ? next : prev))
+            await refreshBadges()
+        } catch (e) {
+            setError(String(e))
+        }
+    }, [searchActive, searchResults, displayMessages, refreshBadges])
+
     // Copy leaves the original in place; the duplicate appears in the destination folder on next sync, so
     // there is no local list change to make here.
     const copyMessage = useCallback(async (message: Message, destFolderId: string) => {
@@ -238,7 +259,7 @@ export function useMessageActions(deps: MessageActionsDeps): MessageActions {
     return {
         messageToDelete, setMessageToDelete, deletingMessage,
         messageToPurge, setMessageToPurge, purgingMessage,
-        requestDelete, deleteMessage, deletePermanent, toggleFlag, moveMessage, markJunk, copyMessage,
+        requestDelete, deleteMessage, deletePermanent, toggleFlag, moveMessage, markJunk, markNotJunk, copyMessage,
         setReadState, toggleRead, markReadOnView, markReplied, markForwarded,
     }
 }

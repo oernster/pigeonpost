@@ -5,6 +5,7 @@ import {MenuItem} from '../components/Menu'
 import {TAG_PALETTE, colourTagId} from '../tagColours'
 import {matchesShortcut} from '../shortcuts'
 import {snoozeChoices} from '../schedule'
+import {isJunkFolderMessage} from '../folderPaths'
 
 // undoSendChoices are the offered undo-send windows in seconds; 0 turns the hold off and sends
 // immediately. defaultUndoSendSeconds is the out-of-the-box window.
@@ -67,6 +68,7 @@ export interface MenusDeps {
     moveMessage: (message: Message, destFolderId: string) => Promise<void>
     copyMessage: (message: Message, destFolderId: string) => Promise<void>
     markJunk: (message: Message) => Promise<void>
+    markNotJunk: (message: Message) => Promise<void>
     // Snooze: hide the active message until a chosen moment (a preset, or the picker dialog), and bring
     // a hidden one back.
     snoozeTo: (message: Message, at: Date) => Promise<void>
@@ -102,7 +104,7 @@ export function useMenus(deps: MenusDeps): Menus {
         toggleConversationView, togglePreview, toggleAutoLoadImages, toggleUnifiedMailbox,
         signatureHtml, setComposeInitial, setComposing, setSettingUp, sync, openInNewTab,
         openReply, openReplyAll, openForward, attachToNewMessage, setReadState, toggleFlag, toggleTag,
-        moveMessage, copyMessage, markJunk, snoozeTo, unsnooze, setSnoozePickerFor,
+        moveMessage, copyMessage, markJunk, markNotJunk, snoozeTo, unsnooze, setSnoozePickerFor,
         setMessageToCancelSend, requestDelete, setMessageToPurge,
         showAbout, showLicence, checkUpdates,
     } = deps
@@ -299,7 +301,12 @@ export function useMenus(deps: MenusDeps): Menus {
                 onClick: () => activeMessage && void copyMessage(activeMessage, f.id),
             })),
         },
-        {
+        // A message already in Junk offers the rescue back to the inbox instead of re-junking.
+        activeMessage && isJunkFolderMessage(activeMessage, folders) ? {
+            label: 'Not junk',
+            disabled: !canMailAct || !canMoveCopy,
+            onClick: () => activeMessage && void markNotJunk(activeMessage),
+        } : {
             label: 'Mark as junk',
             disabled: !canMailAct || !canMoveCopy,
             onClick: () => activeMessage && void markJunk(activeMessage),

@@ -34,6 +34,13 @@ var ErrSnoozeInPast = errors.New("the snooze time is in the past")
 // ErrAlreadyJunk is returned when a message that already lives in the Junk folder is marked as junk.
 var ErrAlreadyJunk = errors.New("message is already in the junk folder")
 
+// ErrNotInJunk is returned when a message outside the Junk folder is marked as not junk.
+var ErrNotInJunk = errors.New("message is not in the junk folder")
+
+// ErrNoInboxFolder is returned when a message cannot be rescued from junk because the account has
+// no Inbox folder to return it to.
+var ErrNoInboxFolder = errors.New("account has no inbox folder")
+
 // ErrEmptyFolderName is returned when a folder create or rename is given a blank name.
 var ErrEmptyFolderName = errors.New("folder name is empty")
 

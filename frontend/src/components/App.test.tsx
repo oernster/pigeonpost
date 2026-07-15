@@ -26,7 +26,7 @@ const apiSpies = vi.hoisted(() => ({
     listFolders: vi.fn(), listOutbox: vi.fn(), cancelOutboxItem: vi.fn(),
     syncAccount: vi.fn(), replayOutbox: vi.fn(), removeAccount: vi.fn(),
     deleteMessage: vi.fn(), deleteMessagePermanent: vi.fn(), saveMessageAs: vi.fn(),
-    markFlagged: vi.fn(), moveMessage: vi.fn(), markJunk: vi.fn(), copyMessage: vi.fn(),
+    markFlagged: vi.fn(), moveMessage: vi.fn(), markJunk: vi.fn(), markNotJunk: vi.fn(), copyMessage: vi.fn(),
     createFolder: vi.fn(), renameFolder: vi.fn(), deleteFolder: vi.fn(), moveFolder: vi.fn(),
     pickAttachments: vi.fn(), about: vi.fn(), licence: vi.fn(), openReleases: vi.fn(),
     markRead: vi.fn(), moveMessages: vi.fn(), deleteMessagesPermanent: vi.fn(),
@@ -140,6 +140,7 @@ beforeEach(() => {
     apiSpies.markFlagged.mockReset().mockResolvedValue(undefined)
     apiSpies.moveMessage.mockReset().mockResolvedValue(undefined)
     apiSpies.markJunk.mockReset().mockResolvedValue(undefined)
+    apiSpies.markNotJunk.mockReset().mockResolvedValue(undefined)
     apiSpies.copyMessage.mockReset().mockResolvedValue(undefined)
     apiSpies.createFolder.mockReset().mockResolvedValue(undefined)
     apiSpies.renameFolder.mockReset().mockResolvedValue(undefined)
@@ -446,6 +447,27 @@ describe('App: single-message actions', () => {
         fireEvent.click(screen.getByRole('menuitem', {name: 'Mark as junk'}))
         await waitFor(() => expect(apiSpies.markJunk).toHaveBeenCalledWith('m1'))
         await waitFor(() => expect(screen.queryByText('Weekly report')).not.toBeInTheDocument())
+    })
+
+    // A message sitting in the Junk folder offers the rescue instead: Not junk moves it back to the
+    // inbox on the server and drops it from the Junk view at once.
+    it('rescues a junked message from the Mail menu (markNotJunk)', async () => {
+        apiSpies.listAccounts.mockResolvedValue([makeAccount()])
+        apiSpies.listFolders.mockResolvedValue([
+            makeFolder('inbox', 'Inbox', 'inbox'),
+            makeFolder('junk', 'Junk', 'junk'),
+        ])
+        apiSpies.listMessages.mockImplementation(async (folderId: string) =>
+            folderId === 'junk' ? [makeMessage({id: 'm1', subject: 'Not actually spam', folderId: 'junk'})] : [])
+        render(<App/>)
+        fireEvent.click(await screen.findByText('Junk'))
+        fireEvent.click(await screen.findByText('Not actually spam'))
+        fireEvent.click(screen.getByRole('button', {name: 'Mail'}))
+        // The junk action reads Not junk here; the re-junk item is not offered.
+        expect(screen.queryByRole('menuitem', {name: 'Mark as junk'})).not.toBeInTheDocument()
+        fireEvent.click(screen.getByRole('menuitem', {name: 'Not junk'}))
+        await waitFor(() => expect(apiSpies.markNotJunk).toHaveBeenCalledWith('m1'))
+        await waitFor(() => expect(screen.queryByText('Not actually spam')).not.toBeInTheDocument())
     })
 })
 

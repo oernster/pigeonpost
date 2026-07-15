@@ -252,7 +252,11 @@ closed pops on the first tick after launch, and a snooze orphaned by its message
 swept rather than resurfacing as a ghost.
 
 Junk, conversations and list order: marking a message as junk moves it to the account's Junk folder
-through the same online path as Move (`MessageActionService.MarkJunk`, resolving the Junk folder by kind).
+through the same online path as Move (`MessageActionService.MarkJunk`, resolving the Junk folder by kind);
+Not junk (`MarkNotJunk`, offered on a message sitting in Junk) rescues it back to the Inbox the same way.
+Both record the spam verdict on the server first as best-effort IMAP keywords (the `$Junk`/`Junk` pair set
+and the `$NotJunk`/`NonJunk` pair cleared, or the reverse), so other clients reading either keyword
+convention agree; the folder move stays the authoritative action since keyword support varies by server.
 Conversation grouping and list order are read-side concerns over the same cached summaries the flat list
 uses: the domain `GroupThreads` groups a folder's summaries into conversations by normalised subject
 (reply/forward prefixes stripped), exposed through `MailboxService.Threads`; the UI sorts the list by

@@ -381,6 +381,13 @@ func (a *App) MarkJunk(messageID string) error {
 	return a.actions.MarkJunk(a.ctx, messageID)
 }
 
+// MarkNotJunk rescues a message from the account's Junk folder back to its Inbox, clearing the junk
+// keywords on the server. It returns an error when the message is not in Junk or the account has no
+// Inbox folder.
+func (a *App) MarkNotJunk(messageID string) error {
+	return a.actions.MarkNotJunk(a.ctx, messageID)
+}
+
 // CopyMessage duplicates a message into another folder in the same account, leaving the original.
 func (a *App) CopyMessage(messageID, destFolderID string) error {
 	return a.actions.Copy(a.ctx, messageID, destFolderID)

@@ -19,6 +19,7 @@ import {DraftRecoveryDialog} from './components/DraftRecoveryDialog'
 import {AboutModal} from './components/AboutModal'
 import {LicenceModal} from './components/LicenceModal'
 import {arrangeByConversation, sortByDate} from './threads'
+import {isJunkFolderMessage} from './folderPaths'
 import {ComposeModal, type ComposeInitial} from './components/ComposeModal'
 import {UndoSendToast} from './components/UndoSendToast'
 import {EventsOn} from '../wailsjs/runtime'
@@ -335,7 +336,7 @@ function App() {
     const {
         messageToDelete, setMessageToDelete, deletingMessage,
         messageToPurge, setMessageToPurge, purgingMessage,
-        requestDelete, deleteMessage, deletePermanent, toggleFlag, moveMessage, markJunk, copyMessage,
+        requestDelete, deleteMessage, deletePermanent, toggleFlag, moveMessage, markJunk, markNotJunk, copyMessage,
         setReadState, toggleRead, markReadOnView, markReplied, markForwarded,
     } = useMessageActions({store, displayMessages, searchActive, loadUnread, refreshFolders, setError})
 
@@ -1037,7 +1038,7 @@ function App() {
         toggleConversationView, togglePreview, toggleAutoLoadImages, toggleUnifiedMailbox,
         signatureHtml, setComposeInitial, setComposing, setSettingUp, sync, openInNewTab,
         openReply, openReplyAll, openForward, attachToNewMessage, setReadState, toggleFlag, toggleTag,
-        moveMessage, copyMessage, markJunk, snoozeTo, unsnooze, setSnoozePickerFor,
+        moveMessage, copyMessage, markJunk, markNotJunk, snoozeTo, unsnooze, setSnoozePickerFor,
         setMessageToCancelSend, requestDelete, setMessageToPurge,
         showAbout, showLicence, checkUpdates,
     })
@@ -1328,6 +1329,8 @@ function App() {
                     onPrint={(m) => void printMessage(m)}
                     onAttachToNew={attachToNewMessage}
                     onMarkJunk={(m) => void markJunk(m)}
+                    onMarkNotJunk={(m) => void markNotJunk(m)}
+                    isJunk={(m) => isJunkFolderMessage(m, folders)}
                     onSnooze={(m, at) => void snoozeTo(m, at)}
                     onSnoozeCustom={(m) => setSnoozePickerFor(m)}
                     onUnsnooze={(m) => void unsnooze(m)}
