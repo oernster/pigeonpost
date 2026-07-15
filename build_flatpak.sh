@@ -60,6 +60,23 @@ flatpak install --user --noninteractive flathub \
     "${GOLANG_EXT}//${SDK_EXT_VERSION}" \
     "${NODE_EXT}//${SDK_EXT_VERSION}"
 
+section "Generating Wails front-end bindings"
+# frontend/wailsjs is generated (gitignored), so a fresh checkout does not carry it. The
+# sandbox has no wails CLI, and the sandboxed `tsc` imports from ../wailsjs, so the bindings
+# must exist on the host before flatpak-builder copies the tree. `wails generate module`
+# compiles the Go app to introspect App methods, which triggers the `//go:embed all:frontend/dist`
+# in main.go; seed a placeholder dist so that embed resolves (flatpak rebuilds the real dist).
+if [ ! -d frontend/wailsjs ]; then
+    WAILS_BIN="$(command -v wails || echo "${GOPATH:-$HOME/go}/bin/wails")"
+    if [ ! -x "${WAILS_BIN}" ]; then
+        echo "error: wails CLI not found; install it with: go install github.com/wailsapp/wails/v2/cmd/wails@latest" >&2
+        exit 1
+    fi
+    mkdir -p frontend/dist
+    touch frontend/dist/.gitkeep
+    "${WAILS_BIN}" generate module
+fi
+
 section "Writing packaging files"
 mkdir -p "${PACKAGING_DIR}"
 
