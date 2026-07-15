@@ -769,6 +769,10 @@ type fakeMailActions struct {
 	moveManyBatches   [][]string
 	moveManyDest      []string
 	copyDestPaths     []string
+	// moveNewUID is returned by Move and by Delete when it moves to trash, and moveManyNewUIDs by
+	// MoveMany and DeleteMany, standing in for a server's COPYUID reply. Both default to unknown.
+	moveNewUID      string
+	moveManyNewUIDs map[string]string
 }
 
 func (f *fakeMailActions) SetSeen(_ context.Context, _ domain.Account, _ domain.Folder, _ string, seen bool) error {
@@ -779,21 +783,27 @@ func (f *fakeMailActions) SetSeen(_ context.Context, _ domain.Account, _ domain.
 	return nil
 }
 
-func (f *fakeMailActions) Delete(_ context.Context, _ domain.Account, _ domain.Folder, _ string, trashPath string) error {
+func (f *fakeMailActions) Delete(_ context.Context, _ domain.Account, _ domain.Folder, _ string, trashPath string) (string, error) {
 	if f.deleteErr != nil {
-		return f.deleteErr
+		return "", f.deleteErr
 	}
 	f.deleteTrashPaths = append(f.deleteTrashPaths, trashPath)
-	return nil
+	if trashPath == "" {
+		return "", nil
+	}
+	return f.moveNewUID, nil
 }
 
-func (f *fakeMailActions) DeleteMany(_ context.Context, _ domain.Account, _ domain.Folder, uids []string, trashPath string) error {
+func (f *fakeMailActions) DeleteMany(_ context.Context, _ domain.Account, _ domain.Folder, uids []string, trashPath string) (map[string]string, error) {
 	if f.deleteManyErr != nil {
-		return f.deleteManyErr
+		return nil, f.deleteManyErr
 	}
 	f.deleteManyBatches = append(f.deleteManyBatches, uids)
 	f.deleteManyTrash = append(f.deleteManyTrash, trashPath)
-	return nil
+	if trashPath == "" {
+		return nil, nil
+	}
+	return f.moveManyNewUIDs, nil
 }
 
 func (f *fakeMailActions) SetFlagged(_ context.Context, _ domain.Account, _ domain.Folder, _ string, flagged bool) error {
@@ -828,21 +838,21 @@ func (f *fakeMailActions) SetKeyword(_ context.Context, _ domain.Account, _ doma
 	return nil
 }
 
-func (f *fakeMailActions) Move(_ context.Context, _ domain.Account, _ domain.Folder, _ string, destPath string) error {
+func (f *fakeMailActions) Move(_ context.Context, _ domain.Account, _ domain.Folder, _ string, destPath string) (string, error) {
 	if f.moveErr != nil {
-		return f.moveErr
+		return "", f.moveErr
 	}
 	f.moveDestPaths = append(f.moveDestPaths, destPath)
-	return nil
+	return f.moveNewUID, nil
 }
 
-func (f *fakeMailActions) MoveMany(_ context.Context, _ domain.Account, _ domain.Folder, uids []string, destPath string) error {
+func (f *fakeMailActions) MoveMany(_ context.Context, _ domain.Account, _ domain.Folder, uids []string, destPath string) (map[string]string, error) {
 	if f.moveManyErr != nil {
-		return f.moveManyErr
+		return nil, f.moveManyErr
 	}
 	f.moveManyBatches = append(f.moveManyBatches, uids)
 	f.moveManyDest = append(f.moveManyDest, destPath)
-	return nil
+	return f.moveManyNewUIDs, nil
 }
 
 func (f *fakeMailActions) Copy(_ context.Context, _ domain.Account, _ domain.Folder, _ string, destPath string) error {

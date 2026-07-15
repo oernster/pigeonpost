@@ -163,21 +163,26 @@ type MailActions interface {
 	// a user tag onto the server as a keyword. It is separate from the fixed system-flag setters because the
 	// keyword is chosen by the caller.
 	SetKeyword(ctx context.Context, account domain.Account, folder domain.Folder, uid string, keyword string, set bool) error
-	// Delete removes a message by its opaque handle. A non-empty trashPath moves it to that mailbox; an
-	// empty trashPath deletes it permanently (mark \Deleted and expunge).
-	Delete(ctx context.Context, account domain.Account, folder domain.Folder, uid string, trashPath string) error
-	// Move relocates a message by its opaque handle from its folder to the destination mailbox.
-	Move(ctx context.Context, account domain.Account, folder domain.Folder, uid string, destPath string) error
+	// Delete removes a message by its opaque handle. A non-empty trashPath moves it to that mailbox and
+	// returns the message's UID there when the server reports it (COPYUID; empty otherwise); an empty
+	// trashPath deletes it permanently (mark \Deleted and expunge) and returns no UID.
+	Delete(ctx context.Context, account domain.Account, folder domain.Folder, uid string, trashPath string) (string, error)
+	// Move relocates a message by its opaque handle from its folder to the destination mailbox. It
+	// returns the message's UID in the destination when the server reports it (COPYUID), empty otherwise.
+	Move(ctx context.Context, account domain.Account, folder domain.Folder, uid string, destPath string) (string, error)
 	// Copy duplicates a message by its opaque handle into the destination mailbox, leaving the original in place.
 	Copy(ctx context.Context, account domain.Account, folder domain.Folder, uid string, destPath string) error
 	// DeleteMany removes several messages that live in the same folder in one server round trip: it moves
 	// them to trashPath or deletes them permanently when trashPath is empty. It is the batched form of
-	// Delete, so a bulk delete opens one connection for the whole folder instead of one per message.
-	DeleteMany(ctx context.Context, account domain.Account, folder domain.Folder, uids []string, trashPath string) error
+	// Delete, so a bulk delete opens one connection for the whole folder instead of one per message. When
+	// the messages moved to trashPath it returns each source UID's destination UID where the server
+	// reports them (COPYUID); permanent deletion returns none.
+	DeleteMany(ctx context.Context, account domain.Account, folder domain.Folder, uids []string, trashPath string) (map[string]string, error)
 	// MoveMany relocates several messages from one folder to destPath in one server round trip. It is the
 	// batched form of Move, so a bulk move or a drag-and-drop of a selection opens one connection for the
-	// whole folder instead of one per message.
-	MoveMany(ctx context.Context, account domain.Account, folder domain.Folder, uids []string, destPath string) error
+	// whole folder instead of one per message. It returns each source UID's destination UID where the
+	// server reports them (COPYUID).
+	MoveMany(ctx context.Context, account domain.Account, folder domain.Folder, uids []string, destPath string) (map[string]string, error)
 }
 
 // MailTransport sends an outgoing message via an account's outgoing (SMTP) server.

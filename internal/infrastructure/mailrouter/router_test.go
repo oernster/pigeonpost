@@ -64,24 +64,24 @@ func (r *recorder) SetKeyword(context.Context, domain.Account, domain.Folder, st
 	return nil
 }
 
-func (r *recorder) Delete(context.Context, domain.Account, domain.Folder, string, string) error {
+func (r *recorder) Delete(context.Context, domain.Account, domain.Folder, string, string) (string, error) {
 	r.calls = append(r.calls, "delete")
-	return nil
+	return "", nil
 }
 
-func (r *recorder) DeleteMany(context.Context, domain.Account, domain.Folder, []string, string) error {
+func (r *recorder) DeleteMany(context.Context, domain.Account, domain.Folder, []string, string) (map[string]string, error) {
 	r.calls = append(r.calls, "deletemany")
-	return nil
+	return nil, nil
 }
 
-func (r *recorder) Move(context.Context, domain.Account, domain.Folder, string, string) error {
+func (r *recorder) Move(context.Context, domain.Account, domain.Folder, string, string) (string, error) {
 	r.calls = append(r.calls, "move")
-	return nil
+	return "", nil
 }
 
-func (r *recorder) MoveMany(context.Context, domain.Account, domain.Folder, []string, string) error {
+func (r *recorder) MoveMany(context.Context, domain.Account, domain.Folder, []string, string) (map[string]string, error) {
 	r.calls = append(r.calls, "movemany")
-	return nil
+	return nil, nil
 }
 
 func (r *recorder) Copy(context.Context, domain.Account, domain.Folder, string, string) error {
@@ -145,16 +145,16 @@ func exercise(t *testing.T, router *Router, account domain.Account) {
 	if err := router.SetKeyword(ctx, account, folder, "1", "$PPtag_abc", true); err != nil {
 		t.Fatalf("SetKeyword: %v", err)
 	}
-	if err := router.Delete(ctx, account, folder, "1", ""); err != nil {
+	if _, err := router.Delete(ctx, account, folder, "1", ""); err != nil {
 		t.Fatalf("Delete: %v", err)
 	}
-	if err := router.DeleteMany(ctx, account, folder, []string{"1"}, ""); err != nil {
+	if _, err := router.DeleteMany(ctx, account, folder, []string{"1"}, ""); err != nil {
 		t.Fatalf("DeleteMany: %v", err)
 	}
-	if err := router.Move(ctx, account, folder, "1", "dest"); err != nil {
+	if _, err := router.Move(ctx, account, folder, "1", "dest"); err != nil {
 		t.Fatalf("Move: %v", err)
 	}
-	if err := router.MoveMany(ctx, account, folder, []string{"1"}, "dest"); err != nil {
+	if _, err := router.MoveMany(ctx, account, folder, []string{"1"}, "dest"); err != nil {
 		t.Fatalf("MoveMany: %v", err)
 	}
 	if err := router.Copy(ctx, account, folder, "1", "dest"); err != nil {

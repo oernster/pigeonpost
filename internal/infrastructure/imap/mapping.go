@@ -15,16 +15,16 @@ import (
 	"github.com/oernster/pigeonpost/internal/infrastructure/mailparse"
 )
 
-// folderIDSeparator joins account, mailbox and uid into stable local identifiers. It is a control
-// character that does not appear in mailbox names or email addresses.
-const folderIDSeparator = "\x1f"
+// folderIDSeparator joins account, mailbox and uid into stable local identifiers. The character
+// itself is owned by the domain layer, which shares the message-id spelling with the action layer.
+const folderIDSeparator = domain.IDSeparator
 
 func makeFolderID(accountID, mailbox string) string {
 	return accountID + folderIDSeparator + mailbox
 }
 
 func makeMessageID(folderID, uid string) string {
-	return fmt.Sprintf("%s%s%s", folderID, folderIDSeparator, uid)
+	return domain.MessageIDFor(folderID, uid)
 }
 
 // folderKindByLeafName classifies well-known mailboxes by their leaf name, for servers that do not

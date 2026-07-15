@@ -23,10 +23,10 @@ type protocolSource interface {
 	SetAnswered(ctx context.Context, account domain.Account, folder domain.Folder, uid string, answered bool) error
 	SetForwarded(ctx context.Context, account domain.Account, folder domain.Folder, uid string, forwarded bool) error
 	SetKeyword(ctx context.Context, account domain.Account, folder domain.Folder, uid string, keyword string, set bool) error
-	Delete(ctx context.Context, account domain.Account, folder domain.Folder, uid string, trashPath string) error
-	DeleteMany(ctx context.Context, account domain.Account, folder domain.Folder, uids []string, trashPath string) error
-	Move(ctx context.Context, account domain.Account, folder domain.Folder, uid string, destPath string) error
-	MoveMany(ctx context.Context, account domain.Account, folder domain.Folder, uids []string, destPath string) error
+	Delete(ctx context.Context, account domain.Account, folder domain.Folder, uid string, trashPath string) (string, error)
+	DeleteMany(ctx context.Context, account domain.Account, folder domain.Folder, uids []string, trashPath string) (map[string]string, error)
+	Move(ctx context.Context, account domain.Account, folder domain.Folder, uid string, destPath string) (string, error)
+	MoveMany(ctx context.Context, account domain.Account, folder domain.Folder, uids []string, destPath string) (map[string]string, error)
 	Copy(ctx context.Context, account domain.Account, folder domain.Folder, uid string, destPath string) error
 }
 
@@ -102,22 +102,22 @@ func (r *Router) SetKeyword(ctx context.Context, account domain.Account, folder 
 }
 
 // Delete delegates to the account's protocol adapter.
-func (r *Router) Delete(ctx context.Context, account domain.Account, folder domain.Folder, uid string, trashPath string) error {
+func (r *Router) Delete(ctx context.Context, account domain.Account, folder domain.Folder, uid string, trashPath string) (string, error) {
 	return r.sourceFor(account).Delete(ctx, account, folder, uid, trashPath)
 }
 
 // DeleteMany delegates to the account's protocol adapter.
-func (r *Router) DeleteMany(ctx context.Context, account domain.Account, folder domain.Folder, uids []string, trashPath string) error {
+func (r *Router) DeleteMany(ctx context.Context, account domain.Account, folder domain.Folder, uids []string, trashPath string) (map[string]string, error) {
 	return r.sourceFor(account).DeleteMany(ctx, account, folder, uids, trashPath)
 }
 
 // Move delegates to the account's protocol adapter.
-func (r *Router) Move(ctx context.Context, account domain.Account, folder domain.Folder, uid string, destPath string) error {
+func (r *Router) Move(ctx context.Context, account domain.Account, folder domain.Folder, uid string, destPath string) (string, error) {
 	return r.sourceFor(account).Move(ctx, account, folder, uid, destPath)
 }
 
 // MoveMany delegates to the account's protocol adapter.
-func (r *Router) MoveMany(ctx context.Context, account domain.Account, folder domain.Folder, uids []string, destPath string) error {
+func (r *Router) MoveMany(ctx context.Context, account domain.Account, folder domain.Folder, uids []string, destPath string) (map[string]string, error) {
 	return r.sourceFor(account).MoveMany(ctx, account, folder, uids, destPath)
 }
 

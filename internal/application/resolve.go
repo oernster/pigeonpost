@@ -39,14 +39,25 @@ type folderLister interface {
 // each caller applies its own policy: permanent-delete when there is no Trash, skip the Sent copy when
 // there is no Sent, ErrNoDraftsFolder when a draft cannot be saved, and so on.
 func folderPathByKind(ctx context.Context, store folderLister, accountID string, kind domain.FolderKind) (string, bool, error) {
+	folder, ok, err := folderByKind(ctx, store, accountID, kind)
+	if err != nil || !ok {
+		return "", ok, err
+	}
+	return folder.Path(), true, nil
+}
+
+// folderByKind is the folder-valued form of folderPathByKind, for callers that need the folder's id
+// as well as its path (predicting a moved message's new id needs the destination folder id). The
+// same missing-is-not-an-error contract applies.
+func folderByKind(ctx context.Context, store folderLister, accountID string, kind domain.FolderKind) (domain.Folder, bool, error) {
 	folders, err := store.ListFolders(ctx, accountID)
 	if err != nil {
-		return "", false, err
+		return domain.Folder{}, false, err
 	}
 	for _, folder := range folders {
 		if folder.Kind() == kind {
-			return folder.Path(), true, nil
+			return folder, true, nil
 		}
 	}
-	return "", false, nil
+	return domain.Folder{}, false, nil
 }

@@ -49,6 +49,18 @@ type BulkResultDTO struct {
 	Ids    []string `json:"ids"`
 	Failed int      `json:"failed"`
 	Error  string   `json:"error"`
+	// NewIds maps each acted-on id to the id the message carries in its destination folder, where
+	// the server reported one (COPYUID). The front end uses it to build undo entries; a permanent
+	// deletion or a server that reports nothing contributes no entry.
+	NewIds map[string]string `json:"newIds"`
+}
+
+// MoveResultDTO reports where a move-shaped action (move, delete to Trash, junk, rescue) put the
+// message: the id it will carry in its destination folder, predicted from the server's COPYUID
+// reply, or empty when the server does not report one (or the deletion was permanent). The front
+// end uses it to build undo entries.
+type MoveResultDTO struct {
+	NewId string `json:"newId"`
 }
 
 // UnreadCountsDTO is the JSON-serialisable view of unread message counts: the total across every

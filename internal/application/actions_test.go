@@ -243,7 +243,7 @@ func TestDeleteMovesToTrash(t *testing.T) {
 	seedMessageLocation(t, store, accounts)
 	store.folders["a1"] = append(store.folders["a1"], trashFolder(t, "ft", "a1"))
 
-	if err := svc.Delete(context.Background(), "m1"); err != nil {
+	if _, err := svc.Delete(context.Background(), "m1"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if len(remote.deleteTrashPaths) != 1 || remote.deleteTrashPaths[0] != "Trash" {
@@ -258,7 +258,7 @@ func TestDeletePermanentWhenNoTrash(t *testing.T) {
 	svc, store, accounts, remote := newActionService()
 	seedMessageLocation(t, store, accounts) // only an inbox folder, no Trash
 
-	if err := svc.Delete(context.Background(), "m1"); err != nil {
+	if _, err := svc.Delete(context.Background(), "m1"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if len(remote.deleteTrashPaths) != 1 || remote.deleteTrashPaths[0] != "" {
@@ -272,7 +272,7 @@ func TestDeleteFromTrashIsPermanent(t *testing.T) {
 	store.folders["a1"] = []domain.Folder{trashFolder(t, "ft", "a1")}
 	store.messages["ft"] = []domain.MessageSummary{testMessage(t, "m1", "ft")}
 
-	if err := svc.Delete(context.Background(), "m1"); err != nil {
+	if _, err := svc.Delete(context.Background(), "m1"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if len(remote.deleteTrashPaths) != 1 || remote.deleteTrashPaths[0] != "" {
@@ -302,7 +302,7 @@ func TestDeleteManyBatchesOneFolderToTrash(t *testing.T) {
 	store.folders["a1"] = []domain.Folder{testFolder(t, "f1", "a1", "INBOX"), trashFolder(t, "ft", "a1")}
 	store.messages["f1"] = []domain.MessageSummary{testMessage(t, "m1", "f1"), testMessage(t, "m2", "f1")}
 
-	deleted, err := svc.DeleteMany(context.Background(), []string{"m1", "m2"}, false)
+	deleted, _, err := svc.DeleteMany(context.Background(), []string{"m1", "m2"}, false)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -327,7 +327,7 @@ func TestDeleteManyPermanentSkipsTrash(t *testing.T) {
 	store.folders["a1"] = []domain.Folder{testFolder(t, "f1", "a1", "INBOX"), trashFolder(t, "ft", "a1")}
 	store.messages["f1"] = []domain.MessageSummary{testMessage(t, "m1", "f1")}
 
-	deleted, err := svc.DeleteMany(context.Background(), []string{"m1"}, true)
+	deleted, _, err := svc.DeleteMany(context.Background(), []string{"m1"}, true)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -349,7 +349,7 @@ func TestDeleteManyGroupsByFolder(t *testing.T) {
 	store.messages["f1"] = []domain.MessageSummary{testMessage(t, "m1", "f1")}
 	store.messages["f2"] = []domain.MessageSummary{testMessage(t, "m2", "f2")}
 
-	deleted, err := svc.DeleteMany(context.Background(), []string{"m1", "m2"}, true)
+	deleted, _, err := svc.DeleteMany(context.Background(), []string{"m1", "m2"}, true)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -364,7 +364,7 @@ func TestDeleteManyGroupsByFolder(t *testing.T) {
 func TestDeleteManyGetMessageError(t *testing.T) {
 	svc, store, _, _ := newActionService()
 	store.getMessageErr = errBoom
-	deleted, err := svc.DeleteMany(context.Background(), []string{"m1"}, false)
+	deleted, _, err := svc.DeleteMany(context.Background(), []string{"m1"}, false)
 	if !errors.Is(err, errBoom) {
 		t.Errorf("error = %v, want wrapped boom", err)
 	}
@@ -377,7 +377,7 @@ func TestDeleteManyGetFolderError(t *testing.T) {
 	svc, store, accounts, _ := newActionService()
 	seedMessageLocation(t, store, accounts)
 	store.getFolderErr = errBoom
-	deleted, err := svc.DeleteMany(context.Background(), []string{"m1"}, false)
+	deleted, _, err := svc.DeleteMany(context.Background(), []string{"m1"}, false)
 	if !errors.Is(err, errBoom) {
 		t.Errorf("error = %v, want wrapped boom", err)
 	}
@@ -390,7 +390,7 @@ func TestDeleteManyGetAccountError(t *testing.T) {
 	svc, store, accounts, _ := newActionService()
 	seedMessageLocation(t, store, accounts)
 	accounts.getErr = errBoom
-	if _, err := svc.DeleteMany(context.Background(), []string{"m1"}, false); !errors.Is(err, errBoom) {
+	if _, _, err := svc.DeleteMany(context.Background(), []string{"m1"}, false); !errors.Is(err, errBoom) {
 		t.Errorf("error = %v, want wrapped boom", err)
 	}
 }
@@ -399,7 +399,7 @@ func TestDeleteManyTrashError(t *testing.T) {
 	svc, store, accounts, _ := newActionService()
 	seedMessageLocation(t, store, accounts)
 	store.listFoldersErr = errBoom
-	if _, err := svc.DeleteMany(context.Background(), []string{"m1"}, false); !errors.Is(err, errBoom) {
+	if _, _, err := svc.DeleteMany(context.Background(), []string{"m1"}, false); !errors.Is(err, errBoom) {
 		t.Errorf("error = %v, want wrapped boom", err)
 	}
 }
@@ -408,7 +408,7 @@ func TestDeleteManyServerError(t *testing.T) {
 	svc, store, accounts, remote := newActionService()
 	seedMessageLocation(t, store, accounts)
 	remote.deleteManyErr = errBoom
-	deleted, err := svc.DeleteMany(context.Background(), []string{"m1"}, false)
+	deleted, _, err := svc.DeleteMany(context.Background(), []string{"m1"}, false)
 	if !errors.Is(err, errBoom) {
 		t.Errorf("error = %v, want wrapped boom", err)
 	}
@@ -424,7 +424,7 @@ func TestDeleteManyCacheError(t *testing.T) {
 	svc, store, accounts, _ := newActionService()
 	seedMessageLocation(t, store, accounts)
 	store.deleteMessageErr = errBoom
-	deleted, err := svc.DeleteMany(context.Background(), []string{"m1"}, false)
+	deleted, _, err := svc.DeleteMany(context.Background(), []string{"m1"}, false)
 	if !errors.Is(err, errBoom) {
 		t.Errorf("error = %v, want wrapped boom", err)
 	}
@@ -437,7 +437,7 @@ func TestDeleteManyCacheError(t *testing.T) {
 
 func TestDeleteManyEmpty(t *testing.T) {
 	svc, _, _, remote := newActionService()
-	deleted, err := svc.DeleteMany(context.Background(), nil, false)
+	deleted, _, err := svc.DeleteMany(context.Background(), nil, false)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -458,7 +458,7 @@ func TestMoveManyBatchesBySourceFolder(t *testing.T) {
 	}
 	store.messages["f1"] = []domain.MessageSummary{testMessage(t, "m1", "f1"), testMessage(t, "m2", "f1")}
 
-	moved, err := svc.MoveMany(context.Background(), []string{"m1", "m2"}, "fd")
+	moved, _, err := svc.MoveMany(context.Background(), []string{"m1", "m2"}, "fd")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -482,7 +482,7 @@ func TestMoveManySkipsAlreadyInDestination(t *testing.T) {
 	store.folders["a1"] = []domain.Folder{testFolder(t, "fd", "a1", "Archive")}
 	store.messages["fd"] = []domain.MessageSummary{testMessage(t, "m1", "fd")}
 
-	moved, err := svc.MoveMany(context.Background(), []string{"m1"}, "fd")
+	moved, _, err := svc.MoveMany(context.Background(), []string{"m1"}, "fd")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -505,7 +505,7 @@ func TestMoveManyGroupsBySource(t *testing.T) {
 	store.messages["f1"] = []domain.MessageSummary{testMessage(t, "m1", "f1")}
 	store.messages["f2"] = []domain.MessageSummary{testMessage(t, "m2", "f2")}
 
-	moved, err := svc.MoveMany(context.Background(), []string{"m1", "m2"}, "fd")
+	moved, _, err := svc.MoveMany(context.Background(), []string{"m1", "m2"}, "fd")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -520,7 +520,7 @@ func TestMoveManyGroupsBySource(t *testing.T) {
 func TestMoveManyDestFolderError(t *testing.T) {
 	svc, store, _, _ := newActionService()
 	store.getFolderErr = errBoom
-	if _, err := svc.MoveMany(context.Background(), []string{"m1"}, "fd"); !errors.Is(err, errBoom) {
+	if _, _, err := svc.MoveMany(context.Background(), []string{"m1"}, "fd"); !errors.Is(err, errBoom) {
 		t.Errorf("error = %v, want wrapped boom", err)
 	}
 }
@@ -529,7 +529,7 @@ func TestMoveManyDestAccountError(t *testing.T) {
 	svc, store, accounts, _ := newActionService()
 	store.folders["a1"] = []domain.Folder{testFolder(t, "fd", "a1", "Archive")}
 	accounts.getErr = errBoom
-	if _, err := svc.MoveMany(context.Background(), []string{"m1"}, "fd"); !errors.Is(err, errBoom) {
+	if _, _, err := svc.MoveMany(context.Background(), []string{"m1"}, "fd"); !errors.Is(err, errBoom) {
 		t.Errorf("error = %v, want wrapped boom", err)
 	}
 }
@@ -539,7 +539,7 @@ func TestMoveManyGetMessageError(t *testing.T) {
 	accounts.accounts["a1"] = testAccount(t, "a1")
 	store.folders["a1"] = []domain.Folder{testFolder(t, "fd", "a1", "Archive")}
 	store.getMessageErr = errBoom
-	moved, err := svc.MoveMany(context.Background(), []string{"m1"}, "fd")
+	moved, _, err := svc.MoveMany(context.Background(), []string{"m1"}, "fd")
 	if !errors.Is(err, errBoom) {
 		t.Errorf("error = %v, want wrapped boom", err)
 	}
@@ -554,7 +554,7 @@ func TestMoveManySourceFolderMissing(t *testing.T) {
 	store.folders["a1"] = []domain.Folder{testFolder(t, "fd", "a1", "Archive")}
 	// m1's source folder f1 is deliberately absent from the folder cache.
 	store.messages["f1"] = []domain.MessageSummary{testMessage(t, "m1", "f1")}
-	moved, err := svc.MoveMany(context.Background(), []string{"m1"}, "fd")
+	moved, _, err := svc.MoveMany(context.Background(), []string{"m1"}, "fd")
 	if err == nil {
 		t.Error("expected an error when the source folder is missing")
 	}
@@ -569,7 +569,7 @@ func TestMoveManyCrossAccountRejected(t *testing.T) {
 	store.folders["a1"] = []domain.Folder{testFolder(t, "fd", "a1", "Archive")}
 	store.folders["a2"] = []domain.Folder{testFolder(t, "f1", "a2", "INBOX")}
 	store.messages["f1"] = []domain.MessageSummary{testMessage(t, "m1", "f1")}
-	moved, err := svc.MoveMany(context.Background(), []string{"m1"}, "fd")
+	moved, _, err := svc.MoveMany(context.Background(), []string{"m1"}, "fd")
 	if err == nil {
 		t.Error("expected an error moving across accounts")
 	}
@@ -584,7 +584,7 @@ func TestMoveManyServerError(t *testing.T) {
 	store.folders["a1"] = []domain.Folder{testFolder(t, "f1", "a1", "INBOX"), testFolder(t, "fd", "a1", "Archive")}
 	store.messages["f1"] = []domain.MessageSummary{testMessage(t, "m1", "f1")}
 	remote.moveManyErr = errBoom
-	moved, err := svc.MoveMany(context.Background(), []string{"m1"}, "fd")
+	moved, _, err := svc.MoveMany(context.Background(), []string{"m1"}, "fd")
 	if !errors.Is(err, errBoom) {
 		t.Errorf("error = %v, want wrapped boom", err)
 	}
@@ -602,7 +602,7 @@ func TestMoveManyCacheError(t *testing.T) {
 	store.folders["a1"] = []domain.Folder{testFolder(t, "f1", "a1", "INBOX"), testFolder(t, "fd", "a1", "Archive")}
 	store.messages["f1"] = []domain.MessageSummary{testMessage(t, "m1", "f1")}
 	store.deleteMessageErr = errBoom
-	moved, err := svc.MoveMany(context.Background(), []string{"m1"}, "fd")
+	moved, _, err := svc.MoveMany(context.Background(), []string{"m1"}, "fd")
 	if !errors.Is(err, errBoom) {
 		t.Errorf("error = %v, want wrapped boom", err)
 	}
@@ -615,7 +615,7 @@ func TestMoveManyEmpty(t *testing.T) {
 	svc, store, accounts, remote := newActionService()
 	accounts.accounts["a1"] = testAccount(t, "a1")
 	store.folders["a1"] = []domain.Folder{testFolder(t, "fd", "a1", "Archive")}
-	moved, err := svc.MoveMany(context.Background(), nil, "fd")
+	moved, _, err := svc.MoveMany(context.Background(), nil, "fd")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -630,7 +630,7 @@ func TestMoveManyEmpty(t *testing.T) {
 func TestDeleteGetMessageError(t *testing.T) {
 	svc, store, _, _ := newActionService()
 	store.getMessageErr = errBoom
-	if err := svc.Delete(context.Background(), "m1"); !errors.Is(err, errBoom) {
+	if _, err := svc.Delete(context.Background(), "m1"); !errors.Is(err, errBoom) {
 		t.Errorf("Delete error = %v, want wrapped boom", err)
 	}
 }
@@ -639,7 +639,7 @@ func TestDeleteGetFolderError(t *testing.T) {
 	svc, store, accounts, _ := newActionService()
 	seedMessageLocation(t, store, accounts)
 	store.getFolderErr = errBoom
-	if err := svc.Delete(context.Background(), "m1"); !errors.Is(err, errBoom) {
+	if _, err := svc.Delete(context.Background(), "m1"); !errors.Is(err, errBoom) {
 		t.Errorf("Delete error = %v, want wrapped boom", err)
 	}
 }
@@ -648,7 +648,7 @@ func TestDeleteGetAccountError(t *testing.T) {
 	svc, store, accounts, _ := newActionService()
 	seedMessageLocation(t, store, accounts)
 	accounts.getErr = errBoom
-	if err := svc.Delete(context.Background(), "m1"); !errors.Is(err, errBoom) {
+	if _, err := svc.Delete(context.Background(), "m1"); !errors.Is(err, errBoom) {
 		t.Errorf("Delete error = %v, want wrapped boom", err)
 	}
 }
@@ -657,7 +657,7 @@ func TestDeleteTrashResolveError(t *testing.T) {
 	svc, store, accounts, _ := newActionService()
 	seedMessageLocation(t, store, accounts)
 	store.listFoldersErr = errBoom
-	if err := svc.Delete(context.Background(), "m1"); !errors.Is(err, errBoom) {
+	if _, err := svc.Delete(context.Background(), "m1"); !errors.Is(err, errBoom) {
 		t.Errorf("Delete error = %v, want wrapped boom", err)
 	}
 }
@@ -666,7 +666,7 @@ func TestDeleteServerError(t *testing.T) {
 	svc, store, accounts, remote := newActionService()
 	seedMessageLocation(t, store, accounts)
 	remote.deleteErr = errBoom
-	if err := svc.Delete(context.Background(), "m1"); !errors.Is(err, errBoom) {
+	if _, err := svc.Delete(context.Background(), "m1"); !errors.Is(err, errBoom) {
 		t.Errorf("Delete error = %v, want wrapped boom", err)
 	}
 	if len(store.deletedMessages) != 0 {
@@ -678,7 +678,7 @@ func TestDeleteCacheError(t *testing.T) {
 	svc, store, accounts, _ := newActionService()
 	seedMessageLocation(t, store, accounts)
 	store.deleteMessageErr = errBoom
-	if err := svc.Delete(context.Background(), "m1"); !errors.Is(err, errBoom) {
+	if _, err := svc.Delete(context.Background(), "m1"); !errors.Is(err, errBoom) {
 		t.Errorf("Delete error = %v, want wrapped boom", err)
 	}
 }
@@ -688,7 +688,7 @@ func TestMoveSuccess(t *testing.T) {
 	seedMessageLocation(t, store, accounts)
 	store.folders["a1"] = append(store.folders["a1"], testFolder(t, "f2", "a1", "Archive"))
 
-	if err := svc.Move(context.Background(), "m1", "f2"); err != nil {
+	if _, err := svc.Move(context.Background(), "m1", "f2"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if len(remote.moveDestPaths) != 1 || remote.moveDestPaths[0] != "Archive" {
@@ -702,7 +702,7 @@ func TestMoveSuccess(t *testing.T) {
 func TestMoveGetMessageError(t *testing.T) {
 	svc, store, _, _ := newActionService()
 	store.getMessageErr = errBoom
-	if err := svc.Move(context.Background(), "m1", "f2"); !errors.Is(err, errBoom) {
+	if _, err := svc.Move(context.Background(), "m1", "f2"); !errors.Is(err, errBoom) {
 		t.Errorf("Move error = %v, want wrapped boom", err)
 	}
 }
@@ -711,7 +711,7 @@ func TestMoveSourceFolderError(t *testing.T) {
 	svc, store, accounts, _ := newActionService()
 	seedMessageLocation(t, store, accounts)
 	store.getFolderErr = errBoom
-	if err := svc.Move(context.Background(), "m1", "f2"); !errors.Is(err, errBoom) {
+	if _, err := svc.Move(context.Background(), "m1", "f2"); !errors.Is(err, errBoom) {
 		t.Errorf("Move error = %v, want wrapped boom", err)
 	}
 }
@@ -720,7 +720,7 @@ func TestMoveGetAccountError(t *testing.T) {
 	svc, store, accounts, _ := newActionService()
 	seedMessageLocation(t, store, accounts)
 	accounts.getErr = errBoom
-	if err := svc.Move(context.Background(), "m1", "f2"); !errors.Is(err, errBoom) {
+	if _, err := svc.Move(context.Background(), "m1", "f2"); !errors.Is(err, errBoom) {
 		t.Errorf("Move error = %v, want wrapped boom", err)
 	}
 }
@@ -728,7 +728,7 @@ func TestMoveGetAccountError(t *testing.T) {
 func TestMoveDestFolderError(t *testing.T) {
 	svc, store, accounts, _ := newActionService()
 	seedMessageLocation(t, store, accounts) // f2 does not exist
-	if err := svc.Move(context.Background(), "m1", "f2"); err == nil {
+	if _, err := svc.Move(context.Background(), "m1", "f2"); err == nil {
 		t.Error("expected an error for a missing destination folder")
 	}
 }
@@ -737,7 +737,7 @@ func TestMoveCrossAccountRejected(t *testing.T) {
 	svc, store, accounts, remote := newActionService()
 	seedMessageLocation(t, store, accounts)
 	store.folders["a2"] = []domain.Folder{testFolder(t, "f2", "a2", "Other")}
-	if err := svc.Move(context.Background(), "m1", "f2"); err == nil {
+	if _, err := svc.Move(context.Background(), "m1", "f2"); err == nil {
 		t.Error("expected an error moving across accounts")
 	}
 	if len(remote.moveDestPaths) != 0 || len(store.deletedMessages) != 0 {
@@ -750,7 +750,7 @@ func TestMoveServerError(t *testing.T) {
 	seedMessageLocation(t, store, accounts)
 	store.folders["a1"] = append(store.folders["a1"], testFolder(t, "f2", "a1", "Archive"))
 	remote.moveErr = errBoom
-	if err := svc.Move(context.Background(), "m1", "f2"); !errors.Is(err, errBoom) {
+	if _, err := svc.Move(context.Background(), "m1", "f2"); !errors.Is(err, errBoom) {
 		t.Errorf("Move error = %v, want wrapped boom", err)
 	}
 	if len(store.deletedMessages) != 0 {
@@ -836,7 +836,7 @@ func TestMoveCacheError(t *testing.T) {
 	seedMessageLocation(t, store, accounts)
 	store.folders["a1"] = append(store.folders["a1"], testFolder(t, "f2", "a1", "Archive"))
 	store.deleteMessageErr = errBoom
-	if err := svc.Move(context.Background(), "m1", "f2"); !errors.Is(err, errBoom) {
+	if _, err := svc.Move(context.Background(), "m1", "f2"); !errors.Is(err, errBoom) {
 		t.Errorf("Move error = %v, want wrapped boom", err)
 	}
 }
@@ -855,7 +855,7 @@ func TestMarkJunkMovesToJunk(t *testing.T) {
 	seedMessageLocation(t, store, accounts)
 	store.folders["a1"] = append(store.folders["a1"], junkFolder(t, "fj", "a1"))
 
-	if err := svc.MarkJunk(context.Background(), "m1"); err != nil {
+	if _, err := svc.MarkJunk(context.Background(), "m1"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if len(remote.moveDestPaths) != 1 || remote.moveDestPaths[0] != "Junk" {
@@ -869,7 +869,7 @@ func TestMarkJunkMovesToJunk(t *testing.T) {
 func TestMarkJunkNoJunkFolder(t *testing.T) {
 	svc, store, accounts, _ := newActionService()
 	seedMessageLocation(t, store, accounts) // only an inbox folder, no Junk
-	if err := svc.MarkJunk(context.Background(), "m1"); !errors.Is(err, ErrNoJunkFolder) {
+	if _, err := svc.MarkJunk(context.Background(), "m1"); !errors.Is(err, ErrNoJunkFolder) {
 		t.Errorf("error = %v, want ErrNoJunkFolder", err)
 	}
 }
@@ -879,7 +879,7 @@ func TestMarkJunkAlreadyInJunk(t *testing.T) {
 	accounts.accounts["a1"] = testAccount(t, "a1")
 	store.folders["a1"] = []domain.Folder{junkFolder(t, "fj", "a1")}
 	store.messages["fj"] = []domain.MessageSummary{testMessage(t, "m1", "fj")}
-	if err := svc.MarkJunk(context.Background(), "m1"); !errors.Is(err, ErrAlreadyJunk) {
+	if _, err := svc.MarkJunk(context.Background(), "m1"); !errors.Is(err, ErrAlreadyJunk) {
 		t.Errorf("error = %v, want ErrAlreadyJunk", err)
 	}
 }
@@ -887,7 +887,7 @@ func TestMarkJunkAlreadyInJunk(t *testing.T) {
 func TestMarkJunkGetMessageError(t *testing.T) {
 	svc, store, _, _ := newActionService()
 	store.getMessageErr = errBoom
-	if err := svc.MarkJunk(context.Background(), "m1"); !errors.Is(err, errBoom) {
+	if _, err := svc.MarkJunk(context.Background(), "m1"); !errors.Is(err, errBoom) {
 		t.Errorf("error = %v, want wrapped boom", err)
 	}
 }
@@ -896,7 +896,7 @@ func TestMarkJunkGetFolderError(t *testing.T) {
 	svc, store, accounts, _ := newActionService()
 	seedMessageLocation(t, store, accounts)
 	store.getFolderErr = errBoom
-	if err := svc.MarkJunk(context.Background(), "m1"); !errors.Is(err, errBoom) {
+	if _, err := svc.MarkJunk(context.Background(), "m1"); !errors.Is(err, errBoom) {
 		t.Errorf("error = %v, want wrapped boom", err)
 	}
 }
@@ -906,7 +906,7 @@ func TestMarkJunkGetAccountError(t *testing.T) {
 	seedMessageLocation(t, store, accounts)
 	store.folders["a1"] = append(store.folders["a1"], junkFolder(t, "fj", "a1"))
 	accounts.getErr = errBoom
-	if err := svc.MarkJunk(context.Background(), "m1"); !errors.Is(err, errBoom) {
+	if _, err := svc.MarkJunk(context.Background(), "m1"); !errors.Is(err, errBoom) {
 		t.Errorf("error = %v, want wrapped boom", err)
 	}
 }
@@ -915,7 +915,7 @@ func TestMarkJunkResolveError(t *testing.T) {
 	svc, store, accounts, _ := newActionService()
 	seedMessageLocation(t, store, accounts)
 	store.listFoldersErr = errBoom
-	if err := svc.MarkJunk(context.Background(), "m1"); !errors.Is(err, errBoom) {
+	if _, err := svc.MarkJunk(context.Background(), "m1"); !errors.Is(err, errBoom) {
 		t.Errorf("error = %v, want wrapped boom", err)
 	}
 }
@@ -925,7 +925,7 @@ func TestMarkJunkServerError(t *testing.T) {
 	seedMessageLocation(t, store, accounts)
 	store.folders["a1"] = append(store.folders["a1"], junkFolder(t, "fj", "a1"))
 	remote.moveErr = errBoom
-	if err := svc.MarkJunk(context.Background(), "m1"); !errors.Is(err, errBoom) {
+	if _, err := svc.MarkJunk(context.Background(), "m1"); !errors.Is(err, errBoom) {
 		t.Errorf("error = %v, want wrapped boom", err)
 	}
 	if len(store.deletedMessages) != 0 {
@@ -938,7 +938,7 @@ func TestMarkJunkCacheError(t *testing.T) {
 	seedMessageLocation(t, store, accounts)
 	store.folders["a1"] = append(store.folders["a1"], junkFolder(t, "fj", "a1"))
 	store.deleteMessageErr = errBoom
-	if err := svc.MarkJunk(context.Background(), "m1"); !errors.Is(err, errBoom) {
+	if _, err := svc.MarkJunk(context.Background(), "m1"); !errors.Is(err, errBoom) {
 		t.Errorf("error = %v, want wrapped boom", err)
 	}
 }
@@ -948,7 +948,7 @@ func TestMarkJunkRecordsVerdictKeywords(t *testing.T) {
 	seedMessageLocation(t, store, accounts)
 	store.folders["a1"] = append(store.folders["a1"], junkFolder(t, "fj", "a1"))
 
-	if err := svc.MarkJunk(context.Background(), "m1"); err != nil {
+	if _, err := svc.MarkJunk(context.Background(), "m1"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	want := []keywordCall{
@@ -972,7 +972,7 @@ func TestMarkNotJunkMovesToInboxWithVerdict(t *testing.T) {
 	svc, store, accounts, remote := newActionService()
 	seedJunkedMessage(t, store, accounts)
 
-	if err := svc.MarkNotJunk(context.Background(), "m1"); err != nil {
+	if _, err := svc.MarkNotJunk(context.Background(), "m1"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if len(remote.moveDestPaths) != 1 || remote.moveDestPaths[0] != "INBOX" {
@@ -995,7 +995,7 @@ func TestMarkNotJunkSucceedsWhenKeywordsRejected(t *testing.T) {
 	seedJunkedMessage(t, store, accounts)
 	remote.keywordErr = errBoom // a server that rejects custom keywords must not fail the rescue
 
-	if err := svc.MarkNotJunk(context.Background(), "m1"); err != nil {
+	if _, err := svc.MarkNotJunk(context.Background(), "m1"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if len(remote.moveDestPaths) != 1 || remote.moveDestPaths[0] != "INBOX" {
@@ -1006,7 +1006,7 @@ func TestMarkNotJunkSucceedsWhenKeywordsRejected(t *testing.T) {
 func TestMarkNotJunkNotInJunk(t *testing.T) {
 	svc, store, accounts, _ := newActionService()
 	seedMessageLocation(t, store, accounts) // m1 lives in the inbox
-	if err := svc.MarkNotJunk(context.Background(), "m1"); !errors.Is(err, ErrNotInJunk) {
+	if _, err := svc.MarkNotJunk(context.Background(), "m1"); !errors.Is(err, ErrNotInJunk) {
 		t.Errorf("error = %v, want ErrNotInJunk", err)
 	}
 }
@@ -1016,7 +1016,7 @@ func TestMarkNotJunkNoInboxFolder(t *testing.T) {
 	accounts.accounts["a1"] = testAccount(t, "a1")
 	store.folders["a1"] = []domain.Folder{junkFolder(t, "fj", "a1")}
 	store.messages["fj"] = []domain.MessageSummary{testMessage(t, "m1", "fj")}
-	if err := svc.MarkNotJunk(context.Background(), "m1"); !errors.Is(err, ErrNoInboxFolder) {
+	if _, err := svc.MarkNotJunk(context.Background(), "m1"); !errors.Is(err, ErrNoInboxFolder) {
 		t.Errorf("error = %v, want ErrNoInboxFolder", err)
 	}
 }
@@ -1024,7 +1024,7 @@ func TestMarkNotJunkNoInboxFolder(t *testing.T) {
 func TestMarkNotJunkGetMessageError(t *testing.T) {
 	svc, store, _, _ := newActionService()
 	store.getMessageErr = errBoom
-	if err := svc.MarkNotJunk(context.Background(), "m1"); !errors.Is(err, errBoom) {
+	if _, err := svc.MarkNotJunk(context.Background(), "m1"); !errors.Is(err, errBoom) {
 		t.Errorf("error = %v, want wrapped boom", err)
 	}
 }
@@ -1033,7 +1033,7 @@ func TestMarkNotJunkGetFolderError(t *testing.T) {
 	svc, store, accounts, _ := newActionService()
 	seedJunkedMessage(t, store, accounts)
 	store.getFolderErr = errBoom
-	if err := svc.MarkNotJunk(context.Background(), "m1"); !errors.Is(err, errBoom) {
+	if _, err := svc.MarkNotJunk(context.Background(), "m1"); !errors.Is(err, errBoom) {
 		t.Errorf("error = %v, want wrapped boom", err)
 	}
 }
@@ -1042,7 +1042,7 @@ func TestMarkNotJunkGetAccountError(t *testing.T) {
 	svc, store, accounts, _ := newActionService()
 	seedJunkedMessage(t, store, accounts)
 	accounts.getErr = errBoom
-	if err := svc.MarkNotJunk(context.Background(), "m1"); !errors.Is(err, errBoom) {
+	if _, err := svc.MarkNotJunk(context.Background(), "m1"); !errors.Is(err, errBoom) {
 		t.Errorf("error = %v, want wrapped boom", err)
 	}
 }
@@ -1051,7 +1051,7 @@ func TestMarkNotJunkResolveError(t *testing.T) {
 	svc, store, accounts, _ := newActionService()
 	seedJunkedMessage(t, store, accounts)
 	store.listFoldersErr = errBoom
-	if err := svc.MarkNotJunk(context.Background(), "m1"); !errors.Is(err, errBoom) {
+	if _, err := svc.MarkNotJunk(context.Background(), "m1"); !errors.Is(err, errBoom) {
 		t.Errorf("error = %v, want wrapped boom", err)
 	}
 }
@@ -1060,7 +1060,7 @@ func TestMarkNotJunkServerError(t *testing.T) {
 	svc, store, accounts, remote := newActionService()
 	seedJunkedMessage(t, store, accounts)
 	remote.moveErr = errBoom
-	if err := svc.MarkNotJunk(context.Background(), "m1"); !errors.Is(err, errBoom) {
+	if _, err := svc.MarkNotJunk(context.Background(), "m1"); !errors.Is(err, errBoom) {
 		t.Errorf("error = %v, want wrapped boom", err)
 	}
 	if len(store.deletedMessages) != 0 {
@@ -1072,7 +1072,208 @@ func TestMarkNotJunkCacheError(t *testing.T) {
 	svc, store, accounts, _ := newActionService()
 	seedJunkedMessage(t, store, accounts)
 	store.deleteMessageErr = errBoom
-	if err := svc.MarkNotJunk(context.Background(), "m1"); !errors.Is(err, errBoom) {
+	if _, err := svc.MarkNotJunk(context.Background(), "m1"); !errors.Is(err, errBoom) {
 		t.Errorf("error = %v, want wrapped boom", err)
+	}
+}
+
+// testMessageUID builds a message with an explicit server UID, for tests that map source UIDs to
+// destination UIDs (the shared testMessage fixture gives every message UID "1", which would collide).
+func testMessageUID(t *testing.T, id, folderID, uid string) domain.MessageSummary {
+	t.Helper()
+	msg, err := domain.NewMessageSummary(domain.MessageSummaryInput{
+		ID: id, FolderID: folderID, UID: uid, Size: 10, Flags: domain.NewFlags(0),
+	})
+	if err != nil {
+		t.Fatalf("build message: %v", err)
+	}
+	return msg
+}
+
+func TestDeleteReturnsTheTrashIdWhenTheServerReportsIt(t *testing.T) {
+	svc, store, accounts, remote := newActionService()
+	seedMessageLocation(t, store, accounts)
+	store.folders["a1"] = append(store.folders["a1"], trashFolder(t, "ft", "a1"))
+	remote.moveNewUID = "77"
+
+	newID, err := svc.Delete(context.Background(), "m1")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if want := domain.MessageIDFor("ft", "77"); newID != want {
+		t.Errorf("Delete new id = %q, want %q", newID, want)
+	}
+}
+
+func TestDeleteReturnsNoIdWhenTheServerReportsNothing(t *testing.T) {
+	svc, store, accounts, _ := newActionService()
+	seedMessageLocation(t, store, accounts)
+	store.folders["a1"] = append(store.folders["a1"], trashFolder(t, "ft", "a1"))
+
+	newID, err := svc.Delete(context.Background(), "m1")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if newID != "" {
+		t.Errorf("Delete new id = %q, want empty when the server reports nothing", newID)
+	}
+}
+
+func TestDeleteReturnsNoIdWhenPermanent(t *testing.T) {
+	svc, store, accounts, remote := newActionService()
+	accounts.accounts["a1"] = testAccount(t, "a1")
+	store.folders["a1"] = []domain.Folder{trashFolder(t, "ft", "a1")}
+	store.messages["ft"] = []domain.MessageSummary{testMessage(t, "m1", "ft")}
+	remote.moveNewUID = "77" // must be ignored: a delete from Trash is permanent
+
+	newID, err := svc.Delete(context.Background(), "m1")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if newID != "" {
+		t.Errorf("Delete new id = %q, want empty for a permanent delete", newID)
+	}
+}
+
+func TestMoveReturnsTheDestinationIdWhenTheServerReportsIt(t *testing.T) {
+	svc, store, accounts, remote := newActionService()
+	seedMessageLocation(t, store, accounts)
+	store.folders["a1"] = append(store.folders["a1"], testFolder(t, "f2", "a1", "Archive"))
+	remote.moveNewUID = "9"
+
+	newID, err := svc.Move(context.Background(), "m1", "f2")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if want := domain.MessageIDFor("f2", "9"); newID != want {
+		t.Errorf("Move new id = %q, want %q", newID, want)
+	}
+}
+
+func TestMoveReturnsNoIdWhenTheServerReportsNothing(t *testing.T) {
+	svc, store, accounts, _ := newActionService()
+	seedMessageLocation(t, store, accounts)
+	store.folders["a1"] = append(store.folders["a1"], testFolder(t, "f2", "a1", "Archive"))
+
+	newID, err := svc.Move(context.Background(), "m1", "f2")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if newID != "" {
+		t.Errorf("Move new id = %q, want empty when the server reports nothing", newID)
+	}
+}
+
+func TestMarkJunkReturnsTheJunkIdWhenTheServerReportsIt(t *testing.T) {
+	svc, store, accounts, remote := newActionService()
+	seedMessageLocation(t, store, accounts)
+	store.folders["a1"] = append(store.folders["a1"], junkFolder(t, "fj", "a1"))
+	remote.moveNewUID = "5"
+
+	newID, err := svc.MarkJunk(context.Background(), "m1")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if want := domain.MessageIDFor("fj", "5"); newID != want {
+		t.Errorf("MarkJunk new id = %q, want %q", newID, want)
+	}
+}
+
+func TestMarkNotJunkReturnsTheInboxIdWhenTheServerReportsIt(t *testing.T) {
+	svc, store, accounts, remote := newActionService()
+	accounts.accounts["a1"] = testAccount(t, "a1")
+	store.folders["a1"] = []domain.Folder{testFolder(t, "f1", "a1", "INBOX"), junkFolder(t, "fj", "a1")}
+	store.messages["fj"] = []domain.MessageSummary{testMessage(t, "m1", "fj")}
+	remote.moveNewUID = "6"
+
+	newID, err := svc.MarkNotJunk(context.Background(), "m1")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if want := domain.MessageIDFor("f1", "6"); newID != want {
+		t.Errorf("MarkNotJunk new id = %q, want %q", newID, want)
+	}
+}
+
+func TestMoveManyReturnsTheDestinationIds(t *testing.T) {
+	svc, store, accounts, remote := newActionService()
+	accounts.accounts["a1"] = testAccount(t, "a1")
+	store.folders["a1"] = []domain.Folder{testFolder(t, "f1", "a1", "INBOX"), testFolder(t, "fd", "a1", "Archive")}
+	store.messages["f1"] = []domain.MessageSummary{
+		testMessageUID(t, "m1", "f1", "10"),
+		testMessageUID(t, "m2", "f1", "20"),
+	}
+	remote.moveManyNewUIDs = map[string]string{"10": "100", "20": "200"}
+
+	moved, newIDs, err := svc.MoveMany(context.Background(), []string{"m1", "m2"}, "fd")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(moved) != 2 {
+		t.Fatalf("moved = %v, want two ids", moved)
+	}
+	want := map[string]string{
+		"m1": domain.MessageIDFor("fd", "100"),
+		"m2": domain.MessageIDFor("fd", "200"),
+	}
+	if !reflect.DeepEqual(newIDs, want) {
+		t.Errorf("MoveMany new ids = %v, want %v", newIDs, want)
+	}
+}
+
+func TestMoveManyReturnsNoIdsWhenTheServerReportsNothing(t *testing.T) {
+	svc, store, accounts, _ := newActionService()
+	accounts.accounts["a1"] = testAccount(t, "a1")
+	store.folders["a1"] = []domain.Folder{testFolder(t, "f1", "a1", "INBOX"), testFolder(t, "fd", "a1", "Archive")}
+	store.messages["f1"] = []domain.MessageSummary{testMessage(t, "m1", "f1")}
+
+	_, newIDs, err := svc.MoveMany(context.Background(), []string{"m1"}, "fd")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(newIDs) != 0 {
+		t.Errorf("MoveMany new ids = %v, want none when the server reports nothing", newIDs)
+	}
+}
+
+func TestDeleteManyReturnsTheTrashIds(t *testing.T) {
+	svc, store, accounts, remote := newActionService()
+	accounts.accounts["a1"] = testAccount(t, "a1")
+	store.folders["a1"] = []domain.Folder{testFolder(t, "f1", "a1", "INBOX"), trashFolder(t, "ft", "a1")}
+	store.messages["f1"] = []domain.MessageSummary{
+		testMessageUID(t, "m1", "f1", "10"),
+		testMessageUID(t, "m2", "f1", "20"),
+	}
+	remote.moveManyNewUIDs = map[string]string{"10": "100", "20": "200"}
+
+	deleted, newIDs, err := svc.DeleteMany(context.Background(), []string{"m1", "m2"}, false)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(deleted) != 2 {
+		t.Fatalf("deleted = %v, want two ids", deleted)
+	}
+	want := map[string]string{
+		"m1": domain.MessageIDFor("ft", "100"),
+		"m2": domain.MessageIDFor("ft", "200"),
+	}
+	if !reflect.DeepEqual(newIDs, want) {
+		t.Errorf("DeleteMany new ids = %v, want %v", newIDs, want)
+	}
+}
+
+func TestDeleteManyPermanentReturnsNoIds(t *testing.T) {
+	svc, store, accounts, remote := newActionService()
+	accounts.accounts["a1"] = testAccount(t, "a1")
+	store.folders["a1"] = []domain.Folder{testFolder(t, "f1", "a1", "INBOX"), trashFolder(t, "ft", "a1")}
+	store.messages["f1"] = []domain.MessageSummary{testMessageUID(t, "m1", "f1", "10")}
+	remote.moveManyNewUIDs = map[string]string{"10": "100"} // must be ignored for a permanent delete
+
+	_, newIDs, err := svc.DeleteMany(context.Background(), []string{"m1"}, true)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(newIDs) != 0 {
+		t.Errorf("DeleteMany new ids = %v, want none for a permanent delete", newIDs)
 	}
 }

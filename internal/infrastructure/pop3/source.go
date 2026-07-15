@@ -183,63 +183,65 @@ func (s *Source) SetKeyword(context.Context, domain.Account, domain.Folder, stri
 
 // Delete permanently removes a message from the server with DELE, committed when the session quits.
 // POP3 has no Trash mailbox, so trashPath is ignored and every delete is permanent; leaving the
-// message on the server would only re-download it on the next sync.
-func (s *Source) Delete(ctx context.Context, account domain.Account, _ domain.Folder, uid string, _ string) error {
+// message on the server would only re-download it on the next sync. A permanent delete lands
+// nowhere, so the returned destination UID is always empty.
+func (s *Source) Delete(ctx context.Context, account domain.Account, _ domain.Folder, uid string, _ string) (string, error) {
 	client, err := s.connect(ctx, account)
 	if err != nil {
-		return err
+		return "", err
 	}
 	defer func() { _ = client.Quit() }()
 
 	items, err := client.UIDL()
 	if err != nil {
-		return err
+		return "", err
 	}
 	number, ok := numberForUID(items, uid)
 	if !ok {
-		return fmt.Errorf("pop3: message %q not found", uid)
+		return "", fmt.Errorf("pop3: message %q not found", uid)
 	}
-	return client.Dele(number)
+	return "", client.Dele(number)
 }
 
 // DeleteMany permanently removes several messages over a single connection: it opens one session, reads
 // the UIDL map once, then issues a DELE for each message, all committed when the session quits. POP3 has
 // no Trash, so trashPath is ignored and every delete is permanent. This is the batched form of Delete,
-// so a bulk delete costs one login and one UIDL rather than one of each per message.
-func (s *Source) DeleteMany(ctx context.Context, account domain.Account, _ domain.Folder, uids []string, _ string) error {
+// so a bulk delete costs one login and one UIDL rather than one of each per message. A permanent delete
+// lands nowhere, so no destination UIDs are returned.
+func (s *Source) DeleteMany(ctx context.Context, account domain.Account, _ domain.Folder, uids []string, _ string) (map[string]string, error) {
 	if len(uids) == 0 {
-		return nil
+		return nil, nil
 	}
 	client, err := s.connect(ctx, account)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer func() { _ = client.Quit() }()
 
 	items, err := client.UIDL()
 	if err != nil {
-		return err
+		return nil, err
 	}
 	for _, uid := range uids {
 		number, ok := numberForUID(items, uid)
 		if !ok {
-			return fmt.Errorf("pop3: message %q not found", uid)
+			return nil, fmt.Errorf("pop3: message %q not found", uid)
 		}
 		if err := client.Dele(number); err != nil {
-			return err
+			return nil, err
 		}
 	}
-	return nil
+	return nil, nil
 }
 
 // Move is unsupported: POP3 exposes a single mailbox, so there is nowhere to move a message to.
-func (s *Source) Move(context.Context, domain.Account, domain.Folder, string, string) error {
-	return fmt.Errorf("pop3: move message: %w", ErrUnsupported)
+func (s *Source) Move(context.Context, domain.Account, domain.Folder, string, string) (string, error) {
+	return "", fmt.Errorf("pop3: move message: %w", ErrUnsupported)
 }
 
 // MoveMany is unsupported for the same reason as Move: POP3 has a single mailbox with nowhere to move to.
-func (s *Source) MoveMany(context.Context, domain.Account, domain.Folder, []string, string) error {
-	return fmt.Errorf("pop3: move messages: %w", ErrUnsupported)
+func (s *Source) MoveMany(context.Context, domain.Account, domain.Folder, []string, string) (map[string]string, error) {
+	return nil, fmt.Errorf("pop3: move messages: %w", ErrUnsupported)
 }
 
 // Copy is unsupported, for the same reason as Move.

@@ -3,12 +3,39 @@ package imap
 import (
 	"context"
 	"fmt"
+	"strconv"
 
 	"github.com/emersion/go-imap/v2"
+	"github.com/emersion/go-imap/v2/imapclient"
 
 	"github.com/oernster/pigeonpost/internal/domain"
 	"github.com/oernster/pigeonpost/internal/infrastructure/message"
 )
+
+// movedUIDs pairs each source UID with its destination UID from a MOVE's COPYUID reply (RFC 4315),
+// so a caller can learn where each message landed and address it there (an undo moves it back). A
+// server without UIDPLUS sends no COPYUID, and a malformed reply may carry absent or unbalanced
+// sets; any of those yields nil (destinations unknown) rather than a guess.
+func movedUIDs(data *imapclient.MoveData) map[string]string {
+	if data == nil {
+		return nil
+	}
+	src, okSrc := data.SourceUIDs.(imap.UIDSet)
+	dst, okDst := data.DestUIDs.(imap.UIDSet)
+	if !okSrc || !okDst {
+		return nil
+	}
+	srcNums, boundedSrc := src.Nums()
+	dstNums, boundedDst := dst.Nums()
+	if !boundedSrc || !boundedDst || len(srcNums) == 0 || len(srcNums) != len(dstNums) {
+		return nil
+	}
+	moved := make(map[string]string, len(srcNums))
+	for i, u := range srcNums {
+		moved[strconv.FormatUint(uint64(u), 10)] = strconv.FormatUint(uint64(dstNums[i]), 10)
+	}
+	return moved
+}
 
 // storeFlag adds or removes a single IMAP flag for one message by UID on the server. It is the shared body of
 // the per-flag setters (SetSeen / SetFlagged / SetAnswered / SetForwarded); the mailbox is selected read-write
@@ -73,66 +100,70 @@ func (s *Source) SetKeyword(ctx context.Context, account domain.Account, folder 
 	return s.storeFlag(ctx, account, folder, uid, imap.Flag(keyword), set)
 }
 
-// Delete removes a message by UID: it moves it to trashPath when that is set, otherwise marks it
-// \Deleted and expunges it permanently. It satisfies application.MailActions.
-func (s *Source) Delete(ctx context.Context, account domain.Account, folder domain.Folder, uid string, trashPath string) error {
+// Delete removes a message by UID: it moves it to trashPath when that is set (returning the
+// message's UID there when the server reports it via COPYUID), otherwise marks it \Deleted and
+// expunges it permanently. It satisfies application.MailActions.
+func (s *Source) Delete(ctx context.Context, account domain.Account, folder domain.Folder, uid string, trashPath string) (string, error) {
 	client, err := s.connect(ctx, account)
 	if err != nil {
-		return err
+		return "", err
 	}
 	defer func() { _ = client.Logout().Wait() }()
 
 	if _, err := client.Select(folder.Path(), nil).Wait(); err != nil {
-		return fmt.Errorf("imap: select %q: %w", folder.Path(), err)
+		return "", fmt.Errorf("imap: select %q: %w", folder.Path(), err)
 	}
 
 	u, err := parseUID(uid)
 	if err != nil {
-		return err
+		return "", err
 	}
 	uidSet := imap.UIDSet{}
 	uidSet.AddNum(u)
 
 	if trashPath != "" {
-		if _, err := client.Move(uidSet, trashPath).Wait(); err != nil {
-			return fmt.Errorf("imap: move uid %q to %q: %w", uid, trashPath, err)
+		data, err := client.Move(uidSet, trashPath).Wait()
+		if err != nil {
+			return "", fmt.Errorf("imap: move uid %q to %q: %w", uid, trashPath, err)
 		}
-		return nil
+		return movedUIDs(data)[uid], nil
 	}
 
 	store := &imap.StoreFlags{Op: imap.StoreFlagsAdd, Silent: true, Flags: []imap.Flag{imap.FlagDeleted}}
 	if err := client.Store(uidSet, store, nil).Close(); err != nil {
-		return fmt.Errorf("imap: mark \\Deleted uid %q: %w", uid, err)
+		return "", fmt.Errorf("imap: mark \\Deleted uid %q: %w", uid, err)
 	}
 	if err := client.Expunge().Close(); err != nil {
-		return fmt.Errorf("imap: expunge uid %q: %w", uid, err)
+		return "", fmt.Errorf("imap: expunge uid %q: %w", uid, err)
 	}
-	return nil
+	return "", nil
 }
 
-// Move relocates a message by UID from its folder to destPath on the server. It satisfies
+// Move relocates a message by UID from its folder to destPath on the server, returning the
+// message's UID in the destination when the server reports it via COPYUID. It satisfies
 // application.MailActions.
-func (s *Source) Move(ctx context.Context, account domain.Account, folder domain.Folder, uid string, destPath string) error {
+func (s *Source) Move(ctx context.Context, account domain.Account, folder domain.Folder, uid string, destPath string) (string, error) {
 	client, err := s.connect(ctx, account)
 	if err != nil {
-		return err
+		return "", err
 	}
 	defer func() { _ = client.Logout().Wait() }()
 
 	if _, err := client.Select(folder.Path(), nil).Wait(); err != nil {
-		return fmt.Errorf("imap: select %q: %w", folder.Path(), err)
+		return "", fmt.Errorf("imap: select %q: %w", folder.Path(), err)
 	}
 
 	u, err := parseUID(uid)
 	if err != nil {
-		return err
+		return "", err
 	}
 	uidSet := imap.UIDSet{}
 	uidSet.AddNum(u)
-	if _, err := client.Move(uidSet, destPath).Wait(); err != nil {
-		return fmt.Errorf("imap: move uid %q to %q: %w", uid, destPath, err)
+	data, err := client.Move(uidSet, destPath).Wait()
+	if err != nil {
+		return "", fmt.Errorf("imap: move uid %q to %q: %w", uid, destPath, err)
 	}
-	return nil
+	return movedUIDs(data)[uid], nil
 }
 
 // Copy duplicates a message by UID into destPath on the server, leaving the original untouched. It
