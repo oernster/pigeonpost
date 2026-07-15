@@ -48,6 +48,7 @@ function harness() {
             store,
             displayMessages: store.messages,
             searchActive: false,
+            folders: [],
             loadUnread: badgeSpies.loadUnread,
             refreshFolders: badgeSpies.refreshFolders,
             setError: () => {},

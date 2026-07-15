@@ -468,6 +468,9 @@ describe('App: single-message actions', () => {
         fireEvent.click(screen.getByRole('menuitem', {name: 'Not junk'}))
         await waitFor(() => expect(apiSpies.markNotJunk).toHaveBeenCalledWith('m1'))
         await waitFor(() => expect(screen.queryByText('Not actually spam')).not.toBeInTheDocument())
+        // The inbox is synced at once so the rescued message (and its unread badge) appears
+        // immediately rather than on the next background sync.
+        await waitFor(() => expect(apiSpies.syncFolder).toHaveBeenCalledWith('inbox'))
     })
 })
 

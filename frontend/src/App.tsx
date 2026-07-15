@@ -338,7 +338,7 @@ function App() {
         messageToPurge, setMessageToPurge, purgingMessage,
         requestDelete, deleteMessage, deletePermanent, toggleFlag, moveMessage, markJunk, markNotJunk, copyMessage,
         setReadState, toggleRead, markReadOnView, markReplied, markForwarded,
-    } = useMessageActions({store, displayMessages, searchActive, loadUnread, refreshFolders, setError})
+    } = useMessageActions({store, displayMessages, searchActive, folders, loadUnread, refreshFolders, setError})
 
     // undoToast is the live undo-send window: the queued item to cancel, when the window ends and the
     // compose state to restore on undo. One send at a time: a new held send replaces the toast (the

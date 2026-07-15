@@ -70,6 +70,16 @@ export function useBulkActions(deps: BulkActionsDeps): BulkActions {
             if (result.error) {
                 setError(`${result.failed} of ${ids.length} messages could not be moved: ${result.error}`)
             }
+            if (result.ids.length > 0) {
+                // Pull the destination's listing at once so the moved messages appear there (and
+                // count toward its unread badge) immediately; a failure here leaves the next
+                // background sync to reconcile.
+                try {
+                    await api.syncFolder(destFolderId)
+                } catch {
+                    // Reconciled by the next background sync.
+                }
+            }
         } catch (e) {
             setError(`Move failed: ${String(e)}`)
         }

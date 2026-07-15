@@ -1,5 +1,5 @@
 import {Dispatch, SetStateAction, useCallback, useState} from 'react'
-import {api, Message} from '../api'
+import {api, Folder, Message} from '../api'
 import {neighbourAfterRemoval} from '../messageText'
 import type {MessageStore} from './useMessageStore'
 
@@ -12,6 +12,9 @@ export interface MessageActionsDeps {
     store: MessageStore
     displayMessages: Message[]
     searchActive: boolean
+    // folders lets an action resolve a message's account-mate folder (its Junk folder or its
+    // Inbox) so the destination of a junk or rescue can be synced at once.
+    folders: Folder[]
     loadUnread: () => Promise<void>
     refreshFolders: () => Promise<void>
     setError: (message: string) => void
@@ -44,7 +47,7 @@ export interface MessageActions {
 // it shows wherever the message appears. Bulk actions, tag actions and the outbox cancel live in their own
 // hooks.
 export function useMessageActions(deps: MessageActionsDeps): MessageActions {
-    const {store, displayMessages, searchActive, loadUnread, refreshFolders, setError} = deps
+    const {store, displayMessages, searchActive, folders, loadUnread, refreshFolders, setError} = deps
     const {
         searchResults, setMessages, setSearchResults, setTabs, setSelectedMessage,
         applyToAllLists, removeFromAllLists,
@@ -62,6 +65,25 @@ export function useMessageActions(deps: MessageActionsDeps): MessageActions {
     const refreshBadges = useCallback(async () => {
         await Promise.all([loadUnread(), refreshFolders()])
     }, [loadUnread, refreshFolders])
+
+    // syncDestination pulls a destination folder's listing straight away, so a moved, junked or
+    // rescued message appears there (and counts toward its unread badge) immediately rather than on
+    // the next background sync. Best-effort: a sync failure leaves the next background pass to
+    // reconcile and must not fail the action that already succeeded on the server.
+    const syncDestination = useCallback(async (destFolderId: string) => {
+        try {
+            await api.syncFolder(destFolderId)
+        } catch {
+            // The next background sync reconciles the destination.
+        }
+    }, [])
+
+    // destinationByKind resolves the account-mate folder of the given kind for a message (its Junk
+    // folder for a junking, its Inbox for a rescue), so the action can sync where the message went.
+    const destinationByKind = useCallback((message: Message, kind: string): string => {
+        const accountId = folders.find((f) => f.id === message.folderId)?.accountId
+        return folders.find((f) => f.accountId === accountId && f.kind === kind)?.id ?? ''
+    }, [folders])
 
     const deleteMessage = useCallback(async () => {
         if (!messageToDelete) {
@@ -168,11 +190,12 @@ export function useMessageActions(deps: MessageActionsDeps): MessageActions {
         try {
             await api.moveMessage(messageId, destFolderId)
             removeFromAllLists(new Set([messageId]))
+            await syncDestination(destFolderId)
             await refreshBadges()
         } catch (e) {
             setError(String(e))
         }
-    }, [removeFromAllLists, refreshBadges])
+    }, [removeFromAllLists, syncDestination, refreshBadges])
 
     const moveMessage = useCallback(
         (message: Message, destFolderId: string) => moveMessageById(message.id, destFolderId),
@@ -192,11 +215,15 @@ export function useMessageActions(deps: MessageActionsDeps): MessageActions {
             setSearchResults((prev) => prev.filter((m) => m.id !== id))
             setTabs((prev) => prev.filter((m) => m.id !== id))
             setSelectedMessage((prev) => (prev?.id === id ? next : prev))
+            const dest = destinationByKind(message, 'junk')
+            if (dest !== '') {
+                await syncDestination(dest)
+            }
             await refreshBadges()
         } catch (e) {
             setError(String(e))
         }
-    }, [searchActive, searchResults, displayMessages, refreshBadges])
+    }, [searchActive, searchResults, displayMessages, destinationByKind, syncDestination, refreshBadges])
 
     // markNotJunk rescues a wrongly junked message back to the account's inbox: the row leaves the
     // Junk view at once and the inbox re-lists it on the next sync, the same shape as markJunk in
@@ -212,11 +239,15 @@ export function useMessageActions(deps: MessageActionsDeps): MessageActions {
             setSearchResults((prev) => prev.filter((m) => m.id !== id))
             setTabs((prev) => prev.filter((m) => m.id !== id))
             setSelectedMessage((prev) => (prev?.id === id ? next : prev))
+            const dest = destinationByKind(message, 'inbox')
+            if (dest !== '') {
+                await syncDestination(dest)
+            }
             await refreshBadges()
         } catch (e) {
             setError(String(e))
         }
-    }, [searchActive, searchResults, displayMessages, refreshBadges])
+    }, [searchActive, searchResults, displayMessages, destinationByKind, syncDestination, refreshBadges])
 
     // Copy leaves the original in place; the duplicate appears in the destination folder on next sync, so
     // there is no local list change to make here.
