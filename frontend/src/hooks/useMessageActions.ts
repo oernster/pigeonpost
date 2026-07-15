@@ -1,7 +1,9 @@
 import {Dispatch, SetStateAction, useCallback, useState} from 'react'
 import {api, Folder, Message} from '../api'
 import {neighbourAfterRemoval} from '../messageText'
+import type {MoveFlavour} from '../undoStack'
 import type {MessageStore} from './useMessageStore'
+import type {UndoRecorder} from './useUndoRedo'
 
 // MessageActionsDeps is what the single-message actions need from the rest of App: the message store they
 // mutate, the visible list and the search flag (used to pick the next selection after a removal), the
@@ -18,6 +20,8 @@ export interface MessageActionsDeps {
     loadUnread: () => Promise<void>
     refreshFolders: () => Promise<void>
     setError: (message: string) => void
+    // undo records each completed action so Edit > Undo can unwind it.
+    undo: UndoRecorder
 }
 
 export interface MessageActions {
@@ -35,7 +39,7 @@ export interface MessageActions {
     markJunk: (message: Message) => Promise<void>
     markNotJunk: (message: Message) => Promise<void>
     copyMessage: (message: Message, destFolderId: string) => Promise<void>
-    setReadState: (message: Message, read: boolean) => Promise<void>
+    setReadState: (message: Message, read: boolean, record?: boolean) => Promise<void>
     toggleRead: (message: Message) => Promise<void>
     markReadOnView: (message: Message) => void
     markReplied: (id: string) => Promise<void>
@@ -47,7 +51,7 @@ export interface MessageActions {
 // it shows wherever the message appears. Bulk actions, tag actions and the outbox cancel live in their own
 // hooks.
 export function useMessageActions(deps: MessageActionsDeps): MessageActions {
-    const {store, displayMessages, searchActive, folders, loadUnread, refreshFolders, setError} = deps
+    const {store, displayMessages, searchActive, folders, loadUnread, refreshFolders, setError, undo} = deps
     const {
         searchResults, setMessages, setSearchResults, setTabs, setSelectedMessage,
         applyToAllLists, removeFromAllLists,
@@ -85,6 +89,16 @@ export function useMessageActions(deps: MessageActionsDeps): MessageActions {
         return folders.find((f) => f.accountId === accountId && f.kind === kind)?.id ?? ''
     }, [folders])
 
+    // recordMove records one completed move-shaped action for Edit > Undo, addressing the message
+    // by the id the server said it now carries. An action the server did not locate (no COPYUID)
+    // is simply not recorded, so Undo never offers a reversal it cannot perform.
+    const recordMove = useCallback((flavour: MoveFlavour, newId: string, sourceFolderId: string, destFolderId: string) => {
+        if (newId === '') {
+            return
+        }
+        undo.push({kind: 'move', flavour, items: [{messageId: newId, sourceFolderId}], destFolderId})
+    }, [undo])
+
     const deleteMessage = useCallback(async () => {
         if (!messageToDelete) {
             return
@@ -95,19 +109,20 @@ export function useMessageActions(deps: MessageActionsDeps): MessageActions {
         setDeletingMessage(true)
         setError('')
         try {
-            await api.deleteMessage(id)
+            const result = await api.deleteMessage(id)
             setMessages((prev) => prev.filter((m) => m.id !== id))
             setSearchResults((prev) => prev.filter((m) => m.id !== id))
             setTabs((prev) => prev.filter((m) => m.id !== id))
             setSelectedMessage((prev) => (prev?.id === id ? next : prev))
             setMessageToDelete(null)
+            recordMove('delete', result.newId, messageToDelete.folderId, '')
             await refreshBadges()
         } catch (e) {
             setError(String(e))
         } finally {
             setDeletingMessage(false)
         }
-    }, [messageToDelete, searchActive, searchResults, displayMessages, refreshBadges])
+    }, [messageToDelete, searchActive, searchResults, displayMessages, recordMove, refreshBadges])
 
     // deletePermanent is the confirmed, irreversible delete behind Shift+Delete: it removes the message
     // from the server without moving it to Trash, then advances the selection.
@@ -151,10 +166,11 @@ export function useMessageActions(deps: MessageActionsDeps): MessageActions {
             setMessages((prev) => prev.map(apply))
             setSearchResults((prev) => prev.map(apply))
             setSelectedMessage((prev) => (prev && prev.id === message.id ? {...prev, flagged: next} : prev))
+            undo.push({kind: 'flag', items: [{messageId: message.id, before: message.flagged}], after: next})
         } catch (e) {
             setError(String(e))
         }
-    }, [])
+    }, [undo])
 
     // markReplied records a sent reply on its original message: the \Answered flag on the server (and the
     // local cache) through the backend, then the answered field in place across every list so the replied
@@ -182,25 +198,20 @@ export function useMessageActions(deps: MessageActionsDeps): MessageActions {
         }
     }, [applyToAllLists])
 
-    // moveMessageById moves a message to a folder by id. It backs moveMessage; a same-folder drop is a
-    // no-op on the server. Moving an unread message changes both folders' unread counts, so the badges
-    // are refreshed.
-    const moveMessageById = useCallback(async (messageId: string, destFolderId: string) => {
+    // moveMessage relocates a message to a folder; a same-folder drop is a no-op on the server.
+    // Moving an unread message changes both folders' unread counts, so the badges are refreshed.
+    const moveMessage = useCallback(async (message: Message, destFolderId: string) => {
         setError('')
         try {
-            await api.moveMessage(messageId, destFolderId)
-            removeFromAllLists(new Set([messageId]))
+            const result = await api.moveMessage(message.id, destFolderId)
+            removeFromAllLists(new Set([message.id]))
+            recordMove('move', result.newId, message.folderId, destFolderId)
             await syncDestination(destFolderId)
             await refreshBadges()
         } catch (e) {
             setError(String(e))
         }
-    }, [removeFromAllLists, syncDestination, refreshBadges])
-
-    const moveMessage = useCallback(
-        (message: Message, destFolderId: string) => moveMessageById(message.id, destFolderId),
-        [moveMessageById],
-    )
+    }, [removeFromAllLists, recordMove, syncDestination, refreshBadges])
 
     // markJunk files a message into the account's Junk folder and removes it from the current view,
     // advancing the selection and refreshing the unread counts as a move out of the inbox does.
@@ -210,12 +221,13 @@ export function useMessageActions(deps: MessageActionsDeps): MessageActions {
         const next = neighbourAfterRemoval(list, id)
         setError('')
         try {
-            await api.markJunk(id)
+            const result = await api.markJunk(id)
             setMessages((prev) => prev.filter((m) => m.id !== id))
             setSearchResults((prev) => prev.filter((m) => m.id !== id))
             setTabs((prev) => prev.filter((m) => m.id !== id))
             setSelectedMessage((prev) => (prev?.id === id ? next : prev))
             const dest = destinationByKind(message, 'junk')
+            recordMove('junk', result.newId, message.folderId, dest)
             if (dest !== '') {
                 await syncDestination(dest)
             }
@@ -223,7 +235,7 @@ export function useMessageActions(deps: MessageActionsDeps): MessageActions {
         } catch (e) {
             setError(String(e))
         }
-    }, [searchActive, searchResults, displayMessages, destinationByKind, syncDestination, refreshBadges])
+    }, [searchActive, searchResults, displayMessages, destinationByKind, recordMove, syncDestination, refreshBadges])
 
     // markNotJunk rescues a wrongly junked message back to the account's inbox: the row leaves the
     // Junk view at once and the inbox re-lists it on the next sync, the same shape as markJunk in
@@ -234,12 +246,13 @@ export function useMessageActions(deps: MessageActionsDeps): MessageActions {
         const next = neighbourAfterRemoval(list, id)
         setError('')
         try {
-            await api.markNotJunk(id)
+            const result = await api.markNotJunk(id)
             setMessages((prev) => prev.filter((m) => m.id !== id))
             setSearchResults((prev) => prev.filter((m) => m.id !== id))
             setTabs((prev) => prev.filter((m) => m.id !== id))
             setSelectedMessage((prev) => (prev?.id === id ? next : prev))
             const dest = destinationByKind(message, 'inbox')
+            recordMove('notJunk', result.newId, message.folderId, dest)
             if (dest !== '') {
                 await syncDestination(dest)
             }
@@ -247,7 +260,7 @@ export function useMessageActions(deps: MessageActionsDeps): MessageActions {
         } catch (e) {
             setError(String(e))
         }
-    }, [searchActive, searchResults, displayMessages, destinationByKind, syncDestination, refreshBadges])
+    }, [searchActive, searchResults, displayMessages, destinationByKind, recordMove, syncDestination, refreshBadges])
 
     // Copy leaves the original in place; the duplicate appears in the destination folder on next sync, so
     // there is no local list change to make here.
@@ -262,16 +275,21 @@ export function useMessageActions(deps: MessageActionsDeps): MessageActions {
 
     // setReadState sets a message's read flag on the server and optimistically in the on-screen lists, so
     // it bolds or un-bolds at once, then refreshes the account and folder badges. Used by the Mark
-    // submenu (explicit read/unread) and on view.
-    const setReadState = useCallback(async (message: Message, read: boolean) => {
+    // submenu (explicit read/unread) and on view. Only a deliberate change is recorded for undo:
+    // record is false for the automatic mark-read-on-view, which would otherwise bury the entry the
+    // user actually wants to unwind under one per opened message.
+    const setReadState = useCallback(async (message: Message, read: boolean, record = true) => {
         applyToAllLists((m) => (m.id === message.id ? {...m, read} : m))
         try {
             await api.markRead(message.id, read)
+            if (record && message.read !== read) {
+                undo.push({kind: 'read', items: [{messageId: message.id, before: message.read}], after: read})
+            }
             await refreshBadges()
         } catch (e) {
             setError(String(e))
         }
-    }, [applyToAllLists, refreshBadges])
+    }, [applyToAllLists, undo, refreshBadges])
 
     // toggleRead flips a message's read flag by delegating to setReadState, which updates the flag in place
     // across every list (the open reader included) and refreshes the unread counts. It does not reload the
@@ -280,10 +298,11 @@ export function useMessageActions(deps: MessageActionsDeps): MessageActions {
         await setReadState(message, !message.read)
     }, [setReadState])
 
-    // markReadOnView marks a message read when it is displayed, unless it already is.
+    // markReadOnView marks a message read when it is displayed, unless it already is. Automatic,
+    // so it is not recorded for undo.
     const markReadOnView = useCallback((message: Message) => {
         if (!message.read) {
-            void setReadState(message, true)
+            void setReadState(message, true, false)
         }
     }, [setReadState])
 

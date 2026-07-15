@@ -1,12 +1,15 @@
 import {Dispatch, SetStateAction, useCallback, useState} from 'react'
 import {api, Folder, Message} from '../api'
 import {OUTBOX_FOLDER_ID, isOutboxMessage} from '../outbox'
+import type {MoveItem} from '../undoStack'
 import type {MessageStore} from './useMessageStore'
 import type {Selection} from './useSelection'
+import type {UndoRecorder} from './useUndoRedo'
 
 // BulkActionsDeps is what the multi-selection actions need from the rest of App: the message store they
 // mutate, the selection they read and clear, the folder list (a drop target's account gates which rows
-// may move onto it), the unread-count refresher, the folder-list refresher and the error sink.
+// may move onto it), the unread-count refresher, the folder-list refresher, the error sink and the
+// undo recorder each completed bulk action reports to.
 export interface BulkActionsDeps {
     store: MessageStore
     selection: Selection
@@ -14,6 +17,7 @@ export interface BulkActionsDeps {
     loadUnread: () => Promise<void>
     refreshFolders: () => Promise<void>
     setError: (message: string) => void
+    undo: UndoRecorder
 }
 
 export interface BulkActions {
@@ -35,7 +39,7 @@ export interface BulkActions {
 // change goes through the message store, so it shows wherever a message appears, and the selection is
 // cleared after a delete or move. The single-message actions live in useMessageActions.
 export function useBulkActions(deps: BulkActionsDeps): BulkActions {
-    const {store, selection, folders, loadUnread, refreshFolders, setError} = deps
+    const {store, selection, folders, loadUnread, refreshFolders, setError, undo} = deps
     const {
         messages, searchResults, setMessages, setSearchResults, setSelectedMessage,
         applyToAllLists, removeFromAllLists,
@@ -56,6 +60,34 @@ export function useBulkActions(deps: BulkActionsDeps): BulkActions {
         setAnchorId(null)
     }, [removeFromAllLists])
 
+    // sourceFolderOf resolves the folder a message sits in before a bulk action, from whichever
+    // on-screen list carries it, so the undo entry knows where to return it.
+    const sourceFolderOf = useCallback((id: string): string => {
+        const source = messages.find((m) => m.id === id) ?? searchResults.find((m) => m.id === id)
+        return source?.folderId ?? ''
+    }, [messages, searchResults])
+
+    // recordBulkMove records a completed bulk move or bulk delete for Edit > Undo: one entry for
+    // the whole batch, holding each message's new id (where the server reported one) and the folder
+    // it came from. Messages the server did not locate are left out, so undo only promises what it
+    // can deliver; when none were located nothing is recorded.
+    const recordBulkMove = useCallback((
+        flavour: 'move' | 'delete', actedIds: string[], newIds: Record<string, string>,
+        sources: Map<string, string>, destFolderId: string,
+    ) => {
+        const items: MoveItem[] = []
+        for (const id of actedIds) {
+            const newId = newIds?.[id] ?? ''
+            const sourceFolderId = sources.get(id) ?? ''
+            if (newId !== '' && sourceFolderId !== '') {
+                items.push({messageId: newId, sourceFolderId})
+            }
+        }
+        if (items.length > 0) {
+            undo.push({kind: 'move', flavour, items, destFolderId})
+        }
+    }, [undo])
+
     // bulkMoveIds moves several messages into a folder in ONE batched backend call (grouped by source
     // folder on the server), rather than a request per message, so a large Gmail selection stays under
     // its simultaneous-connection cap. Shared by drag-and-drop and the bulk "Move to" menu.
@@ -64,9 +96,12 @@ export function useBulkActions(deps: BulkActionsDeps): BulkActions {
             return
         }
         setError('')
+        // The source folders are read before the move: afterwards the rows are gone from the lists.
+        const sources = new Map(ids.map((id) => [id, sourceFolderOf(id)]))
         try {
             const result = await api.moveMessages(ids, destFolderId)
             removeIdsFromLists(new Set(result.ids))
+            recordBulkMove('move', result.ids, result.newIds, sources, destFolderId)
             if (result.error) {
                 setError(`${result.failed} of ${ids.length} messages could not be moved: ${result.error}`)
             }
@@ -85,7 +120,7 @@ export function useBulkActions(deps: BulkActionsDeps): BulkActions {
         }
         await loadUnread()
         await refreshFolders()
-    }, [removeIdsFromLists, loadUnread, refreshFolders])
+    }, [removeIdsFromLists, sourceFolderOf, recordBulkMove, loadUnread, refreshFolders])
 
     // dropMessageOnFolder is the drag-and-drop target handler. Dropping a row that is part of the
     // multi-selection moves the whole selection; dropping any other row moves just that one. Messages
@@ -120,11 +155,15 @@ export function useBulkActions(deps: BulkActionsDeps): BulkActions {
         setBusy(true)
         setError('')
         const ids = targets.map((m) => m.id)
+        const sources = new Map(targets.map((m) => [m.id, m.folderId]))
         try {
             const result = permanent
                 ? await api.deleteMessagesPermanent(ids)
                 : await api.deleteMessages(ids)
             removeIdsFromLists(new Set(result.ids))
+            if (!permanent) {
+                recordBulkMove('delete', result.ids, result.newIds, sources, '')
+            }
             if (result.error) {
                 setError(`${result.failed} of ${targets.length} messages could not be deleted: ${result.error}`)
             }
@@ -140,7 +179,7 @@ export function useBulkActions(deps: BulkActionsDeps): BulkActions {
         }
         await loadUnread()
         await refreshFolders()
-    }, [removeIdsFromLists, loadUnread, refreshFolders])
+    }, [removeIdsFromLists, recordBulkMove, loadUnread, refreshFolders])
 
     // bulkSetRead sets the read flag on every selected message, updating the lists at once and then
     // persisting each. bulkSetFlag does the same for the star. Both take an explicit value rather than
@@ -156,6 +195,13 @@ export function useBulkActions(deps: BulkActionsDeps): BulkActions {
                 failed += 1
             }
         }
+        // One undo entry for the whole batch, remembering each message's prior value so a mixed
+        // selection is restored message by message. Rows already at the target value have nothing
+        // to restore and are left out.
+        const changed = targets.filter((t) => t.read !== read)
+        if (changed.length > 0) {
+            undo.push({kind: 'read', items: changed.map((t) => ({messageId: t.id, before: t.read})), after: read})
+        }
         try {
             await loadUnread()
         } catch {
@@ -164,7 +210,7 @@ export function useBulkActions(deps: BulkActionsDeps): BulkActions {
         if (failed > 0) {
             setError(`${failed} of ${targets.length} messages could not be updated on the server.`)
         }
-    }, [loadUnread])
+    }, [undo, loadUnread])
 
     const bulkSetFlag = useCallback(async (targets: Message[], flagged: boolean) => {
         const ids = new Set(targets.map((t) => t.id))
@@ -180,10 +226,15 @@ export function useBulkActions(deps: BulkActionsDeps): BulkActions {
                 failed += 1
             }
         }
+        // Mirror bulkSetRead: one entry restoring each message's prior star.
+        const changed = targets.filter((t) => t.flagged !== flagged)
+        if (changed.length > 0) {
+            undo.push({kind: 'flag', items: changed.map((t) => ({messageId: t.id, before: t.flagged})), after: flagged})
+        }
         if (failed > 0) {
             setError(`${failed} of ${targets.length} messages could not be updated on the server.`)
         }
-    }, [])
+    }, [undo])
 
     // bulkMove moves every selected message into the destination folder in one batched call, skipping any
     // already there and any synthetic outbox item.

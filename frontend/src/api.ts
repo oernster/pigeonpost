@@ -108,6 +108,7 @@ import {
     UpdateAccountProfile,
     Version,
 } from '../wailsjs/go/main/App'
+import {ClipboardGetText} from '../wailsjs/runtime'
 import {main} from '../wailsjs/go/models'
 import {isUnifiedFolder} from './unified'
 import {isSnoozedFolder} from './snooze'
@@ -159,6 +160,10 @@ export type Attachment = main.AttachmentDTO
 export type OutboxItem = main.OutboxItemDTO
 export type UnreadCountsResult = main.UnreadCountsDTO
 export type BulkResult = main.BulkResultDTO
+// MoveResult reports where a move-shaped action (move, delete to Trash, junk, rescue) put the
+// message: the id it will carry in its destination folder, or empty when the server did not say.
+// Undo entries are built from it.
+export type MoveResult = main.MoveResultDTO
 export type Contact = main.ContactDTO
 export type ContactGroup = main.ContactGroupDTO
 
@@ -457,7 +462,7 @@ export const api = {
     // them after a successful reply / forward.
     markReplied: (messageId: string): Promise<void> => MarkReplied(messageId),
     markForwarded: (messageId: string): Promise<void> => MarkForwarded(messageId),
-    deleteMessage: (messageId: string): Promise<void> => DeleteMessage(messageId),
+    deleteMessage: (messageId: string): Promise<MoveResult> => DeleteMessage(messageId),
     deleteMessagePermanent: (messageId: string): Promise<void> => DeleteMessagePermanent(messageId),
     // deleteMessages / deleteMessagesPermanent / moveMessages act on the whole selection in one batched
     // backend call (grouped by folder, one server connection per folder) rather than a round trip per
@@ -474,9 +479,9 @@ export const api = {
     // for .eml files (Windows does not let an app claim the default silently).
     showDefaultAppSettings: (): Promise<void> => ShowDefaultAppSettings(),
     saveAllAttachments: (messageId: string): Promise<void> => SaveAllAttachments(messageId),
-    moveMessage: (messageId: string, destFolderId: string): Promise<void> => MoveMessage(messageId, destFolderId),
-    markJunk: (messageId: string): Promise<void> => MarkJunk(messageId),
-    markNotJunk: (messageId: string): Promise<void> => MarkNotJunk(messageId),
+    moveMessage: (messageId: string, destFolderId: string): Promise<MoveResult> => MoveMessage(messageId, destFolderId),
+    markJunk: (messageId: string): Promise<MoveResult> => MarkJunk(messageId),
+    markNotJunk: (messageId: string): Promise<MoveResult> => MarkNotJunk(messageId),
     copyMessage: (messageId: string, destFolderId: string): Promise<void> => CopyMessage(messageId, destFolderId),
     createFolder: (accountId: string, name: string): Promise<void> => CreateFolder(accountId, name),
     renameFolder: (folderId: string, newName: string): Promise<void> => RenameFolder(folderId, newName),
@@ -556,4 +561,8 @@ export const api = {
         AddCalDAVAccount(displayName, baseUrl, username, password),
     removeCalDAVAccount: (id: string): Promise<void> => RemoveCalDAVAccount(id),
     syncCalDAV: (id: string): Promise<void> => SyncCalDAV(id),
+    // clipboardText reads the system clipboard through the Wails runtime for Edit > Paste, which
+    // the webview cannot do itself (execCommand('paste') is blocked and navigator.clipboard.readText
+    // may prompt). An empty clipboard reads as an empty string.
+    clipboardText: (): Promise<string> => ClipboardGetText(),
 }

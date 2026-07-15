@@ -6,6 +6,7 @@ import {TAG_PALETTE, colourTagId} from '../tagColours'
 import {matchesShortcut} from '../shortcuts'
 import {snoozeChoices} from '../schedule'
 import {isJunkFolderMessage} from '../folderPaths'
+import {EditContext, canCopy, canCut, canPaste, isTextEntry} from '../editClipboard'
 
 // undoSendChoices are the offered undo-send windows in seconds; 0 turns the hold off and sends
 // immediately. defaultUndoSendSeconds is the out-of-the-box window.
@@ -42,7 +43,18 @@ export interface MenusDeps {
     // File menu.
     saveMessageAs: (message: Message) => Promise<void>
     printMessage: (message: Message) => Promise<void>
-    // Edit menu.
+    // Edit menu. undoText / redoText name the top history entry ("Undo delete") or are null when
+    // there is nothing to unwind; editContext gates the clipboard items live.
+    undoText: string | null
+    redoText: string | null
+    undoAction: () => Promise<void>
+    redoAction: () => Promise<void>
+    editContext: EditContext
+    cut: () => void
+    copy: () => void
+    paste: () => void
+    selectAll: () => void
+    canSelectAll: boolean
     setManagingRules: Dispatch<SetStateAction<boolean>>
     setManagingTemplates: Dispatch<SetStateAction<boolean>>
     focusSearch: () => void
@@ -100,7 +112,9 @@ export function useMenus(deps: MenusDeps): Menus {
         activeMessage, activeOutbox, canMailAct, canReplyAll, canMoveCopy, selectedAccount, accountSyncing,
         isWindows, conversationView, previewEnabled, autoLoadImages, unifiedMailbox, undoSendSeconds, setUndoSendSeconds,
         folders, messageTags,
-        saveMessageAs, printMessage, setManagingRules, setManagingTemplates, focusSearch,
+        saveMessageAs, printMessage,
+        undoText, redoText, undoAction, redoAction, editContext, cut, copy, paste, selectAll, canSelectAll,
+        setManagingRules, setManagingTemplates, focusSearch,
         toggleConversationView, togglePreview, toggleAutoLoadImages, toggleUnifiedMailbox,
         signatureHtml, setComposeInitial, setComposing, setSettingUp, sync, openInNewTab,
         openReply, openReplyAll, openForward, attachToNewMessage, setReadState, toggleFlag, toggleTag,
@@ -116,14 +130,21 @@ export function useMenus(deps: MenusDeps): Menus {
     // Menu accelerators (Compose, Sync, the reading pane and any others defined on the menus) fire from
     // anywhere in the main window, driven by the same item definitions the menus render so an item's hint
     // and its wired key never drift. They are suppressed while a dialog or the context menu is open, so a
-    // shortcut never acts behind one. A disabled item (Compose with no account selected, say) is skipped.
+    // shortcut never acts behind one. A disabled item (Compose with no account selected, say) is skipped,
+    // as is a hintOnly item (its key is owned natively or by the list keyboard handler) and a skipInText
+    // item while a text field has focus (Ctrl+Z there is the field's own undo).
     useEffect(() => {
         const onKey = (e: KeyboardEvent) => {
             if (document.querySelector('.modal, .context-menu') !== null) {
                 return
             }
+            const inText = isTextEntry(e.target as Element | null)
             for (const item of menuShortcutsRef.current) {
-                if (item.shortcut && !item.disabled && item.onClick && matchesShortcut(e, item.shortcut)) {
+                if (item.hintOnly || item.disabled || !item.onClick || (item.skipInText && inText)) {
+                    continue
+                }
+                const shortcuts = [item.shortcut, ...(item.altShortcuts ?? [])]
+                if (shortcuts.some((s) => s !== undefined && matchesShortcut(e, s))) {
                     e.preventDefault()
                     item.onClick()
                     return
@@ -148,7 +169,48 @@ export function useMenus(deps: MenusDeps): Menus {
             onClick: () => activeMessage && void printMessage(activeMessage),
         },
     ]
+    // The Edit menu follows Thunderbird's 3-pane layout: undo/redo over the mail actions, then the
+    // clipboard group with Delete as its message-level member, then selection, then the app's own
+    // tail (Search in the slot TB gives Find). Undo and Redo yield to a focused text field, where
+    // the same keys are the field's native text undo; the clipboard and Delete hints are display
+    // only because their keys are owned natively or by the list keyboard handler.
     const editMenu: MenuItem[] = [
+        {
+            label: undoText ?? 'Undo',
+            shortcut: 'Ctrl+Z',
+            skipInText: true,
+            disabled: undoText === null,
+            onClick: () => void undoAction(),
+        },
+        {
+            label: redoText ?? 'Redo',
+            shortcut: isWindows ? 'Ctrl+Y' : 'Ctrl+Shift+Z',
+            altShortcuts: ['Ctrl+Y', 'Ctrl+Shift+Z'],
+            skipInText: true,
+            disabled: redoText === null,
+            onClick: () => void redoAction(),
+        },
+        {label: '', separator: true},
+        {label: 'Cut', shortcut: 'Ctrl+X', hintOnly: true, disabled: !canCut(editContext), onClick: cut},
+        {label: 'Copy', shortcut: 'Ctrl+C', hintOnly: true, disabled: !canCopy(editContext), onClick: copy},
+        {label: 'Paste', shortcut: 'Ctrl+V', hintOnly: true, disabled: !canPaste(editContext), onClick: paste},
+        {
+            label: 'Delete',
+            shortcut: 'Del',
+            hintOnly: true,
+            disabled: !canMailAct,
+            onClick: () => activeMessage && requestDelete(activeMessage),
+        },
+        {
+            label: 'Delete permanently',
+            shortcut: 'Shift+Del',
+            hintOnly: true,
+            disabled: !canMailAct,
+            onClick: () => activeMessage && setMessageToPurge(activeMessage),
+        },
+        {label: '', separator: true},
+        {label: 'Select all', shortcut: 'Ctrl+A', hintOnly: true, disabled: !canSelectAll, onClick: selectAll},
+        {label: '', separator: true},
         {
             label: 'Search',
             icon: '\u{1F50D}',
@@ -316,12 +378,6 @@ export function useMenus(deps: MenusDeps): Menus {
             label: 'Cancel send',
             disabled: !activeOutbox,
             onClick: () => activeMessage && setMessageToCancelSend(activeMessage),
-        },
-        {label: 'Delete', disabled: !canMailAct, onClick: () => activeMessage && requestDelete(activeMessage)},
-        {
-            label: 'Delete permanently',
-            disabled: !canMailAct,
-            onClick: () => activeMessage && setMessageToPurge(activeMessage),
         },
     ]
     const helpMenu: MenuItem[] = [

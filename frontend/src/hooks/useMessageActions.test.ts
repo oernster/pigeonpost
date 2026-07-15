@@ -12,6 +12,7 @@ const apiSpies = vi.hoisted(() => ({
     markReplied: vi.fn(),
     markForwarded: vi.fn(),
     markRead: vi.fn(),
+    markFlagged: vi.fn(),
 }))
 
 vi.mock('../api', () => ({
@@ -19,6 +20,7 @@ vi.mock('../api', () => ({
         markReplied: apiSpies.markReplied,
         markForwarded: apiSpies.markForwarded,
         markRead: apiSpies.markRead,
+        markFlagged: apiSpies.markFlagged,
     },
 }))
 
@@ -41,6 +43,13 @@ const badgeSpies = {
     refreshFolders: vi.fn<() => Promise<void>>(),
 }
 
+// undoSpies stands in for the undo recorder, so a test can assert which actions were recorded
+// for Edit > Undo (and that automatic ones were not).
+const undoSpies = {
+    push: vi.fn(),
+    registerTagExecutor: vi.fn(),
+}
+
 function harness() {
     return renderHook(() => {
         const store = useMessageStore()
@@ -52,6 +61,7 @@ function harness() {
             loadUnread: badgeSpies.loadUnread,
             refreshFolders: badgeSpies.refreshFolders,
             setError: () => {},
+            undo: undoSpies,
         })
         return {store, actions}
     })
@@ -61,8 +71,11 @@ beforeEach(() => {
     apiSpies.markReplied.mockReset().mockResolvedValue(undefined)
     apiSpies.markForwarded.mockReset().mockResolvedValue(undefined)
     apiSpies.markRead.mockReset().mockResolvedValue(undefined)
+    apiSpies.markFlagged.mockReset().mockResolvedValue(undefined)
     badgeSpies.loadUnread.mockReset().mockResolvedValue(undefined)
     badgeSpies.refreshFolders.mockReset().mockResolvedValue(undefined)
+    undoSpies.push.mockReset()
+    undoSpies.registerTagExecutor.mockReset()
 })
 afterEach(() => cleanup())
 
@@ -137,5 +150,68 @@ describe('useMessageActions: unread badges', () => {
         })
         expect(badgeSpies.refreshFolders).not.toHaveBeenCalled()
         expect(badgeSpies.loadUnread).not.toHaveBeenCalled()
+    })
+})
+
+describe('useMessageActions: undo recording', () => {
+    it('records a deliberate read change with the prior value', async () => {
+        const {result} = harness()
+        act(() => {
+            result.current.store.setMessages([makeMessage({id: 'a', read: false})])
+        })
+        await act(async () => {
+            await result.current.actions.setReadState(result.current.store.messages[0], true)
+        })
+        expect(undoSpies.push).toHaveBeenCalledWith({
+            kind: 'read', items: [{messageId: 'a', before: false}], after: true,
+        })
+    })
+
+    it('does not record marking a message that is already in the target state', async () => {
+        const {result} = harness()
+        act(() => {
+            result.current.store.setMessages([makeMessage({id: 'a', read: true})])
+        })
+        await act(async () => {
+            await result.current.actions.setReadState(result.current.store.messages[0], true)
+        })
+        expect(undoSpies.push).not.toHaveBeenCalled()
+    })
+
+    it('does not record the automatic mark-read-on-view', async () => {
+        const {result} = harness()
+        act(() => {
+            result.current.store.setMessages([makeMessage({id: 'a', read: false})])
+        })
+        await act(async () => {
+            result.current.actions.markReadOnView(result.current.store.messages[0])
+        })
+        expect(apiSpies.markRead).toHaveBeenCalledWith('a', true)
+        expect(undoSpies.push).not.toHaveBeenCalled()
+    })
+
+    it('records a star toggle with the prior value', async () => {
+        const {result} = harness()
+        act(() => {
+            result.current.store.setMessages([makeMessage({id: 'a', flagged: false})])
+        })
+        await act(async () => {
+            await result.current.actions.toggleFlag(result.current.store.messages[0])
+        })
+        expect(undoSpies.push).toHaveBeenCalledWith({
+            kind: 'flag', items: [{messageId: 'a', before: false}], after: true,
+        })
+    })
+
+    it('does not record a star toggle the server rejected', async () => {
+        apiSpies.markFlagged.mockRejectedValueOnce('offline')
+        const {result} = harness()
+        act(() => {
+            result.current.store.setMessages([makeMessage({id: 'a', flagged: false})])
+        })
+        await act(async () => {
+            await result.current.actions.toggleFlag(result.current.store.messages[0])
+        })
+        expect(undoSpies.push).not.toHaveBeenCalled()
     })
 })

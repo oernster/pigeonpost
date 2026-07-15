@@ -54,6 +54,9 @@ import {defaultUndoSendSeconds, undoSendChoices, useMenus} from './hooks/useMenu
 import {useMessageListKeyboard} from './hooks/useMessageListKeyboard'
 import {useFolderPagination} from './hooks/useFolderPagination'
 import {useSnooze} from './hooks/useSnooze'
+import {useUndoRedo} from './hooks/useUndoRedo'
+import {useEditContext} from './hooks/useEditContext'
+import {copySelection, cutSelection, pasteText} from './editClipboard'
 import {ScheduleDialog} from './components/ScheduleDialog'
 
 function App() {
@@ -105,9 +108,6 @@ function App() {
     const [theme, setTheme] = useState<Theme>(loadTheme())
     const [about, setAbout] = useState<AboutInfo | null>(null)
     const [licence, setLicence] = useState<string | null>(null)
-    // The colour-tag palette, the selected message's tags, and the tag-toggle handlers (on the open message
-    // and on any message via the context menu) live in useTags.
-    const {tags, messageTags, toggleTag, setMessageTagById} = useTags({store, setError})
     const [rules, setRules] = useState<Rule[]>([])
     const [managingRules, setManagingRules] = useState<boolean>(false)
     const [templates, setTemplates] = useState<Template[]>([])
@@ -324,6 +324,14 @@ function App() {
         void loadUnread()
     }, [loadUnread])
 
+    // The Edit-menu undo and redo stacks live in useUndoRedo; every action hook below records its
+    // completed actions through undoRedo.recorder.
+    const undoRedo = useUndoRedo({store, loadUnread, refreshFolders, setError})
+
+    // The colour-tag palette, the selected message's tags, and the tag-toggle handlers (on the open message
+    // and on any message via the context menu) live in useTags.
+    const {tags, messageTags, toggleTag, setMessageTagById} = useTags({store, setError, undo: undoRedo.recorder})
+
     // The snooze actions (hide until a moment, bring back, the custom picker) and the Snoozed entry's
     // count live in useSnooze. Snooze is local-only state: the backend hides the message from the
     // visible listings until it comes due.
@@ -338,7 +346,10 @@ function App() {
         messageToPurge, setMessageToPurge, purgingMessage,
         requestDelete, deleteMessage, deletePermanent, toggleFlag, moveMessage, markJunk, markNotJunk, copyMessage,
         setReadState, toggleRead, markReadOnView, markReplied, markForwarded,
-    } = useMessageActions({store, displayMessages, searchActive, folders, loadUnread, refreshFolders, setError})
+    } = useMessageActions({
+        store, displayMessages, searchActive, folders, loadUnread, refreshFolders, setError,
+        undo: undoRedo.recorder,
+    })
 
     // undoToast is the live undo-send window: the queued item to cancel, when the window ends and the
     // compose state to restore on undo. One send at a time: a new held send replaces the toast (the
@@ -872,7 +883,7 @@ function App() {
         bulkToDelete, setBulkToDelete, bulkDeleting,
         bulkToPurge, setBulkToPurge, bulkPurging,
         runBulkDelete, bulkSetRead, bulkSetFlag, bulkMove, dropMessageOnFolder,
-    } = useBulkActions({store, selection, folders, loadUnread, refreshFolders, setError})
+    } = useBulkActions({store, selection, folders, loadUnread, refreshFolders, setError, undo: undoRedo.recorder})
 
     // A message shown in the reader (the preview pane, or the full-width reader when the pane is off)
     // counts as read, so viewing or double-clicking a message un-bolds it. Auto-read fires once per
@@ -942,6 +953,26 @@ function App() {
     const menuSelection = contextMenu
         ? (markedIds.size > 1 && markedIds.has(contextMenu.message.id) ? selectedMessages : [contextMenu.message])
         : []
+
+    // Edit > Select all marks every row in the current view, the same gesture as Ctrl+A on the list.
+    const selectAll = useCallback(() => {
+        if (visibleList.length === 0) {
+            return
+        }
+        setMarkedIds(new Set(visibleList.map((m) => m.id)))
+        setAnchorId(visibleList[0].id)
+    }, [visibleList])
+
+    // Edit > Cut / Copy / Paste act on the main window's text surfaces; editContext gates them live.
+    // The menus never steal focus from a text field, so the selection these run against survives the
+    // click. Paste reads the clipboard through the Wails runtime, best-effort: an unreadable
+    // clipboard pastes nothing.
+    const editContext = useEditContext()
+    const cut = useCallback(() => cutSelection(document), [])
+    const copy = useCallback(() => copySelection(document), [])
+    const paste = useCallback(() => {
+        api.clipboardText().then((text) => pasteText(document, text)).catch(() => {})
+    }, [])
 
     // The message list and reader are extracted so the reading-pane layout can place them side by side
     // (pane on) or swap between them (pane off: list, or the full-width reader when a message is opened).
@@ -1034,7 +1065,11 @@ function App() {
         activeMessage, activeOutbox, canMailAct, canReplyAll, canMoveCopy, selectedAccount, accountSyncing,
         isWindows, conversationView, previewEnabled, autoLoadImages, unifiedMailbox, undoSendSeconds, setUndoSendSeconds,
         folders, messageTags,
-        saveMessageAs, printMessage, setManagingRules, setManagingTemplates, focusSearch,
+        saveMessageAs, printMessage,
+        undoText: undoRedo.undoText, redoText: undoRedo.redoText,
+        undoAction: undoRedo.undo, redoAction: undoRedo.redo,
+        editContext, cut, copy, paste, selectAll, canSelectAll: visibleList.length > 0,
+        setManagingRules, setManagingTemplates, focusSearch,
         toggleConversationView, togglePreview, toggleAutoLoadImages, toggleUnifiedMailbox,
         signatureHtml, setComposeInitial, setComposing, setSettingUp, sync, openInNewTab,
         openReply, openReplyAll, openForward, attachToNewMessage, setReadState, toggleFlag, toggleTag,

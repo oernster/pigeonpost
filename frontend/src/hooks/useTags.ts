@@ -2,12 +2,16 @@ import {useCallback, useEffect, useState} from 'react'
 import {Message, Tag, api} from '../api'
 import {TAG_PALETTE, colourTagId} from '../tagColours'
 import type {MessageStore} from './useMessageStore'
+import type {UndoRecorder} from './useUndoRedo'
 
 // TagsDeps is what tagging needs from the rest of App: the message store (a tag colour change updates the
-// message wherever it appears, and the selected message drives which chips are shown) and the error sink.
+// message wherever it appears, and the selected message drives which chips are shown), the error sink and
+// the undo recorder tag toggles report to (this hook also registers the executor an undo runs through,
+// since it owns the colour mapping the optimistic dot update needs).
 export interface TagsDeps {
     store: MessageStore
     setError: (message: string) => void
+    undo: UndoRecorder
 }
 
 export interface Tags {
@@ -24,7 +28,7 @@ export interface Tags {
 // updates the on-screen chips and the coloured dots on every list at once. The palette is seeded once on
 // mount so a colour can always be applied.
 export function useTags(deps: TagsDeps): Tags {
-    const {store, setError} = deps
+    const {store, setError, undo} = deps
     const {selectedMessage, setMessages, setSearchResults, setTabs} = store
 
     const [tags, setTags] = useState<Tag[]>([])
@@ -95,32 +99,45 @@ export function useTags(deps: TagsDeps): Tags {
         setTabs((prev) => prev.map(apply))
     }, [tags])
 
+    // applyTag persists and displays one tag change without recording it: the shared core of the
+    // recording toggles below and the executor Edit > Undo / Redo runs through (an undo must not
+    // record itself, or unwinding one tag would loop forever).
+    const applyTag = useCallback(async (messageId: string, tagId: string, assigned: boolean) => {
+        await api.setMessageTag(messageId, tagId, assigned)
+        if (selectedMessage?.id === messageId) {
+            setMessageTags(await api.messageTags(messageId))
+        }
+        applyTagColourToLists(messageId, tagId, assigned)
+    }, [selectedMessage, applyTagColourToLists])
+
+    // The undo hook executes tag entries through applyTag, registered here because this hook owns
+    // the palette the optimistic dot update reads.
+    useEffect(() => {
+        undo.registerTagExecutor(applyTag)
+    }, [undo, applyTag])
+
     const toggleTag = useCallback(async (tagId: string, assigned: boolean) => {
         if (!selectedMessage) {
             return
         }
         try {
-            await api.setMessageTag(selectedMessage.id, tagId, assigned)
-            setMessageTags(await api.messageTags(selectedMessage.id))
-            applyTagColourToLists(selectedMessage.id, tagId, assigned)
+            await applyTag(selectedMessage.id, tagId, assigned)
+            undo.push({kind: 'tag', messageId: selectedMessage.id, tagId, assigned})
         } catch (e) {
             setError(String(e))
         }
-    }, [selectedMessage, applyTagColourToLists])
+    }, [selectedMessage, applyTag, undo])
 
     // setMessageTagById toggles a tag on any message (not only the selected one), used by the context
     // menu. When it targets the open message, its tag chips are refreshed too.
     const setMessageTagById = useCallback(async (messageId: string, tagId: string, assigned: boolean) => {
         try {
-            await api.setMessageTag(messageId, tagId, assigned)
-            if (selectedMessage?.id === messageId) {
-                setMessageTags(await api.messageTags(messageId))
-            }
-            applyTagColourToLists(messageId, tagId, assigned)
+            await applyTag(messageId, tagId, assigned)
+            undo.push({kind: 'tag', messageId, tagId, assigned})
         } catch (e) {
             setError(String(e))
         }
-    }, [selectedMessage, applyTagColourToLists])
+    }, [applyTag, undo])
 
     return {tags, messageTags, toggleTag, setMessageTagById}
 }

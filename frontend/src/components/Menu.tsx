@@ -1,5 +1,6 @@
 import {useEffect, useRef, useState} from 'react'
-import type {KeyboardEvent as ReactKeyboardEvent} from 'react'
+import type {KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent} from 'react'
+import {isTextEntry} from '../editClipboard'
 
 // MenuItem is one entry in a dropdown menu. icon is an optional leading emoji; disabled greys the item
 // out and blocks its action; checked, when defined, renders the item as a toggle that shows a tick when
@@ -14,6 +15,16 @@ export interface MenuItem {
     // shortcut is the accelerator hint shown right-aligned in the item (for example "Ctrl+N" or "F9"). It
     // is display only; the key itself is wired centrally in App so it works whether or not the menu is open.
     shortcut?: string
+    // hintOnly marks the shortcut as display only even for the central wiring: the key is owned elsewhere
+    // (natively by the focused field for Ctrl+X/C/V, by the list keyboard handler for Del and Ctrl+A), so
+    // binding it again would double-fire.
+    hintOnly?: boolean
+    // altShortcuts are extra accelerators that fire the item without being displayed (Redo accepts
+    // Ctrl+Shift+Z alongside the shown hint).
+    altShortcuts?: string[]
+    // skipInText suppresses the accelerator while a text surface has focus, so a key the field handles
+    // natively (Ctrl+Z as text undo) is not hijacked by the menu action.
+    skipInText?: boolean
     // submenu, when present, makes this item a flyout parent: it has no action of its own; opening it
     // reveals these child items to the side.
     submenu?: MenuItem[]
@@ -46,6 +57,15 @@ function directItems(panel: HTMLElement | null): HTMLButtonElement[] {
     ))
 }
 
+// keepTextFocus stops a menu click from stealing focus while a text field holds it, so the selection
+// Cut / Copy / Paste act on survives the click. Anywhere else the native focus move is kept: focusing
+// the trigger is what lets Down step into the items after a mouse open.
+function keepTextFocus(e: ReactMouseEvent): void {
+    if (isTextEntry(document.activeElement)) {
+        e.preventDefault()
+    }
+}
+
 // MenuItemView renders one entry: a divider, a flyout parent (SubMenuItem) or a leaf button.
 function MenuItemView({item, onChoose}: {item: MenuItem; onChoose: (item: MenuItem) => void}) {
     if (item.separator) {
@@ -60,6 +80,7 @@ function MenuItemView({item, onChoose}: {item: MenuItem; onChoose: (item: MenuIt
             role={item.checked === undefined ? 'menuitem' : 'menuitemcheckbox'}
             aria-checked={item.checked}
             disabled={item.disabled}
+            onMouseDown={keepTextFocus}
             onClick={() => onChoose(item)}
         >
             {item.checked !== undefined && (
@@ -153,6 +174,7 @@ function SubMenuItem({item, onChoose}: {item: MenuItem; onChoose: (item: MenuIte
                 aria-haspopup="menu"
                 aria-expanded={open}
                 disabled={item.disabled}
+                onMouseDown={keepTextFocus}
                 onKeyDown={onParentKey}
             >
                 {item.icon !== undefined && (
@@ -286,6 +308,7 @@ export function Menu({title, icon, items, align = 'right'}: MenuProps) {
                 aria-label={title}
                 aria-haspopup="menu"
                 aria-expanded={open}
+                onMouseDown={keepTextFocus}
                 onClick={() => setOpen((v) => !v)}
                 onKeyDown={onTriggerKeyDown}
             >
