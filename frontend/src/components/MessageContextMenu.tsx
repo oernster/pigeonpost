@@ -263,7 +263,8 @@ export function MessageContextMenu(props: MessageContextMenuProps) {
             ) : (
                 <>
                     <button className="context-item" role="menuitem" onClick={act(() => props.onOpenInNewTab(message))}>
-                        Open in new tab
+                        <span className="context-item-label">Open in new tab</span>
+                        <span className="context-item-shortcut" aria-hidden="true">Ctrl+T</span>
                     </button>
                     <div className="context-sep"/>
                     <button className="context-item" role="menuitem" onClick={act(() => props.onReply(message))}>
@@ -282,10 +283,12 @@ export function MessageContextMenu(props: MessageContextMenuProps) {
                     </button>
                     <div className="context-sep"/>
                     <button className="context-item" role="menuitem" onClick={act(() => props.onSaveAs(message))}>
-                        Save as...
+                        <span className="context-item-label">Save as...</span>
+                        <span className="context-item-shortcut" aria-hidden="true">Ctrl+S</span>
                     </button>
                     <button className="context-item" role="menuitem" onClick={act(() => props.onPrint(message))}>
-                        Print...
+                        <span className="context-item-label">Print...</span>
+                        <span className="context-item-shortcut" aria-hidden="true">Ctrl+P</span>
                     </button>
                     <div className="context-sep"/>
                     <SubMenu label="Mark">

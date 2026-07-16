@@ -164,11 +164,13 @@ export function useMenus(deps: MenusDeps): Menus {
     const fileMenu: MenuItem[] = [
         {
             label: 'Save as...',
+            shortcut: 'Ctrl+S',
             disabled: !canMailAct,
             onClick: () => activeMessage && void saveMessageAs(activeMessage),
         },
         {
             label: 'Print...',
+            shortcut: 'Ctrl+P',
             disabled: !canMailAct,
             onClick: () => activeMessage && void printMessage(activeMessage),
         },
@@ -293,7 +295,12 @@ export function useMenus(deps: MenusDeps): Menus {
             }]
             : []),
         {label: '', separator: true},
-        {label: 'Open in new tab', disabled: !canMailAct, onClick: () => activeMessage && openInNewTab(activeMessage)},
+        {
+            label: 'Open in new tab',
+            shortcut: 'Ctrl+T',
+            disabled: !canMailAct,
+            onClick: () => activeMessage && openInNewTab(activeMessage),
+        },
         {label: '', separator: true},
         {
             label: 'Respond',
