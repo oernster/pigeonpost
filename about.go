@@ -1,7 +1,6 @@
 package main
 
 import (
-	"log"
 	"strings"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
@@ -79,18 +78,11 @@ func (a *App) OpenReleasesPage() {
 // sub-delims) that click-tracking links in real email routinely carry. Those links then failed
 // silently, the click apparently doing nothing. The scheme allowlist above is the security boundary
 // here; openExternalURL passes the URL to the OS without a shell, so no metacharacter can execute.
-// The stdlib log lines below are the diagnostic for a silently dead link click: run the app from a
-// terminal and a click either logs here (the frontend chain works, so any failure is in the OS
-// launch) or logs nothing (the click never left the frontend). Wails' own info logging is suppressed
-// in production builds, so stdlib log to stderr is the channel that is always visible.
 func (a *App) OpenExternal(url string) {
 	u := strings.TrimSpace(url)
 	if strings.HasPrefix(u, "http://") || strings.HasPrefix(u, "https://") || strings.HasPrefix(u, "mailto:") {
-		log.Printf("open-external: launching %q", u)
 		a.openExternalURL(u)
-		return
 	}
-	log.Printf("open-external: ignoring URL with unsupported scheme %q", u)
 }
 
 // LicenceText returns the full GPL-3.0 licence text bundled with the application.
