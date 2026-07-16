@@ -21,8 +21,8 @@ APP_SUMMARY="Calm, local-first email, calendar and contacts"
 HOMEPAGE="https://pigeonpost.ink"
 RUNTIME="org.gnome.Platform"
 SDK="org.gnome.Sdk"
-RUNTIME_VERSION="48"
-SDK_EXT_VERSION="24.08"   # the freedesktop base of GNOME 48; extensions pair with it
+RUNTIME_VERSION="50"
+SDK_EXT_VERSION="25.08"   # the freedesktop base of GNOME 50; extensions pair with it
 GOLANG_EXT="org.freedesktop.Sdk.Extension.golang"
 NODE_EXT="org.freedesktop.Sdk.Extension.node22"
 BUILD_DIR=".flatpak-build"
@@ -66,16 +66,19 @@ section "Generating Wails front-end bindings"
 # must exist on the host before flatpak-builder copies the tree. `wails generate module`
 # compiles the Go app to introspect App methods, which triggers the `//go:embed all:frontend/dist`
 # in main.go; seed a placeholder dist so that embed resolves (flatpak rebuilds the real dist).
-if [ ! -d frontend/wailsjs ]; then
-    WAILS_BIN="$(command -v wails || echo "${GOPATH:-$HOME/go}/bin/wails")"
-    if [ ! -x "${WAILS_BIN}" ]; then
-        echo "error: wails CLI not found; install it with: go install github.com/wailsapp/wails/v2/cmd/wails@latest" >&2
-        exit 1
-    fi
-    mkdir -p frontend/dist
-    touch frontend/dist/.gitkeep
-    "${WAILS_BIN}" generate module
+#
+# Regenerate UNCONDITIONALLY every run. Guarding on "directory missing" let stale bindings from a
+# previous build survive across Go API changes, so the sandboxed tsc would fail against out-of-date
+# models (missing DTO types/fields) even though nothing in the checkout changed. Keeping bindings in
+# lockstep with the current Go source is what makes the build reproducible.
+WAILS_BIN="$(command -v wails || echo "${GOPATH:-$HOME/go}/bin/wails")"
+if [ ! -x "${WAILS_BIN}" ]; then
+    echo "error: wails CLI not found; install it with: go install github.com/wailsapp/wails/v2/cmd/wails@latest" >&2
+    exit 1
 fi
+mkdir -p frontend/dist
+touch frontend/dist/.gitkeep
+"${WAILS_BIN}" generate module
 
 section "Writing packaging files"
 mkdir -p "${PACKAGING_DIR}"
@@ -164,6 +167,13 @@ modules:
 ${ICON_INSTALL_CMDS}    sources:
       - type: dir
         path: .
+        skip:
+          - .git
+          - ${BUILD_DIR}
+          - ${REPO_DIR}
+          - .flatpak-builder
+          - ${BUNDLE}
+          - frontend/node_modules
 MANIFEST_EOF
 
 section "Building ${APP_NAME} ${VERSION} with flatpak-builder"
