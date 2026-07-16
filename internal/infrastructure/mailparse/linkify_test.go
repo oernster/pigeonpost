@@ -79,6 +79,77 @@ func TestLinkifyLeavesPlainTextAlone(t *testing.T) {
 	}
 }
 
+func TestLinkifyRendersMarkdownLabelledLinks(t *testing.T) {
+	out := LinkifyHTML("<p>go [Open the thing](https://example.org/very/long/path) now</p>")
+	want := `<a href="https://example.org/very/long/path">Open the thing</a>`
+	if !strings.Contains(out, want) {
+		t.Errorf("missing labelled anchor %q in:\n%s", want, out)
+	}
+	if strings.Contains(out, "[Open the thing]") {
+		t.Errorf("markdown syntax leaked into output:\n%s", out)
+	}
+}
+
+func TestLinkifyMarkdownWWWTargetGetsScheme(t *testing.T) {
+	out := LinkifyHTML("<p>[Site](www.example.org)</p>")
+	want := `<a href="http://www.example.org">Site</a>`
+	if !strings.Contains(out, want) {
+		t.Errorf("missing %q in:\n%s", want, out)
+	}
+}
+
+func TestDisplayLinkifyMarksSoloParagraphLink(t *testing.T) {
+	out := linkifyForDisplay("<p>https://example.org/page</p>")
+	if !strings.Contains(out, `class="pp-solo-link"`) {
+		t.Errorf("solo paragraph link not marked:\n%s", out)
+	}
+}
+
+func TestDisplayLinkifyMarksSoloBRSeparatedLine(t *testing.T) {
+	out := linkifyForDisplay(
+		"<p>hello<br>[Open it](https://example.org/x)<br>bye</p>",
+	)
+	if !strings.Contains(out, `class="pp-solo-link"`) {
+		t.Errorf("solo br-separated link not marked:\n%s", out)
+	}
+}
+
+func TestDisplayLinkifyLeavesInlineLinksUnmarked(t *testing.T) {
+	out := linkifyForDisplay("<p>see https://example.org/page for details</p>")
+	if strings.Contains(out, "pp-solo-link") {
+		t.Errorf("inline link wrongly marked solo:\n%s", out)
+	}
+}
+
+func TestOutgoingLinkifyNeverAddsSoloClass(t *testing.T) {
+	out := LinkifyHTML("<p>https://example.org/page</p>")
+	if strings.Contains(out, "pp-solo-link") {
+		t.Errorf("outgoing linkify added a display class:\n%s", out)
+	}
+}
+
+func TestParsedMessageMarksSoloMarkdownLinkAsButton(t *testing.T) {
+	raw := "From: a@example.com\r\n" +
+		"To: b@example.com\r\n" +
+		"Subject: button\r\n" +
+		"Content-Type: text/html; charset=utf-8\r\n" +
+		"\r\n" +
+		"<p>hi<br>[Open the move](https://example.org/open)<br>bye</p>\r\n"
+	body, err := ParseBody([]byte(raw))
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if !strings.Contains(body.HTML, `href="https://example.org/open"`) {
+		t.Errorf("labelled link lost its target:\n%s", body.HTML)
+	}
+	if !strings.Contains(body.HTML, ">Open the move</a>") {
+		t.Errorf("labelled link lost its label:\n%s", body.HTML)
+	}
+	if !strings.Contains(body.HTML, "pp-solo-link") {
+		t.Errorf("solo link class did not survive sanitising:\n%s", body.HTML)
+	}
+}
+
 func TestParsedMessageLinkifiesBareURLsInHTML(t *testing.T) {
 	raw := "From: a@example.com\r\n" +
 		"To: b@example.com\r\n" +
@@ -92,5 +163,16 @@ func TestParsedMessageLinkifiesBareURLsInHTML(t *testing.T) {
 	}
 	if !strings.Contains(body.HTML, `href="https://example.org/page"`) {
 		t.Errorf("sanitised HTML lost the injected anchor:\n%s", body.HTML)
+	}
+}
+
+func TestDisplayLinkifyMarksExistingSoloAnchor(t *testing.T) {
+	// The two-hop path: an outgoing message already carries a labelled
+	// anchor (no class); the receiving side must still mark it solo.
+	out := linkifyForDisplay(
+		`<p>hi<br><a href="https://example.org/x">Open</a><br>bye</p>`,
+	)
+	if !strings.Contains(out, "pp-solo-link") {
+		t.Errorf("existing solo anchor not marked:\n%s", out)
 	}
 }

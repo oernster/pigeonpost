@@ -48,6 +48,33 @@ describe('LinkifiedText', () => {
         expect(container.textContent).toBe('first https://a.example then https://b.example done')
     })
 
+    it('renders markdown labelled links as their label', () => {
+        render(
+            <LinkifiedText
+                text="go [Open the thing](https://example.org/very/long) now"
+                onOpenLink={() => {}}
+            />,
+        )
+        const link = screen.getByRole('link', {name: 'Open the thing'})
+        expect(link.getAttribute('href')).toBe('https://example.org/very/long')
+    })
+
+    it('marks a link standing alone on its line as a button', () => {
+        render(
+            <LinkifiedText
+                text={'intro\n[Open it](https://example.org/x)\nbye'}
+                onOpenLink={() => {}}
+            />,
+        )
+        const link = screen.getByRole('link', {name: 'Open it'})
+        expect(link.className).toBe('pp-solo-link')
+    })
+
+    it('keeps inline links unstyled as buttons', () => {
+        render(<LinkifiedText text="see https://example.org/page here" onOpenLink={() => {}} />)
+        expect(screen.getByRole('link').className).toBe('')
+    })
+
     it('renders text without URLs unchanged', () => {
         const {container} = render(<LinkifiedText text="no links here" onOpenLink={() => {}} />)
         expect(container.querySelector('a')).toBeNull()

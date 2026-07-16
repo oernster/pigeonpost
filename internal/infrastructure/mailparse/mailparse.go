@@ -171,7 +171,7 @@ func ParseBody(raw []byte) (ParsedBody, error) {
 	plain := acc.plain.String()
 	htmlBody := acc.html.String()
 	if htmlBody != "" {
-		prepared := LinkifyHTML(prepareHTML(htmlBody, acc.inlineImages))
+		prepared := linkifyForDisplay(prepareHTML(htmlBody, acc.inlineImages))
 		htmlBody = htmlSanitizer.Sanitize(prepared)
 	}
 	if strings.TrimSpace(plain) == "" && htmlBody != "" {

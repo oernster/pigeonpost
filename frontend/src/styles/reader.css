@@ -18,6 +18,19 @@
     color: var(--text);
 }
 
+/* A link standing alone on its own line of a plain-text message is a call to action, so it renders as
+   a button (LinkifiedText marks it pp-solo-link); an inline link keeps its ordinary link styling. */
+.reader-text a.pp-solo-link {
+    display: inline-block;
+    margin: 4px 0;
+    padding: 9px 20px;
+    border-radius: 18px;
+    background: var(--accent);
+    color: var(--accent-ink);
+    text-decoration: none;
+    font-weight: 600;
+}
+
 .reader-html {
     font-size: 15px;
     line-height: 1.6;

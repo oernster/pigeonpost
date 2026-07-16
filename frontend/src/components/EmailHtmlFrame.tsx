@@ -25,7 +25,11 @@ function paperStyle(background: string, ink: string): string {
     return (
         `html,body{margin:0;padding:${FRAME_PADDING_PX}px;background:${background};color:${ink};` +
         `font:${FRAME_FONT_SIZE_PX}px/${FRAME_LINE_HEIGHT} ${FRAME_FONT_STACK};overflow-wrap:break-word;}` +
-        'img{max-width:100%;height:auto;}table{max-width:100%;}'
+        'img{max-width:100%;height:auto;}table{max-width:100%;}' +
+        // A link that stands alone on its own line (marked pp-solo-link by the body parser) reads as a
+        // call to action, so it is presented as a button rather than a raw link.
+        'a.pp-solo-link{display:inline-block;margin:4px 0;padding:9px 20px;border-radius:18px;' +
+        'background:#2f6fed;color:#ffffff;text-decoration:none;font-weight:600;}'
     )
 }
 const baseStyle = paperStyle(PAPER_BACKGROUND, PAPER_INK)
