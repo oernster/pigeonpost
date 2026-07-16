@@ -11,6 +11,10 @@ const (
 	appCopyright = "© 2026 Oliver Ernster"
 	appTagline   = "A calmer, local-first cross-platform email client."
 	releasesURL  = "https://github.com/oernster/pigeonpost/releases"
+	// appAttribution states the licence's section 7(b) additional term, shown in Help > About so
+	// the attribution requirement travels with every copy of the app.
+	appAttribution = "Credit to the original author is preserved in all copies and derivative works," +
+		" as the licence requires (GPLv3 section 7(b))."
 )
 
 // CreditDTO names one open-source dependency and its licence for the About dialog.
@@ -21,24 +25,26 @@ type CreditDTO struct {
 
 // AboutDTO is the data shown in Help > About. The icon itself is a bundled front-end asset.
 type AboutDTO struct {
-	Name      string      `json:"name"`
-	Tagline   string      `json:"tagline"`
-	Version   string      `json:"version"`
-	Author    string      `json:"author"`
-	Copyright string      `json:"copyright"`
-	Licence   string      `json:"licence"`
-	Credits   []CreditDTO `json:"credits"`
+	Name        string      `json:"name"`
+	Tagline     string      `json:"tagline"`
+	Version     string      `json:"version"`
+	Author      string      `json:"author"`
+	Copyright   string      `json:"copyright"`
+	Licence     string      `json:"licence"`
+	Attribution string      `json:"attribution"`
+	Credits     []CreditDTO `json:"credits"`
 }
 
 // About returns the application metadata and open-source credits for the About dialog.
 func (a *App) About() AboutDTO {
 	return AboutDTO{
-		Name:      appName,
-		Tagline:   appTagline,
-		Version:   version(),
-		Author:    appAuthor,
-		Copyright: appCopyright,
-		Licence:   "GPL-3.0",
+		Name:        appName,
+		Tagline:     appTagline,
+		Version:     version(),
+		Author:      appAuthor,
+		Copyright:   appCopyright,
+		Licence:     "GPL-3.0",
+		Attribution: appAttribution,
 		Credits: []CreditDTO{
 			{Name: "Go", Licence: "BSD-3-Clause"},
 			{Name: "Wails", Licence: "MIT"},

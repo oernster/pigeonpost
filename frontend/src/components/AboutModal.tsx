@@ -26,6 +26,7 @@ export function AboutModal({about, onClose}: AboutModalProps) {
                     <div><span className="about-label">Licence</span>{about.licence}</div>
                     <div className="about-copyright">{about.copyright}</div>
                 </div>
+                <p className="about-attribution">{about.attribution}</p>
                 <hr className="about-rule"/>
                 <h3 className="about-credits-title">Open source credits</h3>
                 <ul className="about-credits">

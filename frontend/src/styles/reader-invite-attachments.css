@@ -127,6 +127,14 @@
     color: var(--text-dim);
 }
 
+/* The licence's attribution term, stated under the identity lines so it travels with the app. */
+.about-attribution {
+    margin: 10px auto 0;
+    max-width: 340px;
+    font-size: 11px;
+    color: var(--text-dim);
+}
+
 .about-rule {
     border: none;
     border-top: 1px solid var(--border);
