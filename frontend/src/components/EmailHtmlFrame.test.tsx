@@ -34,10 +34,18 @@ function frameHtml(frame: HTMLIFrameElement): string {
 }
 
 describe('EmailHtmlFrame: sandbox and CSP', () => {
-    it('sandboxes the frame to allow-same-origin only, never allow-scripts', () => {
+    it('sandboxes the frame to same-origin and scripts only, with scripts denied by the CSP instead', () => {
         const {frame} = renderFrame()
-        expect(frame.getAttribute('sandbox')).toBe('allow-same-origin')
-        expect(frame.getAttribute('sandbox')).not.toContain('allow-scripts')
+        // allow-scripts is deliberate: WebKit refuses to dispatch listeners inside a scripts-disabled
+        // browsing context, including ones the parent registered on the frame's document, so without it a
+        // link click did nothing on macOS and Linux. Actual script execution stays impossible: the CSP
+        // grants no script-src (pinned below) and the sanitiser strips scripts server-side. Everything
+        // else stays blocked: no popups, no top navigation, no forms, no downloads.
+        expect(frame.getAttribute('sandbox')).toBe('allow-same-origin allow-scripts')
+        expect(frame.getAttribute('sandbox')).not.toContain('allow-popups')
+        expect(frame.getAttribute('sandbox')).not.toContain('allow-top-navigation')
+        expect(frame.getAttribute('sandbox')).not.toContain('allow-forms')
+        expect(frame.getAttribute('sandbox')).not.toContain('allow-downloads')
     })
 
     it('writes the document into the frame rather than using the srcdoc attribute', () => {

@@ -151,10 +151,17 @@ Read a message body:
    applies the same linkify rules through the `LinkifiedText` component, including the solo-line button
    presentation, themed via the app's accent tokens.
 3. The sanitised HTML renders inside a sandboxed iframe (`EmailHtmlFrame`) rather than the app's own
-   document: the frame is `sandbox="allow-same-origin"` and never `allow-scripts`, under a strict
-   content-security-policy (`default-src 'none'`, images and fonts restricted to `data:`), so no script in
-   the message runs and the frame makes zero remote requests, meaning opening a message cannot leak that it
-   was read. Loading the parked images routes through a server-side proxy: the application
+   document: the frame is `sandbox="allow-same-origin allow-scripts"` (popups, top navigation, forms and
+   downloads all stay blocked) under a strict content-security-policy (`default-src 'none'`, images and
+   fonts restricted to `data:`), so no script in the message runs and the frame makes zero remote requests,
+   meaning opening a message cannot leak that it was read. Script execution is denied by the CSP (no
+   `script-src`) plus the sanitiser rather than the sandbox flag: WebKit (WKWebView, WebKitGTK) refuses to
+   dispatch event listeners inside a scripts-disabled browsing context, including listeners the parent
+   registered on the frame's document, so a scriptless sandbox left the reader's link-click interception
+   dead on macOS and Linux. The parent also writes the frame's document itself
+   (`contentDocument.open()/write()/close()` rather than the `srcdoc` attribute), because WebKit does not
+   reliably fire the iframe load event for `srcdoc`, which left listeners bound to the dead initial
+   document. Loading the parked images routes through a server-side proxy: the application
    `RemoteImageService` over the `remoteimage` resolver fetches each blocked image and inlines it as a
    `data:` URI, sidestepping the CORP/CORS rules that would otherwise stop the iframe embedding it by URL.
    The fetch is SSRF-guarded by a `net.Dialer.Control` hook that checks the real post-DNS connect IP and

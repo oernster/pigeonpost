@@ -140,10 +140,16 @@ function resizeToContent(frame: HTMLIFrameElement) {
 }
 
 // EmailHtmlFrame renders a message's sanitised HTML inside a sandboxed, CSP-locked iframe so the email keeps
-// its own fonts, colours and layout while staying fully isolated from the app. The sandbox is
-// allow-same-origin only (never allow-scripts), so no script in the frame can run or remove the sandbox.
-// Because the frame is same-origin, the parent reads its height and intercepts its link clicks directly, so
-// no script inside the frame is needed.
+// its own fonts, colours and layout while staying fully isolated from the app. The sandbox grants
+// allow-same-origin plus allow-scripts and nothing else: popups, top navigation, forms and downloads all stay
+// blocked. allow-same-origin is what lets the parent read the frame's height and intercept its link clicks
+// directly. allow-scripts is not there so email scripts can run: the CSP grants no script-src, so no script
+// inside the document can ever execute, and the sanitiser has already stripped scripts server-side. It is
+// there because WebKit (WKWebView on macOS, WebKitGTK on Linux) refuses to dispatch event listeners inside a
+// scripts-disabled browsing context, including listeners the parent registered on the frame's document, so
+// with a scriptless sandbox the click handler never ran and a link click did nothing. Chromium keys the same
+// check off the listener's own context instead, which is why Windows always worked. Script execution is
+// denied by the CSP layer rather than the sandbox flag.
 //
 // The document is written from the effect via contentDocument.open()/write()/close() rather than through the
 // srcdoc attribute. With srcdoc, WebKit (WKWebView on macOS, WebKitGTK on Linux) replaces the frame's
@@ -237,7 +243,7 @@ export function EmailHtmlFrame({html, dark, onOpenLink}: EmailHtmlFrameProps) {
             ref={frameRef}
             className="reader-html-frame"
             title="Email content"
-            sandbox="allow-same-origin"
+            sandbox="allow-same-origin allow-scripts"
         />
     )
 }
