@@ -117,6 +117,13 @@
     color: var(--text-strong);
 }
 
+/* A row sitting on the message clipboard as a cut is dimmed, Explorer-style, so it reads as
+   pending departure until the cut is pasted or replaced. The dim sits on the row's children
+   rather than the row so the selection fill and focus ring keep their full strength. */
+.message-row.cut > * {
+    opacity: 0.5;
+}
+
 .message-row-top {
     display: flex;
     align-items: center;

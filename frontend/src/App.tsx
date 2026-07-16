@@ -1042,6 +1042,7 @@ function App() {
             searchDegraded={searchDegraded}
             matchSnippets={searchSnippets}
             accountChips={accountDots}
+            cutIds={messageClipboard.cutIds}
             searchInputRef={searchInputRef}
             onActivate={activateRow}
             onClearSelection={clearSelection}

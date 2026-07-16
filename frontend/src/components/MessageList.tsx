@@ -65,6 +65,9 @@ interface MessageListProps {
     // accountChips labels a row carrying an accountId (a unified-mailbox row) with its account's colour
     // dot and email tooltip. Rows without an accountId (every per-folder listing) show nothing.
     accountChips: Map<string, AccountChip>
+    // cutIds is the ids sitting on the message clipboard as a cut; their rows are dimmed
+    // (Explorer-style) until the cut is pasted or replaced.
+    cutIds: Set<string>
     // searchInputRef lets Edit > Search (Ctrl+K) focus the search box from outside the list.
     searchInputRef: RefObject<HTMLInputElement>
     onActivate: (message: Message, mods: ClickMods) => void
@@ -279,7 +282,8 @@ export function MessageList(props: MessageListProps) {
                     'message-row' +
                     (message.read ? '' : ' unread') +
                     (selectedIds.has(message.id) ? ' selected' : '') +
-                    (activeId === message.id ? ' active' : '')
+                    (activeId === message.id ? ' active' : '') +
+                    (props.cutIds.has(message.id) ? ' cut' : '')
                 }
                 data-mid={message.id}
                 tabIndex={tabStopId === message.id ? 0 : -1}
