@@ -238,6 +238,14 @@
                     <span class="hint">Start automatically at login.</span>
                 </span>
             </label>
+            <label class="option">
+                <input type="checkbox" id="mail-default-install"/>
+                <span class="check"></span>
+                <span>
+                    <span class="label">Choose my default email app after install</span><br/>
+                    <span class="hint">Opens Windows Settings so you can pick PigeonPost for mailto links. Nothing changes unless you choose it there.</span>
+                </span>
+            </label>
         </section>
 
         <!-- Manage (installed) -->
@@ -389,13 +397,28 @@
         $('install-title').textContent = 'Install PigeonPost ' + state.thisVersion
         $('install-path').textContent = state.installDir
         $('boot-install').checked = false
+        // Checked by default so every install presents the Windows default-email choice; the user
+        // decides on the Settings page itself (or unticks this to skip the prompt entirely).
+        $('mail-default-install').checked = true
         showScreen('install')
         setFooter([
             {label: 'Cancel', onClick: () => backend().Quit()},
             {
-                label: 'Install', kind: 'primary', onClick: () => withAppClosed(() => run(
-                    () => backend().Install($('boot-install').checked),
-                    'Installing PigeonPost', 'PigeonPost installed', 'You can launch it from the Start Menu.'))
+                label: 'Install', kind: 'primary', onClick: () => {
+                    const chooseDefault = $('mail-default-install').checked
+                    return withAppClosed(() => run(
+                        () => backend().Install($('boot-install').checked).then(() => {
+                            if (chooseDefault) backend().ShowDefaultAppSettings()
+                        }),
+                        'Installing PigeonPost', 'PigeonPost installed',
+                        chooseDefault
+                            ? 'Windows Settings is open: pick PigeonPost as your default email app, or just close it. You can launch PigeonPost from the Start Menu.'
+                            : 'You can launch it from the Start Menu.',
+                        [
+                            {label: 'Choose default email app', onClick: () => backend().ShowDefaultAppSettings()},
+                            {label: 'Close', kind: 'primary', onClick: () => backend().Quit()},
+                        ]))
+                }
             },
         ])
     }

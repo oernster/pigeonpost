@@ -674,6 +674,20 @@ describe('App: backend events', () => {
         expect(screen.getByText('Handed over')).toBeInTheDocument()
     })
 
+    it('opens a pre-filled composer on mailto:open (useComposeLauncher)', async () => {
+        const handlers = captureEvents()
+        apiSpies.listAccounts.mockResolvedValue([makeAccount()])
+        render(<App/>)
+        await waitFor(() => expect(handlers['mailto:open']).toBeInstanceOf(Function))
+        act(() => handlers['mailto:open']({
+            to: ['jane@example.org'], cc: null, bcc: null,
+            subject: 'Chess move', body: 'Knight takes.',
+        }))
+        const dialog = await screen.findByRole('dialog', {name: 'New message'})
+        expect(within(dialog).getByDisplayValue('jane@example.org')).toBeInTheDocument()
+        expect(within(dialog).getByDisplayValue('Chess move')).toBeInTheDocument()
+    })
+
     it('offers minimise-or-quit on app:close-request (useAppEvents)', async () => {
         const handlers = captureEvents()
         apiSpies.listAccounts.mockResolvedValue([makeAccount()])

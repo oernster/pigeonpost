@@ -6,11 +6,21 @@
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 import {act, cleanup, renderHook} from '@testing-library/react'
 import type {Account, Message} from '../api'
-import {useComposeLauncher} from './useComposeLauncher'
+import {MailtoFields, mailtoComposeInitial, useComposeLauncher} from './useComposeLauncher'
 
 const apiSpies = vi.hoisted(() => ({
     draftRecovery: vi.fn(),
     clearDraftRecovery: vi.fn(),
+}))
+
+// The launcher subscribes to the backend's mailto:open events through the Wails runtime; capture the
+// handlers so tests can drive the events, mirroring App.test.tsx.
+const runtimeSpies = vi.hoisted(() => ({
+    EventsOn: vi.fn(() => () => undefined),
+}))
+
+vi.mock('../../wailsjs/runtime', () => ({
+    EventsOn: runtimeSpies.EventsOn,
 }))
 
 vi.mock('../api', () => ({
@@ -50,6 +60,7 @@ function harness() {
 beforeEach(() => {
     apiSpies.draftRecovery.mockReset().mockResolvedValue({present: false})
     apiSpies.clearDraftRecovery.mockReset().mockResolvedValue(undefined)
+    runtimeSpies.EventsOn.mockClear()
 })
 afterEach(() => cleanup())
 
@@ -91,5 +102,59 @@ describe('useComposeLauncher: compose account resolution', () => {
         expect(result.current.composeInitial?.to).toContain('alice@example.com')
         expect(result.current.composeInitial?.to).toContain('colleague@x.com')
         expect(result.current.composeInitial?.to).not.toContain('me@two.com')
+    })
+})
+
+describe('useComposeLauncher: mailto', () => {
+    function capturedHandler(event: string): (arg: unknown) => void {
+        const calls = runtimeSpies.EventsOn.mock.calls as unknown as
+            [string, (arg: unknown) => void][]
+        const call = calls.find(([name]) => name === event)
+        expect(call, `handler for ${event}`).toBeDefined()
+        return (call as [string, (arg: unknown) => void])[1]
+    }
+
+    it('opens the composer pre-filled from a mailto:open event, with the signature', () => {
+        const {result} = harness()
+        const fields: MailtoFields = {
+            to: ['jane@example.org', 'joe@example.org'], cc: ['ann@example.org'], bcc: null,
+            subject: 'Chess move', body: 'Knight takes.\r\nYour turn.',
+        }
+        act(() => capturedHandler('mailto:open')(fields))
+        expect(result.current.composing).toBe(true)
+        expect(result.current.composeInitial?.to).toBe('jane@example.org, joe@example.org')
+        expect(result.current.composeInitial?.cc).toBe('ann@example.org')
+        expect(result.current.composeInitial?.bcc).toBe('')
+        expect(result.current.composeInitial?.subject).toBe('Chess move')
+        expect(result.current.composeInitial?.bodyHtml).toBe(
+            '<p>Knight takes.<br>Your turn.</p><p>Sig one</p>',
+        )
+    })
+
+    it('reports a mailto parse failure through the error sink', () => {
+        const errors: string[] = []
+        renderHook(() => useComposeLauncher({
+            accounts: ACCOUNTS,
+            selectedAccount: 'me@one.com',
+            setSelectedAccount: () => {},
+            messageBody: null,
+            setError: (message) => errors.push(message),
+        }))
+        act(() => capturedHandler('mailto:open-error')('bad uri'))
+        expect(errors).toEqual(['bad uri'])
+    })
+})
+
+describe('mailtoComposeInitial', () => {
+    it('escapes markup in the body and keeps an empty body as one paragraph', () => {
+        const evil = mailtoComposeInitial(
+            {to: null, cc: null, bcc: null, subject: '', body: '<b>&</b>'}, '',
+        )
+        expect(evil.bodyHtml).toBe('<p>&lt;b&gt;&amp;&lt;/b&gt;</p>')
+        const empty = mailtoComposeInitial(
+            {to: null, cc: null, bcc: null, subject: '', body: ''}, '<p>Sig</p>',
+        )
+        expect(empty.bodyHtml).toBe('<p></p><p>Sig</p>')
+        expect(empty.to).toBe('')
     })
 })

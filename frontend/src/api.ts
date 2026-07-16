@@ -100,6 +100,7 @@ import {
     SendMessage,
     SetMessageTag,
     ShowDefaultAppSettings,
+    ShowDefaultMailAppSettings,
     SyncAccount,
     SyncAllInboxes,
     SyncFolder,
@@ -478,6 +479,9 @@ export const api = {
     // showDefaultAppSettings opens Windows' Default apps settings so the user can make PigeonPost the default
     // for .eml files (Windows does not let an app claim the default silently).
     showDefaultAppSettings: (): Promise<void> => ShowDefaultAppSettings(),
+    // showDefaultMailAppSettings re-registers the mailto: handler then opens the same settings page, so
+    // the user can make PigeonPost the default email client (the MAILTO link type).
+    showDefaultMailAppSettings: (): Promise<void> => ShowDefaultMailAppSettings(),
     saveAllAttachments: (messageId: string): Promise<void> => SaveAllAttachments(messageId),
     moveMessage: (messageId: string, destFolderId: string): Promise<MoveResult> => MoveMessage(messageId, destFolderId),
     markJunk: (messageId: string): Promise<MoveResult> => MarkJunk(messageId),

@@ -41,39 +41,40 @@ type MailWatcher interface {
 // App is the Wails facade: the single boundary the React front end talks to. It holds no business
 // logic, delegating every call to an application use case and mapping domain results to DTOs.
 type App struct {
-	ctx          context.Context
-	title        string // main window title, used to locate its HWND to focus the WebView on launch
-	pendingEmail string // a .eml path from a cold-launch argument, opened once the front end is ready (see lifecycle.go)
-	closer       func() error
-	notifier     UnreadNotifier
-	alerter      ReminderAlerter
-	tray         *taskbar.Tray
-	watcher      MailWatcher
-	watchers     map[string]context.CancelFunc // per-account IDLE watcher cancels, keyed by account id
-	watchersMu   sync.Mutex                    // guards watchers
-	mailCheck    sync.Mutex                    // serialises checkMail so the poll and IDLE pushes do not detect concurrently
-	quitting     atomic.Bool                   // set when an explicit Quit is under way, so the close prompt is skipped
-	accounts     *application.AccountService
-	setup        *application.AccountSetupService
-	msSetup      *application.MicrosoftSetupService
-	mailbox      *application.MailboxService
-	unified      *application.UnifiedMailboxService
-	snooze       *application.SnoozeService
-	sync         *application.SyncService
-	compose      *application.ComposeService
-	tags         *application.TagService
-	tagSync      *application.TagSyncService
-	body         *application.MessageBodyService
-	actions      *application.MessageActionService
-	folders      *application.FolderService
-	rules        *application.RuleService
-	templates    *application.TemplateService
-	contacts     *application.ContactService
-	calendar     *application.CalendarService
-	calendarEdit *application.CalendarEditService
-	scheduling   *application.SchedulingService
-	remoteImages *application.RemoteImageService
-	caldav       *application.CalDAVService
+	ctx           context.Context
+	title         string // main window title, used to locate its HWND to focus the WebView on launch
+	pendingEmail  string // a .eml path from a cold-launch argument, opened once the front end is ready (see lifecycle.go)
+	pendingMailto string // a mailto: URI from a cold-launch argument, opened as a compose once the front end is ready
+	closer        func() error
+	notifier      UnreadNotifier
+	alerter       ReminderAlerter
+	tray          *taskbar.Tray
+	watcher       MailWatcher
+	watchers      map[string]context.CancelFunc // per-account IDLE watcher cancels, keyed by account id
+	watchersMu    sync.Mutex                    // guards watchers
+	mailCheck     sync.Mutex                    // serialises checkMail so the poll and IDLE pushes do not detect concurrently
+	quitting      atomic.Bool                   // set when an explicit Quit is under way, so the close prompt is skipped
+	accounts      *application.AccountService
+	setup         *application.AccountSetupService
+	msSetup       *application.MicrosoftSetupService
+	mailbox       *application.MailboxService
+	unified       *application.UnifiedMailboxService
+	snooze        *application.SnoozeService
+	sync          *application.SyncService
+	compose       *application.ComposeService
+	tags          *application.TagService
+	tagSync       *application.TagSyncService
+	body          *application.MessageBodyService
+	actions       *application.MessageActionService
+	folders       *application.FolderService
+	rules         *application.RuleService
+	templates     *application.TemplateService
+	contacts      *application.ContactService
+	calendar      *application.CalendarService
+	calendarEdit  *application.CalendarEditService
+	scheduling    *application.SchedulingService
+	remoteImages  *application.RemoteImageService
+	caldav        *application.CalDAVService
 }
 
 // NewApp constructs the facade with its injected use-case services and a closer for shutdown.
@@ -177,13 +178,16 @@ func (a *App) quit() {
 }
 
 // onSecondInstance runs in the already-running instance when the user launches PigeonPost again, including
-// when Windows launches it to open a double-clicked .eml file (PigeonPost being the registered handler).
-// Rather than start a second window it reveals this one (which may be hidden in the tray or minimised) then
-// opens any .eml passed on the second launch's command line.
+// when Windows launches it to open a double-clicked .eml file or a clicked mailto: link (PigeonPost being
+// the registered handler). Rather than start a second window it reveals this one (which may be hidden in
+// the tray or minimised) then opens any .eml or mailto: passed on the second launch's command line.
 func (a *App) onSecondInstance(data options.SecondInstanceData) {
 	a.revealWindow()
 	if path := firstEmailFileArg(data.Args); path != "" {
 		a.openEmailFile(path)
+	}
+	if uri := firstMailtoArg(data.Args); uri != "" {
+		a.openMailto(uri)
 	}
 }
 

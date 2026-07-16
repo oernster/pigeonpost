@@ -133,6 +133,12 @@ func (a *App) installInto(launchOnBoot bool) error {
 	if err := installer.RegisterEmlAssociation(exePath, exePath); err != nil {
 		return fmt.Errorf("register file association: %w", err)
 	}
+	// Register the mailto: protocol handler alongside, so PigeonPost appears in Settings > Default apps
+	// for the MAILTO link type and can be chosen as the default email client. Same rule: the user grants
+	// the default; the installer only makes the choice available.
+	if err := installer.RegisterMailtoProtocol(exePath, exePath); err != nil {
+		return fmt.Errorf("register mailto protocol: %w", err)
+	}
 
 	a.progress(92, "Applying settings...")
 	if err := installer.SetLaunchOnBoot(exePath, launchOnBoot); err != nil {
@@ -167,6 +173,9 @@ func (a *App) Uninstall(removeData bool) error {
 	}
 	a.progress(20, "Removing shortcuts...")
 	installer.RemoveShortcuts()
+	// Mailto first: the .eml cleanup removes the whole PigeonPost application root beneath which the
+	// mailto capability entry lives.
+	_ = installer.UnregisterMailtoProtocol()
 	_ = installer.UnregisterEmlAssociation()
 	_ = installer.SetLaunchOnBoot("", false)
 
@@ -188,6 +197,19 @@ func (a *App) Uninstall(removeData bool) error {
 
 	a.progress(100, "Done.")
 	return nil
+}
+
+// defaultAppsSettingsURL opens the Windows Settings "Default apps" page at PigeonPost's entry, where the
+// user can choose it as the default email client (the MAILTO link type). Windows never lets an installer
+// seize a default silently; presenting this page is the supported way to offer the choice.
+const defaultAppsSettingsURL = "ms-settings:defaultapps?registeredAppUser=" + installer.AppName
+
+// ShowDefaultAppSettings opens the Windows Default apps settings at PigeonPost's entry, offered after
+// install so the user can choose PigeonPost as their default email client. Declining is fine: the
+// registration stays in place and the same choice is available later from the app's Mail menu. Bound to
+// the front end.
+func (a *App) ShowDefaultAppSettings() {
+	wailsruntime.BrowserOpenURL(a.ctx, defaultAppsSettingsURL)
 }
 
 // Quit closes the setup program.

@@ -15,9 +15,11 @@ import (
 // stays free of Wails), then starts the reminder scheduler and the new-mail notifier.
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
-	// A double-clicked .eml (PigeonPost being the registered handler) launches the app with the file path as
-	// an argument; capture it now and open it from domReady, once the front end is mounted to receive it.
+	// A double-clicked .eml or a clicked mailto: link (PigeonPost being the registered handler) launches the
+	// app with the path or URI as an argument; capture it now and open it from domReady, once the front end
+	// is mounted to receive it.
 	a.pendingEmail = firstEmailFileArg(os.Args)
+	a.pendingMailto = firstMailtoArg(os.Args)
 	if a.tray != nil {
 		a.tray.Start(taskbar.TrayActions{
 			// Open must go through the Wails runtime, not a Win32 window search: when the window is hidden
@@ -46,11 +48,15 @@ func (a *App) domReady(_ context.Context) {
 	go func() {
 		time.Sleep(focusOnLaunchDelay)
 		taskbar.FocusMainWindow(a.title)
-		// Flush a .eml captured at cold launch now the front end is up; the focus delay above also gives the
-		// event listeners time to attach before the viewer is asked to open.
+		// Flush a .eml or mailto: captured at cold launch now the front end is up; the focus delay above
+		// also gives the event listeners time to attach before the viewer or composer is asked to open.
 		if a.pendingEmail != "" {
 			a.openEmailFile(a.pendingEmail)
 			a.pendingEmail = ""
+		}
+		if a.pendingMailto != "" {
+			a.openMailto(a.pendingMailto)
+			a.pendingMailto = ""
 		}
 	}()
 }

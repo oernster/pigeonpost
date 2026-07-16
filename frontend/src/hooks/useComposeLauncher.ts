@@ -1,9 +1,38 @@
 import {Dispatch, SetStateAction, useEffect, useRef, useState} from 'react'
 import {Account, DraftRecoveryResult, Message, MessageBody, api} from '../api'
+import {EventsOn} from '../../wailsjs/runtime'
 import {ComposeInitial} from '../components/ComposeModal'
 import {useEscapeToClose} from '../components/useBackdropDismiss'
 import {emlFilename} from '../messageText'
 import {buildForward, buildReply, buildReplyAll, quoteFor, replyFromAddress, sendersFor, signatureHtmlFor} from '../replyDraft'
+
+// MailtoFields is the backend's parsed form of an RFC 6068 mailto: URI (see mailto.go), delivered on the
+// mailto:open event. Go serialises empty address slices as null, hence the nullable arrays.
+export interface MailtoFields {
+    to: string[] | null
+    cc: string[] | null
+    bcc: string[] | null
+    subject: string
+    body: string
+}
+
+const escapeHtml = (text: string): string =>
+    text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+
+// mailtoComposeInitial maps parsed mailto: fields onto the composer's initial values. The body arrives as
+// plain text with CRLF line breaks (RFC 6068), so it is escaped and wrapped for the rich-text editor, with
+// the account signature below it, matching what a fresh compose seeds.
+export function mailtoComposeInitial(fields: MailtoFields, signature: string): ComposeInitial {
+    const lines = fields.body ? fields.body.split(/\r?\n/) : []
+    const bodyText = lines.length ? `<p>${lines.map(escapeHtml).join('<br>')}</p>` : '<p></p>'
+    return {
+        to: (fields.to ?? []).join(', '),
+        cc: (fields.cc ?? []).join(', '),
+        bcc: (fields.bcc ?? []).join(', '),
+        subject: fields.subject,
+        bodyHtml: bodyText + signature,
+    }
+}
 
 // ComposeLauncherDeps is what launching a composer needs from the rest of App: the account list and the
 // selected account (to derive the From address and the signature), the selected-account setter (a recovered
@@ -109,6 +138,22 @@ export function useComposeLauncher(deps: ComposeLauncherDeps): ComposeLauncher {
     // signatureHtml is the selected account's signature (see replyDraft.signatureHtmlFor), inserted into a new
     // message and above the quoted text on a reply or forward.
     const signatureHtml = (): string => signatureHtmlFor(accounts.find((a) => a.id === selectedAccount))
+
+    // A mailto: link the OS handed to PigeonPost (clicked anywhere in Windows once PigeonPost is the
+    // default email client) arrives as an event from the backend, which has already revealed the window;
+    // open the composer pre-filled with the link's fields, or surface a parse failure in the error bar.
+    useEffect(() => {
+        const off = [
+            EventsOn('mailto:open', (fields) => {
+                setComposeInitial(mailtoComposeInitial(fields as MailtoFields, signatureHtml()))
+                setComposing(true)
+            }),
+            EventsOn('mailto:open-error', (message) => setError(String(message))),
+        ]
+        return () => off.forEach((unsubscribe) => unsubscribe())
+        // signatureHtml closes over accounts and selectedAccount, so re-subscribe as they change.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [accounts, selectedAccount, setError])
 
     // composeAccountFor resolves which account a reply or forward of a message sends from: the row's own
     // account when it carries one (a unified-mailbox row can belong to any account), otherwise the

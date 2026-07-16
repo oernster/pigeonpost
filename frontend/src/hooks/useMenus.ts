@@ -292,6 +292,10 @@ export function useMenus(deps: MenusDeps): Menus {
                 label: 'Set as default for .eml...',
                 icon: '\u{1F4CC}',
                 onClick: () => void api.showDefaultAppSettings(),
+            }, {
+                label: 'Set as default email client...',
+                icon: '\u{2709}\u{FE0F}',
+                onClick: () => void api.showDefaultMailAppSettings(),
             }]
             : []),
         {label: '', separator: true},
