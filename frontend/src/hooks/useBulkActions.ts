@@ -31,6 +31,9 @@ export interface BulkActions {
     bulkSetRead: (targets: Message[], read: boolean) => Promise<void>
     bulkSetFlag: (targets: Message[], flagged: boolean) => Promise<void>
     bulkMove: (targets: Message[], destFolderId: string) => void
+    // bulkMoveIds is the id-level batched move behind bulkMove and drag-and-drop, exposed so the
+    // message clipboard's paste-of-a-cut reuses its undo recording and destination sync.
+    bulkMoveIds: (ids: string[], destFolderId: string) => Promise<void>
     dropMessageOnFolder: (messageId: string, folderId: string) => void
 }
 
@@ -248,6 +251,6 @@ export function useBulkActions(deps: BulkActionsDeps): BulkActions {
     return {
         bulkToDelete, setBulkToDelete, bulkDeleting,
         bulkToPurge, setBulkToPurge, bulkPurging,
-        runBulkDelete, bulkSetRead, bulkSetFlag, bulkMove, dropMessageOnFolder,
+        runBulkDelete, bulkSetRead, bulkSetFlag, bulkMove, bulkMoveIds, dropMessageOnFolder,
     }
 }

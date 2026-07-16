@@ -1,6 +1,7 @@
 import {Dispatch, SetStateAction, useEffect} from 'react'
 import {AboutInfo, Account, Folder, Message} from '../api'
 import {stepFocusRing, trapTab} from '../focusRing'
+import {isOutboxMessage} from '../outbox'
 import type {FolderPrompt} from './useFolders'
 
 // MessageListKeyboardDeps is what the window keyboard handler reads: the current view (the list the arrows and
@@ -44,6 +45,11 @@ export interface MessageListKeyboardDeps {
     // openMessage opens a message in its own right (Enter or Space on a row); App wires it to the
     // popout dialog so the keyboard open matches the double-click.
     openMessage: (message: Message) => void
+    // The message clipboard behind Ctrl+X / Ctrl+C / Ctrl+V on the list: cut or copy takes the
+    // selection, paste files the clipboard into the folder being viewed.
+    onCutMessages: (targets: Message[]) => void
+    onCopyMessages: (targets: Message[]) => void
+    onPasteMessages: () => void
     setMessageToPurge: Dispatch<SetStateAction<Message | null>>
     setBulkToPurge: Dispatch<SetStateAction<Message[] | null>>
     setBulkToDelete: Dispatch<SetStateAction<Message[] | null>>
@@ -63,7 +69,8 @@ export function useMessageListKeyboard(deps: MessageListKeyboardDeps): void {
         splashVisible, composing, settingUp, accountToEdit, managingRules, managingTemplates, managingContacts, managingCalendar,
         about, licence, folderPrompt, messageToCancelSend, messageToDelete, accountToDelete, folderToDelete,
         messageToPurge, contextMenu, bulkToDelete, bulkToPurge, snoozePickerFor, folders,
-        requestDelete, openMessage, setMessageToPurge, setBulkToPurge, setBulkToDelete, setFolderToDelete,
+        requestDelete, openMessage, onCutMessages, onCopyMessages, onPasteMessages,
+        setMessageToPurge, setBulkToPurge, setBulkToDelete, setFolderToDelete,
         togglePreview,
     } = deps
 
@@ -152,6 +159,34 @@ export function useMessageListKeyboard(deps: MessageListKeyboardDeps): void {
                 return
             }
             if (overlayOpen) {
+                return
+            }
+            if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey &&
+                ['c', 'x', 'v'].includes(e.key.toLowerCase())) {
+                // Ctrl/Cmd+C, X and V at the message level: cut or copy takes the selection onto the
+                // message clipboard and paste files the clipboard into the open folder. Text always
+                // wins: a text field consumed the key above (isText), and selected reader text keeps
+                // the native copy, so Ctrl+C over a highlighted passage still copies the passage.
+                const key = e.key.toLowerCase()
+                if (key === 'v') {
+                    e.preventDefault()
+                    onPasteMessages()
+                    return
+                }
+                if ((document.getSelection()?.toString() ?? '') !== '') {
+                    return
+                }
+                const clipIds = markedIds.size ? markedIds : (selectedMessage ? new Set([selectedMessage.id]) : new Set<string>())
+                const clipTargets = list.filter((m) => clipIds.has(m.id) && !isOutboxMessage(m))
+                if (clipTargets.length === 0) {
+                    return
+                }
+                e.preventDefault()
+                if (key === 'c') {
+                    onCopyMessages(clipTargets)
+                } else {
+                    onCutMessages(clipTargets)
+                }
                 return
             }
             if ((e.key === 'a' || e.key === 'A') && (e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey) {
@@ -312,5 +347,6 @@ export function useMessageListKeyboard(deps: MessageListKeyboardDeps): void {
         splashVisible, composing, settingUp, accountToEdit, managingRules, managingTemplates, managingContacts, managingCalendar, about,
         licence, folderPrompt, messageToDelete, accountToDelete, folderToDelete, messageToPurge,
         contextMenu, messageToCancelSend, bulkToDelete, bulkToPurge, snoozePickerFor, togglePreview, folders,
+        onCutMessages, onCopyMessages, onPasteMessages,
     ])
 }

@@ -56,7 +56,8 @@ import {useFolderPagination} from './hooks/useFolderPagination'
 import {useSnooze} from './hooks/useSnooze'
 import {useUndoRedo} from './hooks/useUndoRedo'
 import {useEditContext} from './hooks/useEditContext'
-import {copySelection, cutSelection, pasteText} from './editClipboard'
+import {useMessageClipboard} from './hooks/useMessageClipboard'
+import {canCopy, canCut, canPaste, copySelection, cutSelection, pasteText} from './editClipboard'
 import {ScheduleDialog} from './components/ScheduleDialog'
 
 function App() {
@@ -882,8 +883,22 @@ function App() {
     const {
         bulkToDelete, setBulkToDelete, bulkDeleting,
         bulkToPurge, setBulkToPurge, bulkPurging,
-        runBulkDelete, bulkSetRead, bulkSetFlag, bulkMove, dropMessageOnFolder,
+        runBulkDelete, bulkSetRead, bulkSetFlag, bulkMove, bulkMoveIds, dropMessageOnFolder,
     } = useBulkActions({store, selection, folders, loadUnread, refreshFolders, setError, undo: undoRedo.recorder})
+
+    // The message-level half of Edit > Cut / Copy / Paste: cut or copy takes the selected messages
+    // onto an internal clipboard and paste files them into the folder being viewed (a cut moves,
+    // recording a normal undo entry through bulkMoveIds; a copy duplicates). pasteFolderId is the
+    // paste target: the open folder, or '' in the views that are not one real folder (the outbox,
+    // the unified mailbox and Snoozed), which disables the paste.
+    const messageClipboard = useMessageClipboard({bulkMoveIds, setError})
+    const pasteFolderId = selectedFolder && selectedFolder !== OUTBOX_FOLDER_ID &&
+        !isUnifiedFolder(selectedFolder) && !isSnoozedFolder(selectedFolder) ? selectedFolder : ''
+    const pasteMessages = useCallback(() => {
+        if (pasteFolderId !== '') {
+            void messageClipboard.pasteInto(pasteFolderId)
+        }
+    }, [messageClipboard, pasteFolderId])
 
     // A message shown in the reader (the preview pane, or the full-width reader when the pane is off)
     // counts as read, so viewing or double-clicking a message un-bolds it. Auto-read fires once per
@@ -913,7 +928,11 @@ function App() {
         splashVisible, composing, settingUp, accountToEdit, managingRules, managingTemplates, managingContacts, managingCalendar,
         about, licence, folderPrompt, messageToCancelSend, messageToDelete, accountToDelete, folderToDelete,
         messageToPurge, contextMenu, bulkToDelete, bulkToPurge, snoozePickerFor, folders,
-        requestDelete, openMessage: openPopout, setMessageToPurge, setBulkToPurge, setBulkToDelete, setFolderToDelete,
+        requestDelete, openMessage: openPopout,
+        onCutMessages: messageClipboard.cutMessages,
+        onCopyMessages: messageClipboard.copyMessages,
+        onPasteMessages: pasteMessages,
+        setMessageToPurge, setBulkToPurge, setBulkToDelete, setFolderToDelete,
         togglePreview,
     })
 
@@ -963,16 +982,38 @@ function App() {
         setAnchorId(visibleList[0].id)
     }, [visibleList])
 
-    // Edit > Cut / Copy / Paste act on the main window's text surfaces; editContext gates them live.
-    // The menus never steal focus from a text field, so the selection these run against survives the
-    // click. Paste reads the clipboard through the Wails runtime, best-effort: an unreadable
-    // clipboard pastes nothing.
+    // Edit > Cut / Copy / Paste dispatch by context, text first: with a text selection (or a
+    // focused field for paste) they are the ordinary text commands, and the menus never steal
+    // focus from a text field so that selection survives the click. Otherwise they act at the
+    // message level through the message clipboard: cut or copy takes the selected email(s) and
+    // paste files them into the open folder. Text paste reads the clipboard through the Wails
+    // runtime, best-effort: an unreadable clipboard pastes nothing.
     const editContext = useEditContext()
-    const cut = useCallback(() => cutSelection(document), [])
-    const copy = useCallback(() => copySelection(document), [])
-    const paste = useCallback(() => {
-        api.clipboardText().then((text) => pasteText(document, text)).catch(() => {})
-    }, [])
+    const clipboardTargets = selectedMessages.filter((m) => !isOutboxMessage(m))
+    const canCutNow = canCut(editContext) || clipboardTargets.length > 0
+    const canCopyNow = canCopy(editContext) || clipboardTargets.length > 0
+    const canPasteNow = canPaste(editContext) || (messageClipboard.hasClip && pasteFolderId !== '')
+    const cut = () => {
+        if (canCut(editContext)) {
+            cutSelection(document)
+            return
+        }
+        messageClipboard.cutMessages(clipboardTargets)
+    }
+    const copy = () => {
+        if (canCopy(editContext)) {
+            copySelection(document)
+            return
+        }
+        messageClipboard.copyMessages(clipboardTargets)
+    }
+    const paste = () => {
+        if (canPaste(editContext)) {
+            api.clipboardText().then((text) => pasteText(document, text)).catch(() => {})
+            return
+        }
+        pasteMessages()
+    }
 
     // The message list and reader are extracted so the reading-pane layout can place them side by side
     // (pane on) or swap between them (pane off: list, or the full-width reader when a message is opened).
@@ -1068,7 +1109,7 @@ function App() {
         saveMessageAs, printMessage,
         undoText: undoRedo.undoText, redoText: undoRedo.redoText,
         undoAction: undoRedo.undo, redoAction: undoRedo.redo,
-        editContext, cut, copy, paste, selectAll, canSelectAll: visibleList.length > 0,
+        canCutNow, canCopyNow, canPasteNow, cut, copy, paste, selectAll, canSelectAll: visibleList.length > 0,
         setManagingRules, setManagingTemplates, focusSearch,
         toggleConversationView, togglePreview, toggleAutoLoadImages, toggleUnifiedMailbox,
         signatureHtml, setComposeInitial, setComposing, setSettingUp, sync, openInNewTab,

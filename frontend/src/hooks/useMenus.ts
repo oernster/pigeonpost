@@ -6,7 +6,7 @@ import {TAG_PALETTE, colourTagId} from '../tagColours'
 import {matchesShortcut} from '../shortcuts'
 import {snoozeChoices} from '../schedule'
 import {isJunkFolderMessage} from '../folderPaths'
-import {EditContext, canCopy, canCut, canPaste, isTextEntry} from '../editClipboard'
+import {isTextEntry} from '../editClipboard'
 
 // undoSendChoices are the offered undo-send windows in seconds; 0 turns the hold off and sends
 // immediately. defaultUndoSendSeconds is the out-of-the-box window.
@@ -44,12 +44,16 @@ export interface MenusDeps {
     saveMessageAs: (message: Message) => Promise<void>
     printMessage: (message: Message) => Promise<void>
     // Edit menu. undoText / redoText name the top history entry ("Undo delete") or are null when
-    // there is nothing to unwind; editContext gates the clipboard items live.
+    // there is nothing to unwind. canCutNow / canCopyNow / canPasteNow gate the clipboard items
+    // live; App computes them from the text selection and the message selection together, and the
+    // three actions dispatch to whichever level applies (text wins).
     undoText: string | null
     redoText: string | null
     undoAction: () => Promise<void>
     redoAction: () => Promise<void>
-    editContext: EditContext
+    canCutNow: boolean
+    canCopyNow: boolean
+    canPasteNow: boolean
     cut: () => void
     copy: () => void
     paste: () => void
@@ -113,7 +117,7 @@ export function useMenus(deps: MenusDeps): Menus {
         isWindows, conversationView, previewEnabled, autoLoadImages, unifiedMailbox, undoSendSeconds, setUndoSendSeconds,
         folders, messageTags,
         saveMessageAs, printMessage,
-        undoText, redoText, undoAction, redoAction, editContext, cut, copy, paste, selectAll, canSelectAll,
+        undoText, redoText, undoAction, redoAction, canCutNow, canCopyNow, canPasteNow, cut, copy, paste, selectAll, canSelectAll,
         setManagingRules, setManagingTemplates, focusSearch,
         toggleConversationView, togglePreview, toggleAutoLoadImages, toggleUnifiedMailbox,
         signatureHtml, setComposeInitial, setComposing, setSettingUp, sync, openInNewTab,
@@ -191,9 +195,9 @@ export function useMenus(deps: MenusDeps): Menus {
             onClick: () => void redoAction(),
         },
         {label: '', separator: true},
-        {label: 'Cut', shortcut: 'Ctrl+X', hintOnly: true, disabled: !canCut(editContext), onClick: cut},
-        {label: 'Copy', shortcut: 'Ctrl+C', hintOnly: true, disabled: !canCopy(editContext), onClick: copy},
-        {label: 'Paste', shortcut: 'Ctrl+V', hintOnly: true, disabled: !canPaste(editContext), onClick: paste},
+        {label: 'Cut', shortcut: 'Ctrl+X', hintOnly: true, disabled: !canCutNow, onClick: cut},
+        {label: 'Copy', shortcut: 'Ctrl+C', hintOnly: true, disabled: !canCopyNow, onClick: copy},
+        {label: 'Paste', shortcut: 'Ctrl+V', hintOnly: true, disabled: !canPasteNow, onClick: paste},
         {
             label: 'Delete',
             shortcut: 'Del',
