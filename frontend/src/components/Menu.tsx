@@ -194,12 +194,19 @@ function SubMenuItem({item, onChoose}: {item: MenuItem; onChoose: (item: MenuIte
     )
 }
 
-// Menu is a title-tray dropdown: an emoji trigger that opens a list of items. It closes on an outside
-// click, on Escape and after a leaf item is chosen. It backs the File, Edit, View, Mail and Help menus so
-// they all look and behave the same. Keyboard: Down, Enter or Space on the trigger opens the menu and
-// moves focus to the first item; Up and Down (wrapping) plus Home and End walk the items; Right opens a
-// submenu (or collapses a leaf); Escape, Tab or Left collapses back to the trigger so the window focus
-// ring carries on from there.
+// HOVER_CLOSE_DELAY_MS is the grace the pointer gets after leaving a hover-opened menu before it
+// closes: long enough to travel diagonally from the trigger into the dropdown (or between them and
+// back) without the menu slamming shut, short enough that the menu still feels dismissed on leave.
+export const HOVER_CLOSE_DELAY_MS = 200
+
+// Menu is a title-tray dropdown: an emoji trigger that opens a list of items. Hovering the trigger
+// opens it too (the dropdown is headed with the menu's name, since the emoji alone does not carry
+// it), and it closes once the pointer has left both the trigger and the open dropdown. It also
+// closes on an outside click, on Escape and after a leaf item is chosen. It backs the File, Edit,
+// View, Mail and Help menus so they all look and behave the same. Keyboard: Down, Enter or Space on
+// the trigger opens the menu and moves focus to the first item; Up and Down (wrapping) plus Home
+// and End walk the items; Right opens a submenu (or collapses a leaf); Escape, Tab or Left
+// collapses back to the trigger so the window focus ring carries on from there.
 export function Menu({title, icon, items, align = 'right'}: MenuProps) {
     const [open, setOpen] = useState(false)
     const menuRef = useRef<HTMLDivElement>(null)
@@ -209,6 +216,18 @@ export function Menu({title, icon, items, align = 'right'}: MenuProps) {
     // on open. A mouse open leaves focus on the trigger (no stray focus ring); Down from there still steps
     // into the items.
     const openedByKeyboardRef = useRef(false)
+    // hoverCloseTimer holds the pending close scheduled when the pointer leaves the menu, cancelled
+    // if it comes back within the grace period.
+    const hoverCloseTimer = useRef<number | null>(null)
+
+    const cancelHoverClose = () => {
+        if (hoverCloseTimer.current !== null) {
+            window.clearTimeout(hoverCloseTimer.current)
+            hoverCloseTimer.current = null
+        }
+    }
+
+    useEffect(() => cancelHoverClose, [])
 
     // When the menu opens by keyboard, move focus to its first item so the keyboard lands inside the
     // dropdown. Reset the flag once closed.
@@ -300,7 +319,18 @@ export function Menu({title, icon, items, align = 'right'}: MenuProps) {
     }
 
     return (
-        <div className="menu" ref={menuRef}>
+        <div
+            className="menu"
+            ref={menuRef}
+            onMouseEnter={() => {
+                cancelHoverClose()
+                setOpen(true)
+            }}
+            onMouseLeave={() => {
+                cancelHoverClose()
+                hoverCloseTimer.current = window.setTimeout(() => setOpen(false), HOVER_CLOSE_DELAY_MS)
+            }}
+        >
             <button
                 ref={triggerRef}
                 className={'menu-title' + (open ? ' active' : '')}
@@ -321,6 +351,7 @@ export function Menu({title, icon, items, align = 'right'}: MenuProps) {
                     ref={dropdownRef}
                     onKeyDown={onDropdownKeyDown}
                 >
+                    <div className="menu-header" aria-hidden="true">{title}</div>
                     {items.map((item, i) => (
                         <MenuItemView key={i} item={item} onChoose={choose}/>
                     ))}

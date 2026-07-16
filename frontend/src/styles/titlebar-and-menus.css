@@ -146,10 +146,26 @@
     cursor: pointer;
 }
 
+/* Hovering a menu trigger (or holding it open) paints its rectangle teal, so the emoji tray reads
+   as live controls; the dropdown itself opens on hover too, headed with the menu's name. */
 .menu-title:hover,
 .menu-title.active {
     background-color: var(--bg-elev-2);
-    border-color: var(--border);
+    border-color: var(--accent);
+}
+
+/* While the dropdown is open the trigger's tooltip stands down: the dropdown occupies the same
+   spot and its header already names the menu. */
+.menu-title.active::after {
+    display: none;
+}
+
+/* The open dropdown's header row, naming the menu the emoji trigger stands for. */
+.menu-header {
+    padding: 6px 12px 4px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-dim);
 }
 
 /* Keyboard focus ring on the title-tray buttons (the menu triggers, Contacts and Calendar, the theme
