@@ -883,15 +883,15 @@ function App() {
     const {
         bulkToDelete, setBulkToDelete, bulkDeleting,
         bulkToPurge, setBulkToPurge, bulkPurging,
-        runBulkDelete, bulkSetRead, bulkSetFlag, bulkMove, bulkMoveIds, dropMessageOnFolder,
+        runBulkDelete, bulkSetRead, bulkSetFlag, bulkMove, dropMessageOnFolder,
     } = useBulkActions({store, selection, folders, loadUnread, refreshFolders, setError, undo: undoRedo.recorder})
 
     // The message-level half of Edit > Cut / Copy / Paste: cut or copy takes the selected messages
-    // onto an internal clipboard and paste files them into the folder being viewed (a cut moves,
-    // recording a normal undo entry through bulkMoveIds; a copy duplicates). pasteFolderId is the
-    // paste target: the open folder, or '' in the views that are not one real folder (the outbox,
-    // the unified mailbox and Snoozed), which disables the paste.
-    const messageClipboard = useMessageClipboard({bulkMoveIds, setError})
+    // onto an internal clipboard and paste files them into the folder being viewed (a cut moves
+    // optimistically, so the rows appear at once and the server settles behind them; a copy
+    // duplicates). pasteFolderId is the paste target: the open folder, or '' in the views that are
+    // not one real folder (the outbox, the unified mailbox and Snoozed), which disables the paste.
+    const messageClipboard = useMessageClipboard({store, undo: undoRedo.recorder, loadUnread, refreshFolders, setError})
     const pasteFolderId = selectedFolder && selectedFolder !== OUTBOX_FOLDER_ID &&
         !isUnifiedFolder(selectedFolder) && !isSnoozedFolder(selectedFolder) ? selectedFolder : ''
     const pasteMessages = useCallback(() => {
