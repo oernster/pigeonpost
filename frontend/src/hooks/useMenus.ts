@@ -306,10 +306,12 @@ export function useMenus(deps: MenusDeps): Menus {
             label: 'Respond',
             icon: '\u{21A9}\u{FE0F}',
             disabled: !canMailAct,
+            // The accelerators are Thunderbird's: Ctrl+R replies, Ctrl+Shift+R replies to all and
+            // Ctrl+L forwards.
             submenu: [
-                {label: 'Reply', icon: '\u{21A9}\u{FE0F}', disabled: !canMailAct, onClick: () => activeMessage && openReply(activeMessage)},
-                {label: 'Reply all', icon: '\u{1F465}', disabled: !canReplyAll, onClick: () => activeMessage && openReplyAll(activeMessage)},
-                {label: 'Forward', icon: '\u{21AA}\u{FE0F}', disabled: !canMailAct, onClick: () => activeMessage && openForward(activeMessage)},
+                {label: 'Reply', icon: '\u{21A9}\u{FE0F}', shortcut: 'Ctrl+R', disabled: !canMailAct, onClick: () => activeMessage && openReply(activeMessage)},
+                {label: 'Reply all', icon: '\u{1F465}', shortcut: 'Ctrl+Shift+R', disabled: !canReplyAll, onClick: () => activeMessage && openReplyAll(activeMessage)},
+                {label: 'Forward', icon: '\u{21AA}\u{FE0F}', shortcut: 'Ctrl+L', disabled: !canMailAct, onClick: () => activeMessage && openForward(activeMessage)},
                 {
                     label: 'Attach to new message',
                     icon: '\u{1F4CE}',
@@ -396,7 +398,10 @@ export function useMenus(deps: MenusDeps): Menus {
         {label: 'Licence', onClick: () => void showLicence()},
         {label: 'Check for Updates', onClick: checkUpdates},
     ]
+    // Submenu children are flattened in alongside their parents so an accelerator on a flyout item
+    // (Reply under Respond, say) fires globally like any top-level item's.
     menuShortcutsRef.current = [...fileMenu, ...editMenu, ...viewMenu, ...mailMenu, ...helpMenu]
+        .flatMap((item) => [item, ...(item.submenu ?? [])])
 
     return {fileMenu, editMenu, viewMenu, mailMenu, helpMenu}
 }

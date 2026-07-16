@@ -714,6 +714,18 @@ describe('App: menus', () => {
         expect(await screen.findByRole('dialog', {name: 'New message'})).toBeInTheDocument()
     })
 
+    it('opens the reply composer via the Ctrl+R submenu accelerator (useMenus)', async () => {
+        apiSpies.listAccounts.mockResolvedValue([makeAccount()])
+        apiSpies.listFolders.mockResolvedValue([makeFolder('inbox', 'Inbox', 'inbox')])
+        apiSpies.listMessages.mockResolvedValue([makeMessage({subject: 'Weekly report'})])
+        render(<App/>)
+        // Reply is gated on a selected message. Its accelerator lives on a Respond submenu item,
+        // so this also pins the flattening of submenu children into the global shortcut scan.
+        fireEvent.click(await screen.findByText('Weekly report'))
+        fireEvent.keyDown(document.body, {key: 'r', ctrlKey: true})
+        expect(await screen.findByRole('dialog', {name: 'New message'})).toBeInTheDocument()
+    })
+
     it('saves the selected message as .eml from the File menu (useMenus)', async () => {
         apiSpies.listAccounts.mockResolvedValue([makeAccount()])
         apiSpies.listFolders.mockResolvedValue([makeFolder('inbox', 'Inbox', 'inbox')])

@@ -268,15 +268,18 @@ export function MessageContextMenu(props: MessageContextMenuProps) {
                     </button>
                     <div className="context-sep"/>
                     <button className="context-item" role="menuitem" onClick={act(() => props.onReply(message))}>
-                        Reply
+                        <span className="context-item-label">Reply</span>
+                        <span className="context-item-shortcut" aria-hidden="true">Ctrl+R</span>
                     </button>
                     {repliesAll && (
                         <button className="context-item" role="menuitem" onClick={act(() => props.onReplyAll(message))}>
-                            Reply to all
+                            <span className="context-item-label">Reply to all</span>
+                            <span className="context-item-shortcut" aria-hidden="true">Ctrl+Shift+R</span>
                         </button>
                     )}
                     <button className="context-item" role="menuitem" onClick={act(() => props.onForward(message))}>
-                        Forward
+                        <span className="context-item-label">Forward</span>
+                        <span className="context-item-shortcut" aria-hidden="true">Ctrl+L</span>
                     </button>
                     <button className="context-item" role="menuitem" onClick={act(() => props.onAttachToNew(message))}>
                         Attach to new message
