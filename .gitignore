@@ -80,7 +80,5 @@ build/linux/
 
 # Local scratch
 NOTES.md
-FRONTEND_PLAN.md
-REMAINING_REFACTOR.md
 *.db
 *.db-*
