@@ -6,11 +6,13 @@ package message
 import (
 	"encoding/base64"
 	stdmime "mime"
+	"mime/quotedprintable"
 	"net/mail"
 	"strings"
 	"time"
 
 	"github.com/oernster/pigeonpost/internal/domain"
+	"github.com/oernster/pigeonpost/internal/infrastructure/mailparse"
 )
 
 // base64LineLength is the maximum characters per base64 line in an encoded attachment (RFC 2045).
@@ -43,15 +45,14 @@ func BuildMIME(msg domain.OutgoingMessage, date time.Time, messageID string) []b
 }
 
 // writeContent writes the message body's Content-Type header and body: a multipart/alternative when an
-// HTML alternative is present, otherwise a single text/plain body.
+// HTML alternative is present, otherwise a single text/plain body. Bare URLs in the HTML alternative are
+// anchored on the way out, so a link the sender typed (or a mailto: handoff prefilled) arrives clickable
+// in every client.
 func writeContent(b *strings.Builder, msg domain.OutgoingMessage, messageID string) {
 	if html := msg.HTMLBody(); html != "" {
-		writeMultipartBody(b, msg.Body(), html, messageID)
+		writeMultipartBody(b, msg.Body(), mailparse.LinkifyHTML(html), messageID)
 	} else {
-		b.WriteString("Content-Type: text/plain; charset=utf-8\r\n")
-		b.WriteString("Content-Transfer-Encoding: 8bit\r\n")
-		b.WriteString("\r\n")
-		b.WriteString(normaliseBody(msg.Body()))
+		writeTextPartHeaderless(b, "text/plain; charset=utf-8", msg.Body())
 	}
 }
 
@@ -131,11 +132,23 @@ func writeMultipartBody(b *strings.Builder, plain, html, messageID string) {
 // writeMIMEPart writes one body part with the given content type and CRLF-normalised content.
 func writeMIMEPart(b *strings.Builder, boundary, contentType, content string) {
 	b.WriteString("--" + boundary + "\r\n")
+	writeTextPartHeaderless(b, contentType, content)
+	b.WriteString("\r\n")
+}
+
+// writeTextPartHeaderless writes a text part's headers and quoted-printable body. Quoted-printable keeps
+// every wire line within the RFC 5322 limit: an 8bit body with a long line (a URL, an unwrapped HTML
+// paragraph) gets hard-folded by relays, which corrupts the content; soft line breaks fold losslessly.
+func writeTextPartHeaderless(b *strings.Builder, contentType, content string) {
 	b.WriteString("Content-Type: " + contentType + "\r\n")
-	b.WriteString("Content-Transfer-Encoding: 8bit\r\n")
+	b.WriteString("Content-Transfer-Encoding: quoted-printable\r\n")
 	b.WriteString("\r\n")
-	b.WriteString(normaliseBody(content))
-	b.WriteString("\r\n")
+	writer := quotedprintable.NewWriter(b)
+	// The writer never fails against a strings.Builder; the errors are checked anyway so a future
+	// destination change cannot silently drop content.
+	if _, err := writer.Write([]byte(normaliseBody(content))); err == nil {
+		_ = writer.Close()
+	}
 }
 
 func writeAddressHeader(b *strings.Builder, name string, addrs []domain.EmailAddress) {

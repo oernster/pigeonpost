@@ -2,6 +2,7 @@ import {useEffect, useRef, useState} from 'react'
 import type {RefObject} from 'react'
 import {api, EmailView, Folder, Message, MessageBody, Tag} from '../api'
 import {EmailHtmlFrame} from './EmailHtmlFrame'
+import {LinkifiedText} from './LinkifiedText'
 import {EmailViewerModal} from './EmailViewerModal'
 import {ReaderToolbar} from './ReaderToolbar'
 import {ReaderAttachments} from './ReaderAttachments'
@@ -247,7 +248,9 @@ export function Reader({message, onToggleRead, onReply, onReplyAll, onForward, o
                         />
                     </>
                 ) : body && body.plain.trim() !== '' ? (
-                    <pre className="reader-text">{body.plain}</pre>
+                    <pre className="reader-text">
+                        <LinkifiedText text={body.plain} onOpenLink={openLinkExternally} />
+                    </pre>
                 ) : message.snippet ? (
                     <p>{message.snippet}</p>
                 ) : (

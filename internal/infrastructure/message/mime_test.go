@@ -2,6 +2,8 @@ package message
 
 import (
 	"encoding/base64"
+	"io"
+	"mime/quotedprintable"
 	"strings"
 	"testing"
 	"time"
@@ -40,6 +42,7 @@ func TestBuildMIME(t *testing.T) {
 		"Message-ID: <abc123@pigeonpost>\r\n",
 		"MIME-Version: 1.0\r\n",
 		"Content-Type: text/plain; charset=utf-8\r\n",
+		"Content-Transfer-Encoding: quoted-printable\r\n",
 		"\r\nline1\r\nline2",
 	}
 	for _, w := range wants {
@@ -106,9 +109,10 @@ func TestBuildMIMEMultipartAlternative(t *testing.T) {
 		`Content-Type: multipart/alternative; boundary="=_pigeonpost_mid42"` + "\r\n",
 		"--=_pigeonpost_mid42\r\n",
 		"Content-Type: text/plain; charset=utf-8\r\n",
+		"Content-Transfer-Encoding: quoted-printable\r\n",
 		"\r\nplain text\r\n",
 		"Content-Type: text/html; charset=utf-8\r\n",
-		"\r\n<p>rich <b>text</b></p>\r\n",
+		"<p>rich <b>text</b></p>",
 		"--=_pigeonpost_mid42--\r\n",
 	}
 	for _, w := range wants {
@@ -120,6 +124,75 @@ func TestBuildMIMEMultipartAlternative(t *testing.T) {
 	if strings.Index(out, "text/plain") > strings.Index(out, "text/html") {
 		t.Error("text/plain part must precede text/html part")
 	}
+}
+
+func TestBuildMIMEAnchorsBareURLsInHTML(t *testing.T) {
+	msg, err := domain.NewOutgoingMessage(domain.OutgoingMessageInput{
+		From:     addr(t, "", "me@example.com"),
+		To:       []domain.EmailAddress{addr(t, "", "a@example.com")},
+		Subject:  "Link",
+		Body:     "see https://example.org/page",
+		HTMLBody: "<p>see https://example.org/page and www.example.org.</p>",
+	})
+	if err != nil {
+		t.Fatalf("build message: %v", err)
+	}
+	out := string(BuildMIME(msg, time.Unix(0, 0).UTC(), "mid7"))
+	decoded := decodeQuotedPrintableParts(t, out)
+	wants := []string{
+		`<a href="https://example.org/page">https://example.org/page</a>`,
+		`<a href="http://www.example.org">www.example.org</a>`,
+	}
+	for _, w := range wants {
+		if !strings.Contains(decoded, w) {
+			t.Errorf("outgoing HTML missing %q\n---\n%s", w, decoded)
+		}
+	}
+	// The existing anchor policy: the trailing sentence dot stays outside the link text.
+	if strings.Contains(decoded, `www.example.org.</a>`) {
+		t.Errorf("trailing punctuation leaked into the link\n---\n%s", decoded)
+	}
+}
+
+func TestBuildMIMEKeepsWireLinesWithinLimit(t *testing.T) {
+	long := "https://example.org/" + strings.Repeat("segment/", 40) + "end"
+	msg, err := domain.NewOutgoingMessage(domain.OutgoingMessageInput{
+		From:     addr(t, "", "me@example.com"),
+		To:       []domain.EmailAddress{addr(t, "", "a@example.com")},
+		Subject:  "Long line",
+		Body:     "click " + long,
+		HTMLBody: "<p>click " + long + "</p>",
+	})
+	if err != nil {
+		t.Fatalf("build message: %v", err)
+	}
+	out := string(BuildMIME(msg, time.Unix(0, 0).UTC(), "mid8"))
+	for _, line := range strings.Split(out, "\r\n") {
+		if len(line) > 78 {
+			t.Errorf("wire line exceeds the safe length (%d): %q", len(line), line)
+		}
+	}
+	// The folded content must decode back to the intact URL.
+	if !strings.Contains(decodeQuotedPrintableParts(t, out), long) {
+		t.Errorf("long URL did not survive the quoted-printable round trip\n---\n%s", out)
+	}
+}
+
+// decodeQuotedPrintableParts decodes every quoted-printable body section of a built message, so tests
+// assert on the content a receiving client reconstructs rather than on the folded wire form.
+func decodeQuotedPrintableParts(t *testing.T, wire string) string {
+	t.Helper()
+	var decoded strings.Builder
+	sections := strings.Split(wire, "Content-Transfer-Encoding: quoted-printable\r\n\r\n")
+	for _, section := range sections[1:] {
+		body, _, _ := strings.Cut(section, "\r\n--")
+		content, err := io.ReadAll(quotedprintable.NewReader(strings.NewReader(body)))
+		if err != nil {
+			t.Fatalf("decode quoted-printable: %v", err)
+		}
+		decoded.Write(content)
+	}
+	return decoded.String()
 }
 
 func TestBuildMIMEWithAttachment(t *testing.T) {
