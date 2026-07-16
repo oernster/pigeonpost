@@ -83,14 +83,11 @@ function MenuItemView({item, onChoose}: {item: MenuItem; onChoose: (item: MenuIt
             onMouseDown={keepTextFocus}
             onClick={() => onChoose(item)}
         >
-            {item.checked !== undefined && (
-                <span className="menu-item-check" aria-hidden="true">{item.checked ? '✓' : ''}</span>
-            )}
+            <span className="menu-item-gutter" aria-hidden="true">
+                {item.checked !== undefined ? (item.checked ? '✓' : '') : item.icon ?? ''}
+            </span>
             {item.swatch !== undefined && (
                 <span className="menu-item-swatch" aria-hidden="true" style={{backgroundColor: item.swatch}}/>
-            )}
-            {item.icon !== undefined && (
-                <span className="menu-item-icon" aria-hidden="true">{item.icon}</span>
             )}
             <span className="menu-item-label">{item.label}</span>
             {item.shortcut !== undefined && (
@@ -177,9 +174,7 @@ function SubMenuItem({item, onChoose}: {item: MenuItem; onChoose: (item: MenuIte
                 onMouseDown={keepTextFocus}
                 onKeyDown={onParentKey}
             >
-                {item.icon !== undefined && (
-                    <span className="menu-item-icon" aria-hidden="true">{item.icon}</span>
-                )}
+                <span className="menu-item-gutter" aria-hidden="true">{item.icon ?? ''}</span>
                 <span className="menu-item-label">{item.label}</span>
                 <span className="menu-sub-arrow" aria-hidden="true">▸</span>
             </button>

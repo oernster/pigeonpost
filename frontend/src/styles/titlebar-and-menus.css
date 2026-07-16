@@ -220,9 +220,9 @@
     cursor: default;
 }
 
-/* Fixed-width leading columns so a toggle item's tick and an item's emoji line up down the menu. */
-.menu-item-check,
-.menu-item-icon {
+/* Fixed-width leading gutter on EVERY item (holding the tick, the emoji or nothing), so all labels
+   share the same indent under the menu header across every dropdown. */
+.menu-item-gutter {
     flex-shrink: 0;
     width: 1.15em;
     text-align: center;
