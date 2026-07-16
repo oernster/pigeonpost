@@ -38,7 +38,8 @@ local-first. A calmer, more predictable alternative to Thunderbird.
   mode is shown in that native design, while a light-designed message is inverted to read comfortably, its
   photos and logos keeping their true colour. Attachments save from the reader (cached for offline). Sync runs per account with its own
   progress cue.
-- **Compose**: TipTap rich text, To/Cc/Bcc, reply, reply-all and forward, file or message attachments
+- **Compose**: TipTap rich text, To/Cc/Bcc, reply, reply-all and forward (Ctrl+R, Ctrl+Shift+R and
+  Ctrl+L), file or message attachments
   (25 MB), reusable message templates, per-account signatures and server Drafts. In-progress writing autosaves locally and is
   offered back after a crash. Undo send holds each message for a few configurable seconds with an Undo
   that reopens it exactly as written. Send later schedules a message for a chosen moment (presets or an
@@ -50,7 +51,12 @@ local-first. A calmer, more predictable alternative to Thunderbird.
   that sync across devices as IMAP keywords. Snooze hides a message until a chosen time then returns it
   untouched with a desktop notification (while the app is running, or at the next launch); hidden
   messages wait in a Snoozed view with their due times and an Unsnooze. Move or copy messages by menu or by dragging onto a folder
-  (dragging onto a collapsed folder springs it open). Create, rename and delete folders; reorganise the
+  (dragging onto a collapsed folder springs it open). Undo and redo (Ctrl+Z, Ctrl+Y) unwind the mail
+  actions: delete, move, junk and its rescue, their bulk forms and the read, star and tag toggles,
+  with each menu entry naming what it will unwind. Cut, copy and paste messages file-manager style
+  (Ctrl+X/C/V, the Edit menu or a right-click): cut or copy a selection, then paste it into the
+  folder being viewed or straight onto a right-clicked folder; cut rows dim until pasted and pasted
+  rows appear instantly. Create, rename and delete folders; reorganise the
   tree by dragging a folder to nest it, move it out or reorder its siblings.
   One folder each holds Inbox, Sent, Drafts, Trash, Junk and Archive, leading a collapsible tree with
   unread badges per folder, account and total. On-arrival rules mark or flag by From, To, Cc or Subject.
@@ -111,6 +117,6 @@ bash build_flatpak.sh    # build and install the Flatpak (Linux)
 
 ## Licence
 
-You are free to apply the GPL3 LICENSE below - provided that credit to the original author (Oliver Ernster) is retained in all copies and derivative works, under all circumstances. Removing or omitting this attribution is not permitted.
+You are free to apply the GPL3 LICENSE below - provided that credit to the original author (Oliver Ernster) is retained in all copies and derivative works, under all circumstances. Removing or omitting this attribution is not permitted. This requirement is stated in the [LICENSE](LICENSE) file's own licensing notice as a GPLv3 section 7(b) additional term and repeated in Help > About.
 
 GPL-3.0. See [LICENSE](LICENSE). The full text is also available in the app under Help > Licence.

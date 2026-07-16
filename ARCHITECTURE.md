@@ -295,6 +295,31 @@ Move a message: the UI offers the account's other folders; choosing one routes t
 server via the `MailActions` port and removes the local copy (the destination folder re-lists it, with
 its new server UID, on the next sync). Copy is the same path without removing the original.
 
+Every move-shaped action (move, delete to Trash, junk and its rescue, copy, the bulk forms) also
+reports where the message landed: the IMAP adapter reads the server's COPYUID reply (RFC 4315),
+pairing each source UID with its destination UID, and the service maps that to the id the message
+carries in its destination (`domain.MessageIDFor`, the single spelling of the folder-plus-UID
+identity). The facade returns it in `MoveResultDTO`/`BulkResultDTO`; a server without UIDPLUS
+reports nothing and the id is empty rather than guessed.
+
+Undo, redo and the message clipboard (front end): the reported destination ids are what make undo
+possible. `undoStack.ts` (a gated pure module) models the undo and redo stacks: entries for the
+move-shaped actions plus the read, star and tag toggles, capped at a fixed depth, each labelled with
+what it will unwind ("Undo delete"). `useUndoRedo` executes an entry through the same api actions and
+rebinds the entry's message ids from each execution's own COPYUID reply, so undo and redo can
+ping-pong indefinitely; an action whose server reported no id is simply never recorded, so the menu
+never promises what it cannot address. `useMessageClipboard` is the file-manager cut/copy/paste:
+cut or copy takes the selection onto an internal clipboard (cut rows dim in the list via `cutIds`)
+and paste files it into a folder. A pasted cut is optimistic: rows join the open folder at once,
+the batched server move settles behind them and each row is re-pointed at its reported new id
+(refused rows roll back; a wholly failed paste restores the clipboard). A pasted copy inserts each
+duplicate's row the moment the server reports the id its copy carries, cloned from the original;
+without a reported id the copy appears on the destination sync instead, so a row is never shown
+under an invented identity. `editClipboard.ts` (also gated pure) decides the text-versus-message
+context, so Cut, Copy and Paste act on a text selection first and messages otherwise. Menu
+accelerators are wired once in `useMenus` from the same item definitions the menus render (submenu
+children flattened in), so a hint and its key can never drift.
+
 Folder operations: the `FolderService` creates, renames and deletes mailboxes on the server through the
 `FolderActions` port. Each cached `Folder` records the server's mailbox hierarchy delimiter,
 captured from the IMAP `LIST` response, so the leaf name and a rename's destination path are
@@ -622,7 +647,9 @@ Locked product decisions:
 
 - Licence: GPL-3.0, whole app, with credit to the original author (Oliver Ernster) retained in all
   copies and derivative works (an author-attribution additional term of the kind GPLv3 section 7(b)
-  permits). Removing or omitting the attribution is not permitted.
+  permits). Removing or omitting the attribution is not permitted. The term is stated in the LICENSE
+  file's own licensing notice (shown by Help > Licence, which renders that file) and repeated in
+  Help > About.
 - Auth: password (or app password) over generic IMAP/POP3 is the core path; XOAUTH2 OAuth is
   implemented and Microsoft uses it (authorization-code plus PKCE, loopback redirect, free Entra
   registration). Gmail personal accounts are supported via an app-password preset; one-click Google

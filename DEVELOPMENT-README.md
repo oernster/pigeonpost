@@ -192,4 +192,5 @@ Do not hardcode a version anywhere else.
 
 GPL-3.0 (see [LICENSE](LICENSE)), with credit to the original author (Oliver Ernster) retained in
 all copies and derivative works, under all circumstances. Removing or omitting this attribution is
-not permitted.
+not permitted. The requirement is stated in the LICENSE file's own licensing notice as a GPLv3
+section 7(b) additional term and repeated in Help > About.
