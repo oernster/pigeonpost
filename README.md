@@ -36,7 +36,9 @@ local-first. A calmer, more predictable alternative to Thunderbird.
   no scripts and making no remote requests; remote images are blocked by default until you load them
   (per message or a "Load images by default" toggle). In the dark theme a message that ships its own dark
   mode is shown in that native design, while a light-designed message is inverted to read comfortably, its
-  photos and logos keeping their true colour. Attachments save from the reader (cached for offline). Sync runs per account with its own
+  photos and logos keeping their true colour. Bare web addresses in a message are clickable (opening in
+  your browser, never inside the app), markdown-style `[label](url)` links show their label and a link
+  standing alone on its own line is presented as a button. Attachments save from the reader (cached for offline). Sync runs per account with its own
   progress cue.
 - **Compose**: TipTap rich text, To/Cc/Bcc, reply, reply-all and forward (Ctrl+R, Ctrl+Shift+R and
   Ctrl+L), file or message attachments
@@ -45,6 +47,8 @@ local-first. A calmer, more predictable alternative to Thunderbird.
   that reopens it exactly as written. Send later schedules a message for a chosen moment (presets or an
   exact date and time); it waits in the Outbox with Cancel send and leaves while the app is running, or
   at the next launch after the chosen time. Sends made offline queue in a per-account outbox and deliver on the next sync.
+  URLs you type or paste go out as real links in any recipient's client and long lines are encoded so
+  no mail server can fold and corrupt them in transit.
 - **Organise**: mark read/star, delete to Trash or purge, junk and not-junk (a wrongly junked message
   moves back to the inbox with the server told the verdict), instant offline full-text search with
   operators (from:, to:, has:attachment, dates and more) and colour tags

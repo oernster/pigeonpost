@@ -134,14 +134,22 @@ Read a message body:
    `mailparse.DecodeHeader`, shared by the IMAP envelope path and POP3, so encoded-word and
    template-built headers read as text. The shared `mailparse` package (used by both the IMAP and POP3
    read paths) parses the MIME into plain-text and HTML parts; the HTML is sanitised there (bluemonday) so only safe markup ever
-   enters the cache, and an HTML-only message also gets a plain-text rendering derived from the HTML.
+   enters the cache; an HTML-only message also gets a plain-text rendering derived from the HTML.
    The same pre-sanitise pass drops nodes the sender hid with inline CSS (a preheader / preview-text
    block): the sanitiser strips the style that hid them, so left in place they would surface and
    duplicate the visible content. Before sanitising, every remote `<img src>` is parked in
    a `data-pp-src` attribute (and `srcset` dropped) so images do not auto-load, which would leak that
    the reader opened the message; the UI shows a "Load images" action that restores the source on
-   request. The UI renders the sanitised HTML when present (links open in the external browser via the
-   facade, never the app's own webview) and falls back to the plain text otherwise.
+   request. Between the prepare pass and the sanitiser, bare web addresses in the message text are
+   linkified the way mainstream clients do (`mailparse` linkify: http, https, mailto and www hosts become
+   anchors; markdown-style `[label](url)` links render as their label; text already inside an anchor,
+   script, style or form controls is left alone) and an anchor standing alone on its own line, between
+   `<br>`s or block edges, is marked `pp-solo-link` so the reader presents it as a call-to-action button;
+   the sanitiser then applies its usual scheme policy to the new anchors. The UI renders the sanitised
+   HTML when present (links open in the external browser via the
+   facade, never the app's own webview) and falls back to the plain text otherwise; the plain-text view
+   applies the same linkify rules through the `LinkifiedText` component, including the solo-line button
+   presentation, themed via the app's accent tokens.
 3. The sanitised HTML renders inside a sandboxed iframe (`EmailHtmlFrame`) rather than the app's own
    document: the frame is `sandbox="allow-same-origin"` and never `allow-scripts`, under a strict
    content-security-policy (`default-src 'none'`, images and fonts restricted to `data:`), so no script in
@@ -186,6 +194,10 @@ original To and Cc:
    and delivers it. The compose editor is TipTap rich text: the draft carries both a plain-text body
    and an optional HTML body, and when HTML is present the shared `message` MIME builder emits a
    `multipart/alternative` message (plain text first, HTML second) so plain-text clients still render.
+   The builder linkifies bare and markdown-labelled URLs in the outgoing HTML (so a pasted or
+   mailto:-prefilled link reaches recipients in any client as a real anchor) and encodes text parts
+   quoted-printable rather than 8bit, so a long line (a URL, an unwrapped paragraph) folds losslessly
+   instead of being hard-folded mid-content by a relay.
    Bcc recipients are added to the SMTP envelope (de-duplicated with To and Cc) but never
    written to the headers. Attachments turn the body into `multipart/mixed`: files chosen
    from disk plus, optionally, an existing message fetched as a `message/rfc822` part, bounded by a

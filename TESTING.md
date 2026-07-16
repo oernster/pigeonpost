@@ -40,7 +40,7 @@ documented here.
 | `internal/application` | unit against hand-written fakes | none |
 | `internal/infrastructure/storage` | integration against a real SQLite file | temp dir |
 | `internal/infrastructure/message` | unit on the RFC 5322 MIME builder | none |
-| `internal/infrastructure/mailparse` | unit on the MIME body parsing, HTML sanitising, image blocking and hidden-preheader removal that keeps MJML layout wrappers | none |
+| `internal/infrastructure/mailparse` | unit on the MIME body parsing, HTML sanitising, URL linkifying (bare and markdown-labelled links, solo-line button marking), image blocking and hidden-preheader removal that keeps MJML layout wrappers | none |
 | `internal/infrastructure/mailrouter` | unit on the per-protocol dispatch | none |
 | `internal/infrastructure/smtp` | none (live send only; MIME building lives in `message`) | n/a |
 | `internal/infrastructure/imap` | unit on the source adapter's pure helpers (parsing moved to `mailparse`) | none |
@@ -63,13 +63,13 @@ documented here.
 |---|---|---|
 | internal/domain | 100% | gated |
 | internal/application | 100% | gated |
-| internal/infrastructure/message | 100% | the RFC 5322 MIME builder (pure) |
+| internal/infrastructure/message | 100% | the RFC 5322 MIME builder (pure): multipart assembly, outgoing linkify, quoted-printable text parts |
 | internal/infrastructure/mailrouter | 100% | per-protocol dispatch (pure) |
 | internal/infrastructure/keychain | 100% | account and CalDAV calendar password paths via go-keyring's in-memory mock |
 | internal/infrastructure/recurrence | ~97% | RRULE expansion and truncation; a few defensive edges uncovered |
 | internal/infrastructure/vcard | ~97% | vCard codec round-trip |
 | internal/infrastructure/oauth | ~95% | token flow against stubbed endpoints; real-network edges excluded |
-| internal/infrastructure/mailparse | ~94% | MIME body parsing, HTML sanitising, image blocking and hidden-preheader removal that keeps MJML layout wrappers and mso-hide content (pure); a few defensive decode branches uncovered |
+| internal/infrastructure/mailparse | ~94% | MIME body parsing, HTML sanitising, URL linkifying, image blocking and hidden-preheader removal that keeps MJML layout wrappers and mso-hide content (pure); a few defensive decode branches uncovered |
 | internal/infrastructure/ics | ~92% | RFC 5545 codec round-trip, recurrence and scheduling payloads |
 | internal/infrastructure/csv | ~91% | Outlook CSV codec round-trip |
 | internal/infrastructure/remoteimage | ~90% | the SSRF guard and resolver against stub servers; the live-wired constructor excluded |
