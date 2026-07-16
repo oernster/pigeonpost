@@ -11,11 +11,16 @@ import (
 // registerMailtoHandler (re)writes PigeonPost's mailto: protocol registration for the current user, so
 // the app can self-heal the registration before sending the user to the Default apps page. The installer
 // normally writes it at install time; running from source or a moved executable still works because the
-// registered command points at this executable.
+// registered command points at this executable. It also claims the LEGACY per-user default mail client
+// (Software\Clients\Mail), which older launchers consult instead of the Settings choice; this runs only
+// from the explicit "Set as default email client" menu action, so the claim carries user intent.
 func registerMailtoHandler() error {
 	exe, err := os.Executable()
 	if err != nil {
 		return err
 	}
-	return installer.RegisterMailtoProtocol(exe, exe)
+	if err := installer.RegisterMailtoProtocol(exe, exe); err != nil {
+		return err
+	}
+	return installer.ClaimLegacyDefaultMailClient()
 }

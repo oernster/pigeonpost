@@ -16,4 +16,6 @@ export function Repair():Promise<void>;
 
 export function SetLaunchOnBoot(arg1:boolean):Promise<void>;
 
+export function ShowDefaultAppSettings():Promise<void>;
+
 export function Uninstall(arg1:boolean):Promise<void>;

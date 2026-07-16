@@ -30,6 +30,10 @@ export function SetLaunchOnBoot(arg1) {
   return window['go']['main']['App']['SetLaunchOnBoot'](arg1);
 }
 
+export function ShowDefaultAppSettings() {
+  return window['go']['main']['App']['ShowDefaultAppSettings']();
+}
+
 export function Uninstall(arg1) {
   return window['go']['main']['App']['Uninstall'](arg1);
 }
