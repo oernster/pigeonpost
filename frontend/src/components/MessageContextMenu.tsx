@@ -217,14 +217,17 @@ export function MessageContextMenu(props: MessageContextMenuProps) {
                     </button>
                     <div className="context-sep"/>
                     <button className="context-item" role="menuitem" onClick={act(() => props.onCutMessages(selection))}>
-                        Cut
+                        <span className="context-item-label">Cut</span>
+                        <span className="context-item-shortcut" aria-hidden="true">Ctrl+X</span>
                     </button>
                     <button className="context-item" role="menuitem" onClick={act(() => props.onCopyMessages(selection))}>
-                        Copy
+                        <span className="context-item-label">Copy</span>
+                        <span className="context-item-shortcut" aria-hidden="true">Ctrl+C</span>
                     </button>
                     <button className="context-item" role="menuitem" disabled={!props.canPaste}
                             onClick={act(() => props.onPaste())}>
-                        Paste
+                        <span className="context-item-label">Paste</span>
+                        <span className="context-item-shortcut" aria-hidden="true">Ctrl+V</span>
                     </button>
                     {props.canMoveCopy && folders.length > 0 && (
                         <>
@@ -241,10 +244,12 @@ export function MessageContextMenu(props: MessageContextMenuProps) {
                     )}
                     <div className="context-sep"/>
                     <button className="context-item danger" role="menuitem" onClick={act(() => props.onBulkDelete(selection))}>
-                        Delete
+                        <span className="context-item-label">Delete</span>
+                        <span className="context-item-shortcut" aria-hidden="true">Del</span>
                     </button>
                     <button className="context-item danger" role="menuitem" onClick={act(() => props.onBulkDeletePermanent(selection))}>
-                        Delete permanently
+                        <span className="context-item-label">Delete permanently</span>
+                        <span className="context-item-shortcut" aria-hidden="true">Shift+Del</span>
                     </button>
                 </>
             ) : isOutboxMessage(message) ? (
@@ -333,14 +338,17 @@ export function MessageContextMenu(props: MessageContextMenuProps) {
                     )}
                     <div className="context-sep"/>
                     <button className="context-item" role="menuitem" onClick={act(() => props.onCutMessages([message]))}>
-                        Cut
+                        <span className="context-item-label">Cut</span>
+                        <span className="context-item-shortcut" aria-hidden="true">Ctrl+X</span>
                     </button>
                     <button className="context-item" role="menuitem" onClick={act(() => props.onCopyMessages([message]))}>
-                        Copy
+                        <span className="context-item-label">Copy</span>
+                        <span className="context-item-shortcut" aria-hidden="true">Ctrl+C</span>
                     </button>
                     <button className="context-item" role="menuitem" disabled={!props.canPaste}
                             onClick={act(() => props.onPaste())}>
-                        Paste
+                        <span className="context-item-label">Paste</span>
+                        <span className="context-item-shortcut" aria-hidden="true">Ctrl+V</span>
                     </button>
                     {props.canMoveCopy && movable.length > 0 && (
                         <>
@@ -379,10 +387,12 @@ export function MessageContextMenu(props: MessageContextMenuProps) {
                     )}
                     <div className="context-sep"/>
                     <button className="context-item danger" role="menuitem" onClick={act(() => props.onDelete(message))}>
-                        Delete
+                        <span className="context-item-label">Delete</span>
+                        <span className="context-item-shortcut" aria-hidden="true">Del</span>
                     </button>
                     <button className="context-item danger" role="menuitem" onClick={act(() => props.onDeletePermanent(message))}>
-                        Delete permanently
+                        <span className="context-item-label">Delete permanently</span>
+                        <span className="context-item-shortcut" aria-hidden="true">Shift+Del</span>
                     </button>
                 </>
             )}

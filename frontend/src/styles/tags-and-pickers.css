@@ -387,6 +387,16 @@
     white-space: nowrap;
 }
 
+/* The accelerator hint on a context-menu item, right-aligned and dimmed, matching the item's
+   counterpart on the primary menus (.menu-item-shortcut). Display only: the key itself is wired
+   centrally, so the two spellings never drift apart visually. */
+.context-item-shortcut {
+    margin-left: auto;
+    padding-left: 24px;
+    color: var(--text-dim);
+    font-size: 12px;
+}
+
 .context-chevron {
     margin-left: auto;
     color: var(--text-dim);
