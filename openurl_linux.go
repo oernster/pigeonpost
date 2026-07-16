@@ -3,6 +3,7 @@
 package main
 
 import (
+	"log"
 	"os/exec"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
@@ -19,6 +20,7 @@ import (
 // stricter filter.
 func (a *App) openExternalURL(u string) {
 	if err := exec.Command("xdg-open", u).Start(); err != nil {
+		log.Printf("open-external: xdg-open failed (%v), falling back to the Wails runtime", err)
 		runtime.BrowserOpenURL(a.ctx, u)
 	}
 }
