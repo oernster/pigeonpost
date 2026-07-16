@@ -1,4 +1,4 @@
-import {useCallback, useState} from 'react'
+import {useCallback, useMemo, useState} from 'react'
 import {Message, api} from '../api'
 import type {MoveItem} from '../undoStack'
 import type {MessageStore} from './useMessageStore'
@@ -21,6 +21,10 @@ export interface MessageClipboardDeps {
 export interface MessageClipboard {
     // hasClip gates Edit > Paste at the message level.
     hasClip: boolean
+    // cutIds is the ids sitting on the clipboard as a cut, so the list can dim those rows
+    // (Explorer-style) until the cut is pasted or replaced. Empty for a copy: its originals
+    // are untouched by a paste, so there is nothing pending about them.
+    cutIds: Set<string>
     cutMessages: (messages: Message[]) => void
     copyMessages: (messages: Message[]) => void
     pasteInto: (destFolderId: string) => Promise<void>
@@ -36,8 +40,11 @@ export interface MessageClipboard {
 // now carries (which is also what the recorded undo entry addresses). A move the server refuses
 // rolls its row back out and reports through the error sink; if the whole call fails the clipboard
 // is restored so the paste can be retried. A pasted copy stays on the clipboard because the
-// originals are untouched and can be pasted again elsewhere; its duplicates appear on the
-// destination sync (their server identities are brand new, so there is nothing to show early).
+// originals are untouched and can be pasted again elsewhere; its duplicates show up as fast as the
+// server allows: each row joins the open folder the moment the server reports the id its copy now
+// carries (COPYUID), cloned from the original rather than waiting for the destination sync. A
+// server that reports nothing shows its copies on the sync, as before (a duplicate row is never
+// shown under an invented identity).
 export function useMessageClipboard(deps: MessageClipboardDeps): MessageClipboard {
     const {store, selectedFolderId, undo, loadUnread, refreshFolders, setError} = deps
     const {messages, setMessages, applyToAllLists, removeFromAllLists} = store
@@ -119,6 +126,30 @@ export function useMessageClipboard(deps: MessageClipboardDeps): MessageClipboar
         }
     }, [messages, selectedFolderId, setMessages, removeFromAllLists, applyToAllLists, undo, syncDestination, loadUnread, refreshFolders, setError])
 
+    // pasteCopy duplicates the clipboard messages into the destination. Each duplicate's row joins
+    // the open folder's list as soon as its copy lands and the server reports the id it carries
+    // (COPYUID), cloned from the original; without a reported id the copy simply appears on the
+    // destination sync instead, so a row is never shown under an invented identity.
+    const pasteCopy = useCallback(async (taken: Message[], destFolderId: string) => {
+        setError('')
+        let failed = 0
+        for (const m of taken) {
+            try {
+                const result = await api.copyMessage(m.id, destFolderId)
+                if (destFolderId === selectedFolderId && result.newId) {
+                    const row = {...m, id: result.newId, folderId: destFolderId}
+                    setMessages((prev) => (prev.some((p) => p.id === row.id) ? prev : [...prev, row]))
+                }
+            } catch {
+                failed += 1
+            }
+        }
+        await syncDestination(destFolderId)
+        if (failed > 0) {
+            setError(`${failed} of ${taken.length} messages could not be pasted.`)
+        }
+    }, [selectedFolderId, setMessages, syncDestination, setError])
+
     const pasteInto = useCallback(async (destFolderId: string) => {
         if (!clip || destFolderId === '') {
             return
@@ -129,20 +160,13 @@ export function useMessageClipboard(deps: MessageClipboardDeps): MessageClipboar
             await pasteMove(clip.messages, destFolderId)
             return
         }
-        setError('')
-        let failed = 0
-        for (const m of clip.messages) {
-            try {
-                await api.copyMessage(m.id, destFolderId)
-            } catch {
-                failed += 1
-            }
-        }
-        await syncDestination(destFolderId)
-        if (failed > 0) {
-            setError(`${failed} of ${clip.messages.length} messages could not be pasted.`)
-        }
-    }, [clip, pasteMove, syncDestination, setError])
+        await pasteCopy(clip.messages, destFolderId)
+    }, [clip, pasteMove, pasteCopy])
 
-    return {hasClip: clip !== null, cutMessages, copyMessages, pasteInto}
+    const cutIds = useMemo(
+        () => new Set(clip?.mode === 'move' ? clip.messages.map((m) => m.id) : []),
+        [clip],
+    )
+
+    return {hasClip: clip !== null, cutIds, cutMessages, copyMessages, pasteInto}
 }

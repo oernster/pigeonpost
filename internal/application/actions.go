@@ -318,23 +318,29 @@ func (s *MessageActionService) Move(ctx context.Context, messageID, destFolderID
 
 // Copy duplicates a message into another folder within the same account: it is copied on the server and
 // left in place locally (the destination folder lists the new copy, with its own server UID, on the
-// next sync). Unlike Move, the original message is untouched.
-func (s *MessageActionService) Copy(ctx context.Context, messageID, destFolderID string) error {
+// next sync). Unlike Move, the original message is untouched. When the server reported the duplicate's
+// place (COPYUID), the returned id is the one it carries in the destination, so the caller can show it
+// there ahead of the sync; a server that reports nothing returns an empty id.
+func (s *MessageActionService) Copy(ctx context.Context, messageID, destFolderID string) (string, error) {
 	msg, source, account, err := resolveMessageContext(ctx, s.store, s.accounts, messageID)
 	if err != nil {
-		return err
+		return "", err
 	}
 	dest, err := s.store.GetFolder(ctx, destFolderID)
 	if err != nil {
-		return fmt.Errorf("locate destination folder %q: %w", destFolderID, err)
+		return "", fmt.Errorf("locate destination folder %q: %w", destFolderID, err)
 	}
 	if dest.AccountID() != account.ID() {
-		return fmt.Errorf("cannot copy message %q to a folder in another account", messageID)
+		return "", fmt.Errorf("cannot copy message %q to a folder in another account", messageID)
 	}
-	if err := s.remote.Copy(ctx, account, source, msg.UID(), dest.Path()); err != nil {
-		return fmt.Errorf("copy message %q on server: %w", messageID, err)
+	newUID, err := s.remote.Copy(ctx, account, source, msg.UID(), dest.Path())
+	if err != nil {
+		return "", fmt.Errorf("copy message %q on server: %w", messageID, err)
 	}
-	return nil
+	if newUID == "" {
+		return "", nil
+	}
+	return domain.MessageIDFor(destFolderID, newUID), nil
 }
 
 // trashFolder returns the destination folder for a delete: the account's Trash folder, or false

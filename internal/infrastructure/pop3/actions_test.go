@@ -39,7 +39,7 @@ func TestMoveAndCopyAreUnsupported(t *testing.T) {
 	if _, err := source.MoveMany(context.Background(), account, folder, []string{"u1"}, "dest"); !errors.Is(err, ErrUnsupported) {
 		t.Errorf("MoveMany error = %v, want ErrUnsupported", err)
 	}
-	if err := source.Copy(context.Background(), account, folder, "u1", "dest"); !errors.Is(err, ErrUnsupported) {
+	if _, err := source.Copy(context.Background(), account, folder, "u1", "dest"); !errors.Is(err, ErrUnsupported) {
 		t.Errorf("Copy error = %v, want ErrUnsupported", err)
 	}
 }

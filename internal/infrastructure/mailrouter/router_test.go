@@ -84,9 +84,9 @@ func (r *recorder) MoveMany(context.Context, domain.Account, domain.Folder, []st
 	return nil, nil
 }
 
-func (r *recorder) Copy(context.Context, domain.Account, domain.Folder, string, string) error {
+func (r *recorder) Copy(context.Context, domain.Account, domain.Folder, string, string) (string, error) {
 	r.calls = append(r.calls, "copy")
-	return nil
+	return "", nil
 }
 
 func testAccount(t *testing.T, protocol domain.Protocol) domain.Account {
@@ -157,7 +157,7 @@ func exercise(t *testing.T, router *Router, account domain.Account) {
 	if _, err := router.MoveMany(ctx, account, folder, []string{"1"}, "dest"); err != nil {
 		t.Fatalf("MoveMany: %v", err)
 	}
-	if err := router.Copy(ctx, account, folder, "1", "dest"); err != nil {
+	if _, err := router.Copy(ctx, account, folder, "1", "dest"); err != nil {
 		t.Fatalf("Copy: %v", err)
 	}
 }

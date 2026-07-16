@@ -769,10 +769,12 @@ type fakeMailActions struct {
 	moveManyBatches   [][]string
 	moveManyDest      []string
 	copyDestPaths     []string
-	// moveNewUID is returned by Move and by Delete when it moves to trash, and moveManyNewUIDs by
-	// MoveMany and DeleteMany, standing in for a server's COPYUID reply. Both default to unknown.
+	// moveNewUID is returned by Move and by Delete when it moves to trash, moveManyNewUIDs by
+	// MoveMany and DeleteMany and copyNewUID by Copy, standing in for a server's COPYUID reply.
+	// All default to unknown.
 	moveNewUID      string
 	moveManyNewUIDs map[string]string
+	copyNewUID      string
 }
 
 func (f *fakeMailActions) SetSeen(_ context.Context, _ domain.Account, _ domain.Folder, _ string, seen bool) error {
@@ -855,12 +857,12 @@ func (f *fakeMailActions) MoveMany(_ context.Context, _ domain.Account, _ domain
 	return f.moveManyNewUIDs, nil
 }
 
-func (f *fakeMailActions) Copy(_ context.Context, _ domain.Account, _ domain.Folder, _ string, destPath string) error {
+func (f *fakeMailActions) Copy(_ context.Context, _ domain.Account, _ domain.Folder, _ string, destPath string) (string, error) {
 	if f.copyErr != nil {
-		return f.copyErr
+		return "", f.copyErr
 	}
 	f.copyDestPaths = append(f.copyDestPaths, destPath)
-	return nil
+	return f.copyNewUID, nil
 }
 
 // fakeFolderActions is a hand-written FolderActions recording the folder operations it was asked for.

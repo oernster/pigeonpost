@@ -245,6 +245,6 @@ func (s *Source) MoveMany(context.Context, domain.Account, domain.Folder, []stri
 }
 
 // Copy is unsupported, for the same reason as Move.
-func (s *Source) Copy(context.Context, domain.Account, domain.Folder, string, string) error {
-	return fmt.Errorf("pop3: copy message: %w", ErrUnsupported)
+func (s *Source) Copy(context.Context, domain.Account, domain.Folder, string, string) (string, error) {
+	return "", fmt.Errorf("pop3: copy message: %w", ErrUnsupported)
 }

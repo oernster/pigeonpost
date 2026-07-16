@@ -74,3 +74,29 @@ func TestMovedUIDsUnboundedRangeMeansUnknown(t *testing.T) {
 		t.Errorf("movedUIDs with an unbounded range = %v, want nil", got)
 	}
 }
+
+func TestCopiedUIDsPairsSourceAndDestinationInOrder(t *testing.T) {
+	data := &imap.CopyData{
+		UIDValidity: 1,
+		SourceUIDs:  uidSet(10, 20),
+		DestUIDs:    uidSet(100, 200),
+	}
+	got := copiedUIDs(data)
+	want := map[string]string{"10": "100", "20": "200"}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("copiedUIDs = %v, want %v", got, want)
+	}
+}
+
+func TestCopiedUIDsNilDataMeansUnknown(t *testing.T) {
+	if got := copiedUIDs(nil); got != nil {
+		t.Errorf("copiedUIDs(nil) = %v, want nil", got)
+	}
+}
+
+func TestCopiedUIDsEmptySetsMeanUnknown(t *testing.T) {
+	// A server without UIDPLUS sends no COPYUID, leaving the sets empty.
+	if got := copiedUIDs(&imap.CopyData{}); got != nil {
+		t.Errorf("copiedUIDs with empty sets = %v, want nil", got)
+	}
+}

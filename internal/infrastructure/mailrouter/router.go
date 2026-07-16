@@ -27,7 +27,7 @@ type protocolSource interface {
 	DeleteMany(ctx context.Context, account domain.Account, folder domain.Folder, uids []string, trashPath string) (map[string]string, error)
 	Move(ctx context.Context, account domain.Account, folder domain.Folder, uid string, destPath string) (string, error)
 	MoveMany(ctx context.Context, account domain.Account, folder domain.Folder, uids []string, destPath string) (map[string]string, error)
-	Copy(ctx context.Context, account domain.Account, folder domain.Folder, uid string, destPath string) error
+	Copy(ctx context.Context, account domain.Account, folder domain.Folder, uid string, destPath string) (string, error)
 }
 
 // Router selects the protocol adapter for each account and satisfies application.MailSource,
@@ -122,6 +122,6 @@ func (r *Router) MoveMany(ctx context.Context, account domain.Account, folder do
 }
 
 // Copy delegates to the account's protocol adapter.
-func (r *Router) Copy(ctx context.Context, account domain.Account, folder domain.Folder, uid string, destPath string) error {
+func (r *Router) Copy(ctx context.Context, account domain.Account, folder domain.Folder, uid string, destPath string) (string, error) {
 	return r.sourceFor(account).Copy(ctx, account, folder, uid, destPath)
 }

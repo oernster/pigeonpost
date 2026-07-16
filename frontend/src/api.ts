@@ -482,7 +482,9 @@ export const api = {
     moveMessage: (messageId: string, destFolderId: string): Promise<MoveResult> => MoveMessage(messageId, destFolderId),
     markJunk: (messageId: string): Promise<MoveResult> => MarkJunk(messageId),
     markNotJunk: (messageId: string): Promise<MoveResult> => MarkNotJunk(messageId),
-    copyMessage: (messageId: string, destFolderId: string): Promise<void> => CopyMessage(messageId, destFolderId),
+    // copyMessage duplicates a message into destFolderId; the result carries the id the duplicate
+    // holds there when the server reported it (COPYUID), so a pasted copy can show up instantly.
+    copyMessage: (messageId: string, destFolderId: string): Promise<MoveResult> => CopyMessage(messageId, destFolderId),
     createFolder: (accountId: string, name: string): Promise<void> => CreateFolder(accountId, name),
     renameFolder: (folderId: string, newName: string): Promise<void> => RenameFolder(folderId, newName),
     deleteFolder: (folderId: string): Promise<void> => DeleteFolder(folderId),

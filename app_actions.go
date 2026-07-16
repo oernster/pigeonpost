@@ -104,6 +104,9 @@ func (a *App) MarkNotJunk(messageID string) (MoveResultDTO, error) {
 }
 
 // CopyMessage duplicates a message into another folder in the same account, leaving the original.
-func (a *App) CopyMessage(messageID, destFolderID string) error {
-	return a.actions.Copy(a.ctx, messageID, destFolderID)
+// The result carries the id the duplicate holds in the destination where the server reported it,
+// so the front end can show the pasted copy ahead of the sync.
+func (a *App) CopyMessage(messageID, destFolderID string) (MoveResultDTO, error) {
+	newID, err := a.actions.Copy(a.ctx, messageID, destFolderID)
+	return MoveResultDTO{NewId: newID}, err
 }

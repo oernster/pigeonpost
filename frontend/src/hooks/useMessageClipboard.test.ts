@@ -2,8 +2,9 @@
 // messages onto an internal clipboard and paste files them into a folder. A pasted cut is
 // optimistic: its rows join the open folder's list immediately, the server move settles behind
 // them (rows re-pointed at their new ids, refused rows rolled back) and one undo entry records the
-// paste. A pasted copy duplicates through the api and stays on the clipboard. ../api is mocked
-// (the Wails seam) and the real message store is wired in the way App does.
+// paste. A pasted copy duplicates through the api and stays on the clipboard; each duplicate's row
+// joins the open folder as soon as the server reports the id it carries. ../api is mocked (the
+// Wails seam) and the real message store is wired in the way App does.
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 import {act, cleanup, renderHook} from '@testing-library/react'
 import type {Message} from '../api'
@@ -51,7 +52,7 @@ beforeEach(() => {
     errors.length = 0
     undoSpies.push.mockReset()
     apiSpies.moveMessages.mockReset().mockResolvedValue({ids: [], failed: 0, error: '', newIds: {}})
-    apiSpies.copyMessage.mockReset().mockResolvedValue(undefined)
+    apiSpies.copyMessage.mockReset().mockResolvedValue({newId: ''})
     apiSpies.syncFolder.mockReset().mockResolvedValue(undefined)
 })
 afterEach(() => cleanup())
@@ -174,6 +175,36 @@ describe('useMessageClipboard: copies and gating', () => {
         expect(result.current.clipboard.hasClip).toBe(true)
     })
 
+    it('shows a pasted copy in the open folder as soon as the server reports where it landed', async () => {
+        const {result} = harness()
+        apiSpies.copyMessage
+            .mockResolvedValueOnce({newId: 'c1'})
+            .mockResolvedValueOnce({newId: ''}) // no COPYUID: this copy waits for the sync
+        act(() => {
+            result.current.store.setMessages([makeMessage('a', 'fd')])
+            result.current.clipboard.copyMessages([makeMessage('a', 'fd'), makeMessage('b', 'f1')])
+        })
+        await act(async () => {
+            await result.current.clipboard.pasteInto('fd')
+        })
+        // The reported duplicate is listed beside its original under its real id; the unreported
+        // one is not shown early (it has no identity to show under).
+        expect(result.current.store.messages.map((m) => ({id: m.id, folderId: m.folderId})))
+            .toEqual([{id: 'a', folderId: 'fd'}, {id: 'c1', folderId: 'fd'}])
+        expect(result.current.clipboard.hasClip).toBe(true)
+    })
+
+    it('does not show a pasted copy early when pasting onto a folder that is not being viewed', async () => {
+        const {result} = harness()
+        apiSpies.copyMessage.mockResolvedValue({newId: 'c1'})
+        act(() => result.current.clipboard.copyMessages([makeMessage('a', 'f1')]))
+        await act(async () => {
+            await result.current.clipboard.pasteInto('felsewhere')
+        })
+        expect(result.current.store.messages).toHaveLength(0)
+        expect(apiSpies.copyMessage).toHaveBeenCalledWith('a', 'felsewhere')
+    })
+
     it('reports how many copies could not be pasted', async () => {
         apiSpies.copyMessage.mockRejectedValueOnce('gone')
         const {result} = harness()
@@ -195,6 +226,21 @@ describe('useMessageClipboard: copies and gating', () => {
         })
         expect(apiSpies.moveMessages).not.toHaveBeenCalled()
         expect(result.current.clipboard.hasClip).toBe(true)
+    })
+
+    it('reports the cut rows so the list can dim them, empty for a copy or once pasted', async () => {
+        const {result} = harness()
+        act(() => result.current.clipboard.cutMessages([makeMessage('a', 'f1'), makeMessage('b', 'f1')]))
+        expect([...result.current.clipboard.cutIds].sort()).toEqual(['a', 'b'])
+        // A copy replaces the cut: nothing is pending departure any more.
+        act(() => result.current.clipboard.copyMessages([makeMessage('c', 'f1')]))
+        expect(result.current.clipboard.cutIds.size).toBe(0)
+        // A pasted cut is consumed, so its dim clears with it.
+        act(() => result.current.clipboard.cutMessages([makeMessage('a', 'f1')]))
+        await act(async () => {
+            await result.current.clipboard.pasteInto('fd')
+        })
+        expect(result.current.clipboard.cutIds.size).toBe(0)
     })
 
     it('a fresh cut replaces whatever was on the clipboard', async () => {

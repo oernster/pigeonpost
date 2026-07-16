@@ -763,7 +763,7 @@ func TestCopySuccess(t *testing.T) {
 	seedMessageLocation(t, store, accounts)
 	store.folders["a1"] = append(store.folders["a1"], testFolder(t, "f2", "a1", "Archive"))
 
-	if err := svc.Copy(context.Background(), "m1", "f2"); err != nil {
+	if _, err := svc.Copy(context.Background(), "m1", "f2"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if len(remote.copyDestPaths) != 1 || remote.copyDestPaths[0] != "Archive" {
@@ -775,10 +775,39 @@ func TestCopySuccess(t *testing.T) {
 	}
 }
 
+func TestCopyReturnsTheDuplicateIdWhenTheServerReportsIt(t *testing.T) {
+	svc, store, accounts, remote := newActionService()
+	seedMessageLocation(t, store, accounts)
+	store.folders["a1"] = append(store.folders["a1"], testFolder(t, "f2", "a1", "Archive"))
+	remote.copyNewUID = "9"
+
+	newID, err := svc.Copy(context.Background(), "m1", "f2")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if want := domain.MessageIDFor("f2", "9"); newID != want {
+		t.Errorf("Copy new id = %q, want %q", newID, want)
+	}
+}
+
+func TestCopyReturnsNoIdWhenTheServerReportsNothing(t *testing.T) {
+	svc, store, accounts, _ := newActionService()
+	seedMessageLocation(t, store, accounts)
+	store.folders["a1"] = append(store.folders["a1"], testFolder(t, "f2", "a1", "Archive"))
+
+	newID, err := svc.Copy(context.Background(), "m1", "f2")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if newID != "" {
+		t.Errorf("Copy new id = %q, want empty when the server reports nothing", newID)
+	}
+}
+
 func TestCopyGetMessageError(t *testing.T) {
 	svc, store, _, _ := newActionService()
 	store.getMessageErr = errBoom
-	if err := svc.Copy(context.Background(), "m1", "f2"); !errors.Is(err, errBoom) {
+	if _, err := svc.Copy(context.Background(), "m1", "f2"); !errors.Is(err, errBoom) {
 		t.Errorf("Copy error = %v, want wrapped boom", err)
 	}
 }
@@ -787,7 +816,7 @@ func TestCopySourceFolderError(t *testing.T) {
 	svc, store, accounts, _ := newActionService()
 	seedMessageLocation(t, store, accounts)
 	store.getFolderErr = errBoom
-	if err := svc.Copy(context.Background(), "m1", "f2"); !errors.Is(err, errBoom) {
+	if _, err := svc.Copy(context.Background(), "m1", "f2"); !errors.Is(err, errBoom) {
 		t.Errorf("Copy error = %v, want wrapped boom", err)
 	}
 }
@@ -796,7 +825,7 @@ func TestCopyGetAccountError(t *testing.T) {
 	svc, store, accounts, _ := newActionService()
 	seedMessageLocation(t, store, accounts)
 	accounts.getErr = errBoom
-	if err := svc.Copy(context.Background(), "m1", "f2"); !errors.Is(err, errBoom) {
+	if _, err := svc.Copy(context.Background(), "m1", "f2"); !errors.Is(err, errBoom) {
 		t.Errorf("Copy error = %v, want wrapped boom", err)
 	}
 }
@@ -804,7 +833,7 @@ func TestCopyGetAccountError(t *testing.T) {
 func TestCopyDestFolderError(t *testing.T) {
 	svc, store, accounts, _ := newActionService()
 	seedMessageLocation(t, store, accounts) // f2 does not exist
-	if err := svc.Copy(context.Background(), "m1", "f2"); err == nil {
+	if _, err := svc.Copy(context.Background(), "m1", "f2"); err == nil {
 		t.Error("expected an error for a missing destination folder")
 	}
 }
@@ -813,7 +842,7 @@ func TestCopyCrossAccountRejected(t *testing.T) {
 	svc, store, accounts, remote := newActionService()
 	seedMessageLocation(t, store, accounts)
 	store.folders["a2"] = []domain.Folder{testFolder(t, "f2", "a2", "Other")}
-	if err := svc.Copy(context.Background(), "m1", "f2"); err == nil {
+	if _, err := svc.Copy(context.Background(), "m1", "f2"); err == nil {
 		t.Error("expected an error copying across accounts")
 	}
 	if len(remote.copyDestPaths) != 0 {
@@ -826,7 +855,7 @@ func TestCopyServerError(t *testing.T) {
 	seedMessageLocation(t, store, accounts)
 	store.folders["a1"] = append(store.folders["a1"], testFolder(t, "f2", "a1", "Archive"))
 	remote.copyErr = errBoom
-	if err := svc.Copy(context.Background(), "m1", "f2"); !errors.Is(err, errBoom) {
+	if _, err := svc.Copy(context.Background(), "m1", "f2"); !errors.Is(err, errBoom) {
 		t.Errorf("Copy error = %v, want wrapped boom", err)
 	}
 }

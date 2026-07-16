@@ -25,16 +25,32 @@ func movedUIDs(data *imapclient.MoveData) map[string]string {
 	if !okSrc || !okDst {
 		return nil
 	}
+	return pairUIDs(src, dst)
+}
+
+// copiedUIDs is movedUIDs for a COPY's COPYUID reply, pairing each source UID with the UID its
+// duplicate carries in the destination. The same UIDPLUS caveats apply: no or malformed COPYUID
+// yields nil rather than a guess.
+func copiedUIDs(data *imap.CopyData) map[string]string {
+	if data == nil {
+		return nil
+	}
+	return pairUIDs(data.SourceUIDs, data.DestUIDs)
+}
+
+// pairUIDs zips a COPYUID reply's source and destination sets into a source-to-destination map,
+// or nil when either set is absent, unbounded or unbalanced.
+func pairUIDs(src, dst imap.UIDSet) map[string]string {
 	srcNums, boundedSrc := src.Nums()
 	dstNums, boundedDst := dst.Nums()
 	if !boundedSrc || !boundedDst || len(srcNums) == 0 || len(srcNums) != len(dstNums) {
 		return nil
 	}
-	moved := make(map[string]string, len(srcNums))
+	paired := make(map[string]string, len(srcNums))
 	for i, u := range srcNums {
-		moved[strconv.FormatUint(uint64(u), 10)] = strconv.FormatUint(uint64(dstNums[i]), 10)
+		paired[strconv.FormatUint(uint64(u), 10)] = strconv.FormatUint(uint64(dstNums[i]), 10)
 	}
-	return moved
+	return paired
 }
 
 // storeFlag adds or removes a single IMAP flag for one message by UID on the server. It is the shared body of
@@ -166,29 +182,31 @@ func (s *Source) Move(ctx context.Context, account domain.Account, folder domain
 	return movedUIDs(data)[uid], nil
 }
 
-// Copy duplicates a message by UID into destPath on the server, leaving the original untouched. It
+// Copy duplicates a message by UID into destPath on the server, leaving the original untouched and
+// returning the duplicate's UID in the destination when the server reports it via COPYUID. It
 // satisfies application.MailActions.
-func (s *Source) Copy(ctx context.Context, account domain.Account, folder domain.Folder, uid string, destPath string) error {
+func (s *Source) Copy(ctx context.Context, account domain.Account, folder domain.Folder, uid string, destPath string) (string, error) {
 	client, err := s.connect(ctx, account)
 	if err != nil {
-		return err
+		return "", err
 	}
 	defer func() { _ = client.Logout().Wait() }()
 
 	if _, err := client.Select(folder.Path(), nil).Wait(); err != nil {
-		return fmt.Errorf("imap: select %q: %w", folder.Path(), err)
+		return "", fmt.Errorf("imap: select %q: %w", folder.Path(), err)
 	}
 
 	u, err := parseUID(uid)
 	if err != nil {
-		return err
+		return "", err
 	}
 	uidSet := imap.UIDSet{}
 	uidSet.AddNum(u)
-	if _, err := client.Copy(uidSet, destPath).Wait(); err != nil {
-		return fmt.Errorf("imap: copy uid %q to %q: %w", uid, destPath, err)
+	data, err := client.Copy(uidSet, destPath).Wait()
+	if err != nil {
+		return "", fmt.Errorf("imap: copy uid %q to %q: %w", uid, destPath, err)
 	}
-	return nil
+	return copiedUIDs(data)[uid], nil
 }
 
 // CreateFolder creates a mailbox at path on the server. It satisfies application.FolderActions.
