@@ -21,6 +21,8 @@ interface FolderTreeProps {
     onReparentFolder: (folderId: string, newParentId: string) => void
     onDeleteFolder: (folder: Folder) => void
     onDropMessage: (messageId: string, folderId: string) => void
+    // onFolderContextMenu opens the folder right-click menu (Paste and friends) at the cursor.
+    onFolderContextMenu: (folder: Folder, x: number, y: number) => void
 }
 
 const folderIcon: Record<string, string> = {
@@ -241,6 +243,10 @@ export function FolderTree(props: FolderTreeProps) {
                         style={rowStyle}
                         tabIndex={folder.id === tabStopId ? 0 : -1}
                         onClick={() => props.onSelectFolder(folder.id)}
+                        onContextMenu={(e) => {
+                            e.preventDefault()
+                            props.onFolderContextMenu(folder, e.clientX, e.clientY)
+                        }}
                         onKeyDown={(e) => {
                             // Only the row itself drives navigation here; a key while focus is on a child
                             // button (the collapse toggle, rename or delete) is left to that button. The

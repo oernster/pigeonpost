@@ -37,6 +37,7 @@ function harness() {
         const store = useMessageStore()
         const clipboard = useMessageClipboard({
             store,
+            selectedFolderId: 'fd',
             undo: undoSpies,
             loadUnread: async () => {},
             refreshFolders: async () => {},
@@ -124,6 +125,19 @@ describe('useMessageClipboard: pasting a cut', () => {
         expect(result.current.store.messages).toHaveLength(0)
         expect(result.current.clipboard.hasClip).toBe(true)
         expect(errors.some((e) => e.includes('offline'))).toBe(true)
+    })
+
+    it('does not show optimistic rows when pasting onto a folder that is not being viewed', async () => {
+        const {result} = harness()
+        apiSpies.moveMessages.mockResolvedValueOnce({ids: ['a'], failed: 0, error: '', newIds: {a: 'n1'}})
+        act(() => result.current.clipboard.cutMessages([makeMessage('a', 'f1')]))
+        await act(async () => {
+            // The harness views 'fd'; this paste targets another folder via its context menu.
+            await result.current.clipboard.pasteInto('felsewhere')
+        })
+        expect(result.current.store.messages).toHaveLength(0)
+        expect(apiSpies.moveMessages).toHaveBeenCalledWith(['a'], 'felsewhere')
+        expect(undoSpies.push).toHaveBeenCalled()
     })
 
     it('does not duplicate a row already in the open folder', async () => {

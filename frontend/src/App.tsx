@@ -1,6 +1,6 @@
 import {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from 'react'
 import './App.css'
-import {AboutInfo, api, CalendarEvent, Contact, Message, MessageBody, Rule, Template, UnreadCountsResult} from './api'
+import {AboutInfo, api, CalendarEvent, Contact, Folder, Message, MessageBody, Rule, Template, UnreadCountsResult} from './api'
 import {OUTBOX_FOLDER_ID, isOutboxMessage, outboxItemToMessage} from './outbox'
 import {UNIFIED_FOLDER_ID, accountChips, isUnifiedFolder} from './unified'
 import {SNOOZED_FOLDER_ID, isSnoozedFolder} from './snooze'
@@ -8,6 +8,7 @@ import {applyTheme, loadTheme, Theme} from './theme'
 import {Sidebar} from './components/Sidebar'
 import {MessageList, type SearchScope} from './components/MessageList'
 import {MessageContextMenu} from './components/MessageContextMenu'
+import {FolderContextMenu} from './components/FolderContextMenu'
 import {Reader} from './components/Reader'
 import {EmailViewerModal} from './components/EmailViewerModal'
 import {ModalClose} from './components/ModalClose'
@@ -891,7 +892,12 @@ function App() {
     // optimistically, so the rows appear at once and the server settles behind them; a copy
     // duplicates). pasteFolderId is the paste target: the open folder, or '' in the views that are
     // not one real folder (the outbox, the unified mailbox and Snoozed), which disables the paste.
-    const messageClipboard = useMessageClipboard({store, undo: undoRedo.recorder, loadUnread, refreshFolders, setError})
+    const messageClipboard = useMessageClipboard({
+        store, selectedFolderId: selectedFolder, undo: undoRedo.recorder, loadUnread, refreshFolders, setError,
+    })
+    // folderContextMenu is the folder row's right-click menu (Paste onto that folder), the
+    // folder-side counterpart of contextMenu.
+    const [folderContextMenu, setFolderContextMenu] = useState<{folder: Folder; x: number; y: number} | null>(null)
     const pasteFolderId = selectedFolder && selectedFolder !== OUTBOX_FOLDER_ID &&
         !isUnifiedFolder(selectedFolder) && !isSnoozedFolder(selectedFolder) ? selectedFolder : ''
     const pasteMessages = useCallback(() => {
@@ -927,7 +933,7 @@ function App() {
         markedIds, setMarkedIds, anchorId, setAnchorId, setReadingFull,
         splashVisible, composing, settingUp, accountToEdit, managingRules, managingTemplates, managingContacts, managingCalendar,
         about, licence, folderPrompt, messageToCancelSend, messageToDelete, accountToDelete, folderToDelete,
-        messageToPurge, contextMenu, bulkToDelete, bulkToPurge, snoozePickerFor, folders,
+        messageToPurge, contextMenu, folderContextMenu, bulkToDelete, bulkToPurge, snoozePickerFor, folders,
         requestDelete, openMessage: openPopout,
         onCutMessages: messageClipboard.cutMessages,
         onCopyMessages: messageClipboard.copyMessages,
@@ -1207,6 +1213,7 @@ function App() {
                     onReparentFolder={(folderId, newParentId) => void reparentFolder(folderId, newParentId)}
                     onDeleteFolder={(folder) => setFolderToDelete(folder)}
                     onDropMessage={dropMessageOnFolder}
+                    onFolderContextMenu={(folder, x, y) => setFolderContextMenu({folder, x, y})}
                     canManageFolders={!isPop3}
                 />
                 {previewEnabled ? (
@@ -1400,6 +1407,10 @@ function App() {
                     onCopy={(m, dest) => void copyMessage(m, dest)}
                     canMoveCopy={canMoveCopy}
                     onSetTag={(id, tagId, assigned) => void setMessageTagById(id, tagId, assigned)}
+                    onCutMessages={(msgs) => messageClipboard.cutMessages(msgs.filter((m) => !isOutboxMessage(m)))}
+                    onCopyMessages={(msgs) => messageClipboard.copyMessages(msgs.filter((m) => !isOutboxMessage(m)))}
+                    onPaste={pasteMessages}
+                    canPaste={messageClipboard.hasClip && pasteFolderId !== ''}
                     onOpenInNewTab={openInNewTab}
                     onSaveAs={(m) => void saveMessageAs(m)}
                     onPrint={(m) => void printMessage(m)}
@@ -1418,6 +1429,16 @@ function App() {
                     onBulkMove={(msgs, dest) => void bulkMove(msgs, dest)}
                     onBulkDelete={(msgs) => setBulkToDelete(msgs)}
                     onBulkDeletePermanent={(msgs) => setBulkToPurge(msgs)}
+                />
+            )}
+            {folderContextMenu && (
+                <FolderContextMenu
+                    folder={folderContextMenu.folder}
+                    x={folderContextMenu.x}
+                    y={folderContextMenu.y}
+                    canPaste={messageClipboard.hasClip}
+                    onPaste={(folder) => void messageClipboard.pasteInto(folder.id)}
+                    onClose={() => setFolderContextMenu(null)}
                 />
             )}
             {accountToDelete && (

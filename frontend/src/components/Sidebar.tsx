@@ -40,6 +40,8 @@ interface SidebarProps {
     onReparentFolder: (folderId: string, newParentId: string) => void
     onDeleteFolder: (folder: Folder) => void
     onDropMessage: (messageId: string, folderId: string) => void
+    // onFolderContextMenu opens the folder right-click menu (Paste and friends) at the cursor.
+    onFolderContextMenu: (folder: Folder, x: number, y: number) => void
     // canManageFolders is false for POP3 accounts, which have no server-side folders to create.
     canManageFolders: boolean
 }
@@ -146,6 +148,7 @@ function SidebarContent(props: SidebarProps) {
                             onReparentFolder={props.onReparentFolder}
                             onDeleteFolder={props.onDeleteFolder}
                             onDropMessage={props.onDropMessage}
+                            onFolderContextMenu={props.onFolderContextMenu}
                         />
                     )}
                 </>

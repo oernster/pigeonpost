@@ -25,6 +25,13 @@ interface MessageContextMenuProps {
     // canMoveCopy is false for POP3 accounts, which have a single inbox and no server-side move/copy.
     canMoveCopy: boolean
     onSetTag: (messageId: string, tagId: string, assigned: boolean) => void
+    // The message clipboard: Cut or Copy takes the acted-on messages (the selection, or the single
+    // row), Paste files the clipboard into the folder being viewed; canPaste is whether it holds
+    // anything. Pasting onto a specific folder lives on the folder tree's own context menu.
+    onCutMessages: (messages: Message[]) => void
+    onCopyMessages: (messages: Message[]) => void
+    onPaste: () => void
+    canPaste: boolean
     onOpenInNewTab: (message: Message) => void
     onSaveAs: (message: Message) => void
     onPrint: (message: Message) => void
@@ -208,6 +215,17 @@ export function MessageContextMenu(props: MessageContextMenuProps) {
                     <button className="context-item" role="menuitem" onClick={act(() => props.onBulkSetFlag(selection, false))}>
                         Remove star
                     </button>
+                    <div className="context-sep"/>
+                    <button className="context-item" role="menuitem" onClick={act(() => props.onCutMessages(selection))}>
+                        Cut
+                    </button>
+                    <button className="context-item" role="menuitem" onClick={act(() => props.onCopyMessages(selection))}>
+                        Copy
+                    </button>
+                    <button className="context-item" role="menuitem" disabled={!props.canPaste}
+                            onClick={act(() => props.onPaste())}>
+                        Paste
+                    </button>
                     {props.canMoveCopy && folders.length > 0 && (
                         <>
                             <div className="context-sep"/>
@@ -313,6 +331,17 @@ export function MessageContextMenu(props: MessageContextMenuProps) {
                             </button>
                         </SubMenu>
                     )}
+                    <div className="context-sep"/>
+                    <button className="context-item" role="menuitem" onClick={act(() => props.onCutMessages([message]))}>
+                        Cut
+                    </button>
+                    <button className="context-item" role="menuitem" onClick={act(() => props.onCopyMessages([message]))}>
+                        Copy
+                    </button>
+                    <button className="context-item" role="menuitem" disabled={!props.canPaste}
+                            onClick={act(() => props.onPaste())}>
+                        Paste
+                    </button>
                     {props.canMoveCopy && movable.length > 0 && (
                         <>
                             <div className="context-sep"/>

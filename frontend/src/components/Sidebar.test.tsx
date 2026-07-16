@@ -66,6 +66,7 @@ function renderSidebar(overrides: Partial<SidebarProps> = {}) {
         onReparentFolder: vi.fn(),
         onDeleteFolder: vi.fn(),
         onDropMessage: vi.fn(),
+        onFolderContextMenu: vi.fn(),
     }
     const props: SidebarProps = {
         accounts: ACCOUNTS,

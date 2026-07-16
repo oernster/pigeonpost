@@ -5,10 +5,13 @@ import type {MessageStore} from './useMessageStore'
 import type {UndoRecorder} from './useUndoRedo'
 
 // MessageClipboardDeps is what pasting needs from the rest of App: the message store (a pasted cut
-// shows its rows immediately), the undo recorder the completed move reports to, the two badge
+// shows its rows immediately), the id of the folder being viewed (the optimistic rows belong in
+// the list only when the paste targets that folder; a paste onto another folder via its context
+// menu must not show rows here), the undo recorder the completed move reports to, the two badge
 // refreshers and the error sink.
 export interface MessageClipboardDeps {
     store: MessageStore
+    selectedFolderId: string
     undo: UndoRecorder
     loadUnread: () => Promise<void>
     refreshFolders: () => Promise<void>
@@ -36,7 +39,7 @@ export interface MessageClipboard {
 // originals are untouched and can be pasted again elsewhere; its duplicates appear on the
 // destination sync (their server identities are brand new, so there is nothing to show early).
 export function useMessageClipboard(deps: MessageClipboardDeps): MessageClipboard {
-    const {store, undo, loadUnread, refreshFolders, setError} = deps
+    const {store, selectedFolderId, undo, loadUnread, refreshFolders, setError} = deps
     const {messages, setMessages, applyToAllLists, removeFromAllLists} = store
     const [clip, setClip] = useState<{mode: 'move' | 'copy'; messages: Message[]} | null>(null)
 
@@ -65,11 +68,14 @@ export function useMessageClipboard(deps: MessageClipboardDeps): MessageClipboar
     // move runs and the outcome is reconciled: moved rows are re-pointed at their new server ids,
     // refused rows are rolled back out and one undo entry records the whole paste.
     const pasteMove = useCallback(async (taken: Message[], destFolderId: string) => {
-        // Which rows to insert is decided against the list as it stands (a paste into the folder a
-        // message already sits in must not duplicate its row); the updater re-checks so a racing
-        // list change still cannot double-insert.
+        // The optimistic rows belong in the on-screen list only when the paste targets the folder
+        // being viewed. Which rows to insert is decided against the list as it stands (a paste into
+        // the folder a message already sits in must not duplicate its row); the updater re-checks
+        // so a racing list change still cannot double-insert.
         const have = new Set(messages.map((m) => m.id))
-        const add = taken.filter((m) => !have.has(m.id)).map((m) => ({...m, folderId: destFolderId}))
+        const add = destFolderId === selectedFolderId
+            ? taken.filter((m) => !have.has(m.id)).map((m) => ({...m, folderId: destFolderId}))
+            : []
         const inserted = add.map((r) => r.id)
         if (add.length > 0) {
             setMessages((prev) => {
@@ -111,7 +117,7 @@ export function useMessageClipboard(deps: MessageClipboardDeps): MessageClipboar
             setClip({mode: 'move', messages: taken})
             setError(`Paste failed: ${String(e)}`)
         }
-    }, [messages, setMessages, removeFromAllLists, applyToAllLists, undo, syncDestination, loadUnread, refreshFolders, setError])
+    }, [messages, selectedFolderId, setMessages, removeFromAllLists, applyToAllLists, undo, syncDestination, loadUnread, refreshFolders, setError])
 
     const pasteInto = useCallback(async (destFolderId: string) => {
         if (!clip || destFolderId === '') {

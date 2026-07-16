@@ -327,10 +327,15 @@
     border-radius: 6px;
 }
 
-.context-item:hover,
-.context-item:focus {
+.context-item:enabled:hover,
+.context-item:enabled:focus {
     background-color: var(--bg-elev-2);
     outline: none;
+}
+
+.context-item:disabled {
+    opacity: 0.5;
+    cursor: default;
 }
 
 .context-item.danger {

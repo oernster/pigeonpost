@@ -36,6 +36,9 @@ export interface MessageListKeyboardDeps {
     folderToDelete: Folder | null
     messageToPurge: Message | null
     contextMenu: {message: Message; x: number; y: number} | null
+    // folderContextMenu is the folder row's right-click menu; like contextMenu it owns its own keys
+    // while open, so list navigation and the ring stand down behind it.
+    folderContextMenu: {x: number; y: number} | null
     bulkToDelete: Message[] | null
     bulkToPurge: Message[] | null
     // snoozePickerFor is the message whose custom snooze dialog is open; the dialog suppresses list keys.
@@ -68,7 +71,7 @@ export function useMessageListKeyboard(deps: MessageListKeyboardDeps): void {
         markedIds, setMarkedIds, anchorId, setAnchorId, setReadingFull,
         splashVisible, composing, settingUp, accountToEdit, managingRules, managingTemplates, managingContacts, managingCalendar,
         about, licence, folderPrompt, messageToCancelSend, messageToDelete, accountToDelete, folderToDelete,
-        messageToPurge, contextMenu, bulkToDelete, bulkToPurge, snoozePickerFor, folders,
+        messageToPurge, contextMenu, folderContextMenu, bulkToDelete, bulkToPurge, snoozePickerFor, folders,
         requestDelete, openMessage, onCutMessages, onCopyMessages, onPasteMessages,
         setMessageToPurge, setBulkToPurge, setBulkToDelete, setFolderToDelete,
         togglePreview,
@@ -84,7 +87,8 @@ export function useMessageListKeyboard(deps: MessageListKeyboardDeps): void {
             managingRules || managingTemplates || managingContacts || managingCalendar || Boolean(about) || Boolean(licence) || Boolean(folderPrompt) ||
             Boolean(messageToCancelSend) ||
             Boolean(messageToDelete) || Boolean(accountToDelete) || Boolean(folderToDelete) ||
-            Boolean(messageToPurge) || Boolean(contextMenu) || Boolean(bulkToDelete) || Boolean(bulkToPurge) ||
+            Boolean(messageToPurge) || Boolean(contextMenu) || Boolean(folderContextMenu) ||
+            Boolean(bulkToDelete) || Boolean(bulkToPurge) ||
             Boolean(snoozePickerFor)
         const list = searchActive ? searchResults : displayMessages
         const onKeyDown = (e: KeyboardEvent) => {
@@ -114,7 +118,7 @@ export function useMessageListKeyboard(deps: MessageListKeyboardDeps): void {
             // very first Tab on launch, stopping propagation before this runs; a context menu owns its own
             // keys, so the ring stays disabled while one is open.
             if (e.key === 'Tab') {
-                if (contextMenu) {
+                if (contextMenu || folderContextMenu) {
                     return
                 }
                 e.preventDefault()
@@ -151,7 +155,7 @@ export function useMessageListKeyboard(deps: MessageListKeyboardDeps): void {
             // menu owns its own keys, so the ring stays disabled while one is open; the splash does not
             // block it, so the very first Right on launch enters the ring.
             if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
-                if (contextMenu) {
+                if (contextMenu || folderContextMenu) {
                     return
                 }
                 e.preventDefault()
@@ -346,7 +350,7 @@ export function useMessageListKeyboard(deps: MessageListKeyboardDeps): void {
         searchActive, searchResults, displayMessages, selectedMessage, requestDelete, markedIds, anchorId,
         splashVisible, composing, settingUp, accountToEdit, managingRules, managingTemplates, managingContacts, managingCalendar, about,
         licence, folderPrompt, messageToDelete, accountToDelete, folderToDelete, messageToPurge,
-        contextMenu, messageToCancelSend, bulkToDelete, bulkToPurge, snoozePickerFor, togglePreview, folders,
+        contextMenu, folderContextMenu, messageToCancelSend, bulkToDelete, bulkToPurge, snoozePickerFor, togglePreview, folders,
         onCutMessages, onCopyMessages, onPasteMessages,
     ])
 }
