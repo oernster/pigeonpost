@@ -105,11 +105,11 @@ function htmlSupportsDarkMode(html: string): boolean {
     return EMAIL_DARK_MODE_SIGNAL.test(html)
 }
 
-// buildSrcDoc assembles the self-contained document the iframe renders through its srcdoc attribute. It is a
+// buildFrameDocument assembles the self-contained document the parent writes into the iframe. It is a
 // full HTML document so the CSP meta tag governs the message; the sanitised body is dropped in verbatim. The
 // theme decides the surface, not the body: a light message is inverted to darken it, while a message that
 // carries its own dark mode renders natively on a dark paper.
-function buildSrcDoc(html: string, dark: boolean): string {
+function buildFrameDocument(html: string, dark: boolean): string {
     let surfaceStyle: string
     if (!dark) {
         surfaceStyle = baseStyle
@@ -144,6 +144,14 @@ function resizeToContent(frame: HTMLIFrameElement) {
 // allow-same-origin only (never allow-scripts), so no script in the frame can run or remove the sandbox.
 // Because the frame is same-origin, the parent reads its height and intercepts its link clicks directly, so
 // no script inside the frame is needed.
+//
+// The document is written from the effect via contentDocument.open()/write()/close() rather than through the
+// srcdoc attribute. With srcdoc, WebKit (WKWebView on macOS, WebKitGTK on Linux) replaces the frame's
+// document without reliably firing the load event, so the click listener stayed bound to the dead initial
+// about:blank document and a button click navigated the sandboxed frame inline instead of opening the
+// external browser. Writing the document means the parent creates and owns the very document object it binds
+// to, on every engine, deterministically; the sandbox attribute and the CSP meta still apply to the written
+// content.
 export function EmailHtmlFrame({html, dark, onOpenLink}: EmailHtmlFrameProps) {
     const frameRef = useRef<HTMLIFrameElement>(null)
     // The link callback is held in a ref so a new callback identity from the parent does not re-run the
@@ -151,7 +159,7 @@ export function EmailHtmlFrame({html, dark, onOpenLink}: EmailHtmlFrameProps) {
     const onOpenLinkRef = useRef(onOpenLink)
     onOpenLinkRef.current = onOpenLink
 
-    const doc = buildSrcDoc(html, dark)
+    const doc = buildFrameDocument(html, dark)
 
     useEffect(() => {
         const frame = frameRef.current
@@ -186,8 +194,9 @@ export function EmailHtmlFrame({html, dark, onOpenLink}: EmailHtmlFrameProps) {
             boundDocument = null
         }
 
-        // attach binds the link handler and size tracking to the frame's current document. It runs on every
-        // load (the srcdoc reparses whenever html or imagesShown change) and rebinds cleanly each time.
+        // attach binds the link handler and size tracking to the frame's current document. It runs right
+        // after the document is written and again on any load event, rebinding cleanly each time, so even an
+        // engine that swaps the document object behind the frame ends up with the listener on the live one.
         const attach = () => {
             detach()
             const contentDocument = frame.contentDocument
@@ -207,7 +216,15 @@ export function EmailHtmlFrame({html, dark, onOpenLink}: EmailHtmlFrameProps) {
         }
 
         frame.addEventListener('load', attach)
-        // The document is usually parsed by the time this effect runs, so bind once now as well as on load.
+        // The parent writes the frame's document itself (see the component comment: srcdoc leaves the click
+        // listener on a dead document under WebKit). open() reuses the existing same-origin document object,
+        // so the attach that follows binds to exactly the document the message was parsed into.
+        const contentDocument = frame.contentDocument
+        if (contentDocument) {
+            contentDocument.open()
+            contentDocument.write(doc)
+            contentDocument.close()
+        }
         attach()
         return () => {
             frame.removeEventListener('load', attach)
@@ -221,7 +238,6 @@ export function EmailHtmlFrame({html, dark, onOpenLink}: EmailHtmlFrameProps) {
             className="reader-html-frame"
             title="Email content"
             sandbox="allow-same-origin"
-            srcDoc={doc}
         />
     )
 }

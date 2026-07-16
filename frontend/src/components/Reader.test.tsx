@@ -149,10 +149,10 @@ describe('Reader: empty and basic render', () => {
         expect(screen.getByRole('heading', {name: 'Hello there', level: 2})).toBeInTheDocument()
         expect(screen.getByText('From')).toBeInTheDocument()
         expect(screen.getByText('Alice Example <alice@example.com>')).toBeInTheDocument()
-        // The body renders inside the sandboxed iframe, so its HTML lives in the frame's srcdoc.
+        // The body renders inside the sandboxed iframe, whose document the frame component writes itself.
         const frame = container.querySelector('iframe.reader-html-frame') as HTMLIFrameElement
         expect(frame).not.toBeNull()
-        expect(frame.getAttribute('srcdoc')).toContain('<p>Message body</p>')
+        expect(frame.contentDocument?.body.innerHTML).toContain('<p>Message body</p>')
     })
 
     it('falls back to placeholders for an empty subject and unknown sender', () => {
@@ -376,39 +376,43 @@ describe('Reader: message body', () => {
         apiSpies.loadRemoteImages.mockResolvedValue('<img src="data:image/png;base64,AAAA" alt="pic">shown')
         const rawHtml = '<img data-pp-src="https://x.test/i.png" alt="pic">shown'
         const {container} = renderReader({body: makeBody({html: rawHtml})})
-        const srcdoc = () => (container.querySelector('iframe.reader-html-frame') as HTMLIFrameElement).getAttribute('srcdoc') ?? ''
+        const frameDoc = () =>
+            (container.querySelector('iframe.reader-html-frame') as HTMLIFrameElement).contentDocument
+                ?.documentElement.outerHTML ?? ''
         expect(screen.getByText('Remote images were not loaded to protect your privacy.')).toBeInTheDocument()
         // While blocked the remote source stays parked, the proxy is not called and the CSP forbids remote images.
-        expect(srcdoc()).toContain('data-pp-src="https://x.test/i.png"')
-        expect(srcdoc()).toContain('img-src data:;')
+        expect(frameDoc()).toContain('data-pp-src="https://x.test/i.png"')
+        expect(frameDoc()).toContain('img-src data:;')
         expect(apiSpies.loadRemoteImages).not.toHaveBeenCalled()
         await user.click(screen.getByRole('button', {name: 'Load images'}))
         expect(screen.queryByRole('button', {name: 'Load images'})).toBeNull()
         // The proxy resolves the parked body; its inlined-data: result is what the frame then renders.
         expect(apiSpies.loadRemoteImages).toHaveBeenCalledWith(rawHtml)
-        await waitFor(() => expect(srcdoc()).toContain('data:image/png;base64,AAAA'))
-        expect(srcdoc()).not.toContain('data-pp-src=')
+        await waitFor(() => expect(frameDoc()).toContain('data:image/png;base64,AAAA'))
+        expect(frameDoc()).not.toContain('data-pp-src=')
         // The CSP never widens to remote images; it always permits only data:.
-        expect(srcdoc()).not.toContain('https:')
+        expect(frameDoc()).not.toContain('https:')
     })
 
     it('loads remote images at once through the proxy when auto-load is on, with no Load images bar', async () => {
         apiSpies.loadRemoteImages.mockResolvedValue('<img src="data:image/png;base64,BBBB" alt="pic">shown')
         const rawHtml = '<img data-pp-src="https://x.test/i.png" alt="pic">shown'
         const {container} = renderReader({autoLoadImages: true, body: makeBody({html: rawHtml})})
-        const srcdoc = () => (container.querySelector('iframe.reader-html-frame') as HTMLIFrameElement).getAttribute('srcdoc') ?? ''
+        const frameDoc = () =>
+            (container.querySelector('iframe.reader-html-frame') as HTMLIFrameElement).contentDocument
+                ?.documentElement.outerHTML ?? ''
         // The images are shown from the start, so there is no blocked-images bar and the proxy resolves at once.
         expect(screen.queryByText('Remote images were not loaded to protect your privacy.')).toBeNull()
         expect(apiSpies.loadRemoteImages).toHaveBeenCalledWith(rawHtml)
-        await waitFor(() => expect(srcdoc()).toContain('data:image/png;base64,BBBB'))
-        expect(srcdoc()).not.toContain('data-pp-src=')
+        await waitFor(() => expect(frameDoc()).toContain('data:image/png;base64,BBBB'))
+        expect(frameDoc()).not.toContain('data-pp-src=')
     })
 
     it('opens a link in the body through the external browser', () => {
         const {container} = renderReader({body: makeBody({html: '<a href="https://example.com/x">go</a>'})})
         const frame = container.querySelector('iframe.reader-html-frame') as HTMLIFrameElement
-        // jsdom does not render the srcdoc, so exercise the frame's delegated link handler on its same-origin
-        // document by injecting a link and dispatching a bubbling click, as a real in-email click would.
+        // Exercise the frame's delegated link handler on the same-origin document the frame component wrote,
+        // by injecting a link and dispatching a bubbling click, as a real in-email click would.
         const cdoc = frame.contentDocument as Document
         const anchor = cdoc.createElement('a')
         anchor.setAttribute('href', 'https://example.com/x')
@@ -424,8 +428,10 @@ describe('Reader: message body', () => {
 
     it('renders the email dark, inverted to match the app, when the dark theme is on', () => {
         const {container} = renderReader({dark: true, body: makeBody({html: '<p>Message body</p>'})})
-        const srcdoc = (container.querySelector('iframe.reader-html-frame') as HTMLIFrameElement).getAttribute('srcdoc') ?? ''
-        expect(srcdoc).toContain('html{filter:invert(1) hue-rotate(180deg);}')
+        const frameDoc =
+            (container.querySelector('iframe.reader-html-frame') as HTMLIFrameElement).contentDocument
+                ?.documentElement.outerHTML ?? ''
+        expect(frameDoc).toContain('html{filter:invert(1) hue-rotate(180deg);}')
     })
 })
 

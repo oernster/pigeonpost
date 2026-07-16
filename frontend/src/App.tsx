@@ -835,10 +835,19 @@ function App() {
                 win.focus()
                 win.print()
             }
-            // srcdoc is set before the frame is inserted, so its first and only load is the print document
-            // itself (mirroring the reader frame) rather than an about:blank navigation.
-            frame.srcdoc = doc
+            // The print document is written into the frame rather than set through srcdoc: WebKit (WKWebView
+            // on macOS, WebKitGTK on Linux) does not reliably fire load for a srcdoc navigation (the same
+            // failure that broke the reader frame's click interception), while open()/write()/close() fires
+            // load on every engine once the written document has parsed. The frame must be in the DOM before
+            // writing, since a detached iframe has no document; the print-ready marker check above keeps a
+            // stray about:blank load from printing a blank page.
             document.body.appendChild(frame)
+            const contentDocument = frame.contentDocument
+            if (contentDocument) {
+                contentDocument.open()
+                contentDocument.write(doc)
+                contentDocument.close()
+            }
         } catch (e) {
             setError(String(e))
         }
