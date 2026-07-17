@@ -9,5 +9,22 @@
   "author": {
     "name": "Oliver Ernster",
     "email": "oernster@codecrafter.uk"
+  },
+  "info": {
+    "protocols": [
+      {
+        "scheme": "mailto",
+        "description": "Email address links",
+        "role": "Editor"
+      }
+    ],
+    "fileAssociations": [
+      {
+        "ext": "eml",
+        "name": "Email message",
+        "description": "RFC 822 email message file",
+        "role": "Viewer"
+      }
+    ]
   }
 }

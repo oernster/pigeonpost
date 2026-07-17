@@ -42,9 +42,11 @@ type MailWatcher interface {
 // logic, delegating every call to an application use case and mapping domain results to DTOs.
 type App struct {
 	ctx           context.Context
-	title         string // main window title, used to locate its HWND to focus the WebView on launch
-	pendingEmail  string // a .eml path from a cold-launch argument, opened once the front end is ready (see lifecycle.go)
-	pendingMailto string // a mailto: URI from a cold-launch argument, opened as a compose once the front end is ready
+	title         string     // main window title, used to locate its HWND to focus the WebView on launch
+	pendingMu     sync.Mutex // guards the pending launch payloads and frontendReady
+	frontendReady bool       // set once the front end is mounted; later payloads open directly
+	pendingEmail  string     // a .eml path from a cold launch (argv or macOS file-open), opened once the front end is ready
+	pendingMailto string     // a mailto: URI from a cold launch (argv or macOS url-open), opened as a compose once ready
 	closer        func() error
 	notifier      UnreadNotifier
 	alerter       ReminderAlerter
@@ -189,6 +191,41 @@ func (a *App) onSecondInstance(data options.SecondInstanceData) {
 	if uri := firstMailtoArg(data.Args); uri != "" {
 		a.openMailto(uri)
 	}
+}
+
+// onURLOpen receives a URL macOS delivers to the app. A clicked mailto: link arrives this way there
+// (an Apple Event, never a command-line argument, so the argv paths above cannot see it). On a cold
+// start it can arrive before the front end is mounted, in which case it parks in the same pending
+// slot the argv path uses and domReady flushes it.
+func (a *App) onURLOpen(uri string) {
+	if firstMailtoArg([]string{uri}) == "" {
+		return
+	}
+	a.pendingMu.Lock()
+	if !a.frontendReady {
+		a.pendingMailto = uri
+		a.pendingMu.Unlock()
+		return
+	}
+	a.pendingMu.Unlock()
+	a.revealWindow()
+	a.openMailto(uri)
+}
+
+// onFileOpen is onURLOpen's twin for a double-clicked .eml file on macOS.
+func (a *App) onFileOpen(path string) {
+	if firstEmailFileArg([]string{path}) == "" {
+		return
+	}
+	a.pendingMu.Lock()
+	if !a.frontendReady {
+		a.pendingEmail = path
+		a.pendingMu.Unlock()
+		return
+	}
+	a.pendingMu.Unlock()
+	a.revealWindow()
+	a.openEmailFile(path)
 }
 
 // revealWindow brings the window back into view: it un-hides it (it may be hidden to the tray) and

@@ -13,6 +13,7 @@ import (
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
+	"github.com/wailsapp/wails/v2/pkg/options/mac"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 
 	"github.com/oernster/pigeonpost/internal/application"
@@ -169,6 +170,15 @@ func run() error {
 		SingleInstanceLock: &options.SingleInstanceLock{
 			UniqueId:               singleInstanceID,
 			OnSecondInstanceLaunch: app.onSecondInstance,
+		},
+		// macOS delivers a clicked mailto: link or an opened .eml as Apple Events, never as
+		// command-line arguments, so the argv paths in onSecondInstance and startup cannot see
+		// them there; these handlers are the macOS equivalents. The bundle declares the mailto
+		// scheme and the eml extension via wails.json (info.protocols and info.fileAssociations),
+		// which the Info.plist template turns into CFBundleURLTypes and CFBundleDocumentTypes.
+		Mac: &mac.Options{
+			OnUrlOpen:  app.onURLOpen,
+			OnFileOpen: app.onFileOpen,
 		},
 		// Clicking the window's close button asks whether to minimise to the tray or quit, so the reminder
 		// scheduler and mail sync can keep running in the background; see App.beforeClose.

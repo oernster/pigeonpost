@@ -17,9 +17,12 @@ func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
 	// A double-clicked .eml or a clicked mailto: link (PigeonPost being the registered handler) launches the
 	// app with the path or URI as an argument; capture it now and open it from domReady, once the front end
-	// is mounted to receive it.
+	// is mounted to receive it. On macOS the same payloads arrive through onURLOpen and onFileOpen instead,
+	// which park in the same slots when they beat the front end.
+	a.pendingMu.Lock()
 	a.pendingEmail = firstEmailFileArg(os.Args)
 	a.pendingMailto = firstMailtoArg(os.Args)
+	a.pendingMu.Unlock()
 	if a.tray != nil {
 		a.tray.Start(taskbar.TrayActions{
 			// Open must go through the Wails runtime, not a Win32 window search: when the window is hidden
@@ -50,13 +53,18 @@ func (a *App) domReady(_ context.Context) {
 		taskbar.FocusMainWindow(a.title)
 		// Flush a .eml or mailto: captured at cold launch now the front end is up; the focus delay above
 		// also gives the event listeners time to attach before the viewer or composer is asked to open.
-		if a.pendingEmail != "" {
-			a.openEmailFile(a.pendingEmail)
-			a.pendingEmail = ""
+		// frontendReady flips inside the same lock, so a macOS open event either lands in the pending
+		// slots read here or opens directly, never neither.
+		a.pendingMu.Lock()
+		a.frontendReady = true
+		email, mailto := a.pendingEmail, a.pendingMailto
+		a.pendingEmail, a.pendingMailto = "", ""
+		a.pendingMu.Unlock()
+		if email != "" {
+			a.openEmailFile(email)
 		}
-		if a.pendingMailto != "" {
-			a.openMailto(a.pendingMailto)
-			a.pendingMailto = ""
+		if mailto != "" {
+			a.openMailto(mailto)
 		}
 	}()
 }

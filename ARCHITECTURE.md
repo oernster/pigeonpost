@@ -642,6 +642,16 @@ A second launch does not open a new window: the running instance's `OnSecondInst
 window through the same `WindowShow`/`WindowUnminimise` path the tray uses, so relaunching an app hidden
 in the tray simply brings it back.
 
+A clicked `mailto:` link or opened `.eml` reaches the app by two platform routes into one shared
+mechanism. On Windows the payload arrives as a command-line argument (of the cold launch or the second
+instance); on macOS it arrives as an Apple Event through the Wails `Mac.OnUrlOpen` and `Mac.OnFileOpen`
+handlers, never as argv. Both routes park a payload that beats the front end in the same mutex-guarded
+pending slots that `domReady` flushes, so a cold start opens the compose or viewer exactly once the UI
+can receive it. The macOS bundle declares the `mailto` scheme and the `eml` extension through
+`wails.json` (`info.protocols`, `info.fileAssociations`), which the `build/darwin/Info.plist` template
+renders as `CFBundleURLTypes` and `CFBundleDocumentTypes`, making PigeonPost selectable as the system
+default mail reader.
+
 ## Design decisions
 
 The standing choices behind the stack and the product shape, recorded so they are not relitigated.
