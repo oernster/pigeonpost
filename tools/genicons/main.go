@@ -2,6 +2,7 @@
 // It pads the master to a square, transparent canvas and emits:
 //
 //	build/appicon.png              (512, used by Wails)
+//	build/eml.png                  (512, the .eml file-association icon Wails packages)
 //	build/windows/icon.ico         (multi-size PNG-in-ICO for the Windows exe and installer)
 //	build/linux/icons/pigeonpost_<size>.png (the hicolor set installed by build_flatpak.sh)
 //	frontend/src/assets/pigeonpost.png (256, used by the in-app About dialog)
@@ -22,6 +23,13 @@ import (
 )
 
 const masterFile = "pigeonpost.png"
+
+// fileAssocIconName is the base name (no extension) of the icon Wails bundles
+// for the .eml file association. It MUST match the iconName on that
+// fileAssociation in wails.json: the darwin packager reads
+// build/<fileAssocIconName>.png, and an empty iconName makes it open ".png"
+// and abort packaging.
+const fileAssocIconName = "eml"
 
 var icoSizes = []int{16, 24, 32, 48, 64, 128, 256}
 
@@ -44,6 +52,9 @@ func run() error {
 	if err := writePNG(filepath.Join("build", "appicon.png"), resize(square, 512)); err != nil {
 		return err
 	}
+	if err := writePNG(filepath.Join("build", fileAssocIconName+".png"), resize(square, 512)); err != nil {
+		return err
+	}
 	if err := writePNG(filepath.Join("frontend", "src", "assets", "pigeonpost.png"), resize(square, 256)); err != nil {
 		return err
 	}
@@ -62,7 +73,7 @@ func run() error {
 			return err
 		}
 	}
-	fmt.Println("genicons: wrote appicon.png, icon.ico, the hicolor set and the About asset")
+	fmt.Println("genicons: wrote appicon.png, eml.png, icon.ico, the hicolor set and the About asset")
 	return nil
 }
 

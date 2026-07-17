@@ -23,6 +23,7 @@
         "ext": "eml",
         "name": "Email message",
         "description": "RFC 822 email message file",
+        "iconName": "eml",
         "role": "Viewer"
       }
     ]
