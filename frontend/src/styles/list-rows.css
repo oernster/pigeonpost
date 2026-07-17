@@ -42,6 +42,16 @@
     font-weight: 700;
 }
 
+/* A collapsed parent's badge sums the unread hidden in its subtree. Outlined rather than filled, so a
+   rolled-up count reads differently from a folder's own unread. The padding drops by the border width
+   to keep the pill the same size as a filled badge. */
+.badge-rollup {
+    background-color: transparent;
+    color: var(--primary);
+    border: 1px solid var(--primary);
+    padding: 0 6px;
+}
+
 /* The per-account unread badge sits in the left gutter of the account row, centred in its slot. */
 .account-badge {
     flex-shrink: 0;

@@ -239,6 +239,42 @@ describe('Sidebar: folder tree', () => {
         expect(folderRow('reports')).toBeNull()
     })
 
+    it('rolls the unread hidden in the subtree up onto a collapsed parent', () => {
+        const folders = [
+            makeFolder('work', 'Work', 'custom', {unread: 1}),
+            makeFolder('reports', 'Work/Reports', 'custom', {unread: 2}),
+            makeFolder('archive2026', 'Work/Reports/2026', 'custom', {unread: 3}),
+        ]
+        localStorage.setItem(collapseKey('a1'), '["Work"]')
+        const {folderRow} = renderSidebar({folders})
+        const badge = folderRow('work')!.querySelector('.badge')!
+        expect(badge).toHaveTextContent('6')
+        expect(badge.classList.contains('badge-rollup')).toBe(true)
+        expect(badge.getAttribute('title')).toBe('6 unread including subfolders')
+    })
+
+    it('reverts to the folder\'s own unread once the parent is expanded', () => {
+        const folders = [
+            makeFolder('work', 'Work', 'custom', {unread: 1}),
+            makeFolder('reports', 'Work/Reports', 'custom', {unread: 2}),
+        ]
+        const {folderRow} = renderSidebar({folders})
+        const badge = folderRow('work')!.querySelector('.badge')!
+        expect(badge).toHaveTextContent('1')
+        expect(badge.classList.contains('badge-rollup')).toBe(false)
+        expect(folderRow('reports')!.querySelector('.badge')).toHaveTextContent('2')
+    })
+
+    it('shows no badge on a collapsed parent whose subtree has no unread', () => {
+        const folders = [
+            makeFolder('work', 'Work', 'custom'),
+            makeFolder('reports', 'Work/Reports', 'custom'),
+        ]
+        localStorage.setItem(collapseKey('a1'), '["Work"]')
+        const {folderRow} = renderSidebar({folders})
+        expect(folderRow('work')!.querySelector('.badge')).toBeNull()
+    })
+
     it('expands a collapsed parent with ArrowRight', () => {
         localStorage.setItem(collapseKey('a1'), '["Work"]')
         const {folderRow} = renderSidebar({folders: nested, selectedFolder: 'work'})

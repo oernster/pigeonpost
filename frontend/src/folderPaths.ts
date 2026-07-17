@@ -46,6 +46,14 @@ export function nearestParentPath(path: string, existing: Set<string>, sep: stri
     return ''
 }
 
+// descendantUnread sums the unread counts of every folder strictly inside the given folder's subtree
+// (its path extended by the separator). A collapsed parent's badge adds this to its own unread, so mail
+// hidden by the collapse stays visible as a rolled-up count instead of vanishing from the sidebar.
+export function descendantUnread(folder: Folder, folders: Folder[], sep: string): number {
+    const prefix = folder.path + sep
+    return folders.reduce((sum, f) => (f.path.startsWith(prefix) ? sum + f.unread : sum), 0)
+}
+
 // specialFolderOrder is the canonical top-to-bottom order for the well-known mailboxes, so Inbox,
 // Sent and the rest sit at the top rather than wherever the server happens to list them. Any kind not
 // named here (custom folders) ranks after all of these.

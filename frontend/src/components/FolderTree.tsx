@@ -5,6 +5,7 @@ import {
     detectSeparator,
     leafName,
     ancestorPaths,
+    descendantUnread,
     nearestParentPath,
     orderFolders,
     placeAdjacent,
@@ -44,8 +45,11 @@ const FOLDER_INDENT_STEP_PX = 14
 // (spring-loaded folders): long enough not to fire on a quick pass-over, short enough to feel responsive.
 const SPRING_DELAY_MS = 700
 
-// FolderTree renders the folders as a nested, collapsible tree derived from their paths. Custom folders can
-// be dragged to reparent them (a server move) or reorder amongst their siblings (a local, persisted order).
+// FolderTree renders the folders as a nested, collapsible tree derived from their paths. A collapsed parent
+// rolls the unread hidden in its subtree up onto its own badge (outlined, so a rolled-up count reads
+// differently from a folder's own unread) and the badge reverts to the folder's own count on expand.
+// Custom folders can be dragged to reparent them (a server move) or reorder amongst their siblings (a
+// local, persisted order).
 // Both the collapsed state and the local order are kept per account in localStorage, so they survive
 // restarts. The folder-path and ordering helpers live in ../folderPaths, keeping the pure tree logic out of
 // this component.
@@ -223,6 +227,11 @@ export function FolderTree(props: FolderTreeProps) {
                 const depth = ancestorPaths(folder.path, sep).length
                 const parent = hasChildren(folder.path)
                 const isCollapsed = collapsed.has(folder.path)
+                // A collapsed parent's children are not rendered, so their unread would otherwise vanish
+                // from the sidebar (while still counting toward the account badge). Roll it up onto the
+                // collapsed row; an expanded parent shows only its own unread, its children showing theirs.
+                const hiddenUnread = parent && isCollapsed ? descendantUnread(folder, folders, sep) : 0
+                const badgeCount = folder.unread + hiddenUnread
                 const rowIndentPx = (depth + 1) * FOLDER_INDENT_STEP_PX
                 const rowStyle = {
                     paddingLeft: rowIndentPx,
@@ -348,7 +357,14 @@ export function FolderTree(props: FolderTreeProps) {
                             <span className="folder-icon">{folderIcon[folder.kind] ?? folderIcon.custom}</span>
                             {leaf}
                         </span>
-                        {folder.unread > 0 && <span className="badge">{folder.unread}</span>}
+                        {badgeCount > 0 && (
+                            <span
+                                className={'badge' + (hiddenUnread > 0 ? ' badge-rollup' : '')}
+                                title={hiddenUnread > 0 ? `${badgeCount} unread including subfolders` : undefined}
+                            >
+                                {badgeCount}
+                            </span>
+                        )}
                         {folder.kind === 'custom' && (
                             <span className="account-actions">
                                 <button
