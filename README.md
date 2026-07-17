@@ -67,8 +67,11 @@ local-first. A calmer, more predictable alternative to Thunderbird.
 - **Read**: an optional reading pane (mark-on-view, F8 toggle), a right-click context menu, in-app
   reader tabs, a double-click (or Enter) that pops the message out into its own dialog, mouse and
   keyboard multi-select with bulk actions, plus full keyboard control through an explicit focus ring. The list stays fluid in folders of tens of thousands of messages. A Date sort and
-  an optional threaded conversation view. A `.eml` file opens in an in-app viewer; on Windows PigeonPost
-  can be set as the default `.eml` handler. Print a message through the system print dialog.
+  an optional threaded conversation view. A `.eml` file opens in an in-app viewer; on Windows and macOS
+  PigeonPost can be set as the default `.eml` handler. PigeonPost registers as a system mail handler on
+  Windows, macOS and Linux, so it can be chosen as the default email client (Windows Default apps, the
+  macOS default email reader, GNOME Default Apps) and a clicked mailto: link anywhere opens a pre-filled
+  compose window. Print a message through the system print dialog.
 - **Notifications**: new mail raises a native desktop notification and updates a Windows taskbar badge.
   Each IMAP account is watched by a persistent IDLE connection with a 60-second poll backstop (and for
   POP3); an account's first sync is silent.

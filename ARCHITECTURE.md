@@ -650,7 +650,11 @@ pending slots that `domReady` flushes, so a cold start opens the compose or view
 can receive it. The macOS bundle declares the `mailto` scheme and the `eml` extension through
 `wails.json` (`info.protocols`, `info.fileAssociations`), which the `build/darwin/Info.plist` template
 renders as `CFBundleURLTypes` and `CFBundleDocumentTypes`, making PigeonPost selectable as the system
-default mail reader.
+default mail reader. On Linux the Flatpak's desktop entry claims `x-scheme-handler/mailto` with a `%u`
+field code, so GNOME's Default Apps offers PigeonPost as the email client and a clicked link arrives as
+the same argv payload the Windows route uses (or through the single-instance forward when the app is
+already running). Claiming `message/rfc822` (.eml) on Linux is deferred: a file-manager launch hands a
+`file://` URI the `.eml` opener does not parse.
 
 ## Design decisions
 

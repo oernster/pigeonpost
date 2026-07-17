@@ -163,7 +163,8 @@ bash build_flatpak.sh
 ```
 
 The script adds flathub, installs the GNOME runtime (which carries the webkit2gtk-4.1 that Wails
-renders through) plus the golang and node SDK extensions, generates the desktop file, metainfo and
+renders through) plus the golang and node SDK extensions, generates the desktop file (which claims the
+mailto scheme, so GNOME's Default Apps can select PigeonPost as the email client), metainfo and
 manifest, then builds the front end and the Go binary inside the sandbox with
 `-tags desktop,production,webkit2_41`. It installs the app for the current user and exports a
 distributable bundle.

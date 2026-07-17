@@ -134,6 +134,35 @@ func TestFlagSyncReconcileLeavesOtherMessagesAlone(t *testing.T) {
 	}
 }
 
+func TestFlagSyncReconcileOverlaysPendingClear(t *testing.T) {
+	svc, store, _, _ := newFlagSyncService()
+	// A pending mark-unread must also survive a stale fetch that still reports the message seen.
+	store.pendingFlags = map[string]map[domain.Flag]bool{"m1": {domain.FlagSeen: false}}
+	fetched := testMessage(t, "m1", "f1").WithFlags(domain.NewFlags(domain.FlagSeen))
+
+	out, err := svc.ReconcileFetched(context.Background(), []domain.MessageSummary{fetched})
+	if err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+	if out[0].IsRead() {
+		t.Error("a pending unread intent must overlay a stale seen fetch")
+	}
+	if store.pendingFlags["m1"][domain.FlagSeen] != false {
+		t.Error("the unconfirmed intent must stay recorded")
+	}
+}
+
+func TestFlagSyncReconcileEmptyFetchIsPassThrough(t *testing.T) {
+	svc, _, _, _ := newFlagSyncService()
+	out, err := svc.ReconcileFetched(context.Background(), nil)
+	if err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+	if len(out) != 0 {
+		t.Errorf("expected an empty result for an empty fetch, got %+v", out)
+	}
+}
+
 func TestFlagSyncReconcileNoPendingIsPassThrough(t *testing.T) {
 	svc, _, _, _ := newFlagSyncService()
 	fetched := []domain.MessageSummary{testMessage(t, "m1", "f1")}
