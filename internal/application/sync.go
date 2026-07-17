@@ -16,6 +16,16 @@ type TagSyncer interface {
 	ReconcileFetched(ctx context.Context, messages []domain.MessageSummary) error
 }
 
+// FlagSyncer replays pending flag changes (read, starred, answered, forwarded) to the server and guards
+// them against a fetch that still reports the old value, returning the fetched summaries with each
+// unconfirmed local intent overlaid. The sync drives it so a flag changed locally (or one the server
+// applied lazily or dropped) is neither lost to a stale fetch nor left unsynced. Like the tag syncer it
+// is best-effort at the sync's call sites: a hiccup never fails a mail sync.
+type FlagSyncer interface {
+	FlushPending(ctx context.Context) error
+	ReconcileFetched(ctx context.Context, messages []domain.MessageSummary) ([]domain.MessageSummary, error)
+}
+
 // SyncService pulls folders and message summaries from a remote source and persists them into the
 // local store, applying the user's filter rules to messages as they arrive.
 type SyncService struct {
@@ -24,11 +34,12 @@ type SyncService struct {
 	source   MailSource
 	rules    RuleStore
 	tags     TagSyncer
+	flags    FlagSyncer
 }
 
 // NewSyncService constructs the service with its injected dependencies.
-func NewSyncService(accounts AccountStore, mail MailStore, source MailSource, rules RuleStore, tags TagSyncer) *SyncService {
-	return &SyncService{accounts: accounts, mail: mail, source: source, rules: rules, tags: tags}
+func NewSyncService(accounts AccountStore, mail MailStore, source MailSource, rules RuleStore, tags TagSyncer, flags FlagSyncer) *SyncService {
+	return &SyncService{accounts: accounts, mail: mail, source: source, rules: rules, tags: tags, flags: flags}
 }
 
 // reconcileTags aligns local tag assignments with the server keywords on the fetched messages, for an IMAP
@@ -39,6 +50,21 @@ func (s *SyncService) reconcileTags(ctx context.Context, account domain.Account,
 		return
 	}
 	_ = s.tags.ReconcileFetched(ctx, messages)
+}
+
+// reconcileFlags overlays unconfirmed local flag changes onto the fetched messages, for an IMAP account
+// only: a POP3 account records no pending flag ops (its flags are purely local and preserveFlags carries
+// them whole). It is best-effort: on a reconcile failure the fetched messages are saved as reported and
+// the intents stay in place for the next pass to guard.
+func (s *SyncService) reconcileFlags(ctx context.Context, account domain.Account, messages []domain.MessageSummary) []domain.MessageSummary {
+	if account.Protocol() == domain.ProtocolPOP3 {
+		return messages
+	}
+	out, err := s.flags.ReconcileFetched(ctx, messages)
+	if err != nil {
+		return messages
+	}
+	return out
 }
 
 // SyncAccount fetches the folder list for an account, then each folder's message summaries, applies
@@ -63,9 +89,11 @@ func (s *SyncService) SyncAccount(ctx context.Context, accountID string) error {
 		return fmt.Errorf("sync: save folders: %w", err)
 	}
 
-	// Replay any tag changes that have not yet reached the server before reading folders back, so the
-	// fetch reflects them and the reconcile can confirm them. Best-effort: a failure never fails the sync.
+	// Replay any tag and flag changes that have not yet reached the server before reading folders back,
+	// so the fetch reflects them and the reconciles can confirm them. Best-effort: a failure never fails
+	// the sync.
 	_ = s.tags.FlushPending(ctx)
+	_ = s.flags.FlushPending(ctx)
 
 	for _, folder := range folders {
 		messages, err := s.source.FetchMessages(ctx, account, folder)
@@ -82,6 +110,9 @@ func (s *SyncService) SyncAccount(ctx context.Context, accountID string) error {
 		if err != nil {
 			return fmt.Errorf("sync: preserve flags for %q: %w", folder.Path(), err)
 		}
+		// Overlay unconfirmed local flag changes last, so nothing between here and the save can regress
+		// a flag the user changed but the server has not yet confirmed.
+		messages = s.reconcileFlags(ctx, account, messages)
 		if err := s.mail.SaveMessages(ctx, folder.ID(), messages); err != nil {
 			return fmt.Errorf("sync: save messages for %q: %w", folder.Path(), err)
 		}
@@ -105,9 +136,10 @@ func (s *SyncService) SyncFolder(ctx context.Context, folderID string) error {
 	if err != nil {
 		return fmt.Errorf("sync: load rules: %w", err)
 	}
-	// Replay unsynced tag changes before the fetch, so the fetch reflects them and the reconcile below can
-	// confirm them. Best-effort: a failure never fails the sync.
+	// Replay unsynced tag and flag changes before the fetch, so the fetch reflects them and the
+	// reconciles below can confirm them. Best-effort: a failure never fails the sync.
 	_ = s.tags.FlushPending(ctx)
+	_ = s.flags.FlushPending(ctx)
 	messages, err := s.source.FetchMessages(ctx, account, folder)
 	if err != nil {
 		return fmt.Errorf("sync: fetch messages for %q: %w", folder.Path(), err)
@@ -118,6 +150,9 @@ func (s *SyncService) SyncFolder(ctx context.Context, folderID string) error {
 	if err != nil {
 		return fmt.Errorf("sync: preserve flags for %q: %w", folder.Path(), err)
 	}
+	// Overlay unconfirmed local flag changes last, so nothing between here and the save can regress a
+	// flag the user changed but the server has not yet confirmed.
+	messages = s.reconcileFlags(ctx, account, messages)
 	if err := s.mail.SaveMessages(ctx, folder.ID(), messages); err != nil {
 		return fmt.Errorf("sync: save messages for %q: %w", folder.Path(), err)
 	}
@@ -139,8 +174,9 @@ func (s *SyncService) SyncInboxes(ctx context.Context) ([]domain.MessageSummary,
 	if err != nil {
 		return nil, fmt.Errorf("sync: load rules: %w", err)
 	}
-	// Replay unsynced tag changes once for this pass before reading the inboxes. Best-effort.
+	// Replay unsynced tag and flag changes once for this pass before reading the inboxes. Best-effort.
 	_ = s.tags.FlushPending(ctx)
+	_ = s.flags.FlushPending(ctx)
 	var arrived []domain.MessageSummary
 	for _, account := range accounts {
 		folders, err := s.mail.ListFolders(ctx, account.ID())
@@ -188,6 +224,9 @@ func (s *SyncService) refreshInbox(ctx context.Context, account domain.Account, 
 	if account.Protocol() == domain.ProtocolPOP3 {
 		messages = carryOverFlags(existing, messages)
 	}
+	// Overlay unconfirmed local flag changes last, so this save cannot regress a flag the user changed
+	// but the server has not yet confirmed (the immediate un-read revert on servers with lazy STOREs).
+	messages = s.reconcileFlags(ctx, account, messages)
 	if err := s.mail.SaveMessages(ctx, folder.ID(), messages); err != nil {
 		return nil, err
 	}

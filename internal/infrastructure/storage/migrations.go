@@ -224,6 +224,23 @@ const schemaV45 = `
 DELETE FROM message_body;
 `
 
+// schemaV46 adds the pending flag-operations table: a local record of a flag change (read, starred,
+// answered, forwarded) not yet confirmed on the server, mirroring message_tag_pending. Some servers
+// (Outlook.com among them) accept a flag STORE and then report the old value on the next fetch, or drop
+// the STORE outright; without this record the sync would faithfully write that stale view over the local
+// change, un-reading a message the user just viewed. Each row is the intended state of one (message,
+// flag) pair; a row is cleared once a sync sees the server agree with it and is otherwise replayed to
+// the server on each sync.
+const schemaV46 = `
+CREATE TABLE IF NOT EXISTS message_flag_pending (
+    message_id TEXT NOT NULL,
+    flag       INTEGER NOT NULL,
+    value      INTEGER NOT NULL,
+    PRIMARY KEY (message_id, flag)
+);
+CREATE INDEX IF NOT EXISTS idx_message_flag_pending_message ON message_flag_pending(message_id);
+`
+
 // migrations is the ordered list of schema steps. Index i upgrades the database from version i to
 // version i+1, so a fresh database applies them all and an existing one applies only what it lacks.
-var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15, schemaV16, schemaV17, schemaV18, schemaV19, schemaV20, schemaV21, schemaV22, schemaV23, schemaV24, schemaV25, schemaV26, schemaV27, schemaV28, schemaV29, schemaV30, schemaV31, schemaV32, schemaV33, schemaV34, schemaV35, schemaV36, schemaV37, schemaV38, schemaV39, schemaV40, schemaV41, schemaV42, schemaV43, schemaV44, schemaV45}
+var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15, schemaV16, schemaV17, schemaV18, schemaV19, schemaV20, schemaV21, schemaV22, schemaV23, schemaV24, schemaV25, schemaV26, schemaV27, schemaV28, schemaV29, schemaV30, schemaV31, schemaV32, schemaV33, schemaV34, schemaV35, schemaV36, schemaV37, schemaV38, schemaV39, schemaV40, schemaV41, schemaV42, schemaV43, schemaV44, schemaV45, schemaV46}

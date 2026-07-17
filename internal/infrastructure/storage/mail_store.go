@@ -91,6 +91,7 @@ func (s *Store) DeleteMessage(ctx context.Context, messageID string) error {
 			"DELETE FROM message_attachment WHERE message_id = ?;",
 			"DELETE FROM message_tag WHERE message_id = ?;",
 			"DELETE FROM message_tag_pending WHERE message_id = ?;",
+			"DELETE FROM message_flag_pending WHERE message_id = ?;",
 			"DELETE FROM message_search WHERE message_id = ?;",
 			"DELETE FROM message_snooze WHERE message_id = ?;",
 			"DELETE FROM message WHERE id = ?;",
@@ -216,6 +217,12 @@ func (s *Store) SaveMessages(ctx context.Context, folderID string, messages []do
 			"DELETE FROM message_tag_pending WHERE message_id NOT IN (SELECT id FROM message);"); err != nil {
 			return fmt.Errorf("sweep orphaned pending tags: %w", err)
 		}
+		// The same sweep for pending flag ops: an expunged-while-pending message must not leak an
+		// unreachable, forever-retried pending row.
+		if _, err := tx.ExecContext(ctx,
+			"DELETE FROM message_flag_pending WHERE message_id NOT IN (SELECT id FROM message);"); err != nil {
+			return fmt.Errorf("sweep orphaned pending flags: %w", err)
+		}
 		// The same sweep for snoozes: a snoozed message expunged (or moved, which changes its id) on the
 		// server leaves its snooze orphaned; drop it so it neither lingers nor resurfaces as a ghost.
 		if _, err := tx.ExecContext(ctx,
@@ -313,6 +320,9 @@ func (s *Store) DeleteAccountData(ctx context.Context, accountID string) error {
 		}
 		if _, err := tx.ExecContext(ctx, "DELETE FROM message_tag_pending WHERE "+bodyOrTagFilter, accountID); err != nil {
 			return fmt.Errorf("clear pending message tags: %w", err)
+		}
+		if _, err := tx.ExecContext(ctx, "DELETE FROM message_flag_pending WHERE "+bodyOrTagFilter, accountID); err != nil {
+			return fmt.Errorf("clear pending message flags: %w", err)
 		}
 		if _, err := tx.ExecContext(ctx, "DELETE FROM message_search WHERE "+bodyOrTagFilter, accountID); err != nil {
 			return fmt.Errorf("clear message index: %w", err)

@@ -404,6 +404,19 @@ keyword, retried best-effort until it lands); when a folder is fetched it reconc
 keywords back into local assignments, clearing a pending intent once the server agrees. POP3 accounts skip
 all of this by design, since POP3 messages carry no keywords.
 
+Flag changes (read, starred, answered, forwarded) round-trip the same way, through the
+`message_flag_pending` intent table and the application `FlagSyncService`. A mark action writes the cache
+flag and its pending intent in one transaction (`MailStore.SetFlag`), then pushes to the server
+best-effort: a push that fails, offline or against a server that accepts the STORE and drops it, leaves
+the intent for every sync to replay (`FlushPending`, which re-resolves the message's current UID at push
+time). Before a sync saves fetched summaries it overlays each unconfirmed intent onto them
+(`ReconcileFetched`), so a fetch that still reports the old value, which Outlook.com does routinely
+because it applies flag STOREs lazily or sheds them, cannot regress a change the user just made; the
+intent is cleared only once a fetch shows the server agreeing. This is why viewing a message in the
+reader marks it read durably: without the guard, the IDLE-triggered inbox re-fetch would write the
+server's stale unseen flag straight back over the cache. POP3 accounts record no intents: their flags
+are purely local and the sync's `preserveFlags` carries them across fetches whole.
+
 Filter rules: the `RuleService` use case manages user-defined rules through the `RuleStore` port and
 applies them to arriving messages. A domain `Rule` matches one field (From, To, Cc or Subject) against a
 value with an operator (contains, is, starts with, ends with or does not contain) and carries an action

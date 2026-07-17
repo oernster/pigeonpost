@@ -9,8 +9,12 @@ import (
 )
 
 // MessageActionService is the use-case boundary for actions that change a message on the server as
-// well as in the local cache, such as marking it read. The server is updated first so the change is
-// durable: a later sync, which mirrors server state into the cache, preserves it.
+// well as in the local cache. Flag changes (read, starred, answered, forwarded) are applied to the
+// cache first, together with a pending intent recorded in the same transaction, then pushed to the
+// server best-effort: a push that fails (offline, or a server that drops the STORE) leaves the intent
+// for the sync to replay, and the sync's reconcile guards the local value against a stale fetch until
+// the server confirms it (see FlagSyncService). Destructive actions (delete, move) still talk to the
+// server first, because they cannot be overlaid onto a later fetch.
 type MessageActionService struct {
 	store    MailStore
 	accounts AccountStore
@@ -22,64 +26,55 @@ func NewMessageActionService(store MailStore, accounts AccountStore, remote Mail
 	return &MessageActionService{store: store, accounts: accounts, remote: remote}
 }
 
-// MarkRead sets or clears a message's read (Seen) state on the server and then in the local cache.
+// MarkRead sets or clears a message's read (Seen) state: cache first (with the pending intent), then the
+// server best-effort.
 func (s *MessageActionService) MarkRead(ctx context.Context, messageID string, read bool) error {
-	msg, folder, account, err := resolveMessageContext(ctx, s.store, s.accounts, messageID)
-	if err != nil {
-		return err
-	}
-	if err := s.remote.SetSeen(ctx, account, folder, msg.UID(), read); err != nil {
-		return fmt.Errorf("set server seen for %q: %w", messageID, err)
-	}
-	if err := s.store.SetSeen(ctx, messageID, read); err != nil {
-		return fmt.Errorf("set cached seen for %q: %w", messageID, err)
-	}
-	return nil
+	return s.markFlag(ctx, messageID, domain.FlagSeen, read)
 }
 
-// MarkFlagged sets or clears a message's flagged (starred) state on the server and then in the cache.
+// MarkFlagged sets or clears a message's flagged (starred) state: cache first, then the server best-effort.
 func (s *MessageActionService) MarkFlagged(ctx context.Context, messageID string, flagged bool) error {
-	msg, folder, account, err := resolveMessageContext(ctx, s.store, s.accounts, messageID)
-	if err != nil {
-		return err
-	}
-	if err := s.remote.SetFlagged(ctx, account, folder, msg.UID(), flagged); err != nil {
-		return fmt.Errorf("set server flagged for %q: %w", messageID, err)
-	}
-	if err := s.store.SetFlagged(ctx, messageID, flagged); err != nil {
-		return fmt.Errorf("set cached flagged for %q: %w", messageID, err)
-	}
-	return nil
+	return s.markFlag(ctx, messageID, domain.FlagFlagged, flagged)
 }
 
-// MarkAnswered sets or clears a message's answered (\Answered) state on the server and then in the cache. It
-// is called after a reply is sent, so the original message shows the replied indicator.
+// MarkAnswered sets or clears a message's answered (\Answered) state, called after a reply is sent so the
+// original message shows the replied indicator: cache first, then the server best-effort.
 func (s *MessageActionService) MarkAnswered(ctx context.Context, messageID string, answered bool) error {
-	msg, folder, account, err := resolveMessageContext(ctx, s.store, s.accounts, messageID)
-	if err != nil {
-		return err
-	}
-	if err := s.remote.SetAnswered(ctx, account, folder, msg.UID(), answered); err != nil {
-		return fmt.Errorf("set server answered for %q: %w", messageID, err)
-	}
-	if err := s.store.SetAnswered(ctx, messageID, answered); err != nil {
-		return fmt.Errorf("set cached answered for %q: %w", messageID, err)
-	}
-	return nil
+	return s.markFlag(ctx, messageID, domain.FlagAnswered, answered)
 }
 
-// MarkForwarded sets or clears a message's forwarded ($Forwarded) state on the server and then in the cache. It
-// is called after a message is forwarded, so the original shows the forwarded indicator.
+// MarkForwarded sets or clears a message's forwarded ($Forwarded) state, called after a message is
+// forwarded so the original shows the forwarded indicator: cache first, then the server best-effort.
 func (s *MessageActionService) MarkForwarded(ctx context.Context, messageID string, forwarded bool) error {
+	return s.markFlag(ctx, messageID, domain.FlagForwarded, forwarded)
+}
+
+// markFlag is the shared body of the four mark actions. The cache write and the pending intent land in
+// one transaction (the intent is recorded for server-flagged accounts only: POP3 has no server flags, so
+// its read state is purely local and preserveFlags carries it across syncs). The server push that
+// follows is best-effort: a failure (offline, or a server that accepts the STORE and drops it) leaves
+// the intent for the sync to replay and the reconcile to guard, so the local change survives either way.
+func (s *MessageActionService) markFlag(ctx context.Context, messageID string, flag domain.Flag, value bool) error {
 	msg, folder, account, err := resolveMessageContext(ctx, s.store, s.accounts, messageID)
 	if err != nil {
 		return err
 	}
-	if err := s.remote.SetForwarded(ctx, account, folder, msg.UID(), forwarded); err != nil {
-		return fmt.Errorf("set server forwarded for %q: %w", messageID, err)
+	recordPending := account.Protocol() != domain.ProtocolPOP3
+	if err := s.store.SetFlag(ctx, messageID, flag, value, recordPending); err != nil {
+		return fmt.Errorf("set cached flag for %q: %w", messageID, err)
 	}
-	if err := s.store.SetForwarded(ctx, messageID, forwarded); err != nil {
-		return fmt.Errorf("set cached forwarded for %q: %w", messageID, err)
+	if !recordPending {
+		return nil
+	}
+	switch flag {
+	case domain.FlagSeen:
+		_ = s.remote.SetSeen(ctx, account, folder, msg.UID(), value)
+	case domain.FlagFlagged:
+		_ = s.remote.SetFlagged(ctx, account, folder, msg.UID(), value)
+	case domain.FlagAnswered:
+		_ = s.remote.SetAnswered(ctx, account, folder, msg.UID(), value)
+	case domain.FlagForwarded:
+		_ = s.remote.SetForwarded(ctx, account, folder, msg.UID(), value)
 	}
 	return nil
 }

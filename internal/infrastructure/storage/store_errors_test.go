@@ -146,7 +146,7 @@ func TestClosedStoreErrors(t *testing.T) {
 	if err := store.SaveMessages(ctx, "f", []domain.MessageSummary{msg}); err == nil {
 		t.Error("SaveMessages should fail on a closed store")
 	}
-	if err := store.SetSeen(ctx, "m1", true); err == nil {
-		t.Error("SetSeen should fail on a closed store")
+	if err := store.SetFlag(ctx, "m1", domain.FlagSeen, true, false); err == nil {
+		t.Error("SetFlag should fail on a closed store")
 	}
 }

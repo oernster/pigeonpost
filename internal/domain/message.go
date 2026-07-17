@@ -131,6 +131,30 @@ func (p PendingTagOp) TagID() string { return p.tagID }
 // Assigned reports whether the pending intent is to assign (true) or to remove (false) the tag.
 func (p PendingTagOp) Assigned() bool { return p.assigned }
 
+// PendingFlagOp is a flag change (read, starred, answered, forwarded) recorded locally but not yet
+// confirmed on the server, so it can be replayed on a later sync and can guard the local state against
+// a fetch that reports the old value (some servers apply a flag STORE lazily or drop it), until the
+// server agrees. Value is the intended state of the (MessageID, Flag) pair.
+type PendingFlagOp struct {
+	messageID string
+	flag      Flag
+	value     bool
+}
+
+// NewPendingFlagOp constructs a pending flag operation.
+func NewPendingFlagOp(messageID string, flag Flag, value bool) PendingFlagOp {
+	return PendingFlagOp{messageID: messageID, flag: flag, value: value}
+}
+
+// MessageID returns the message the operation targets.
+func (p PendingFlagOp) MessageID() string { return p.messageID }
+
+// Flag returns the flag the operation targets.
+func (p PendingFlagOp) Flag() Flag { return p.flag }
+
+// Value reports the intended state: true for the flag set, false for it cleared.
+func (p PendingFlagOp) Value() bool { return p.value }
+
 // MessageSummary is the header-level view of a message shown in the message list. Bodies and
 // attachments are loaded separately and lazily.
 type MessageSummary struct {

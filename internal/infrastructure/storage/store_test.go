@@ -452,7 +452,7 @@ func TestListMessagesPage(t *testing.T) {
 	}
 }
 
-func TestSetSeen(t *testing.T) {
+func TestSetFlagSeen(t *testing.T) {
 	store := openTestStore(t)
 	ctx := context.Background()
 	msg := buildMessage(t, "m1", time.Date(2026, time.July, 1, 0, 0, 0, 0, time.UTC), true)
@@ -460,7 +460,7 @@ func TestSetSeen(t *testing.T) {
 		t.Fatalf("save: %v", err)
 	}
 
-	if err := store.SetSeen(ctx, "m1", false); err != nil {
+	if err := store.SetFlag(ctx, "m1", domain.FlagSeen, false, false); err != nil {
 		t.Fatalf("clear seen: %v", err)
 	}
 	msgs, _ := store.ListMessages(ctx, "f1")
@@ -468,7 +468,7 @@ func TestSetSeen(t *testing.T) {
 		t.Error("expected unread after clearing seen")
 	}
 
-	if err := store.SetSeen(ctx, "m1", true); err != nil {
+	if err := store.SetFlag(ctx, "m1", domain.FlagSeen, true, false); err != nil {
 		t.Fatalf("set seen: %v", err)
 	}
 	msgs, _ = store.ListMessages(ctx, "f1")
@@ -476,12 +476,12 @@ func TestSetSeen(t *testing.T) {
 		t.Error("expected read after setting seen")
 	}
 
-	if err := store.SetSeen(ctx, "missing", true); err == nil {
+	if err := store.SetFlag(ctx, "missing", domain.FlagSeen, true, false); err == nil {
 		t.Error("expected error for a missing message")
 	}
 }
 
-func TestSetAnswered(t *testing.T) {
+func TestSetFlagAnswered(t *testing.T) {
 	store := openTestStore(t)
 	ctx := context.Background()
 	msg := buildMessage(t, "m1", time.Date(2026, time.July, 1, 0, 0, 0, 0, time.UTC), true)
@@ -489,7 +489,7 @@ func TestSetAnswered(t *testing.T) {
 		t.Fatalf("save: %v", err)
 	}
 
-	if err := store.SetAnswered(ctx, "m1", true); err != nil {
+	if err := store.SetFlag(ctx, "m1", domain.FlagAnswered, true, false); err != nil {
 		t.Fatalf("set answered: %v", err)
 	}
 	msgs, _ := store.ListMessages(ctx, "f1")
@@ -500,20 +500,16 @@ func TestSetAnswered(t *testing.T) {
 		t.Error("setting answered must not disturb the seen flag")
 	}
 
-	if err := store.SetAnswered(ctx, "m1", false); err != nil {
+	if err := store.SetFlag(ctx, "m1", domain.FlagAnswered, false, false); err != nil {
 		t.Fatalf("clear answered: %v", err)
 	}
 	msgs, _ = store.ListMessages(ctx, "f1")
 	if msgs[0].IsAnswered() {
 		t.Error("expected not answered after clearing it")
 	}
-
-	if err := store.SetAnswered(ctx, "missing", true); err == nil {
-		t.Error("expected error for a missing message")
-	}
 }
 
-func TestSetForwarded(t *testing.T) {
+func TestSetFlagForwarded(t *testing.T) {
 	store := openTestStore(t)
 	ctx := context.Background()
 	msg := buildMessage(t, "m1", time.Date(2026, time.July, 1, 0, 0, 0, 0, time.UTC), true)
@@ -521,22 +517,106 @@ func TestSetForwarded(t *testing.T) {
 		t.Fatalf("save: %v", err)
 	}
 
-	if err := store.SetForwarded(ctx, "m1", true); err != nil {
+	if err := store.SetFlag(ctx, "m1", domain.FlagForwarded, true, false); err != nil {
 		t.Fatalf("set forwarded: %v", err)
 	}
-	// The forwarded bit is new; asserting it survives a SaveMessages then ListMessages round-trip confirms the
-	// existing integer flags column carries it with no schema change.
+	// The forwarded bit rides the integer flags column; asserting a SaveMessages then ListMessages
+	// round-trip confirms it carries with no schema change.
 	msgs, _ := store.ListMessages(ctx, "f1")
 	if !msgs[0].IsForwarded() {
 		t.Error("expected forwarded after setting it")
 	}
 
-	if err := store.SetForwarded(ctx, "m1", false); err != nil {
+	if err := store.SetFlag(ctx, "m1", domain.FlagForwarded, false, false); err != nil {
 		t.Fatalf("clear forwarded: %v", err)
 	}
 	msgs, _ = store.ListMessages(ctx, "f1")
 	if msgs[0].IsForwarded() {
 		t.Error("expected not forwarded after clearing it")
+	}
+}
+
+func TestSetFlagRecordsPendingInOneTransaction(t *testing.T) {
+	store := openTestStore(t)
+	ctx := context.Background()
+	msg := buildMessage(t, "m1", time.Date(2026, time.July, 1, 0, 0, 0, 0, time.UTC), true)
+	if err := store.SaveMessages(ctx, "f1", []domain.MessageSummary{msg}); err != nil {
+		t.Fatalf("save: %v", err)
+	}
+
+	if err := store.SetFlag(ctx, "m1", domain.FlagSeen, false, true); err != nil {
+		t.Fatalf("set flag with pending: %v", err)
+	}
+	pending, err := store.PendingFlagOps(ctx, "m1")
+	if err != nil {
+		t.Fatalf("pending flag ops: %v", err)
+	}
+	if len(pending) != 1 || pending[domain.FlagSeen] != false {
+		t.Fatalf("pending for m1 = %+v, want {Seen: false}", pending)
+	}
+
+	// Replacing the intent for the same (message, flag) pair keeps one row with the newest value.
+	if err := store.SetFlag(ctx, "m1", domain.FlagSeen, true, true); err != nil {
+		t.Fatalf("replace pending: %v", err)
+	}
+	if pending, _ = store.PendingFlagOps(ctx, "m1"); len(pending) != 1 || pending[domain.FlagSeen] != true {
+		t.Fatalf("replaced pending = %+v, want {Seen: true}", pending)
+	}
+
+	// A failed SetFlag (missing message) must record no intent: the two writes share one transaction.
+	if err := store.SetFlag(ctx, "missing", domain.FlagSeen, true, true); err == nil {
+		t.Fatal("expected error for a missing message")
+	}
+	if pending, _ := store.PendingFlagOps(ctx, "missing"); len(pending) != 0 {
+		t.Fatalf("expected no pending for a failed set, got %+v", pending)
+	}
+}
+
+func TestPendingFlagOps(t *testing.T) {
+	store := openTestStore(t)
+	ctx := context.Background()
+	msgs := []domain.MessageSummary{
+		buildMessage(t, "m1", time.Date(2026, time.July, 1, 0, 0, 0, 0, time.UTC), true),
+		buildMessage(t, "m2", time.Date(2026, time.July, 2, 0, 0, 0, 0, time.UTC), true),
+	}
+	if err := store.SaveMessages(ctx, "f1", msgs); err != nil {
+		t.Fatalf("save: %v", err)
+	}
+	if err := store.SetFlag(ctx, "m1", domain.FlagSeen, false, true); err != nil {
+		t.Fatalf("set m1 seen: %v", err)
+	}
+	if err := store.SetFlag(ctx, "m1", domain.FlagFlagged, true, true); err != nil {
+		t.Fatalf("set m1 flagged: %v", err)
+	}
+	if err := store.SetFlag(ctx, "m2", domain.FlagSeen, true, true); err != nil {
+		t.Fatalf("set m2 seen: %v", err)
+	}
+
+	all, err := store.ListPendingFlagOps(ctx)
+	if err != nil {
+		t.Fatalf("list pending: %v", err)
+	}
+	if len(all) != 3 {
+		t.Fatalf("expected 3 pending ops, got %d", len(all))
+	}
+
+	if err := store.ClearPendingFlagOp(ctx, "m1", domain.FlagSeen); err != nil {
+		t.Fatalf("clear pending: %v", err)
+	}
+	pending, err := store.PendingFlagOps(ctx, "m1")
+	if err != nil {
+		t.Fatalf("pending after clear: %v", err)
+	}
+	if len(pending) != 1 || pending[domain.FlagFlagged] != true {
+		t.Fatalf("pending after clear = %+v, want {Flagged: true}", pending)
+	}
+
+	// A folder replace that drops a message sweeps its orphaned pending flag ops.
+	if err := store.SaveMessages(ctx, "f1", msgs[:1]); err != nil {
+		t.Fatalf("replace folder: %v", err)
+	}
+	if all, _ = store.ListPendingFlagOps(ctx); len(all) != 1 || all[0].MessageID() != "m1" {
+		t.Fatalf("expected only m1's pending op after sweep, got %+v", all)
 	}
 }
 

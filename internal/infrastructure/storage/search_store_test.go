@@ -321,7 +321,7 @@ func TestSearchStatusPredicatesReflectCurrentFlags(t *testing.T) {
 	if hits := searchFor(t, store, "reading is:read"); len(hits) != 0 {
 		t.Errorf("unread message matched is:read: %v", hitIDs(hits))
 	}
-	if err := store.SetSeen(ctx, "m1", true); err != nil {
+	if err := store.SetFlag(ctx, "m1", domain.FlagSeen, true, false); err != nil {
 		t.Fatalf("set seen: %v", err)
 	}
 	wantOnly(t, "is:read", searchFor(t, store, "reading is:read"), "m1")
@@ -332,7 +332,7 @@ func TestSearchStatusPredicatesReflectCurrentFlags(t *testing.T) {
 	if hits := searchFor(t, store, "reading is:flagged"); len(hits) != 0 {
 		t.Errorf("unflagged message matched is:flagged: %v", hitIDs(hits))
 	}
-	if err := store.SetFlagged(ctx, "m1", true); err != nil {
+	if err := store.SetFlag(ctx, "m1", domain.FlagFlagged, true, false); err != nil {
 		t.Fatalf("set flagged: %v", err)
 	}
 	wantOnly(t, "is:flagged", searchFor(t, store, "reading is:flagged"), "m1")

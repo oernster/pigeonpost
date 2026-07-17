@@ -155,6 +155,17 @@ func TestPendingTagOp(t *testing.T) {
 	}
 }
 
+func TestPendingFlagOp(t *testing.T) {
+	set := NewPendingFlagOp("m1", FlagSeen, true)
+	if set.MessageID() != "m1" || set.Flag() != FlagSeen || !set.Value() {
+		t.Errorf("set op = %+v", set)
+	}
+	clear := NewPendingFlagOp("m2", FlagFlagged, false)
+	if clear.MessageID() != "m2" || clear.Flag() != FlagFlagged || clear.Value() {
+		t.Errorf("clear op = %+v", clear)
+	}
+}
+
 func validMessageInput() MessageSummaryInput {
 	from, _ := NewEmailAddress("Sender", "sender@example.com")
 	to, _ := NewEmailAddress("", "me@example.com")

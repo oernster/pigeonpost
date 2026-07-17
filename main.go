@@ -105,10 +105,13 @@ func run() error {
 	unifiedService := application.NewUnifiedMailboxService(store, store, clock)
 	// Snooze hides a message from the visible listings until its chosen instant; local-only state.
 	snoozeService := application.NewSnoozeService(store, clock)
-	// The tag-sync service rounds user tags onto the server as IMAP keywords; the sync service drives its
-	// flush and reconcile, so it is constructed first and injected into the sync.
+	// The tag-sync service rounds user tags onto the server as IMAP keywords, and the flag-sync service
+	// does the same for flag changes (read, starred, answered, forwarded), guarding them against servers
+	// that apply a flag STORE lazily or drop it. The sync service drives both flush and reconcile, so
+	// each is constructed first and injected into the sync.
 	tagSyncService := application.NewTagSyncService(store, store, store, mailSource)
-	syncService := application.NewSyncService(store, store, mailSource, store, tagSyncService)
+	flagSyncService := application.NewFlagSyncService(store, store, mailSource)
+	syncService := application.NewSyncService(store, store, mailSource, store, tagSyncService, flagSyncService)
 	composeService := application.NewComposeService(store, store, transport, imapSource, imapSource, store, store, clock, newOutboxID)
 	tagService := application.NewTagService(store)
 	bodyService := application.NewMessageBodyService(store, store, mailSource)
@@ -138,8 +141,9 @@ func run() error {
 
 	// The taskbar overlay badge reflects the total unread count, and the flasher flashes the taskbar
 	// button when a reminder fires while the window is in the background. Both locate the main window by
-	// its title, so they are given the same title the Wails window uses below.
-	windowTitle := appName + " " + version()
+	// its title, so they are given the same title the Wails window uses below. The title is the bare app
+	// name (no version); the version stays discoverable in Help | About.
+	windowTitle := appName
 	overlay := taskbar.NewOverlay(windowTitle)
 	overlay.Start()
 	flasher := taskbar.NewFlasher(windowTitle)

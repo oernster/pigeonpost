@@ -25,33 +25,60 @@ func newActionService() (*MessageActionService, *fakeMailStore, *fakeAccountStor
 	return NewMessageActionService(store, accounts, remote), store, accounts, remote
 }
 
-func TestMarkReadWritesServerThenCache(t *testing.T) {
+func TestMarkReadWritesCacheWithIntentThenPushes(t *testing.T) {
 	svc, store, accounts, remote := newActionService()
 	seedMessageLocation(t, store, accounts)
 
 	if err := svc.MarkRead(context.Background(), "m1", true); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+	if !store.messages["f1"][0].IsRead() {
+		t.Error("local cache was not marked read")
+	}
+	if store.pendingFlags["m1"][domain.FlagSeen] != true {
+		t.Errorf("pending intent = %+v, want Seen true", store.pendingFlags["m1"])
+	}
 	if len(remote.seenCalls) != 1 || remote.seenCalls[0] != true {
 		t.Errorf("server SetSeen calls = %v, want [true]", remote.seenCalls)
+	}
+}
+
+func TestMarkReadPOP3StaysLocal(t *testing.T) {
+	svc, store, accounts, remote := newActionService()
+	seedMessageLocation(t, store, accounts)
+	// A POP3 account has no server-side flags: the cache is updated, no intent is recorded (there is
+	// nothing to replay) and the server is not called.
+	accounts.accounts["a1"] = pop3Account(t, "a1")
+
+	if err := svc.MarkRead(context.Background(), "m1", true); err != nil {
+		t.Fatalf("unexpected error: %v", err)
 	}
 	if !store.messages["f1"][0].IsRead() {
 		t.Error("local cache was not marked read")
 	}
+	if len(store.pendingFlags) != 0 {
+		t.Errorf("pending intents recorded for POP3: %+v", store.pendingFlags)
+	}
+	if len(remote.seenCalls) != 0 {
+		t.Errorf("server SetSeen called for POP3: %v", remote.seenCalls)
+	}
 }
 
-func TestMarkFlaggedWritesServerThenCache(t *testing.T) {
+func TestMarkFlaggedWritesCacheWithIntentThenPushes(t *testing.T) {
 	svc, store, accounts, remote := newActionService()
 	seedMessageLocation(t, store, accounts)
 
 	if err := svc.MarkFlagged(context.Background(), "m1", true); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if len(remote.flaggedCalls) != 1 || remote.flaggedCalls[0] != true {
-		t.Errorf("server SetFlagged calls = %v, want [true]", remote.flaggedCalls)
-	}
 	if !store.messages["f1"][0].IsFlagged() {
 		t.Error("local cache was not flagged")
+	}
+	if store.pendingFlags["m1"][domain.FlagFlagged] != true {
+		t.Errorf("pending intent = %+v, want Flagged true", store.pendingFlags["m1"])
+	}
+	if len(remote.flaggedCalls) != 1 || remote.flaggedCalls[0] != true {
+		t.Errorf("server SetFlagged calls = %v, want [true]", remote.flaggedCalls)
 	}
 }
 
@@ -81,39 +108,51 @@ func TestMarkFlaggedGetAccountError(t *testing.T) {
 	}
 }
 
-func TestMarkFlaggedServerError(t *testing.T) {
+func TestMarkFlaggedServerErrorKeepsLocalChange(t *testing.T) {
 	svc, store, accounts, remote := newActionService()
 	seedMessageLocation(t, store, accounts)
 	remote.flaggedErr = errBoom
-	if err := svc.MarkFlagged(context.Background(), "m1", true); !errors.Is(err, errBoom) {
-		t.Errorf("MarkFlagged error = %v, want wrapped boom", err)
+	// The server push is best-effort: its failure does not fail the action, the cache keeps the change
+	// and the pending intent stays recorded for the sync to replay.
+	if err := svc.MarkFlagged(context.Background(), "m1", true); err != nil {
+		t.Fatalf("unexpected error: %v", err)
 	}
-	if store.messages["f1"][0].IsFlagged() {
-		t.Error("cache changed despite a server failure")
+	if !store.messages["f1"][0].IsFlagged() {
+		t.Error("cache lost the change on a server failure")
+	}
+	if store.pendingFlags["m1"][domain.FlagFlagged] != true {
+		t.Errorf("pending intent = %+v, want Flagged true", store.pendingFlags["m1"])
 	}
 }
 
 func TestMarkFlaggedCacheError(t *testing.T) {
-	svc, store, accounts, _ := newActionService()
+	svc, store, accounts, remote := newActionService()
 	seedMessageLocation(t, store, accounts)
-	store.setFlaggedErr = errBoom
+	store.setFlagErr = errBoom
 	if err := svc.MarkFlagged(context.Background(), "m1", true); !errors.Is(err, errBoom) {
 		t.Errorf("MarkFlagged error = %v, want wrapped boom", err)
 	}
+	// The cache write comes first, so a cache failure means the server is never told.
+	if len(remote.flaggedCalls) != 0 {
+		t.Errorf("server called despite a cache failure: %v", remote.flaggedCalls)
+	}
 }
 
-func TestMarkAnsweredWritesServerThenCache(t *testing.T) {
+func TestMarkAnsweredWritesCacheWithIntentThenPushes(t *testing.T) {
 	svc, store, accounts, remote := newActionService()
 	seedMessageLocation(t, store, accounts)
 
 	if err := svc.MarkAnswered(context.Background(), "m1", true); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if len(remote.answeredCalls) != 1 || remote.answeredCalls[0] != true {
-		t.Errorf("server SetAnswered calls = %v, want [true]", remote.answeredCalls)
-	}
 	if !store.messages["f1"][0].IsAnswered() {
 		t.Error("local cache was not marked answered")
+	}
+	if store.pendingFlags["m1"][domain.FlagAnswered] != true {
+		t.Errorf("pending intent = %+v, want Answered true", store.pendingFlags["m1"])
+	}
+	if len(remote.answeredCalls) != 1 || remote.answeredCalls[0] != true {
+		t.Errorf("server SetAnswered calls = %v, want [true]", remote.answeredCalls)
 	}
 }
 
@@ -125,39 +164,42 @@ func TestMarkAnsweredResolveError(t *testing.T) {
 	}
 }
 
-func TestMarkAnsweredServerError(t *testing.T) {
+func TestMarkAnsweredServerErrorKeepsLocalChange(t *testing.T) {
 	svc, store, accounts, remote := newActionService()
 	seedMessageLocation(t, store, accounts)
 	remote.answeredErr = errBoom
-	if err := svc.MarkAnswered(context.Background(), "m1", true); !errors.Is(err, errBoom) {
-		t.Errorf("MarkAnswered error = %v, want wrapped boom", err)
+	if err := svc.MarkAnswered(context.Background(), "m1", true); err != nil {
+		t.Fatalf("unexpected error: %v", err)
 	}
-	if store.messages["f1"][0].IsAnswered() {
-		t.Error("cache changed despite a server failure")
+	if !store.messages["f1"][0].IsAnswered() {
+		t.Error("cache lost the change on a server failure")
 	}
 }
 
 func TestMarkAnsweredCacheError(t *testing.T) {
 	svc, store, accounts, _ := newActionService()
 	seedMessageLocation(t, store, accounts)
-	store.setAnsweredErr = errBoom
+	store.setFlagErr = errBoom
 	if err := svc.MarkAnswered(context.Background(), "m1", true); !errors.Is(err, errBoom) {
 		t.Errorf("MarkAnswered error = %v, want wrapped boom", err)
 	}
 }
 
-func TestMarkForwardedWritesServerThenCache(t *testing.T) {
+func TestMarkForwardedWritesCacheWithIntentThenPushes(t *testing.T) {
 	svc, store, accounts, remote := newActionService()
 	seedMessageLocation(t, store, accounts)
 
 	if err := svc.MarkForwarded(context.Background(), "m1", true); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if len(remote.forwardedCalls) != 1 || remote.forwardedCalls[0] != true {
-		t.Errorf("server SetForwarded calls = %v, want [true]", remote.forwardedCalls)
-	}
 	if !store.messages["f1"][0].IsForwarded() {
 		t.Error("local cache was not marked forwarded")
+	}
+	if store.pendingFlags["m1"][domain.FlagForwarded] != true {
+		t.Errorf("pending intent = %+v, want Forwarded true", store.pendingFlags["m1"])
+	}
+	if len(remote.forwardedCalls) != 1 || remote.forwardedCalls[0] != true {
+		t.Errorf("server SetForwarded calls = %v, want [true]", remote.forwardedCalls)
 	}
 }
 
@@ -169,22 +211,22 @@ func TestMarkForwardedResolveError(t *testing.T) {
 	}
 }
 
-func TestMarkForwardedServerError(t *testing.T) {
+func TestMarkForwardedServerErrorKeepsLocalChange(t *testing.T) {
 	svc, store, accounts, remote := newActionService()
 	seedMessageLocation(t, store, accounts)
 	remote.forwardedErr = errBoom
-	if err := svc.MarkForwarded(context.Background(), "m1", true); !errors.Is(err, errBoom) {
-		t.Errorf("MarkForwarded error = %v, want wrapped boom", err)
+	if err := svc.MarkForwarded(context.Background(), "m1", true); err != nil {
+		t.Fatalf("unexpected error: %v", err)
 	}
-	if store.messages["f1"][0].IsForwarded() {
-		t.Error("cache changed despite a server failure")
+	if !store.messages["f1"][0].IsForwarded() {
+		t.Error("cache lost the change on a server failure")
 	}
 }
 
 func TestMarkForwardedCacheError(t *testing.T) {
 	svc, store, accounts, _ := newActionService()
 	seedMessageLocation(t, store, accounts)
-	store.setForwardedErr = errBoom
+	store.setFlagErr = errBoom
 	if err := svc.MarkForwarded(context.Background(), "m1", true); !errors.Is(err, errBoom) {
 		t.Errorf("MarkForwarded error = %v, want wrapped boom", err)
 	}
@@ -216,25 +258,32 @@ func TestMarkReadGetAccountError(t *testing.T) {
 	}
 }
 
-func TestMarkReadServerError(t *testing.T) {
+func TestMarkReadServerErrorKeepsLocalChange(t *testing.T) {
 	svc, store, accounts, remote := newActionService()
 	seedMessageLocation(t, store, accounts)
 	remote.setSeenErr = errBoom
-	if err := svc.MarkRead(context.Background(), "m1", true); !errors.Is(err, errBoom) {
-		t.Errorf("MarkRead error = %v, want wrapped boom", err)
+	// The server push is best-effort: a failed write (offline, a dropped STORE) does not fail the
+	// action or undo the cache; the pending intent stays for the sync to replay.
+	if err := svc.MarkRead(context.Background(), "m1", true); err != nil {
+		t.Fatalf("unexpected error: %v", err)
 	}
-	// A failed server write must not update the local cache.
-	if store.messages["f1"][0].IsRead() {
-		t.Error("cache changed despite a server failure")
+	if !store.messages["f1"][0].IsRead() {
+		t.Error("cache lost the change on a server failure")
+	}
+	if store.pendingFlags["m1"][domain.FlagSeen] != true {
+		t.Errorf("pending intent = %+v, want Seen true", store.pendingFlags["m1"])
 	}
 }
 
 func TestMarkReadCacheError(t *testing.T) {
-	svc, store, accounts, _ := newActionService()
+	svc, store, accounts, remote := newActionService()
 	seedMessageLocation(t, store, accounts)
-	store.setSeenErr = errBoom
+	store.setFlagErr = errBoom
 	if err := svc.MarkRead(context.Background(), "m1", true); !errors.Is(err, errBoom) {
 		t.Errorf("MarkRead error = %v, want wrapped boom", err)
+	}
+	if len(remote.seenCalls) != 0 {
+		t.Errorf("server called despite a cache failure: %v", remote.seenCalls)
 	}
 }
 

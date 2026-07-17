@@ -30,7 +30,7 @@ func inboxFixture(t *testing.T) (*fakeAccountStore, *fakeMailStore, *fakeMailSou
 	mail.folders["a1"] = []domain.Folder{testFolder(t, "f1", "a1", "INBOX")}
 	source := &fakeMailSource{messagesByFolder: map[string][]domain.MessageSummary{}}
 	rules := &fakeRuleStore{}
-	return accounts, mail, source, rules, NewSyncService(accounts, mail, source, rules, &fakeTagSyncer{})
+	return accounts, mail, source, rules, NewSyncService(accounts, mail, source, rules, &fakeTagSyncer{}, &fakeFlagSyncer{})
 }
 
 func inboxIDs(messages []domain.MessageSummary) []string {

@@ -143,35 +143,37 @@ func (f *fakeAuthorizer) Authorize(context.Context) (OAuthCredential, error) {
 
 // fakeMailStore is a hand-written in-memory MailStore with error-injection fields.
 type fakeMailStore struct {
-	folders          map[string][]domain.Folder
-	messages         map[string][]domain.MessageSummary
-	listFoldersErr   error
-	saveFoldersErr   error
-	listMessagesErr  error
-	listPageErr      error
-	saveMessagesErr  error
-	setSeenErr       error
-	setFlaggedErr    error
-	setAnsweredErr   error
-	setForwardedErr  error
-	deleteDataErr    error
-	getMessageErr    error
-	getFolderErr     error
-	getBodyErr       error
-	saveBodyErr      error
-	searchErr        error
-	deleteMessageErr error
-	unreadByAccount  map[string]int
-	unreadErr        error
-	bodies           map[string]domain.MessageBody
-	searchResults    []SearchHit
-	searchQuery      domain.SearchQuery
-	searchLimit      int
-	deletedMessages  []string
-	forcedMessage    *domain.MessageSummary
-	savedFolderKeys  []string
-	savedMessageKeys []string
-	deletedData      []string
+	folders         map[string][]domain.Folder
+	messages        map[string][]domain.MessageSummary
+	listFoldersErr  error
+	saveFoldersErr  error
+	listMessagesErr error
+	listPageErr     error
+	saveMessagesErr error
+	setFlagErr      error
+	// pendingFlags records the intents SetFlag stored (message id to flag to intended value), so tests
+	// can assert what was recorded and the flag-sync fakes can serve reconciles.
+	pendingFlags        map[string]map[domain.Flag]bool
+	clearPendingFlagErr error
+	listPendingFlagErr  error
+	deleteDataErr       error
+	getMessageErr       error
+	getFolderErr        error
+	getBodyErr          error
+	saveBodyErr         error
+	searchErr           error
+	deleteMessageErr    error
+	unreadByAccount     map[string]int
+	unreadErr           error
+	bodies              map[string]domain.MessageBody
+	searchResults       []SearchHit
+	searchQuery         domain.SearchQuery
+	searchLimit         int
+	deletedMessages     []string
+	forcedMessage       *domain.MessageSummary
+	savedFolderKeys     []string
+	savedMessageKeys    []string
+	deletedData         []string
 	// snoozes maps a message id to its snooze-until instant, mirroring the message_snooze table.
 	snoozes       map[string]time.Time
 	setSnoozeErr  error
@@ -464,32 +466,57 @@ func (f *fakeMailStore) DeleteMessage(_ context.Context, messageID string) error
 	return nil
 }
 
-func (f *fakeMailStore) SetSeen(_ context.Context, messageID string, seen bool) error {
-	if f.setSeenErr != nil {
-		return f.setSeenErr
+func (f *fakeMailStore) SetFlag(_ context.Context, messageID string, flag domain.Flag, value bool, recordPending bool) error {
+	if f.setFlagErr != nil {
+		return f.setFlagErr
 	}
-	return f.toggleFlag(messageID, domain.FlagSeen, seen)
+	if err := f.toggleFlag(messageID, flag, value); err != nil {
+		return err
+	}
+	if recordPending {
+		if f.pendingFlags == nil {
+			f.pendingFlags = map[string]map[domain.Flag]bool{}
+		}
+		if f.pendingFlags[messageID] == nil {
+			f.pendingFlags[messageID] = map[domain.Flag]bool{}
+		}
+		f.pendingFlags[messageID][flag] = value
+	}
+	return nil
 }
 
-func (f *fakeMailStore) SetFlagged(_ context.Context, messageID string, flagged bool) error {
-	if f.setFlaggedErr != nil {
-		return f.setFlaggedErr
+func (f *fakeMailStore) ClearPendingFlagOp(_ context.Context, messageID string, flag domain.Flag) error {
+	if f.clearPendingFlagErr != nil {
+		return f.clearPendingFlagErr
 	}
-	return f.toggleFlag(messageID, domain.FlagFlagged, flagged)
+	if ops, ok := f.pendingFlags[messageID]; ok {
+		delete(ops, flag)
+		if len(ops) == 0 {
+			delete(f.pendingFlags, messageID)
+		}
+	}
+	return nil
 }
 
-func (f *fakeMailStore) SetAnswered(_ context.Context, messageID string, answered bool) error {
-	if f.setAnsweredErr != nil {
-		return f.setAnsweredErr
+func (f *fakeMailStore) PendingFlagOps(_ context.Context, messageID string) (map[domain.Flag]bool, error) {
+	out := map[domain.Flag]bool{}
+	for flag, value := range f.pendingFlags[messageID] {
+		out[flag] = value
 	}
-	return f.toggleFlag(messageID, domain.FlagAnswered, answered)
+	return out, nil
 }
 
-func (f *fakeMailStore) SetForwarded(_ context.Context, messageID string, forwarded bool) error {
-	if f.setForwardedErr != nil {
-		return f.setForwardedErr
+func (f *fakeMailStore) ListPendingFlagOps(_ context.Context) ([]domain.PendingFlagOp, error) {
+	if f.listPendingFlagErr != nil {
+		return nil, f.listPendingFlagErr
 	}
-	return f.toggleFlag(messageID, domain.FlagForwarded, forwarded)
+	ops := make([]domain.PendingFlagOp, 0)
+	for messageID, flags := range f.pendingFlags {
+		for flag, value := range flags {
+			ops = append(ops, domain.NewPendingFlagOp(messageID, flag, value))
+		}
+	}
+	return ops, nil
 }
 
 func (f *fakeMailStore) toggleFlag(messageID string, flag domain.Flag, set bool) error {
@@ -693,6 +720,33 @@ func (f *fakeTagSyncer) FlushPending(context.Context) error {
 func (f *fakeTagSyncer) ReconcileFetched(_ context.Context, messages []domain.MessageSummary) error {
 	f.reconciled = append(f.reconciled, messages)
 	return f.reconcileErr
+}
+
+// fakeFlagSyncer records the sync's flag flush and reconcile calls and can rewrite the reconciled
+// messages or inject errors, so tests can assert the sync overlays pending flags before saving and
+// shrugs off a reconcile failure.
+type fakeFlagSyncer struct {
+	flushCalls   int
+	reconciled   [][]domain.MessageSummary
+	rewrite      func([]domain.MessageSummary) []domain.MessageSummary
+	flushErr     error
+	reconcileErr error
+}
+
+func (f *fakeFlagSyncer) FlushPending(context.Context) error {
+	f.flushCalls++
+	return f.flushErr
+}
+
+func (f *fakeFlagSyncer) ReconcileFetched(_ context.Context, messages []domain.MessageSummary) ([]domain.MessageSummary, error) {
+	f.reconciled = append(f.reconciled, messages)
+	if f.reconcileErr != nil {
+		return nil, f.reconcileErr
+	}
+	if f.rewrite != nil {
+		return f.rewrite(messages), nil
+	}
+	return messages, nil
 }
 
 // fakeMailSource is a hand-written MailSource with error-injection fields.

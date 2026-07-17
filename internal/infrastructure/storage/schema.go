@@ -3,7 +3,7 @@
 package storage
 
 // schemaVersion is the current on-disk schema version, tracked via SQLite's PRAGMA user_version.
-const schemaVersion = 45
+const schemaVersion = 46
 
 // schemaV1 is the initial schema. Statements are idempotent so re-running is safe.
 const schemaV1 = `

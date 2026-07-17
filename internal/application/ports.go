@@ -46,10 +46,19 @@ type MailStore interface {
 	ListMessagesVisible(ctx context.Context, folderID string, visibleAt time.Time) ([]domain.MessageSummary, error)
 	ListMessagesPageVisible(ctx context.Context, folderID string, hasCursor bool, cursorDateMs int64, cursorID string, limit int, ascending bool, visibleAt time.Time) ([]domain.MessageSummary, error)
 	SaveMessages(ctx context.Context, folderID string, messages []domain.MessageSummary) error
-	SetSeen(ctx context.Context, messageID string, seen bool) error
-	SetFlagged(ctx context.Context, messageID string, flagged bool) error
-	SetAnswered(ctx context.Context, messageID string, answered bool) error
-	SetForwarded(ctx context.Context, messageID string, forwarded bool) error
+	// SetFlag sets or clears one flag on a cached message and (when recordPending is true) records the
+	// pending intent to land it on the server, in one transaction so the local change and its intent
+	// cannot drift apart (mirroring AssignMessageTag).
+	SetFlag(ctx context.Context, messageID string, flag domain.Flag, value bool, recordPending bool) error
+	// ClearPendingFlagOp removes the pending intent for a (message, flag) pair, called once the server
+	// agrees with it.
+	ClearPendingFlagOp(ctx context.Context, messageID string, flag domain.Flag) error
+	// PendingFlagOps returns the pending intents for one message keyed by flag (the value is the intended
+	// state), read during a sync reconcile to guard unsynced local changes.
+	PendingFlagOps(ctx context.Context, messageID string) (map[domain.Flag]bool, error)
+	// ListPendingFlagOps returns every pending flag operation across all messages, used to replay
+	// unsynced intents to the server on a sync.
+	ListPendingFlagOps(ctx context.Context) ([]domain.PendingFlagOp, error)
 	DeleteAccountData(ctx context.Context, accountID string) error
 	GetMessage(ctx context.Context, messageID string) (domain.MessageSummary, error)
 	GetFolder(ctx context.Context, folderID string) (domain.Folder, error)
