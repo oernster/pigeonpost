@@ -1,6 +1,9 @@
 // Behaviour test for the pane splitters through the real usePaneWidths hook: dragging a divider
 // resizes its column within the clamped bounds, the result persists to localStorage and double-click
-// restores the default. The container's rect is stubbed because jsdom lays nothing out.
+// restores the default. The drag is plain mouse events on the window (not pointer capture on the
+// handle), the pattern that survives WKWebView's refusal to deliver captured moves across the
+// reader's iframe, so the tests dispatch moves on the window exactly as the engines do. The
+// container's rect is stubbed because jsdom lays nothing out.
 import {afterEach, beforeEach, describe, expect, it} from 'vitest'
 import {cleanup, fireEvent, render, screen} from '@testing-library/react'
 import {PaneSplitters} from './PaneSplitters'
@@ -49,40 +52,53 @@ describe('PaneSplitters', () => {
         expect(widths()).toBe('320,500')
     })
 
-    it('drags the sidebar divider, clamps it and persists on release', () => {
+    it('drags the sidebar divider via window moves, clamps it and persists on release', () => {
         const {splitter, widths} = renderSplitters()
         const handle = splitter('sidebar')!
-        fireEvent.pointerDown(handle, {pointerId: 1, clientX: SIDEBAR_DEFAULT_PX})
-        fireEvent.pointerMove(handle, {clientX: 340})
+        fireEvent.mouseDown(handle, {button: 0, clientX: SIDEBAR_DEFAULT_PX})
+        expect(document.body.classList.contains('pane-resizing')).toBe(true)
+        // Moves land on the window (the cursor has long left the 7px handle mid-drag).
+        fireEvent.mouseMove(window, {clientX: 340})
         expect(widths()).toBe(`340,${LIST_DEFAULT_PX}`)
         // Way past the bound: the clamp holds the maximum.
-        fireEvent.pointerMove(handle, {clientX: 5000})
+        fireEvent.mouseMove(window, {clientX: 5000})
         expect(widths()).toBe(`${SIDEBAR_MAX_PX},${LIST_DEFAULT_PX}`)
-        fireEvent.pointerUp(handle)
+        fireEvent.mouseUp(window)
+        expect(document.body.classList.contains('pane-resizing')).toBe(false)
         expect(localStorage.getItem(STORAGE_KEY)).toBe(`{"sidebar":${SIDEBAR_MAX_PX},"list":${LIST_DEFAULT_PX}}`)
-        // The drag has ended: a later move on the handle no longer resizes.
-        fireEvent.pointerMove(handle, {clientX: 300})
+        // The drag has ended: a later window move no longer resizes.
+        fireEvent.mouseMove(window, {clientX: 300})
         expect(widths()).toBe(`${SIDEBAR_MAX_PX},${LIST_DEFAULT_PX}`)
     })
 
     it('drags the list divider against the container width', () => {
         const {splitter, widths} = renderSplitters()
         const handle = splitter('list')!
-        fireEvent.pointerDown(handle, {pointerId: 1, clientX: SIDEBAR_DEFAULT_PX + LIST_DEFAULT_PX})
-        fireEvent.pointerMove(handle, {clientX: SIDEBAR_DEFAULT_PX + 500})
+        fireEvent.mouseDown(handle, {button: 0, clientX: SIDEBAR_DEFAULT_PX + LIST_DEFAULT_PX})
+        fireEvent.mouseMove(window, {clientX: SIDEBAR_DEFAULT_PX + 500})
         expect(widths()).toBe(`${SIDEBAR_DEFAULT_PX},500`)
-        fireEvent.pointerUp(handle)
+        fireEvent.mouseUp(window)
         expect(localStorage.getItem(STORAGE_KEY)).toBe(`{"sidebar":${SIDEBAR_DEFAULT_PX},"list":500}`)
     })
 
-    it('cancelling a drag keeps the width reached so far without a stuck drag', () => {
+    it('ignores a non-primary button press', () => {
+        const {splitter, widths} = renderSplitters()
+        fireEvent.mouseDown(splitter('sidebar')!, {button: 2, clientX: SIDEBAR_DEFAULT_PX})
+        fireEvent.mouseMove(window, {clientX: 400})
+        expect(widths()).toBe(`${SIDEBAR_DEFAULT_PX},${LIST_DEFAULT_PX}`)
+        expect(document.body.classList.contains('pane-resizing')).toBe(false)
+    })
+
+    it('losing the window mid-drag ends it cleanly at the width reached', () => {
         const {splitter, widths} = renderSplitters()
         const handle = splitter('sidebar')!
-        fireEvent.pointerDown(handle, {pointerId: 1, clientX: SIDEBAR_DEFAULT_PX})
-        fireEvent.pointerMove(handle, {clientX: 300})
-        fireEvent.pointerCancel(handle)
-        fireEvent.pointerMove(handle, {clientX: 450})
+        fireEvent.mouseDown(handle, {button: 0, clientX: SIDEBAR_DEFAULT_PX})
+        fireEvent.mouseMove(window, {clientX: 300})
+        fireEvent.blur(window)
+        expect(document.body.classList.contains('pane-resizing')).toBe(false)
+        fireEvent.mouseMove(window, {clientX: 450})
         expect(widths()).toBe(`300,${LIST_DEFAULT_PX}`)
+        expect(localStorage.getItem(STORAGE_KEY)).toBe(`{"sidebar":300,"list":${LIST_DEFAULT_PX}}`)
     })
 
     it('double-click restores a divider to its default and persists it', () => {

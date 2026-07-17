@@ -1,5 +1,5 @@
 import {useCallback, useRef, useState} from 'react'
-import type {PointerEvent as ReactPointerEvent} from 'react'
+import type {MouseEvent as ReactMouseEvent} from 'react'
 import {
     PaneWidths,
     clampList,
@@ -19,9 +19,9 @@ export type SplitterID = 'sidebar' | 'list'
 
 export interface PaneWidthsControl {
     widths: PaneWidths
-    // startDrag begins a splitter drag from its pointerdown; the hook tracks the pointer until
-    // release, clamping through paneLayout and persisting the final widths.
-    startDrag: (which: SplitterID, e: ReactPointerEvent<HTMLElement>) => void
+    // startDrag begins a splitter drag from its mousedown; the hook tracks the mouse until release,
+    // clamping through paneLayout and persisting the final widths.
+    startDrag: (which: SplitterID, e: ReactMouseEvent<HTMLElement>) => void
     // resetWidth restores one splitter's column to its default (the double-click affordance).
     resetWidth: (which: SplitterID) => void
 }
@@ -49,7 +49,11 @@ export function usePaneWidths(): PaneWidthsControl {
         }
     }
 
-    const startDrag = useCallback((which: SplitterID, e: ReactPointerEvent<HTMLElement>) => {
+    const startDrag = useCallback((which: SplitterID, e: ReactMouseEvent<HTMLElement>) => {
+        // Primary button only: a right- or middle-button press is not a resize.
+        if (e.button !== 0) {
+            return
+        }
         // The splitters are absolutely positioned children of the .panes grid, so the parent is the
         // container whose left edge and width the clamps are measured against.
         const container = e.currentTarget.parentElement
@@ -59,29 +63,32 @@ export function usePaneWidths(): PaneWidthsControl {
         // Stop the drag from starting a text selection across the panes.
         e.preventDefault()
         const rect = container.getBoundingClientRect()
-        const handle = e.currentTarget
-        try {
-            handle.setPointerCapture(e.pointerId)
-        } catch {
-            // Pointer capture is an enhancement (it keeps fast drags from escaping the handle); a
-            // runtime without it still drags via the listeners below.
-        }
+        // Plain mouse events on the window, not pointer capture on the handle: WKWebView (macOS) does
+        // not reliably keep delivering captured pointer moves once the cursor crosses the reader's
+        // sandboxed email iframe, which froze the drag there while WebView2 and webkit2gtk carried on.
+        // Window listeners work identically on all three engines, and the pane-resizing body class
+        // turns the iframes' pointer events off for the drag's duration so they cannot swallow the
+        // stream (it also pins the col-resize cursor and suppresses text selection).
+        document.body.classList.add('pane-resizing')
         let latest = widthsRef.current
-        const move = (ev: PointerEvent) => {
+        const move = (ev: MouseEvent) => {
             latest = which === 'sidebar'
                 ? {...latest, sidebar: clampSidebar(ev.clientX - rect.left)}
                 : {...latest, list: clampList(ev.clientX - rect.left - latest.sidebar, latest.sidebar, rect.width)}
             setWidths(latest)
         }
         const end = () => {
-            handle.removeEventListener('pointermove', move)
-            handle.removeEventListener('pointerup', end)
-            handle.removeEventListener('pointercancel', end)
+            window.removeEventListener('mousemove', move)
+            window.removeEventListener('mouseup', end)
+            window.removeEventListener('blur', end)
+            document.body.classList.remove('pane-resizing')
             persist(latest)
         }
-        handle.addEventListener('pointermove', move)
-        handle.addEventListener('pointerup', end)
-        handle.addEventListener('pointercancel', end)
+        window.addEventListener('mousemove', move)
+        window.addEventListener('mouseup', end)
+        // Losing the window mid-drag (Alt-Tab, a notification stealing focus) must not leave a stuck
+        // drag with no mouseup to end it.
+        window.addEventListener('blur', end)
     }, [])
 
     const resetWidth = useCallback((which: SplitterID) => {

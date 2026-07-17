@@ -1,4 +1,4 @@
-import type {PointerEvent as ReactPointerEvent} from 'react'
+import type {MouseEvent as ReactMouseEvent} from 'react'
 import type {PaneWidthsControl, SplitterID} from '../hooks/usePaneWidths'
 
 interface PaneSplittersProps {
@@ -23,7 +23,7 @@ export function PaneSplitters({control, showListSplitter}: PaneSplittersProps) {
             aria-orientation="vertical"
             aria-label={label}
             style={{left}}
-            onPointerDown={(e: ReactPointerEvent<HTMLDivElement>) => startDrag(which, e)}
+            onMouseDown={(e: ReactMouseEvent<HTMLDivElement>) => startDrag(which, e)}
             onDoubleClick={() => resetWidth(which)}
         />
     )

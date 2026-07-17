@@ -210,6 +210,18 @@
     background: var(--accent);
 }
 
+/* While a splitter drag is live: iframes (the reader's sandboxed email frame) must not swallow the
+   window's mouse events (WKWebView stops delivering across that boundary, freezing the drag on
+   macOS), the col-resize cursor holds everywhere and a drag can never smear a text selection. */
+body.pane-resizing {
+    cursor: col-resize;
+    user-select: none;
+}
+
+body.pane-resizing iframe {
+    pointer-events: none;
+}
+
 .pane {
     overflow-y: auto;
     border-right: 1px solid var(--border);
