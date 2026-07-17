@@ -33,6 +33,7 @@ export default defineConfig({
         'src/toolbarNav.ts',
         'src/undoStack.ts',
         'src/editClipboard.ts',
+        'src/paneLayout.ts',
       ],
       thresholds: {lines: 100, functions: 100, statements: 100, branches: 100},
     },

@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from 'react'
+import {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties} from 'react'
 import './App.css'
 import {AboutInfo, api, CalendarEvent, Contact, Folder, Message, MessageBody, Rule, Template, UnreadCountsResult} from './api'
 import {OUTBOX_FOLDER_ID, isOutboxMessage, outboxItemToMessage} from './outbox'
@@ -35,6 +35,7 @@ import {CalendarModal} from './components/CalendarModal'
 import {ReminderNotifications} from './components/ReminderNotifications'
 import {CloseChoiceDialog} from './components/CloseChoiceDialog'
 import {Splash} from './components/Splash'
+import {PaneSplitters} from './components/PaneSplitters'
 import {emlFilename, escapeHtml} from './messageText'
 import {sendersFor} from './replyDraft'
 import {printDocument, printFrameId, printFrameStyle, printReadyMarkerId} from './print'
@@ -53,6 +54,7 @@ import {useComposeLauncher} from './hooks/useComposeLauncher'
 import {useAppEvents} from './hooks/useAppEvents'
 import {defaultUndoSendSeconds, undoSendChoices, useMenus} from './hooks/useMenus'
 import {useMessageListKeyboard} from './hooks/useMessageListKeyboard'
+import {usePaneWidths} from './hooks/usePaneWidths'
 import {useFolderPagination} from './hooks/useFolderPagination'
 import {useSnooze} from './hooks/useSnooze'
 import {useUndoRedo} from './hooks/useUndoRedo'
@@ -1061,6 +1063,14 @@ function App() {
             onLoadMore={() => void loadMoreMessages()}
         />
     )
+    // paneWidths drives the draggable splitters between the sidebar, the message list and the reader:
+    // the widths land on the .panes grid as CSS variables and persist across restarts.
+    const paneWidths = usePaneWidths()
+    const paneStyle = {
+        ['--sidebar-w']: `${paneWidths.widths.sidebar}px`,
+        ['--list-w']: `${paneWidths.widths.list}px`,
+    } as CSSProperties
+
     // readerProps is the reader surface shared by the pane (or full-width) reader and the popout
     // dialog, so both render the selected message identically.
     const readerProps = {
@@ -1198,7 +1208,7 @@ function App() {
             {accounts.length === 0 && !splashVisible ? (
                 <WelcomeScreen setSettingUp={setSettingUp}/>
             ) : (
-            <div className={'panes' + (previewEnabled ? '' : ' no-preview')}>
+            <div className={'panes' + (previewEnabled ? '' : ' no-preview')} style={paneStyle}>
                 <Sidebar
                     accounts={accounts}
                     selectedAccount={selectedAccount}
@@ -1236,6 +1246,7 @@ function App() {
                 ) : (
                     messageListEl
                 )}
+                <PaneSplitters control={paneWidths} showListSplitter={previewEnabled}/>
             </div>
             )}
             {attachPickerOpen && (
