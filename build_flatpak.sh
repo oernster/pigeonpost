@@ -83,15 +83,21 @@ touch frontend/dist/.gitkeep
 section "Writing packaging files"
 mkdir -p "${PACKAGING_DIR}"
 
+# The mailto MimeType claim is what makes GNOME list PigeonPost in Settings > Apps > Default Apps >
+# Email; %u passes the clicked mailto: URI as a launch argument, which the app's argv scan (or the
+# single-instance forward when it is already running) turns into a pre-filled compose window.
+# message/rfc822 (.eml files) is deliberately not claimed yet: a file manager launch hands a file://
+# URI the .eml opener does not parse.
 cat > "${PACKAGING_DIR}/${APP_ID}.desktop" << DESKTOP
 [Desktop Entry]
 Name=${APP_NAME}
 Comment=${APP_SUMMARY}
-Exec=${BIN_NAME}
+Exec=${BIN_NAME} %u
 Icon=${APP_ID}
 Terminal=false
 Type=Application
 Categories=Network;Email;Office;
+MimeType=x-scheme-handler/mailto;
 DESKTOP
 
 cat > "${PACKAGING_DIR}/${APP_ID}.metainfo.xml" << METAINFO
