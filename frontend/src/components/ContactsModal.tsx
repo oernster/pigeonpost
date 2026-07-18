@@ -1,5 +1,5 @@
 import {useEffect, useState} from 'react'
-import {api, Contact, ContactInput, ContactEmailInput, ContactPhoneInput, ContactAddressInput, ContactGroup, ContactGroupInput} from '../api'
+import {api, Contact, ContactInput, ContactEmailInput, ContactPhoneInput, ContactAddressInput, ContactGroup, ContactGroupInput, ContactImportResult} from '../api'
 import {useBackdropDismiss} from './useBackdropDismiss'
 import {ModalClose} from './ModalClose'
 import {ConfirmDialog} from './ConfirmDialog'
@@ -72,6 +72,26 @@ function formFor(c: Contact): ContactForm {
 // is dropped on save rather than sent to the backend (which would reject it).
 function addressIsEmpty(a: ContactAddressInput): boolean {
     return [a.street, a.locality, a.region, a.postalCode, a.country].every((s) => s.trim() === '')
+}
+
+// plural appends an s to a noun unless there is exactly one of them.
+function plural(n: number, noun: string): string {
+    return `${n} ${noun}${n === 1 ? '' : 's'}`
+}
+
+// importSummary describes what an import changed. A file that yields nothing is reported explicitly
+// rather than passing in silence, since a silent import cannot be told apart from one that did not run.
+function importSummary(result: ContactImportResult): string {
+    if (result.added > 0 && result.updated > 0) {
+        return `Imported ${plural(result.added, 'contact')} and updated ${plural(result.updated, 'existing contact')}.`
+    }
+    if (result.added > 0) {
+        return `Imported ${plural(result.added, 'contact')}.`
+    }
+    if (result.updated > 0) {
+        return `Updated ${plural(result.updated, 'existing contact')}. None were new.`
+    }
+    return 'That file contained no contacts.'
 }
 
 // ContactsModal lists the address book and edits contacts. It imports and exports vCard and CSV so
@@ -203,11 +223,10 @@ export function ContactsModal({contacts, onChanged, onClose}: ContactsModalProps
         setError('')
         setStatus('')
         try {
-            const n = await api.importContactsFromFile()
-            if (n > 0) {
-                setStatus(`Imported ${n} contact${n === 1 ? '' : 's'}.`)
-                onChanged()
-            }
+            const result = await api.importContactsFromFile()
+            if (result.cancelled) return
+            setStatus(importSummary(result))
+            if (result.added > 0 || result.updated > 0) onChanged()
         } catch (e) {
             setError(String(e))
         }

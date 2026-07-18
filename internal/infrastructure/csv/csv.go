@@ -1,7 +1,18 @@
-// Package csv converts contacts to and from CSV, the format Outlook uses for bulk address-book export
-// and import (Thunderbird reads and writes CSV too). It implements the application ContactCodec port
-// and depends only on the domain and the standard library. CSV carries no stable per-contact id, so a
-// decoded contact is given a generated id; a re-import therefore adds rather than reconciles.
+// Package csv converts contacts to and from CSV, the format both Thunderbird and Outlook use for bulk
+// address-book export and import. It implements the application ContactCodec port and depends only on
+// the domain, the standard library and the text-encoding package.
+//
+// The two exporters differ in almost every detail: Outlook numbers its email slots and prefixes work
+// columns "Business", Thunderbird names two emails and prefixes them "Work"; Thunderbird words its
+// region and postal columns by locale (County and Post Code on a UK build, State and ZipCode on a US
+// one); Outlook writes a birthday as one locale-formatted date, Thunderbird as three numeric columns.
+// Columns are therefore matched by name against the aliases both conventions are known to use, in
+// mapping.go, rather than by position. Input is normalised to UTF-8 first (see encoding.go), since
+// neither exporter reliably writes it.
+//
+// CSV carries no stable per-contact id, so a decoded contact is given a generated one; reconciling a
+// re-import against the existing address book is the application layer's job, which matches on email
+// address rather than id for exactly this reason.
 package csv
 
 import (
@@ -18,26 +29,16 @@ import (
 // generatedIDBytes is the length of the random id assigned to each imported CSV row.
 const generatedIDBytes = 16
 
-// exportHeader is the column order written on export. The headers are the widely-recognised Outlook
-// names, which Outlook maps directly and Thunderbird's import wizard can map by hand.
+// exportHeader is the column order written on export. The names are the widely-recognised Outlook
+// ones, which Outlook maps directly and Thunderbird's import wizard can map by hand, and which this
+// codec's own aliases read back, so an export round-trips through any of the three.
 var exportHeader = []string{
-	"First Name", "Last Name", "Display Name", "Company", "Job Title",
+	"First Name", "Last Name", "Display Name", "Company", "Job Title", "Birthday",
 	"E-mail Address", "E-mail 2 Address", "E-mail 3 Address",
-	"Mobile Phone", "Home Phone", "Business Phone", "Notes",
-}
-
-// emailHeaders are the column names, lower-cased, read as email addresses on import (Outlook and
-// Thunderbird conventions), in preference order.
-var emailHeaders = []string{
-	"e-mail address", "email address", "primary email", "e-mail 2 address", "email 2 address",
-	"secondary email", "e-mail 3 address", "email 3 address", "e-mail", "email",
-}
-
-// phoneHeaders map a lower-cased column name to the label a matching value is imported under.
-var phoneHeaders = []struct{ header, label string }{
-	{"mobile phone", "mobile"}, {"mobile number", "mobile"}, {"cell phone", "mobile"},
-	{"home phone", "home"}, {"home phone 2", "home"},
-	{"business phone", "work"}, {"work phone", "work"}, {"business phone 2", "work"}, {"office phone", "work"},
+	"Mobile Phone", "Home Phone", "Business Phone",
+	"Home Street", "Home City", "Home State", "Home Postal Code", "Home Country",
+	"Business Street", "Business City", "Business State", "Business Postal Code", "Business Country",
+	"Notes",
 }
 
 // Codec is the CSV implementation of the application ContactCodec port.
@@ -49,7 +50,13 @@ func New() Codec { return Codec{} }
 // Decode parses a CSV address book into contacts. The first row is the header; columns are matched by
 // name against the known Outlook and Thunderbird conventions. Blank rows are skipped.
 func (Codec) Decode(data []byte) ([]domain.Contact, error) {
-	reader := stdcsv.NewReader(bytes.NewReader(data))
+	text, err := toUTF8(data)
+	if err != nil {
+		return nil, err
+	}
+	reader := stdcsv.NewReader(bytes.NewReader(text))
+	// Both exporters emit ragged rows: Outlook omits trailing empty columns, and a hand-edited file
+	// often gains or loses one, so the row length is not held to the header's.
 	reader.FieldsPerRecord = -1
 	records, err := reader.ReadAll()
 	if err != nil {
@@ -72,113 +79,6 @@ func (Codec) Decode(data []byte) ([]domain.Contact, error) {
 	return contacts, nil
 }
 
-// rowToContact builds a contact from one data row. The bool is false for a blank/unusable row, which
-// the caller skips.
-func rowToContact(headers map[string]int, row []string) (domain.Contact, bool, error) {
-	first := get(headers, row, "first name", "given name")
-	last := get(headers, row, "last name", "family name", "surname")
-	display := get(headers, row, "display name", "name", "formatted name")
-	if display == "" {
-		display = strings.TrimSpace(first + " " + last)
-	}
-	emails := collectEmails(headers, row)
-	phones := collectPhones(headers, row)
-	if display == "" && len(emails) == 0 {
-		return domain.Contact{}, false, nil
-	}
-	if display == "" {
-		display = emails[0].Address().Address()
-	}
-	id := generatedID()
-	contact, err := domain.NewContact(domain.ContactInput{
-		ID:            id,
-		UID:           id,
-		FormattedName: display,
-		GivenName:     first,
-		FamilyName:    last,
-		Organization:  get(headers, row, "company", "organization", "organisation"),
-		Title:         get(headers, row, "job title", "title"),
-		Note:          get(headers, row, "notes", "note"),
-		Emails:        emails,
-		Phones:        phones,
-	})
-	if err != nil {
-		return domain.Contact{}, false, fmt.Errorf("csv: build contact: %w", err)
-	}
-	return contact, true, nil
-}
-
-// headerIndex maps each lower-cased, trimmed header to its column index, keeping the first occurrence.
-func headerIndex(header []string) map[string]int {
-	m := make(map[string]int, len(header))
-	for i, h := range header {
-		key := strings.ToLower(strings.TrimSpace(h))
-		if key == "" {
-			continue
-		}
-		if _, exists := m[key]; !exists {
-			m[key] = i
-		}
-	}
-	return m
-}
-
-// get returns the first non-empty value among the given header aliases.
-func get(headers map[string]int, row []string, aliases ...string) string {
-	for _, a := range aliases {
-		if i, ok := headers[a]; ok && i < len(row) {
-			if v := strings.TrimSpace(row[i]); v != "" {
-				return v
-			}
-		}
-	}
-	return ""
-}
-
-// collectEmails reads every recognised email column, de-duplicating by address.
-func collectEmails(headers map[string]int, row []string) []domain.ContactEmail {
-	var emails []domain.ContactEmail
-	seen := make(map[string]bool)
-	for _, h := range emailHeaders {
-		i, ok := headers[h]
-		if !ok || i >= len(row) {
-			continue
-		}
-		addr := strings.TrimSpace(row[i])
-		if addr == "" || seen[strings.ToLower(addr)] {
-			continue
-		}
-		email, err := domain.NewContactEmail("", addr)
-		if err != nil {
-			continue
-		}
-		seen[strings.ToLower(addr)] = true
-		emails = append(emails, email)
-	}
-	return emails
-}
-
-// collectPhones reads every recognised phone column, labelling each by the column it came from.
-func collectPhones(headers map[string]int, row []string) []domain.ContactPhone {
-	var phones []domain.ContactPhone
-	for _, ph := range phoneHeaders {
-		i, ok := headers[ph.header]
-		if !ok || i >= len(row) {
-			continue
-		}
-		num := strings.TrimSpace(row[i])
-		if num == "" {
-			continue
-		}
-		phone, err := domain.NewContactPhone(ph.label, num)
-		if err != nil {
-			continue
-		}
-		phones = append(phones, phone)
-	}
-	return phones
-}
-
 // Encode writes the contacts as a CSV address book with the Outlook column headers.
 func (Codec) Encode(contacts []domain.Contact) ([]byte, error) {
 	var buf bytes.Buffer
@@ -198,15 +98,20 @@ func (Codec) Encode(contacts []domain.Contact) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-// contactRow flattens a contact into the export columns. Emails beyond three and phones beyond the
-// three slots are dropped, since a flat CSV has nowhere to put them.
+// contactRow flattens a contact into the export columns. Emails beyond three, phones beyond the three
+// slots and addresses beyond the two written here are dropped, since a flat CSV has nowhere to put
+// them.
 func contactRow(c domain.Contact) []string {
 	emails := c.Emails()
 	mobile, home, work := slotPhones(c.Phones())
+	homeAddr, workAddr := slotAddresses(c.Addresses())
 	return []string{
-		c.GivenName(), c.FamilyName(), c.FormattedName(), c.Organization(), c.Title(),
+		c.GivenName(), c.FamilyName(), c.FormattedName(), c.Organization(), c.Title(), c.Birthday(),
 		emailAt(emails, 0), emailAt(emails, 1), emailAt(emails, 2),
-		mobile, home, work, c.Note(),
+		mobile, home, work,
+		homeAddr.Street(), homeAddr.Locality(), homeAddr.Region(), homeAddr.PostalCode(), homeAddr.Country(),
+		workAddr.Street(), workAddr.Locality(), workAddr.Region(), workAddr.PostalCode(), workAddr.Country(),
+		c.Note(),
 	}
 }
 
@@ -222,35 +127,67 @@ func emailAt(emails []domain.ContactEmail, i int) string {
 // the first free column for an unlabelled or overflowing phone.
 func slotPhones(phones []domain.ContactPhone) (mobile, home, work string) {
 	var slots [3]string // 0 mobile, 1 home, 2 work
-	preferred := func(label string) int {
-		label = strings.ToLower(label)
-		switch {
-		case strings.Contains(label, "mobile"), strings.Contains(label, "cell"):
-			return 0
-		case strings.Contains(label, "home"):
-			return 1
-		case strings.Contains(label, "work"), strings.Contains(label, "business"), strings.Contains(label, "office"):
-			return 2
-		default:
-			return -1
-		}
-	}
-	place := func(num string, pref int) {
-		if pref >= 0 && slots[pref] == "" {
-			slots[pref] = num
-			return
-		}
-		for i := range slots {
-			if slots[i] == "" {
-				slots[i] = num
-				return
-			}
-		}
-	}
+	var used [3]bool
 	for _, p := range phones {
-		place(p.Number(), preferred(p.Label()))
+		placeInSlot(slots[:], used[:], p.Number(), preferredSlot(p.Label()))
 	}
 	return slots[0], slots[1], slots[2]
+}
+
+// slotAddresses places addresses into the home and business column blocks by their label, falling back
+// to the first free block for an unlabelled or overflowing address.
+func slotAddresses(addresses []domain.ContactAddress) (home, work domain.ContactAddress) {
+	var slots [2]domain.ContactAddress // 0 home, 1 business
+	var used [2]bool
+	for _, a := range addresses {
+		placeInSlot(slots[:], used[:], a, addressSlot(a.Label()))
+	}
+	return slots[0], slots[1]
+}
+
+// preferredSlot returns the phone column a label belongs in, or -1 when the label says nothing.
+func preferredSlot(label string) int {
+	label = strings.ToLower(label)
+	switch {
+	case strings.Contains(label, "mobile"), strings.Contains(label, "cell"):
+		return 0
+	case strings.Contains(label, "home"):
+		return 1
+	case strings.Contains(label, "work"), strings.Contains(label, "business"), strings.Contains(label, "office"):
+		return 2
+	default:
+		return -1
+	}
+}
+
+// addressSlot returns the address block a label belongs in, or -1 when the label says nothing.
+func addressSlot(label string) int {
+	label = strings.ToLower(label)
+	switch {
+	case strings.Contains(label, "home"):
+		return 0
+	case strings.Contains(label, "work"), strings.Contains(label, "business"), strings.Contains(label, "office"):
+		return 1
+	default:
+		return -1
+	}
+}
+
+// placeInSlot writes a value into its preferred slot when that slot is free, and otherwise into the
+// first free slot. A value with nowhere to go is dropped. Occupancy is tracked in a parallel slice
+// rather than inferred from the slot's value, so the same placement rule serves both the phone columns
+// and the address blocks.
+func placeInSlot[T any](slots []T, used []bool, value T, preferred int) {
+	if preferred >= 0 && !used[preferred] {
+		slots[preferred], used[preferred] = value, true
+		return
+	}
+	for i := range slots {
+		if !used[i] {
+			slots[i], used[i] = value, true
+			return
+		}
+	}
 }
 
 // generatedID returns a random hex id for an imported row, since CSV carries no contact id.
