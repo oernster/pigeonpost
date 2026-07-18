@@ -82,3 +82,6 @@ build/linux/
 NOTES.md
 *.db
 *.db-*
+
+# transient parking folder for files the Claude device bridge cannot delete
+_to_delete/
