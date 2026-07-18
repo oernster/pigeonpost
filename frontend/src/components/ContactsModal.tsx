@@ -1,5 +1,5 @@
 import {useEffect, useState} from 'react'
-import {api, Contact, ContactInput, ContactEmailInput, ContactPhoneInput, ContactAddressInput, ContactGroup, ContactGroupInput} from '../api'
+import {api, Contact, ContactInput, ContactEmailInput, ContactPhoneInput, ContactAddressInput, ContactGroup, ContactGroupInput, ContactImportResult} from '../api'
 import {useBackdropDismiss} from './useBackdropDismiss'
 import {ModalClose} from './ModalClose'
 import {ConfirmDialog} from './ConfirmDialog'
@@ -72,6 +72,30 @@ function formFor(c: Contact): ContactForm {
 // is dropped on save rather than sent to the backend (which would reject it).
 function addressIsEmpty(a: ContactAddressInput): boolean {
     return [a.street, a.locality, a.region, a.postalCode, a.country].every((s) => s.trim() === '')
+}
+
+// plural appends an s to a noun unless there is exactly one of them.
+function plural(n: number, noun: string): string {
+    return `${n} ${noun}${n === 1 ? '' : 's'}`
+}
+
+// importSummary describes what an import changed and names the file it came from. A file that yields
+// nothing is reported explicitly rather than passing in silence, since a silent import cannot be told
+// apart from one that did not run. Naming the source matters just as much: an address book usually
+// holds several exports with similar names, so a count on its own cannot distinguish a file that
+// really did hold five contacts from the wrong file having been picked.
+function importSummary(result: ContactImportResult): string {
+    const from = result.file ? ` from ${result.file}` : ''
+    if (result.added > 0 && result.updated > 0) {
+        return `Imported ${plural(result.added, 'contact')} and updated ${plural(result.updated, 'existing contact')}${from}.`
+    }
+    if (result.added > 0) {
+        return `Imported ${plural(result.added, 'contact')}${from}.`
+    }
+    if (result.updated > 0) {
+        return `Updated ${plural(result.updated, 'existing contact')}${from}. None were new.`
+    }
+    return `No contacts found${from}.`
 }
 
 // ContactsModal lists the address book and edits contacts. It imports and exports vCard and CSV so
@@ -203,11 +227,10 @@ export function ContactsModal({contacts, onChanged, onClose}: ContactsModalProps
         setError('')
         setStatus('')
         try {
-            const n = await api.importContactsFromFile()
-            if (n > 0) {
-                setStatus(`Imported ${n} contact${n === 1 ? '' : 's'}.`)
-                onChanged()
-            }
+            const result = await api.importContactsFromFile()
+            if (result.cancelled) return
+            setStatus(importSummary(result))
+            if (result.added > 0 || result.updated > 0) onChanged()
         } catch (e) {
             setError(String(e))
         }

@@ -154,10 +154,24 @@ func (a *App) DeleteContactGroup(id string) error {
 	return a.contacts.DeleteGroup(a.ctx, id)
 }
 
+// ContactImportResult reports what an import did: how many records became new contacts and how many
+// were merged into contacts already in the address book. Cancelled marks a dismissed file dialog, so
+// the caller can stay silent about it rather than reporting a file that held nothing, which are
+// otherwise indistinguishable from the counts alone. File carries the chosen file's name so the
+// result names its own source: an address book holds several exports with similar names, and a count
+// alone leaves no way to tell a disappointing import from the wrong file having been picked.
+type ContactImportResult struct {
+	Added     int    `json:"added"`
+	Updated   int    `json:"updated"`
+	Cancelled bool   `json:"cancelled"`
+	File      string `json:"file"`
+}
+
 // ImportContactsFromFile opens a native file dialog, reads the chosen vCard or CSV file (the format is
-// taken from its extension) and imports the contacts, returning the number imported. A cancelled dialog
-// is a no-op returning zero.
-func (a *App) ImportContactsFromFile() (int, error) {
+// taken from its extension) and imports the contacts, reconciling them against the existing address
+// book so a repeated import updates rather than duplicates. A cancelled dialog is a no-op returning a
+// zero result.
+func (a *App) ImportContactsFromFile() (ContactImportResult, error) {
 	path, err := runtime.OpenFileDialog(a.ctx, runtime.OpenDialogOptions{
 		Title: "Import contacts",
 		Filters: []runtime.FileFilter{
@@ -167,20 +181,28 @@ func (a *App) ImportContactsFromFile() (int, error) {
 		},
 	})
 	if err != nil {
-		return 0, fmt.Errorf("import contacts dialog: %w", err)
+		return ContactImportResult{}, fmt.Errorf("import contacts dialog: %w", err)
 	}
 	if path == "" {
-		return 0, nil
+		return ContactImportResult{Cancelled: true}, nil
 	}
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return 0, fmt.Errorf("read contacts file %q: %w", path, err)
+		return ContactImportResult{}, fmt.Errorf("read contacts file %q: %w", path, err)
 	}
 	codec, err := contactCodec(formatFromPath(path))
 	if err != nil {
-		return 0, err
+		return ContactImportResult{}, err
 	}
-	return a.contacts.ImportContacts(a.ctx, codec, data)
+	result, err := a.contacts.ImportContacts(a.ctx, codec, data)
+	if err != nil {
+		return ContactImportResult{}, err
+	}
+	return ContactImportResult{
+		Added:   result.Added,
+		Updated: result.Updated,
+		File:    filepath.Base(path),
+	}, nil
 }
 
 // ExportContactsToFile encodes every contact in the named format ("vcard" or "csv") and writes it to a

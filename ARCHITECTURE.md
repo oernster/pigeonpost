@@ -484,6 +484,15 @@ contact export/import (Outlook exports the address book as CSV, not vCard; Thund
 The pure decode/encode logic lives in these packages and is covered to 100%; only genuine file or OS
 edges are excluded.
 
+The `csv` package is split by concern because the two exporters agree on almost nothing: `mapping.go`
+holds the column-alias tables and the row-to-contact rules, `encoding.go` normalises input to UTF-8
+(neither exporter reliably writes it, and a byte-order mark left in place binds to the first header
+and silently drops that column), `dates.go` normalises birthdays to the ISO form the editor accepts,
+and `csv.go` orchestrates. Reconciling a re-import is deliberately NOT the codec's job: CSV carries no
+stable per-contact id, so matching is a policy over the whole address book and lives in
+`ContactService.ImportContacts`, which matches on id or shared email address and merges through the
+pure `Contact.MergedWith` in the domain.
+
 **UI.** A contacts pane (list plus an editor dialog, reusing the confirm-before-delete rule) and
 calendar month, week and day views, both clients of the Application use cases only. The week and day
 views are an hour time-grid: an all-day strip, timed events sized by start and end, clashing events in

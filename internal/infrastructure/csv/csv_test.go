@@ -158,3 +158,98 @@ func TestEncodePhoneOverflowUsesFreeColumn(t *testing.T) {
 		t.Errorf("overflow phone not placed in a free column: %v", numbers)
 	}
 }
+
+func TestEncodeDecodeAddressesRoundTrip(t *testing.T) {
+	home, err := domain.NewContactAddress("home", "12 Leadworth Lane", "Leadworth", "Gloucestershire", "GL1 2AB", "UK")
+	if err != nil {
+		t.Fatalf("home address: %v", err)
+	}
+	work, err := domain.NewContactAddress("work", "1 Tardis Way", "London", "Greater London", "SW1A 1AA", "UK")
+	if err != nil {
+		t.Fatalf("work address: %v", err)
+	}
+	// Deliberately work-first, so a pass proves the blocks are chosen by label rather than by position.
+	original, err := domain.NewContact(domain.ContactInput{
+		ID: "c1", UID: "c1", FormattedName: "Jo Bloggs", Birthday: "1980-01-15",
+		Addresses: []domain.ContactAddress{work, home},
+	})
+	if err != nil {
+		t.Fatalf("contact: %v", err)
+	}
+
+	data, err := New().Encode([]domain.Contact{original})
+	if err != nil {
+		t.Fatalf("Encode: %v", err)
+	}
+	got, err := New().Decode(data)
+	if err != nil {
+		t.Fatalf("Decode: %v", err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("decoded %d, want 1", len(got))
+	}
+	if got[0].Birthday() != "1980-01-15" {
+		t.Errorf("birthday = %q, want it carried through the export", got[0].Birthday())
+	}
+	byLabel := addressByLabel(got[0])
+	if a := byLabel["home"]; a.Street() != "12 Leadworth Lane" || a.PostalCode() != "GL1 2AB" {
+		t.Errorf("home address = %+v", a)
+	}
+	if a := byLabel["work"]; a.Street() != "1 Tardis Way" || a.PostalCode() != "SW1A 1AA" {
+		t.Errorf("work address = %+v", a)
+	}
+}
+
+func TestEncodeUnlabelledEntriesUseTheFirstFreeSlot(t *testing.T) {
+	// A label the slot rules do not recognise must still be exported, in whichever column is free.
+	phone, err := domain.NewContactPhone("carrier pigeon", "555-9000")
+	if err != nil {
+		t.Fatalf("phone: %v", err)
+	}
+	address, err := domain.NewContactAddress("", "1 Nowhere Road", "", "", "", "")
+	if err != nil {
+		t.Fatalf("address: %v", err)
+	}
+	c, err := domain.NewContact(domain.ContactInput{
+		ID: "c1", UID: "c1", FormattedName: "Odd Labels",
+		Phones: []domain.ContactPhone{phone}, Addresses: []domain.ContactAddress{address},
+	})
+	if err != nil {
+		t.Fatalf("contact: %v", err)
+	}
+
+	data, err := New().Encode([]domain.Contact{c})
+	if err != nil {
+		t.Fatalf("Encode: %v", err)
+	}
+	got, err := New().Decode(data)
+	if err != nil {
+		t.Fatalf("Decode: %v", err)
+	}
+	// The first free phone column is Mobile Phone and the first free address block is Home.
+	if len(got[0].Phones()) != 1 || got[0].Phones()[0].Number() != "555-9000" {
+		t.Errorf("phones = %+v, want the oddly labelled number kept", got[0].Phones())
+	}
+	if a := addressByLabel(got[0])["home"]; a.Street() != "1 Nowhere Road" {
+		t.Errorf("addresses = %+v, want the unlabelled address kept", got[0].Addresses())
+	}
+}
+
+func TestDecodeIgnoresBlankAndInvalidColumns(t *testing.T) {
+	// A blank header (a stray trailing comma on the header row) must not claim a column, and a value
+	// that is not a usable email address must not sink the row.
+	data := lines(
+		"Display Name,,Primary Email,Secondary Email",
+		"Jo Bloggs,ignored,not-an-email-address,jo@example.com",
+	)
+	got, err := New().Decode(data)
+	if err != nil {
+		t.Fatalf("Decode: %v", err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("decoded %d, want 1", len(got))
+	}
+	if len(got[0].Emails()) != 1 || got[0].Emails()[0].Address().Address() != "jo@example.com" {
+		t.Errorf("emails = %+v, want only the valid address kept", got[0].Emails())
+	}
+}

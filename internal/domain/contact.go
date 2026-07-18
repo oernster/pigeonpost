@@ -207,6 +207,98 @@ func (c Contact) PrimaryEmail() EmailAddress {
 	return c.emails[0].address
 }
 
+// MergedWith returns a copy of the contact enriched with anything the other contact carries that this
+// one lacks. Identity (id, uid) and every non-empty scalar value on the receiver win, so merging an
+// imported record into a stored one adds detail but never overwrites or removes what is already held.
+// Emails, phones and addresses are unioned, the receiver's own entries keeping their position.
+func (c Contact) MergedWith(other Contact) Contact {
+	merged := c
+	merged.formattedName = firstNonEmpty(c.formattedName, other.formattedName)
+	merged.givenName = firstNonEmpty(c.givenName, other.givenName)
+	merged.familyName = firstNonEmpty(c.familyName, other.familyName)
+	merged.organization = firstNonEmpty(c.organization, other.organization)
+	merged.title = firstNonEmpty(c.title, other.title)
+	merged.note = firstNonEmpty(c.note, other.note)
+	merged.birthday = firstNonEmpty(c.birthday, other.birthday)
+	merged.emails = mergeEmails(c.emails, other.emails)
+	merged.phones = mergePhones(c.phones, other.phones)
+	merged.addresses = mergeAddresses(c.addresses, other.addresses)
+	return merged
+}
+
+// firstNonEmpty returns a when it holds something, otherwise b.
+func firstNonEmpty(a, b string) string {
+	if a != "" {
+		return a
+	}
+	return b
+}
+
+// mergeEmails appends the entries of extra whose address is not already present, comparing addresses
+// case-insensitively since email domains and most mailboxes are not case-sensitive in practice.
+func mergeEmails(base, extra []ContactEmail) []ContactEmail {
+	seen := make(map[string]bool, len(base))
+	for _, e := range base {
+		seen[strings.ToLower(e.address.Address())] = true
+	}
+	out := cloneEmails(base)
+	for _, e := range extra {
+		key := strings.ToLower(e.address.Address())
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		out = append(out, e)
+	}
+	return out
+}
+
+// mergePhones appends the entries of extra whose number is not already present. Numbers are compared
+// as stored rather than normalised, since phone formats vary too widely to normalise reliably; the
+// label is not part of the key, so the same number under a different label is not added twice.
+func mergePhones(base, extra []ContactPhone) []ContactPhone {
+	seen := make(map[string]bool, len(base))
+	for _, p := range base {
+		seen[p.number] = true
+	}
+	out := clonePhones(base)
+	for _, p := range extra {
+		if seen[p.number] {
+			continue
+		}
+		seen[p.number] = true
+		out = append(out, p)
+	}
+	return out
+}
+
+// mergeAddresses appends the entries of extra that are not already present, an address being the same
+// when all five of its structured components match case-insensitively. The label is not part of the
+// key, so the same place under a different label is not added twice.
+func mergeAddresses(base, extra []ContactAddress) []ContactAddress {
+	seen := make(map[string]bool, len(base))
+	for _, a := range base {
+		seen[a.mergeKey()] = true
+	}
+	out := cloneAddresses(base)
+	for _, a := range extra {
+		key := a.mergeKey()
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		out = append(out, a)
+	}
+	return out
+}
+
+// mergeKey builds the comparison key for an address from its structured components, lower-cased and
+// separated by a NUL so no component boundary can be forged by the values themselves.
+func (a ContactAddress) mergeKey() string {
+	return strings.ToLower(strings.Join(
+		[]string{a.street, a.locality, a.region, a.postalCode, a.country}, "\x00"))
+}
+
 // cloneEmails returns an independent copy of the emails, or nil when there are none, so a Contact never
 // shares its backing array with a caller.
 func cloneEmails(in []ContactEmail) []ContactEmail {

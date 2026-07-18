@@ -167,6 +167,9 @@ export type BulkResult = main.BulkResultDTO
 export type MoveResult = main.MoveResultDTO
 export type Contact = main.ContactDTO
 export type ContactGroup = main.ContactGroupDTO
+// ContactImportResult separates records stored as new contacts from those merged into existing ones,
+// so the UI can say what an import actually changed rather than implying every row was new.
+export type ContactImportResult = main.ContactImportResult
 
 export interface ContactEmailInput {
     label: string
@@ -531,7 +534,7 @@ export const api = {
     saveContactGroup: (req: ContactGroupInput): Promise<void> =>
         SaveContactGroup(main.ContactGroupRequest.createFrom(req)),
     deleteContactGroup: (id: string): Promise<void> => DeleteContactGroup(id),
-    importContactsFromFile: (): Promise<number> => ImportContactsFromFile(),
+    importContactsFromFile: (): Promise<ContactImportResult> => ImportContactsFromFile(),
     exportContactsToFile: (format: string): Promise<boolean> => ExportContactsToFile(format),
     listCalendars: (): Promise<Calendar[]> => ListCalendars(),
     saveCalendar: (req: CalendarInput): Promise<void> => SaveCalendar(main.CalendarRequest.createFrom(req)),

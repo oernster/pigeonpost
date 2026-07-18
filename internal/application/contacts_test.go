@@ -117,8 +117,17 @@ func mustContact(t *testing.T, id, name string) domain.Contact {
 func TestImportContactsDecodeError(t *testing.T) {
 	svc := NewContactService(&fakeContactStore{}, fixedID("x"))
 	codec := &fakeContactCodec{decodeErr: errBoom}
-	if n, err := svc.ImportContacts(context.Background(), codec, nil); n != 0 || !errors.Is(err, errBoom) {
-		t.Errorf("import = %d, %v; want 0 and wrapped errBoom", n, err)
+	if n, err := svc.ImportContacts(context.Background(), codec, nil); n != (ContactImportResult{}) || !errors.Is(err, errBoom) {
+		t.Errorf("import = %+v, %v; want a zero result and wrapped errBoom", n, err)
+	}
+}
+
+func TestImportContactsListError(t *testing.T) {
+	store := &fakeContactStore{listErr: errBoom}
+	codec := &fakeContactCodec{decoded: []domain.Contact{mustContact(t, "c1", "Jo")}}
+	svc := NewContactService(store, fixedID("x"))
+	if n, err := svc.ImportContacts(context.Background(), codec, nil); n != (ContactImportResult{}) || !errors.Is(err, errBoom) {
+		t.Errorf("import = %+v, %v; want a zero result and wrapped errBoom", n, err)
 	}
 }
 
@@ -126,8 +135,8 @@ func TestImportContactsSaveError(t *testing.T) {
 	store := &fakeContactStore{saveErr: errBoom}
 	codec := &fakeContactCodec{decoded: []domain.Contact{mustContact(t, "c1", "Jo"), mustContact(t, "c2", "Amy")}}
 	svc := NewContactService(store, fixedID("x"))
-	if n, err := svc.ImportContacts(context.Background(), codec, nil); n != 0 || !errors.Is(err, errBoom) {
-		t.Errorf("import = %d, %v; want 0 and wrapped errBoom", n, err)
+	if n, err := svc.ImportContacts(context.Background(), codec, nil); n != (ContactImportResult{}) || !errors.Is(err, errBoom) {
+		t.Errorf("import = %+v, %v; want a zero result and wrapped errBoom", n, err)
 	}
 }
 
@@ -136,8 +145,8 @@ func TestImportContactsSuccess(t *testing.T) {
 	codec := &fakeContactCodec{decoded: []domain.Contact{mustContact(t, "c1", "Jo"), mustContact(t, "c2", "Amy")}}
 	svc := NewContactService(store, fixedID("x"))
 	n, err := svc.ImportContacts(context.Background(), codec, []byte("data"))
-	if err != nil || n != 2 {
-		t.Fatalf("import = %d, %v; want 2 and no error", n, err)
+	if err != nil || n != (ContactImportResult{Added: 2}) {
+		t.Fatalf("import = %+v, %v; want 2 added and no error", n, err)
 	}
 	if len(store.savedC) != 2 {
 		t.Errorf("saved %d contacts, want 2", len(store.savedC))
@@ -395,5 +404,112 @@ func TestContactServiceDeleteGroup(t *testing.T) {
 	store.delGrpErr = errBoom
 	if err := svc.DeleteGroup(context.Background(), "g1"); !errors.Is(err, errBoom) {
 		t.Errorf("err = %v, want wrapped errBoom", err)
+	}
+}
+
+// importContact builds a decoded record as a codec would produce it: a fresh id, since CSV carries
+// none, plus whatever addresses distinguish it.
+func importContact(t *testing.T, id, name string, emails ...string) domain.Contact {
+	t.Helper()
+	var addrs []domain.ContactEmail
+	for _, a := range emails {
+		e, err := domain.NewContactEmail("", a)
+		if err != nil {
+			t.Fatalf("email %q: %v", a, err)
+		}
+		addrs = append(addrs, e)
+	}
+	c, err := domain.NewContact(domain.ContactInput{ID: id, UID: id, FormattedName: name, Emails: addrs})
+	if err != nil {
+		t.Fatalf("contact: %v", err)
+	}
+	return c
+}
+
+func TestImportContactsMatchesExistingByEmail(t *testing.T) {
+	// The stored contact and the incoming row share an address but not an id, which is the whole CSV
+	// case: a re-import must update rather than insert a second copy.
+	stored := importContact(t, "stored", "Jo Bloggs", "jo@example.com")
+	store := &fakeContactStore{contacts: []domain.Contact{stored}}
+	incoming := importContact(t, "fresh-random-id", "Jo Bloggs", "JO@example.com")
+	svc := NewContactService(store, fixedID("x"))
+
+	got, err := svc.ImportContacts(context.Background(), &fakeContactCodec{decoded: []domain.Contact{incoming}}, nil)
+	if err != nil {
+		t.Fatalf("import: %v", err)
+	}
+	if got != (ContactImportResult{Updated: 1}) {
+		t.Errorf("result = %+v, want one update and nothing added", got)
+	}
+	if len(store.savedC) != 1 || store.savedC[0].ID() != "stored" {
+		t.Errorf("saved %+v, want the stored contact's id reused so the upsert replaces it", store.savedC)
+	}
+}
+
+func TestImportContactsDoesNotMatchDifferentEmailOnSameName(t *testing.T) {
+	// Two "Elgato Support" rows with different addresses are two contacts, not one. A name-first rule
+	// would collapse them.
+	stored := importContact(t, "stored", "Support", "support+one@example.com")
+	store := &fakeContactStore{contacts: []domain.Contact{stored}}
+	incoming := importContact(t, "fresh", "Support", "support+two@example.com")
+	svc := NewContactService(store, fixedID("x"))
+
+	got, err := svc.ImportContacts(context.Background(), &fakeContactCodec{decoded: []domain.Contact{incoming}}, nil)
+	if err != nil {
+		t.Fatalf("import: %v", err)
+	}
+	if got != (ContactImportResult{Added: 1}) {
+		t.Errorf("result = %+v, want a separate contact added", got)
+	}
+}
+
+func TestImportContactsFallsBackToNameWhenNeitherHasEmail(t *testing.T) {
+	stored := importContact(t, "stored", "Reception Desk")
+	store := &fakeContactStore{contacts: []domain.Contact{stored}}
+	incoming := importContact(t, "fresh", "reception desk")
+	svc := NewContactService(store, fixedID("x"))
+
+	got, err := svc.ImportContacts(context.Background(), &fakeContactCodec{decoded: []domain.Contact{incoming}}, nil)
+	if err != nil {
+		t.Fatalf("import: %v", err)
+	}
+	if got != (ContactImportResult{Updated: 1}) {
+		t.Errorf("result = %+v, want the email-less pair matched by name", got)
+	}
+}
+
+func TestImportContactsMatchesExistingByID(t *testing.T) {
+	// vCard supplies a stable UID as the id, so that path must keep reconciling on it.
+	stored := importContact(t, "uid-1", "Jo Bloggs", "jo@example.com")
+	store := &fakeContactStore{contacts: []domain.Contact{stored}}
+	incoming := importContact(t, "uid-1", "Jo Bloggs", "jo2@example.com")
+	svc := NewContactService(store, fixedID("x"))
+
+	got, err := svc.ImportContacts(context.Background(), &fakeContactCodec{decoded: []domain.Contact{incoming}}, nil)
+	if err != nil {
+		t.Fatalf("import: %v", err)
+	}
+	if got != (ContactImportResult{Updated: 1}) {
+		t.Errorf("result = %+v, want the uid match", got)
+	}
+	if len(store.savedC[0].Emails()) != 2 {
+		t.Errorf("emails = %+v, want the new address merged in alongside the old", store.savedC[0].Emails())
+	}
+}
+
+func TestImportContactsCollapsesRepeatsWithinOneFile(t *testing.T) {
+	// The same address twice in one import must not insert twice, even against an empty address book.
+	store := &fakeContactStore{}
+	first := importContact(t, "row-1", "Jo Bloggs", "jo@example.com")
+	second := importContact(t, "row-2", "Jo Bloggs", "jo@example.com")
+	svc := NewContactService(store, fixedID("x"))
+
+	got, err := svc.ImportContacts(context.Background(),
+		&fakeContactCodec{decoded: []domain.Contact{first, second}}, nil)
+	if err != nil {
+		t.Fatalf("import: %v", err)
+	}
+	if got != (ContactImportResult{Added: 1, Updated: 1}) {
+		t.Errorf("result = %+v, want the second row folded into the first", got)
 	}
 }
