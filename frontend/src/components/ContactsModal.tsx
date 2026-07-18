@@ -79,19 +79,23 @@ function plural(n: number, noun: string): string {
     return `${n} ${noun}${n === 1 ? '' : 's'}`
 }
 
-// importSummary describes what an import changed. A file that yields nothing is reported explicitly
-// rather than passing in silence, since a silent import cannot be told apart from one that did not run.
+// importSummary describes what an import changed and names the file it came from. A file that yields
+// nothing is reported explicitly rather than passing in silence, since a silent import cannot be told
+// apart from one that did not run. Naming the source matters just as much: an address book usually
+// holds several exports with similar names, so a count on its own cannot distinguish a file that
+// really did hold five contacts from the wrong file having been picked.
 function importSummary(result: ContactImportResult): string {
+    const from = result.file ? ` from ${result.file}` : ''
     if (result.added > 0 && result.updated > 0) {
-        return `Imported ${plural(result.added, 'contact')} and updated ${plural(result.updated, 'existing contact')}.`
+        return `Imported ${plural(result.added, 'contact')} and updated ${plural(result.updated, 'existing contact')}${from}.`
     }
     if (result.added > 0) {
-        return `Imported ${plural(result.added, 'contact')}.`
+        return `Imported ${plural(result.added, 'contact')}${from}.`
     }
     if (result.updated > 0) {
-        return `Updated ${plural(result.updated, 'existing contact')}. None were new.`
+        return `Updated ${plural(result.updated, 'existing contact')}${from}. None were new.`
     }
-    return 'That file contained no contacts.'
+    return `No contacts found${from}.`
 }
 
 // ContactsModal lists the address book and edits contacts. It imports and exports vCard and CSV so

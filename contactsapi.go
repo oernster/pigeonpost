@@ -157,11 +157,14 @@ func (a *App) DeleteContactGroup(id string) error {
 // ContactImportResult reports what an import did: how many records became new contacts and how many
 // were merged into contacts already in the address book. Cancelled marks a dismissed file dialog, so
 // the caller can stay silent about it rather than reporting a file that held nothing, which are
-// otherwise indistinguishable from the counts alone.
+// otherwise indistinguishable from the counts alone. File carries the chosen file's name so the
+// result names its own source: an address book holds several exports with similar names, and a count
+// alone leaves no way to tell a disappointing import from the wrong file having been picked.
 type ContactImportResult struct {
-	Added     int  `json:"added"`
-	Updated   int  `json:"updated"`
-	Cancelled bool `json:"cancelled"`
+	Added     int    `json:"added"`
+	Updated   int    `json:"updated"`
+	Cancelled bool   `json:"cancelled"`
+	File      string `json:"file"`
 }
 
 // ImportContactsFromFile opens a native file dialog, reads the chosen vCard or CSV file (the format is
@@ -195,7 +198,11 @@ func (a *App) ImportContactsFromFile() (ContactImportResult, error) {
 	if err != nil {
 		return ContactImportResult{}, err
 	}
-	return ContactImportResult{Added: result.Added, Updated: result.Updated}, nil
+	return ContactImportResult{
+		Added:   result.Added,
+		Updated: result.Updated,
+		File:    filepath.Base(path),
+	}, nil
 }
 
 // ExportContactsToFile encodes every contact in the named format ("vcard" or "csv") and writes it to a
