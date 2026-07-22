@@ -85,3 +85,6 @@ NOTES.md
 
 # transient parking folder for files the Claude device bridge cannot delete
 _to_delete/
+
+# Stray root package-lock.json created when npm runs in repo root during wails generate module
+/package-lock.json

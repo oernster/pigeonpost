@@ -163,7 +163,15 @@ modules:
   - name: ${BIN_NAME}
     buildsystem: simple
     build-commands:
-      - cd frontend && npm ci --no-audit --no-fund && npm run build
+      # Use npm install, not npm ci, to match wails.json frontend:install, which is the command
+      # every other platform runs (build.ps1 and builddmg.sh both go through wails build). npm ci
+      # aborts whenever package-lock.json drifts even slightly from package.json (for example npm
+      # recording a different set of esbuild optional platform packages); npm install reconciles the
+      # lock instead. That strict check is why only the Linux build broke after unrelated code changes
+      # while macOS and Windows kept working. Keep this in lockstep with wails.json frontend:install.
+      # NOTE: this heredoc is unquoted, so backticks and dollar-parens here are shell-evaluated into
+      # the manifest. Never put backticks or command substitution in these comments.
+      - cd frontend && npm install --no-audit --no-fund && npm run build
       - go run ./tools/genicons
       - go build -tags desktop,production,webkit2_41 -ldflags "-s -w" -o ${BIN_NAME} .
       - install -Dm755 ${BIN_NAME} /app/bin/${BIN_NAME}
