@@ -106,6 +106,20 @@ describe('Sidebar: shell', () => {
         expect(accountRow('a1')).toHaveTextContent('alice@x.com')
         expect(accountRow('a2')).toHaveTextContent('bob@x.com')
     })
+
+    it('keeps the brand icon outside the scroll region so only accounts and folders scroll', () => {
+        const {container, accountRow} = renderSidebar()
+        const brand = container.querySelector('.sidebar-brand')!
+        expect(brand.parentElement!.classList.contains('sidebar')).toBe(true)
+        expect(brand.closest('.sidebar-scroll')).toBeNull()
+        expect(accountRow('a1')!.closest('.sidebar-scroll')).not.toBeNull()
+    })
+
+    it('places the empty state inside the scroll region too', () => {
+        const {container} = renderSidebar({accounts: []})
+        const empty = container.querySelector('.empty-state')!
+        expect(empty.closest('.sidebar-scroll')).not.toBeNull()
+    })
 })
 
 describe('Sidebar: account selection', () => {

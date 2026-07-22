@@ -390,6 +390,20 @@ body.pane-resizing iframe {
     border-right: none;
 }
 
+/* The sidebar pins the brand icon at the top and scrolls only the accounts and folders below it,
+   so the pane's own overflow is disabled in favour of the inner scroll region. */
+.pane.sidebar {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.sidebar-scroll {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+}
+
 .sidebar-brand {
     display: block;
     width: 80px;
@@ -398,6 +412,7 @@ body.pane-resizing iframe {
     opacity: 0.92;
     user-select: none;
     -webkit-user-drag: none;
+    flex-shrink: 0;
 }
 
 .section-label {

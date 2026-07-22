@@ -50,16 +50,19 @@ export function Sidebar(props: SidebarProps) {
     return (
         <aside className="pane sidebar">
             <img className="sidebar-brand" src={icon} alt="" aria-hidden="true"/>
-            {props.accounts.length === 0 ? (
-                <div className="empty-state">
-                    <div className="empty-title">No accounts yet</div>
-                    <p className="empty-body">
-                        Use "Add account" to configure a mail account.
-                    </p>
-                </div>
-            ) : (
-                <SidebarContent {...props}/>
-            )}
+            {/* The brand icon stays pinned above; only this region scrolls. */}
+            <div className="sidebar-scroll">
+                {props.accounts.length === 0 ? (
+                    <div className="empty-state">
+                        <div className="empty-title">No accounts yet</div>
+                        <p className="empty-body">
+                            Use "Add account" to configure a mail account.
+                        </p>
+                    </div>
+                ) : (
+                    <SidebarContent {...props}/>
+                )}
+            </div>
         </aside>
     )
 }
