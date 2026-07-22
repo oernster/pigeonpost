@@ -451,6 +451,11 @@ place. Keep `App.css` a manifest (only `@import` lines); never inline component 
 per-component file own a shared global. Split a concern file over ~500 lines again at a top-level comment
 boundary, keeping the import order intact.
 
+One sidebar layout rule: `.pane.sidebar` disables the pane's own overflow and scrolls an inner
+`.sidebar-scroll` region instead, so the brand icon (a direct child of the aside) stays pinned while the
+accounts and folders scroll beneath it. A new sidebar section belongs inside `.sidebar-scroll`; anything
+added as a direct child of the aside is pinned. `Sidebar.test.tsx` pins this structure.
+
 ## Calendar and contacts
 
 This section records the shape of the address book and calendar; each piece is held to
