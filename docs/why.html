@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Why PigeonPost exists: a calm, local-first alternative to Thunderbird and Outlook</title>
+    <meta name="description"
+          content="Why PigeonPost was built, how it is engineered, an honest comparison with Thunderbird and Outlook 365 and the calm promise: no ads, no engagement mechanics, no cloud in between."/>
+    <link rel="canonical" href="https://pigeonpost.ink/why.html"/>
+    <meta name="robots" content="index, follow"/>
+    <meta name="author" content="Oliver Ernster"/>
+    <meta name="theme-color" content="#16181d"/>
+    <meta property="og:type" content="website"/>
+    <meta property="og:site_name" content="PigeonPost"/>
+    <meta property="og:url" content="https://pigeonpost.ink/why.html"/>
+    <meta property="og:title" content="Why PigeonPost exists"/>
+    <meta property="og:description"
+          content="Why PigeonPost was built, how it is engineered and the calm promise: no ads, no engagement mechanics, no cloud in between."/>
+    <meta property="og:image" content="https://pigeonpost.ink/screenshots/add-account.png"/>
+    <meta property="og:locale" content="en_GB"/>
+    <meta name="twitter:card" content="summary_large_image"/>
+    <meta name="twitter:title" content="Why PigeonPost exists"/>
+    <meta name="twitter:description"
+          content="Why PigeonPost was built, how it is engineered and the calm promise: no ads, no engagement mechanics, no cloud in between."/>
+    <meta name="twitter:image" content="https://pigeonpost.ink/screenshots/add-account.png"/>
+    <link rel="icon" type="image/png" href="pigeonpost.png"/>
+    <link rel="stylesheet" href="site.css"/>
+</head>
+<body>
+<div class="wrap">
+    <header class="site">
+        <a class="logo" href="index.html">
+            <img src="pigeonpost.png" alt="PigeonPost"/>
+            <span>PigeonPost</span>
+        </a>
+        <nav class="nav">
+            <a href="switching.html">Switching</a>
+            <a href="features.html">Features</a>
+            <a href="why.html">Why</a>
+            <a href="https://github.com/oernster/pigeonpost">GitHub</a>
+            <a href="downloads.html">Download</a>
+        </nav>
+    </header>
+
+    <section class="page-hero">
+        <img class="mark" src="pigeonpost.png" alt="PigeonPost icon"/>
+        <h1>Why this exists</h1>
+        <p class="tagline">The design story in short, the engineering behind it and some honest
+            comparisons.</p>
+    </section>
+
+    <section class="section" id="exists">
+        <h2>Why this exists</h2>
+        <p class="lead">The short version of the reasoning; the full essay lives on crankthecode.com.</p>
+        <p>Desktop email settled into three unsatisfying shapes. Webmail is convenient yet answers to an
+            engagement model: it wants your attention and it changes under you. Outlook wants a
+            subscription and pulls your mail deeper into an account you rent. Thunderbird earned two
+            decades of trust yet its priorities sit in someone else's queue, so the things a daily user
+            reaches for most can stay buried for years.</p>
+        <p>PigeonPost is a refusal of all three shapes at once. The brief was narrow: email as a calm,
+            predictable, local tool. Your mail stays with your provider; the client reads it, caches it
+            and gets out of the way. There is no PigeonPost account, no cloud relay in the path and no
+            telemetry. Each temptation layered onto modern mail (accounts you do not need, notifications
+            tuned for engagement, rendering that phones home) is declined structurally rather than by
+            policy, so it cannot quietly creep back in.</p>
+        <p>The engineering carries the same discipline. A Go core sits behind a Wails shell with a React
+            and TypeScript front end; mail speaks IMAP, POP3 and SMTP through explicit protocol
+            libraries; summaries and bodies cache to a pure-Go SQLite store for instant offline search;
+            credentials live in the OS keychain rather than any database. One clean-architecture boundary
+            separates the mail engine from the UI and structural tests enforce it, with a 100% coverage
+            gate on the core logic.</p>
+        <p>What works now is a fast, native client for mail, calendar and contacts on Windows, macOS and
+            Linux, each with its own installer. Provider presets cover Gmail, iCloud, Yahoo, Zoho,
+            Fastmail and StartMail through app passwords; Microsoft accounts sign in over OAuth. Because
+            the server remains the source of truth, the local cache is disposable: trying PigeonPost
+            costs nothing and leaving costs nothing.</p>
+        <p>Full reasoning at <a href="https://www.crankthecode.com/posts/pigeonpost">crankthecode.com</a>.</p>
+    </section>
+
+    <section class="section" id="why">
+        <h2>Why I built it</h2>
+        <p class="lead">I wanted a desktop client that was free, dependable and laid out the way I actually
+            work. The mainstream options did not fit. Outlook 365 wanted a subscription. Thunderbird is free
+            and open but community-governed, so a bug I hit waits in someone else's queue and the things I
+            reach for most are buried. PigeonPost is my answer: GPL-3.0 and free, a calm predictable
+            interface where everything is easy to find. Oliver Ernster.</p>
+        <div class="grid">
+            <div class="card">
+                <div class="ico">✅</div>
+                <h3>Tested to the last line</h3>
+                <p>The core logic carries a 100% test-coverage gate. The build fails if a single untested
+                    line lands.</p>
+            </div>
+            <div class="card">
+                <div class="ico">🧱</div>
+                <h3>Architecture that holds</h3>
+                <p>A clean layered core whose boundaries are enforced by automated structural tests, not by
+                    good intentions, so the design cannot quietly erode as features land.</p>
+            </div>
+            <div class="card">
+                <div class="ico">🔍</div>
+                <h3>Checked on every change</h3>
+                <p>Formatting, vetting and a strict static analyser run clean across the Go codebase, so
+                    problems are caught before they ship.</p>
+            </div>
+            <div class="card">
+                <div class="ico">🪶</div>
+                <h3>Open and forkable</h3>
+                <p>GPL-3.0 with the full source on GitHub. If it ever stalls, anyone can read it, fork it or
+                    carry it on, with credit to the original author retained. Nothing about your mail
+                    depends on me being here.</p>
+            </div>
+        </div>
+    </section>
+
+    <section class="section" id="compare">
+        <h2>An honest comparison with Thunderbird and Outlook</h2>
+        <p class="lead">Where PigeonPost sits next to two clients you may be leaving. Both are good tools.
+            This stays factual, including where PigeonPost is behind.</p>
+        <div class="compare-scroll">
+            <table class="compare">
+                <thead>
+                    <tr>
+                        <th></th>
+                        <th class="pp">PigeonPost</th>
+                        <th>Thunderbird</th>
+                        <th>Outlook 365</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td class="rowlabel">Price</td>
+                        <td class="pp">Free, GPL-3.0</td>
+                        <td>Free, open source</td>
+                        <td>Subscription</td>
+                    </tr>
+                    <tr>
+                        <td class="rowlabel">Platforms</td>
+                        <td class="pp">Windows, macOS (Apple Silicon) and Linux</td>
+                        <td>Windows, macOS and Linux</td>
+                        <td>Windows, macOS and web</td>
+                    </tr>
+                    <tr>
+                        <td class="rowlabel">Where your mail lives</td>
+                        <td class="pp">With your provider and cached on your machine</td>
+                        <td>On your server, cached locally</td>
+                        <td>Account and server based</td>
+                    </tr>
+                    <tr>
+                        <td class="rowlabel">Works offline</td>
+                        <td class="pp">Yes, cached and searchable</td>
+                        <td>Yes</td>
+                        <td>Yes, cached</td>
+                    </tr>
+                    <tr>
+                        <td class="rowlabel">Search</td>
+                        <td class="pp">Local, instant, offline</td>
+                        <td>Local global index</td>
+                        <td>Local and online index</td>
+                    </tr>
+                    <tr>
+                        <td class="rowlabel">Cost of leaving</td>
+                        <td class="pp">None, your mail stays with your provider</td>
+                        <td>Low, standard protocols</td>
+                        <td>Account based</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="section" id="promise">
+        <h2>A calm promise</h2>
+        <p class="lead">Some things PigeonPost will not do, on purpose. Calm and predictable is the whole
+            point, so these stay off the table.</p>
+        <ul class="promise-list">
+            <li><b>No ads.</b> Not now, not later.</li>
+            <li><b>No ambient AI reading or reordering your mail.</b> Anything AI is opt-in and on demand,
+                never silent.</li>
+            <li><b>No engagement mechanics.</b> No feeds, no nudges, no streaks.</li>
+            <li><b>No hosted PigeonPost account or relay.</b> The absence of a cloud in between is the point,
+                not a gap to fill.</li>
+        </ul>
+    </section>
+
+    <section class="section" id="who">
+        <h2>Who it is for and who it is not</h2>
+        <p class="lead">Honest fit, so the right person trials it and the wrong person is not misled.</p>
+        <div class="grid two">
+            <div class="card forlist yes">
+                <h3>For you if</h3>
+                <ul>
+                    <li>You use IMAP or POP3, whether that is self-hosted, your ISP, Fastmail or a corporate
+                        server</li>
+                    <li>You use Gmail, iCloud, Yahoo, Zoho, Fastmail or StartMail and can add an app
+                        password</li>
+                    <li>You use a personal Microsoft account (Outlook.com, Hotmail, Live or Microsoft 365)
+                        through Microsoft sign-in</li>
+                </ul>
+            </div>
+            <div class="card forlist no">
+                <h3>Not for you if</h3>
+                <ul>
+                    <li>You only ever want webmail with no desktop install</li>
+                    <li>You have a Google Workspace work or school account, which is OAuth-only so an app
+                        password will not work</li>
+                </ul>
+            </div>
+        </div>
+        <div class="stack">
+            <span class="chip">Go core</span>
+            <span class="chip">React front end</span>
+            <span class="chip">Wails</span>
+            <span class="chip">SQLite, local-first</span>
+            <span class="chip">OS keychain</span>
+            <span class="chip">GPL-3.0</span>
+        </div>
+    </section>
+
+    <section class="close">
+        <h2>Nothing moves that you cannot move back</h2>
+        <p>Download the build for your platform, point it at your account and see how it feels. Your mail
+            stays with your provider the whole time. If it is not for you, it was never anywhere else.</p>
+        <div class="cta">
+            <a class="btn primary" href="downloads.html">Download</a>
+            <a class="btn" href="https://github.com/oernster/pigeonpost">Releases and source on GitHub</a>
+        </div>
+    </section>
+
+    <footer class="site">
+        <span>PigeonPost by Oliver Ernster. Released under GPL-3.0; author attribution must be retained
+            in all copies and derivative works.</span>
+        <span>
+            <a href="index.html">Home</a>
+            &nbsp;·&nbsp;
+            <a href="https://github.com/oernster/pigeonpost">GitHub</a>
+            &nbsp;·&nbsp;
+            <a href="https://github.com/oernster/pigeonpost/releases">Releases</a>
+        </span>
+    </footer>
+</div>
+</body>
+</html>

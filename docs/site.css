@@ -49,6 +49,37 @@ header.site {
 
 .logo img { width: 34px; height: 34px; }
 
+a.logo {
+    color: var(--text);
+    text-decoration: none;
+}
+
+/* Compact hero for subpages (the full hero lives on index only). */
+.page-hero {
+    text-align: center;
+    padding: 40px 0 8px;
+}
+
+.page-hero img.mark {
+    width: 72px;
+    height: 72px;
+    filter: drop-shadow(0 12px 30px rgba(0, 0, 0, 0.45));
+}
+
+.page-hero h1 {
+    font-size: 36px;
+    margin: 12px 0 8px;
+    letter-spacing: -0.5px;
+    line-height: 1.1;
+}
+
+.page-hero p.tagline {
+    font-size: 16.5px;
+    color: var(--text-dim);
+    max-width: 640px;
+    margin: 0 auto;
+}
+
 .nav a {
     color: var(--text-dim);
     text-decoration: none;

@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Switching to PigeonPost: nothing to migrate, nothing to unwind</title>
+    <meta name="description"
+          content="How switching to PigeonPost works: your mail stays with your provider, so there is nothing to import and nothing stranded if you go back. The questions a Thunderbird or Outlook user asks, answered plainly."/>
+    <link rel="canonical" href="https://pigeonpost.ink/switching.html"/>
+    <meta name="robots" content="index, follow"/>
+    <meta name="author" content="Oliver Ernster"/>
+    <meta name="theme-color" content="#16181d"/>
+    <meta property="og:type" content="website"/>
+    <meta property="og:site_name" content="PigeonPost"/>
+    <meta property="og:url" content="https://pigeonpost.ink/switching.html"/>
+    <meta property="og:title" content="Switching to PigeonPost: nothing to migrate, nothing to unwind"/>
+    <meta property="og:description"
+          content="Your mail stays with your provider, so trying PigeonPost costs nothing and leaving costs nothing. Add your account, sync and you are in."/>
+    <meta property="og:image" content="https://pigeonpost.ink/screenshots/add-account.png"/>
+    <meta property="og:locale" content="en_GB"/>
+    <meta name="twitter:card" content="summary_large_image"/>
+    <meta name="twitter:title" content="Switching to PigeonPost: nothing to migrate, nothing to unwind"/>
+    <meta name="twitter:description"
+          content="Your mail stays with your provider, so trying PigeonPost costs nothing and leaving costs nothing. Add your account, sync and you are in."/>
+    <meta name="twitter:image" content="https://pigeonpost.ink/screenshots/add-account.png"/>
+    <link rel="icon" type="image/png" href="pigeonpost.png"/>
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "mainEntity": [
+            {"@type": "Question", "name": "Will I have to migrate years of mail?",
+             "acceptedAnswer": {"@type": "Answer", "text": "No. PigeonPost talks to your existing account and caches a local copy. The mail itself never leaves your provider."}},
+            {"@type": "Question", "name": "What if I try it and want to go back?",
+             "acceptedAnswer": {"@type": "Answer", "text": "Then you close it and nothing has changed. Your accounts were never moved, so they are still live in your old client. Your calendar and contacts export back out in standard files."}},
+            {"@type": "Question", "name": "Does my Gmail or iCloud account work?",
+             "acceptedAnswer": {"@type": "Answer", "text": "Yes, through an app password. A wizard fills in the servers for Gmail, iCloud, Yahoo, Zoho, Fastmail and StartMail. Microsoft accounts (Outlook.com, Hotmail) sign in through Microsoft OAuth."}},
+            {"@type": "Question", "name": "Does a Google Workspace work account function?",
+             "acceptedAnswer": {"@type": "Answer", "text": "No. Workspace is OAuth-only, so an app password is refused by Google. Personal Gmail works with an app password."}},
+            {"@type": "Question", "name": "Is my Microsoft password safe?",
+             "acceptedAnswer": {"@type": "Answer", "text": "You sign in through Microsoft in your own browser, so PigeonPost never sees your password. It keeps your Microsoft sign-in token in your OS keychain."}},
+            {"@type": "Question", "name": "Can opening a message track me?",
+             "acceptedAnswer": {"@type": "Answer", "text": "No. HTML renders in a sandboxed frame that runs no scripts and makes no remote requests. Remote images stay blocked until you load them, so opening a message cannot tell the sender you read it."}},
+            {"@type": "Question", "name": "It is one developer. What if it stops?",
+             "acceptedAnswer": {"@type": "Answer", "text": "It is GPL-3.0 with the full source on GitHub, free to read, fork or continue. Your mail stays with your provider and your calendar and contacts live in standard files, so nothing is trapped."}},
+            {"@type": "Question", "name": "Does it work offline?",
+             "acceptedAnswer": {"@type": "Answer", "text": "Yes. Cached mail reads with no connection. Anything you write offline queues in a per-account outbox and delivers when you reconnect."}},
+            {"@type": "Question", "name": "Which platforms does it run on?",
+             "acceptedAnswer": {"@type": "Answer", "text": "Windows, macOS (Apple Silicon) and Linux, each with its own native installer: a Windows setup program, a DMG and a Flatpak."}},
+            {"@type": "Question", "name": "Will it choke on huge folders?",
+             "acceptedAnswer": {"@type": "Answer", "text": "No. The message list is virtualised and stays fluid in folders of tens of thousands of messages."}}
+        ]
+    }
+    </script>
+    <link rel="stylesheet" href="site.css"/>
+</head>
+<body>
+<div class="wrap">
+    <header class="site">
+        <a class="logo" href="index.html">
+            <img src="pigeonpost.png" alt="PigeonPost"/>
+            <span>PigeonPost</span>
+        </a>
+        <nav class="nav">
+            <a href="switching.html">Switching</a>
+            <a href="features.html">Features</a>
+            <a href="why.html">Why</a>
+            <a href="https://github.com/oernster/pigeonpost">GitHub</a>
+            <a href="downloads.html">Download</a>
+        </nav>
+    </header>
+
+    <section class="page-hero">
+        <img class="mark" src="pigeonpost.png" alt="PigeonPost icon"/>
+        <h1>Switching without risk</h1>
+        <p class="tagline">The switch is not a one-way door. Your mail stays with your provider the whole
+            time, so trying PigeonPost costs nothing and leaving costs nothing.</p>
+    </section>
+
+    <section class="section" id="switch">
+        <h2>Nothing to migrate, nothing to unwind</h2>
+        <p class="lead">This is the part that matters most if you have years of mail you are not willing
+            to risk.</p>
+        <div class="grid two">
+            <div class="card">
+                <div class="ico">📡</div>
+                <h3>Your mail stays put</h3>
+                <p>PigeonPost connects to your existing account over IMAP and keeps a local, searchable copy
+                    for offline use. For an IMAP account there is nothing to import on the way in and nothing
+                    stranded on the way out. Stop using PigeonPost and your mailbox is exactly where it always
+                    was.</p>
+            </div>
+            <div class="card">
+                <div class="ico">🔁</div>
+                <h3>Your calendar and contacts move both ways</h3>
+                <p>Calendars import and export as .ics (RFC 5545) and round-trip with Outlook and
+                    Thunderbird. Contacts export as vCard at full fidelity (postal addresses and birthdays
+                    included) or as CSV for names, emails and phone numbers. A .eml file opens straight in
+                    the app and on Windows PigeonPost can be your default .eml handler. It can also
+                    register as your system's default email app on Windows, macOS and Linux, so a
+                    mailto: link opens a new message here instead of in the client you left.</p>
+            </div>
+        </div>
+
+        <h2 style="margin-top:40px;">The switch, in a few steps</h2>
+        <p class="lead">No importer, no export dance. For an IMAP account, moving in is adding the account
+            and pressing sync.</p>
+        <div class="steps">
+            <div class="step">
+                <span class="n">1</span>
+                <h3>Download and install</h3>
+                <p>Run the installer for your platform: the Windows setup, the macOS DMG or the Linux
+                    Flatpak. There is no PigeonPost account to create, so once it is installed you go
+                    straight to adding your mailbox.</p>
+            </div>
+            <div class="step">
+                <span class="n">2</span>
+                <h3>Add your account</h3>
+                <p>Pick your provider and the wizard fills in the servers. Gmail, iCloud, Yahoo, Zoho,
+                    Fastmail and StartMail connect with an app password. Microsoft opens a browser sign-in.
+                    Any other IMAP or POP3 mailbox takes its own host and port.</p>
+            </div>
+            <div class="step">
+                <span class="n">3</span>
+                <h3>Sync</h3>
+                <p>Your mail, folders and read state come down into a local, searchable copy. Your mail stays
+                    in your account with your provider the whole time.</p>
+            </div>
+        </div>
+    </section>
+
+    <section class="section" id="worries">
+        <h2>Your worries, answered</h2>
+        <p class="lead">The questions a Thunderbird or Outlook user actually asks, answered plainly. Where
+            the answer is no, we say so.</p>
+        <div class="qa">
+            <div class="item">
+                <p class="q">Will I have to migrate years of mail?</p>
+                <p class="a">No. PigeonPost talks to your existing account and caches a local copy. The
+                    mail itself never leaves your provider.</p>
+            </div>
+            <div class="item">
+                <p class="q">What if I try it and want to go back?</p>
+                <p class="a">Then you close it and nothing has changed. Your accounts were never moved, so
+                    they are still live in your old client. Your calendar and contacts export back out in
+                    standard files.</p>
+            </div>
+            <div class="item">
+                <p class="q">Does my Gmail or iCloud account work?</p>
+                <p class="a">Yes, through an app password. A wizard fills in the servers for Gmail, iCloud,
+                    Yahoo, Zoho, Fastmail and StartMail.</p>
+            </div>
+            <div class="item">
+                <p class="q">I use a Google Workspace account for work.</p>
+                <p class="a">That one will not work here. Workspace is OAuth-only, so an app password is
+                    refused by Google. Personal Gmail is fine with an app password.</p>
+            </div>
+            <div class="item">
+                <p class="q">Is my Microsoft password safe?</p>
+                <p class="a">You sign in through Microsoft in your own browser, so PigeonPost never sees
+                    your password. It keeps your Microsoft sign-in token in your OS keychain.</p>
+            </div>
+            <div class="item">
+                <p class="q">Can opening a message track me?</p>
+                <p class="a">No. HTML renders in a sandboxed frame that runs no scripts and makes no remote
+                    requests. Remote images stay blocked until you load them, so opening a message cannot tell
+                    the sender you read it.</p>
+            </div>
+            <div class="item">
+                <p class="q">It is one developer. What if it stops?</p>
+                <p class="a">It is GPL-3.0 with the full source on GitHub, free to read, fork or continue.
+                    Your mail stays with your provider and your calendar and contacts live in standard files,
+                    so nothing is trapped.</p>
+            </div>
+            <div class="item">
+                <p class="q">Does it work offline?</p>
+                <p class="a">Yes. Cached mail reads with no connection. Anything you write offline queues in
+                    a per-account outbox and delivers when you reconnect.</p>
+            </div>
+            <div class="item">
+                <p class="q">Which platforms?</p>
+                <p class="a">Windows, macOS (Apple Silicon) and Linux, each with its own native
+                    installer: a Windows setup program, a DMG and a Flatpak.</p>
+            </div>
+            <div class="item">
+                <p class="q">Will it choke on my huge folders?</p>
+                <p class="a">No. The message list is virtualised and stays fluid in folders of tens of
+                    thousands of messages.</p>
+            </div>
+        </div>
+    </section>
+
+    <section class="close">
+        <h2>Ready when you are</h2>
+        <p>Add your account, press sync and you are in. If it is not for you, close it and nothing has
+            changed.</p>
+        <div class="cta">
+            <a class="btn primary" href="downloads.html">Download</a>
+            <a class="btn" href="features.html">See what is included</a>
+        </div>
+    </section>
+
+    <footer class="site">
+        <span>PigeonPost by Oliver Ernster. Released under GPL-3.0; author attribution must be retained
+            in all copies and derivative works.</span>
+        <span>
+            <a href="index.html">Home</a>
+            &nbsp;·&nbsp;
+            <a href="https://github.com/oernster/pigeonpost">GitHub</a>
+            &nbsp;·&nbsp;
+            <a href="https://github.com/oernster/pigeonpost/releases">Releases</a>
+        </span>
+    </footer>
+</div>
+</body>
+</html>

@@ -43,46 +43,19 @@
         "author": {"@type": "Person", "name": "Oliver Ernster", "url": "https://github.com/oernster"}
     }
     </script>
-    <script type="application/ld+json">
-    {
-        "@context": "https://schema.org",
-        "@type": "FAQPage",
-        "mainEntity": [
-            {"@type": "Question", "name": "Will I have to migrate years of mail?",
-             "acceptedAnswer": {"@type": "Answer", "text": "No. PigeonPost talks to your existing account and caches a local copy. The mail itself never leaves your provider."}},
-            {"@type": "Question", "name": "What if I try it and want to go back?",
-             "acceptedAnswer": {"@type": "Answer", "text": "Then you close it and nothing has changed. Your accounts were never moved, so they are still live in your old client. Your calendar and contacts export back out in standard files."}},
-            {"@type": "Question", "name": "Does my Gmail or iCloud account work?",
-             "acceptedAnswer": {"@type": "Answer", "text": "Yes, through an app password. A wizard fills in the servers for Gmail, iCloud, Yahoo, Zoho, Fastmail and StartMail. Microsoft accounts (Outlook.com, Hotmail) sign in through Microsoft OAuth."}},
-            {"@type": "Question", "name": "Does a Google Workspace work account function?",
-             "acceptedAnswer": {"@type": "Answer", "text": "No. Workspace is OAuth-only, so an app password is refused by Google. Personal Gmail works with an app password."}},
-            {"@type": "Question", "name": "Is my Microsoft password safe?",
-             "acceptedAnswer": {"@type": "Answer", "text": "You sign in through Microsoft in your own browser, so PigeonPost never sees your password. It keeps your Microsoft sign-in token in your OS keychain."}},
-            {"@type": "Question", "name": "Can opening a message track me?",
-             "acceptedAnswer": {"@type": "Answer", "text": "No. HTML renders in a sandboxed frame that runs no scripts and makes no remote requests. Remote images stay blocked until you load them, so opening a message cannot tell the sender you read it."}},
-            {"@type": "Question", "name": "It is one developer. What if it stops?",
-             "acceptedAnswer": {"@type": "Answer", "text": "It is GPL-3.0 with the full source on GitHub, free to read, fork or continue. Your mail stays with your provider and your calendar and contacts live in standard files, so nothing is trapped."}},
-            {"@type": "Question", "name": "Does it work offline?",
-             "acceptedAnswer": {"@type": "Answer", "text": "Yes. Cached mail reads with no connection. Anything you write offline queues in a per-account outbox and delivers when you reconnect."}},
-            {"@type": "Question", "name": "Which platforms does it run on?",
-             "acceptedAnswer": {"@type": "Answer", "text": "Windows, macOS (Apple Silicon) and Linux, each with its own native installer: a Windows setup program, a DMG and a Flatpak."}},
-            {"@type": "Question", "name": "Will it choke on huge folders?",
-             "acceptedAnswer": {"@type": "Answer", "text": "No. The message list is virtualised and stays fluid in folders of tens of thousands of messages."}}
-        ]
-    }
-    </script>
     <link rel="stylesheet" href="site.css"/>
 </head>
 <body>
 <div class="wrap">
     <header class="site">
-        <div class="logo">
+        <a class="logo" href="index.html">
             <img src="pigeonpost.png" alt="PigeonPost"/>
             <span>PigeonPost</span>
-        </div>
+        </a>
         <nav class="nav">
-            <a href="#switch">Switching</a>
-            <a href="#features">Features</a>
+            <a href="switching.html">Switching</a>
+            <a href="features.html">Features</a>
+            <a href="why.html">Why</a>
             <a href="https://github.com/oernster/pigeonpost">GitHub</a>
             <a href="downloads.html">Download</a>
         </nav>
@@ -104,7 +77,7 @@
             Then find anything, instantly, even offline.</p>
         <div class="cta">
             <a class="btn primary" href="downloads.html">Download</a>
-            <a class="btn" href="#switch">See how switching works</a>
+            <a class="btn" href="switching.html">See how switching works</a>
         </div>
         <div class="cue"><b>Free and GPL-3.0</b> &nbsp;·&nbsp; No account &nbsp;·&nbsp; No subscription
             &nbsp;·&nbsp; No cloud</div>
@@ -153,361 +126,28 @@
         </div>
     </section>
 
-    <section class="section" id="switch">
-        <h2>Nothing to migrate, nothing to unwind</h2>
-        <p class="lead">The switch is not a one-way door. This is the part that matters most if you have
-            years of mail you are not willing to risk.</p>
-        <div class="grid two">
-            <div class="card">
-                <div class="ico">📡</div>
-                <h3>Your mail stays put</h3>
-                <p>PigeonPost connects to your existing account over IMAP and keeps a local, searchable copy
-                    for offline use. For an IMAP account there is nothing to import on the way in and nothing
-                    stranded on the way out. Stop using PigeonPost and your mailbox is exactly where it always
-                    was.</p>
-            </div>
+    <section class="section" id="explore">
+        <h2>Find your question</h2>
+        <p class="lead">The detail lives on three focused pages instead of one long scroll.</p>
+        <div class="grid">
             <div class="card">
                 <div class="ico">🔁</div>
-                <h3>Your calendar and contacts move both ways</h3>
-                <p>Calendars import and export as .ics (RFC 5545) and round-trip with Outlook and
-                    Thunderbird. Contacts export as vCard at full fidelity (postal addresses and birthdays
-                    included) or as CSV for names, emails and phone numbers. A .eml file opens straight in
-                    the app and on Windows PigeonPost can be your default .eml handler. It can also
-                    register as your system's default email app on Windows, macOS and Linux, so a
-                    mailto: link opens a new message here instead of in the client you left.</p>
-            </div>
-        </div>
-
-        <h2 style="margin-top:40px;">The switch, in a few steps</h2>
-        <p class="lead">No importer, no export dance. For an IMAP account, moving in is adding the account
-            and pressing sync.</p>
-        <div class="steps">
-            <div class="step">
-                <span class="n">1</span>
-                <h3>Download and install</h3>
-                <p>Run the installer for your platform: the Windows setup, the macOS DMG or the Linux
-                    Flatpak. There is no PigeonPost account to create, so once it is installed you go
-                    straight to adding your mailbox.</p>
-            </div>
-            <div class="step">
-                <span class="n">2</span>
-                <h3>Add your account</h3>
-                <p>Pick your provider and the wizard fills in the servers. Gmail, iCloud, Yahoo, Zoho,
-                    Fastmail and StartMail connect with an app password. Microsoft opens a browser sign-in.
-                    Any other IMAP or POP3 mailbox takes its own host and port.</p>
-            </div>
-            <div class="step">
-                <span class="n">3</span>
-                <h3>Sync</h3>
-                <p>Your mail, folders and read state come down into a local, searchable copy. Your mail stays
-                    in your account with your provider the whole time.</p>
-            </div>
-        </div>
-    </section>
-
-    <section class="section" id="worries">
-        <h2>Your worries, answered</h2>
-        <p class="lead">The questions a Thunderbird or Outlook user actually asks, answered plainly. Where
-            the answer is no, we say so.</p>
-        <div class="qa">
-            <div class="item">
-                <p class="q">Will I have to migrate years of mail?</p>
-                <p class="a">No. PigeonPost talks to your existing account and caches a local copy. The
-                    mail itself never leaves your provider.</p>
-            </div>
-            <div class="item">
-                <p class="q">What if I try it and want to go back?</p>
-                <p class="a">Then you close it and nothing has changed. Your accounts were never moved, so
-                    they are still live in your old client. Your calendar and contacts export back out in
-                    standard files.</p>
-            </div>
-            <div class="item">
-                <p class="q">Does my Gmail or iCloud account work?</p>
-                <p class="a">Yes, through an app password. A wizard fills in the servers for Gmail, iCloud,
-                    Yahoo, Zoho, Fastmail and StartMail.</p>
-            </div>
-            <div class="item">
-                <p class="q">I use a Google Workspace account for work.</p>
-                <p class="a">That one will not work here. Workspace is OAuth-only, so an app password is
-                    refused by Google. Personal Gmail is fine with an app password.</p>
-            </div>
-            <div class="item">
-                <p class="q">Is my Microsoft password safe?</p>
-                <p class="a">You sign in through Microsoft in your own browser, so PigeonPost never sees
-                    your password. It keeps your Microsoft sign-in token in your OS keychain.</p>
-            </div>
-            <div class="item">
-                <p class="q">Can opening a message track me?</p>
-                <p class="a">No. HTML renders in a sandboxed frame that runs no scripts and makes no remote
-                    requests. Remote images stay blocked until you load them, so opening a message cannot tell
-                    the sender you read it.</p>
-            </div>
-            <div class="item">
-                <p class="q">It is one developer. What if it stops?</p>
-                <p class="a">It is GPL-3.0 with the full source on GitHub, free to read, fork or continue.
-                    Your mail stays with your provider and your calendar and contacts live in standard files,
-                    so nothing is trapped.</p>
-            </div>
-            <div class="item">
-                <p class="q">Does it work offline?</p>
-                <p class="a">Yes. Cached mail reads with no connection. Anything you write offline queues in
-                    a per-account outbox and delivers when you reconnect.</p>
-            </div>
-            <div class="item">
-                <p class="q">Which platforms?</p>
-                <p class="a">Windows, macOS (Apple Silicon) and Linux, each with its own native
-                    installer: a Windows setup program, a DMG and a Flatpak.</p>
-            </div>
-            <div class="item">
-                <p class="q">Will it choke on my huge folders?</p>
-                <p class="a">No. The message list is virtualised and stays fluid in folders of tens of
-                    thousands of messages.</p>
-            </div>
-        </div>
-    </section>
-
-    <section class="section" id="search">
-        <h2>Search that is instant and offline</h2>
-        <p class="lead">Search is where the big clients are most disliked. Because your mail is already
-            cached on your machine, PigeonPost searches a local index and answers the moment you type, with no
-            server round-trip.</p>
-        <div class="grid">
-            <div class="card">
-                <div class="ico">🔎</div>
-                <h3>Find it now</h3>
-                <p>Search everything cached: subject, sender, recipients, attachment names and the full
-                    text of mail you have opened, with operators like from:, has:attachment and dates,
-                    ranked by relevance. The index lives on your machine, so results come back instantly
-                    and work with no connection.</p>
+                <h3><a href="switching.html">Switching</a></h3>
+                <p>Why the switch is not a one-way door: nothing to migrate, nothing to unwind and every
+                    worry answered plainly.</p>
             </div>
             <div class="card">
-                <div class="ico">🔐</div>
-                <h3>Private by the way it is built</h3>
-                <p>Passwords live in your OS keychain, never in a database. Microsoft sign-in stores a
-                    token there instead of a password. No PigeonPost cloud sits in the path; your mail is
-                    with your provider and on your machine. The local cache itself is ordinary data on your
-                    own disk, not encrypted at rest: pair it with your OS disk encryption (BitLocker,
-                    FileVault) if you want that protection.</p>
-            </div>
-        </div>
-    </section>
-
-    <section class="section" id="look">
-        <h2>A look inside</h2>
-        <p class="lead">The everyday windows you actually work in, in the dark theme.</p>
-        <div class="grid two">
-            <div>
-                <div class="shot-frame">
-                    <img src="screenshots/compose.png" loading="lazy" decoding="async"
-                         alt="The New message window: To, Cc, Bcc and Subject fields, a rich-text toolbar with a Template button, a signature in the body, plus Attach files, Save draft and Send buttons."/>
-                </div>
-                <p class="shot-cap">Writing a message: rich text with a signature, reusable templates and
-                    file attachments.</p>
-            </div>
-            <div>
-                <div class="shot-frame">
-                    <img src="screenshots/calendar.png" loading="lazy" decoding="async"
-                         alt="The calendar month view for July 2026, showing a multi-day Vacation event as one continuous bar spanning 13 to 22 July across two week rows, alongside single-day events with emoji categories."/>
-                </div>
-                <p class="shot-cap">The calendar: a multi-day event spans its days as one bar, alongside
-                    month, week and day views, reminders and emoji categories.</p>
-            </div>
-        </div>
-    </section>
-
-    <section class="section" id="features">
-        <h2>What is included</h2>
-        <p class="lead">The everyday workflows that carry daily use, grouped so you can see the shape at a
-            glance.</p>
-        <div class="groups">
-            <div class="group">
-                <h3>📥 Mail</h3>
-                <ul>
-                    <li>Multiple accounts, each a separate inbox, with send-as addresses</li>
-                    <li>An optional unified mailbox that merges every inbox into one list, each row dotted
-                        with its account's colour</li>
-                    <li>Undo send holds each message for a few configurable seconds with a countdown toast</li>
-                    <li>Send later from presets or an exact time; the message waits in the Outbox with
-                        Cancel send and leaves while the app runs or at the next launch after that time</li>
-                    <li>Snooze hides a message until a chosen time then returns it untouched with a
-                        notification</li>
-                    <li>Rich-text compose with To, Cc and Bcc, per-account signatures, reply, reply-all and
-                        forward</li>
-                    <li>Attach files or forward a message as an attachment</li>
-                    <li>Reusable message templates and a local crash autosave</li>
-                    <li>Colour tags that sync across devices as IMAP keywords, plus read, star and junk marks</li>
-                    <li>Nested folders you create and reorganise by drag, with on-arrival filter rules</li>
-                    <li>Instant new mail over IMAP IDLE, a desktop notification and a taskbar badge</li>
-                    <li>Registers as your system's default email app on Windows, macOS and Linux, so a
-                        mailto: link on a web page opens a new message here, ready addressed</li>
-                    <li>Print a message through the system print dialog</li>
-                </ul>
-            </div>
-            <div class="group">
-                <h3>📅 Calendar</h3>
-                <ul>
-                    <li>Month, week and day views</li>
-                    <li>Recurring events with per-event time zones</li>
-                    <li>Nine emoji event categories that label each event across the month, week and day
-                        views, so your week reads at a glance</li>
-                    <li>On-screen reminders when an event is due</li>
-                    <li>.ics round-trip with Outlook and Thunderbird</li>
-                    <li>Meeting invites over iTIP and iMIP with accept, tentative and decline</li>
-                    <li>Teams, Meet, Zoom and Webex join links open in your browser</li>
-                    <li>Early two-way CalDAV sync with a calendar server over an app password, server-wins
-                        on conflict</li>
-                </ul>
-            </div>
-            <div class="group">
-                <h3>📇 Contacts</h3>
-                <ul>
-                    <li>A local address book with postal addresses and birthdays</li>
-                    <li>vCard import and export at full fidelity, keeping postal addresses and birthdays
-                        (round-trips with Thunderbird; single contacts with Outlook)</li>
-                    <li>CSV import and export for names, emails and phone numbers, the fields Outlook's
-                        bulk CSV carries</li>
-                </ul>
-            </div>
-        </div>
-    </section>
-
-    <section class="section" id="why">
-        <h2>Why I built it</h2>
-        <p class="lead">I wanted a desktop client that was free, dependable and laid out the way I actually
-            work. The mainstream options did not fit. Outlook 365 wanted a subscription. Thunderbird is free
-            and open but community-governed, so a bug I hit waits in someone else's queue and the things I
-            reach for most are buried. PigeonPost is my answer: GPL-3.0 and free, a calm predictable
-            interface where everything is easy to find. Oliver Ernster.</p>
-        <div class="grid">
-            <div class="card">
-                <div class="ico">✅</div>
-                <h3>Tested to the last line</h3>
-                <p>The core logic carries a 100% test-coverage gate. The build fails if a single untested
-                    line lands.</p>
+                <div class="ico">🧭</div>
+                <h3><a href="features.html">Features</a></h3>
+                <p>Everything included: mail, calendar and contacts, instant offline search and a look
+                    inside the everyday windows.</p>
             </div>
             <div class="card">
-                <div class="ico">🧱</div>
-                <h3>Architecture that holds</h3>
-                <p>A clean layered core whose boundaries are enforced by automated structural tests, not by
-                    good intentions, so the design cannot quietly erode as features land.</p>
+                <div class="ico">🕊️</div>
+                <h3><a href="why.html">Why</a></h3>
+                <p>Why this exists, how it is engineered, an honest comparison with Thunderbird and
+                    Outlook and the calm promise.</p>
             </div>
-            <div class="card">
-                <div class="ico">🔍</div>
-                <h3>Checked on every change</h3>
-                <p>Formatting, vetting and a strict static analyser run clean across the Go codebase, so
-                    problems are caught before they ship.</p>
-            </div>
-            <div class="card">
-                <div class="ico">🪶</div>
-                <h3>Open and forkable</h3>
-                <p>GPL-3.0 with the full source on GitHub. If it ever stalls, anyone can read it, fork it or
-                    carry it on, with credit to the original author retained. Nothing about your mail
-                    depends on me being here.</p>
-            </div>
-        </div>
-    </section>
-
-    <section class="section" id="compare">
-        <h2>An honest comparison with Thunderbird and Outlook</h2>
-        <p class="lead">Where PigeonPost sits next to two clients you may be leaving. Both are good tools.
-            This stays factual, including where PigeonPost is behind.</p>
-        <div class="compare-scroll">
-            <table class="compare">
-                <thead>
-                    <tr>
-                        <th></th>
-                        <th class="pp">PigeonPost</th>
-                        <th>Thunderbird</th>
-                        <th>Outlook 365</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr>
-                        <td class="rowlabel">Price</td>
-                        <td class="pp">Free, GPL-3.0</td>
-                        <td>Free, open source</td>
-                        <td>Subscription</td>
-                    </tr>
-                    <tr>
-                        <td class="rowlabel">Platforms</td>
-                        <td class="pp">Windows, macOS (Apple Silicon) and Linux</td>
-                        <td>Windows, macOS and Linux</td>
-                        <td>Windows, macOS and web</td>
-                    </tr>
-                    <tr>
-                        <td class="rowlabel">Where your mail lives</td>
-                        <td class="pp">With your provider and cached on your machine</td>
-                        <td>On your server, cached locally</td>
-                        <td>Account and server based</td>
-                    </tr>
-                    <tr>
-                        <td class="rowlabel">Works offline</td>
-                        <td class="pp">Yes, cached and searchable</td>
-                        <td>Yes</td>
-                        <td>Yes, cached</td>
-                    </tr>
-                    <tr>
-                        <td class="rowlabel">Search</td>
-                        <td class="pp">Local, instant, offline</td>
-                        <td>Local global index</td>
-                        <td>Local and online index</td>
-                    </tr>
-                    <tr>
-                        <td class="rowlabel">Cost of leaving</td>
-                        <td class="pp">None, your mail stays with your provider</td>
-                        <td>Low, standard protocols</td>
-                        <td>Account based</td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
-    </section>
-
-    <section class="section" id="promise">
-        <h2>A calm promise</h2>
-        <p class="lead">Some things PigeonPost will not do, on purpose. Calm and predictable is the whole
-            point, so these stay off the table.</p>
-        <ul class="promise-list">
-            <li><b>No ads.</b> Not now, not later.</li>
-            <li><b>No ambient AI reading or reordering your mail.</b> Anything AI is opt-in and on demand,
-                never silent.</li>
-            <li><b>No engagement mechanics.</b> No feeds, no nudges, no streaks.</li>
-            <li><b>No hosted PigeonPost account or relay.</b> The absence of a cloud in between is the point,
-                not a gap to fill.</li>
-        </ul>
-    </section>
-
-    <section class="section" id="who">
-        <h2>Who it is for and who it is not</h2>
-        <p class="lead">Honest fit, so the right person trials it and the wrong person is not misled.</p>
-        <div class="grid two">
-            <div class="card forlist yes">
-                <h3>For you if</h3>
-                <ul>
-                    <li>You use IMAP or POP3, whether that is self-hosted, your ISP, Fastmail or a corporate
-                        server</li>
-                    <li>You use Gmail, iCloud, Yahoo, Zoho, Fastmail or StartMail and can add an app
-                        password</li>
-                    <li>You use a personal Microsoft account (Outlook.com, Hotmail, Live or Microsoft 365)
-                        through Microsoft sign-in</li>
-                </ul>
-            </div>
-            <div class="card forlist no">
-                <h3>Not for you if</h3>
-                <ul>
-                    <li>You only ever want webmail with no desktop install</li>
-                    <li>You have a Google Workspace work or school account, which is OAuth-only so an app
-                        password will not work</li>
-                </ul>
-            </div>
-        </div>
-        <div class="stack">
-            <span class="chip">Go core</span>
-            <span class="chip">React front end</span>
-            <span class="chip">Wails</span>
-            <span class="chip">SQLite, local-first</span>
-            <span class="chip">OS keychain</span>
-            <span class="chip">GPL-3.0</span>
         </div>
     </section>
 
@@ -531,5 +171,25 @@
         </span>
     </footer>
 </div>
+
+<script>
+    // The site was one long page; these anchors now live on their own pages.
+    // Old deep links (bookmarks, shared URLs) land here first and hop across.
+    (function () {
+        var moved = {
+            '#switch': 'switching.html#switch',
+            '#worries': 'switching.html#worries',
+            '#search': 'features.html#search',
+            '#look': 'features.html#look',
+            '#features': 'features.html#features',
+            '#why': 'why.html#why',
+            '#compare': 'why.html#compare',
+            '#promise': 'why.html#promise',
+            '#who': 'why.html#who'
+        };
+        var target = moved[window.location.hash];
+        if (target) { window.location.replace(target); }
+    })();
+</script>
 </body>
 </html>
