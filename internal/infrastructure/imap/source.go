@@ -5,12 +5,20 @@ import (
 	"fmt"
 	"net"
 	"strconv"
+	"time"
 
 	"github.com/emersion/go-imap/v2"
 	"github.com/emersion/go-imap/v2/imapclient"
 
 	"github.com/oernster/pigeonpost/internal/domain"
 )
+
+// dialTimeout bounds how long a connection to a mail server may take (DNS resolution plus the TCP and
+// TLS handshake). Without it the client library falls back to a 30 second wait, long enough that an
+// action taken while offline appears to hang the app; 10 seconds is ample for any reachable server while
+// failing fast enough to surface a clear "you may be offline" message. It replaces the library default,
+// so it governs the one-shot fetch and action connections and the long-lived IDLE watcher alike.
+const dialTimeout = 10 * time.Second
 
 // parseUID converts an opaque message handle back into the numeric IMAP UID the server expects. On
 // IMAP the handle is the UID held as a decimal string, so a value that is not a uint32 is a
@@ -46,6 +54,15 @@ func NewSource(passwords PasswordProvider, tokens TokenProvider, clock domain.Cl
 // dial failure is wrapped with ErrOffline so a caller can treat the server as unreachable.
 func dial(incoming domain.ServerConfig, options *imapclient.Options) (*imapclient.Client, error) {
 	address := net.JoinHostPort(incoming.Host(), strconv.Itoa(incoming.Port()))
+	// Bound the connection attempt so an action taken while offline fails fast rather than hanging on the
+	// library's 30 second default. A caller that supplies its own options (the IDLE watcher) keeps its
+	// other settings; only an absent dialer is filled in, never an explicit one.
+	if options == nil {
+		options = &imapclient.Options{}
+	}
+	if options.Dialer == nil {
+		options.Dialer = &net.Dialer{Timeout: dialTimeout}
+	}
 	var (
 		client *imapclient.Client
 		err    error

@@ -103,7 +103,9 @@ export function useBulkActions(deps: BulkActionsDeps): BulkActions {
             removeIdsFromLists(new Set(result.ids))
             recordBulkMove('move', result.ids, result.newIds, sources, destFolderId)
             if (result.error) {
-                setError(`${result.failed} of ${ids.length} messages could not be moved: ${result.error}`)
+                setError(result.offline
+                    ? result.error
+                    : `${result.failed} of ${ids.length} messages could not be moved: ${result.error}`)
             }
             if (result.ids.length > 0) {
                 // Pull the destination's listing at once so the moved messages appear there (and
@@ -165,7 +167,9 @@ export function useBulkActions(deps: BulkActionsDeps): BulkActions {
                 recordBulkMove('delete', result.ids, result.newIds, sources, '')
             }
             if (result.error) {
-                setError(`${result.failed} of ${targets.length} messages could not be deleted: ${result.error}`)
+                setError(result.offline
+                    ? result.error
+                    : `${result.failed} of ${targets.length} messages could not be deleted: ${result.error}`)
             }
         } catch (e) {
             setError(`Bulk delete failed: ${String(e)}`)

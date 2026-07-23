@@ -111,7 +111,9 @@ export function useMessageClipboard(deps: MessageClipboardDeps): MessageClipboar
                 undo.push({kind: 'move', flavour: 'move', items, destFolderId})
             }
             if (result.error) {
-                setError(`${result.failed} of ${taken.length} messages could not be pasted: ${result.error}`)
+                setError(result.offline
+                    ? result.error
+                    : `${result.failed} of ${taken.length} messages could not be pasted: ${result.error}`)
             }
             await syncDestination(destFolderId)
             await Promise.all([loadUnread(), refreshFolders()])

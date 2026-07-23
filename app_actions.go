@@ -30,13 +30,13 @@ func (a *App) MarkForwarded(messageID string) error {
 // hold in Trash where the server reported it, so the front end can offer an undo.
 func (a *App) DeleteMessage(messageID string) (MoveResultDTO, error) {
 	newID, err := a.actions.Delete(a.ctx, messageID)
-	return MoveResultDTO{NewId: newID}, err
+	return MoveResultDTO{NewId: newID}, friendlyMailError(err)
 }
 
 // DeleteMessagePermanent removes a message immediately and irreversibly, without moving it to Trash,
 // regardless of which folder it lives in. The local cache is updated to match.
 func (a *App) DeleteMessagePermanent(messageID string) error {
-	return a.actions.DeletePermanent(a.ctx, messageID)
+	return friendlyMailError(a.actions.DeletePermanent(a.ctx, messageID))
 }
 
 // DeleteMessages removes several messages in one batched pass per folder, far faster than a call per
@@ -73,7 +73,8 @@ func (a *App) MoveMessages(ids []string, destFolderID string) BulkResultDTO {
 func bulkResult(requested, acted []string, newIDs map[string]string, err error) BulkResultDTO {
 	result := BulkResultDTO{Ids: acted, Failed: len(requested) - len(acted), NewIds: newIDs}
 	if err != nil {
-		result.Error = err.Error()
+		result.Offline = isOffline(err)
+		result.Error = friendlyMailError(err).Error()
 	}
 	return result
 }
@@ -83,7 +84,7 @@ func bulkResult(requested, acted []string, newIDs map[string]string, err error) 
 // an undo.
 func (a *App) MoveMessage(messageID, destFolderID string) (MoveResultDTO, error) {
 	newID, err := a.actions.Move(a.ctx, messageID, destFolderID)
-	return MoveResultDTO{NewId: newID}, err
+	return MoveResultDTO{NewId: newID}, friendlyMailError(err)
 }
 
 // MarkJunk moves a message to the account's Junk folder, filing it out of the inbox as spam. It returns
@@ -91,7 +92,7 @@ func (a *App) MoveMessage(messageID, destFolderID string) (MoveResultDTO, error)
 // the id the message will hold in Junk where the server reported it, so the front end can offer an undo.
 func (a *App) MarkJunk(messageID string) (MoveResultDTO, error) {
 	newID, err := a.actions.MarkJunk(a.ctx, messageID)
-	return MoveResultDTO{NewId: newID}, err
+	return MoveResultDTO{NewId: newID}, friendlyMailError(err)
 }
 
 // MarkNotJunk rescues a message from the account's Junk folder back to its Inbox, clearing the junk
@@ -100,7 +101,7 @@ func (a *App) MarkJunk(messageID string) (MoveResultDTO, error) {
 // reported it, so the front end can offer an undo.
 func (a *App) MarkNotJunk(messageID string) (MoveResultDTO, error) {
 	newID, err := a.actions.MarkNotJunk(a.ctx, messageID)
-	return MoveResultDTO{NewId: newID}, err
+	return MoveResultDTO{NewId: newID}, friendlyMailError(err)
 }
 
 // CopyMessage duplicates a message into another folder in the same account, leaving the original.
@@ -108,5 +109,5 @@ func (a *App) MarkNotJunk(messageID string) (MoveResultDTO, error) {
 // so the front end can show the pasted copy ahead of the sync.
 func (a *App) CopyMessage(messageID, destFolderID string) (MoveResultDTO, error) {
 	newID, err := a.actions.Copy(a.ctx, messageID, destFolderID)
-	return MoveResultDTO{NewId: newID}, err
+	return MoveResultDTO{NewId: newID}, friendlyMailError(err)
 }

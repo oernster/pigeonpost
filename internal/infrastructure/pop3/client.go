@@ -15,6 +15,7 @@ import (
 	"net/textproto"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/oernster/pigeonpost/internal/domain"
 )
@@ -27,6 +28,12 @@ const (
 	responseFields = 2
 	// topHeaderLines is the body-line count passed to TOP to fetch headers only.
 	topHeaderLines = 0
+	// dialTimeout bounds DNS resolution plus the TCP (and TLS) handshake when connecting to a POP3
+	// server. The standard library's net.Dial and tls.Dial impose no timeout of their own, so without
+	// this a connection attempt made while offline can block for the operating system's full TCP
+	// timeout; 10 seconds is ample for any reachable server while failing fast enough to report a clear
+	// offline message.
+	dialTimeout = 10 * time.Second
 )
 
 // Client is a minimal POP3 client over a single connection. It is not safe for concurrent use; each
@@ -53,11 +60,14 @@ func dial(incoming domain.ServerConfig) (*Client, error) {
 		conn net.Conn
 		err  error
 	)
+	// Bound the connection attempt so a fetch taken while offline fails fast rather than blocking on the
+	// operating system's TCP timeout (net.Dial and tls.Dial impose none of their own).
+	dialer := &net.Dialer{Timeout: dialTimeout}
 	switch incoming.Security() {
 	case domain.SecurityStartTLS, domain.SecurityNone:
-		conn, err = net.Dial("tcp", address)
+		conn, err = dialer.Dial("tcp", address)
 	default:
-		conn, err = tls.Dial("tcp", address, nil)
+		conn, err = tls.DialWithDialer(dialer, "tcp", address, nil)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("pop3: dial %s: %w", address, errors.Join(err, domain.ErrOffline))

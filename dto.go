@@ -49,6 +49,10 @@ type BulkResultDTO struct {
 	Ids    []string `json:"ids"`
 	Failed int      `json:"failed"`
 	Error  string   `json:"error"`
+	// Offline is true when the batch failed because the mail server could not be reached, so the front
+	// end shows the plain connectivity message on its own rather than wrapping the technical error text
+	// in a "N of M could not be ..." line.
+	Offline bool `json:"offline"`
 	// NewIds maps each acted-on id to the id the message carries in its destination folder, where
 	// the server reported one (COPYUID). The front end uses it to build undo entries; a permanent
 	// deletion or a server that reports nothing contributes no entry.
