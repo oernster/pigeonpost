@@ -28,6 +28,10 @@ vi.mock('../api', () => ({
     },
 }))
 
+const editorSpies = vi.hoisted(() => ({
+    options: undefined as {autofocus?: string} | undefined,
+}))
+
 vi.mock('@tiptap/react', () => {
     const chain = () => {
         const c: Record<string, () => unknown> = {}
@@ -46,7 +50,13 @@ vi.mock('@tiptap/react', () => {
         getAttributes: () => ({}),
         chain,
     }
-    return {useEditor: () => editor, EditorContent: () => null}
+    return {
+        useEditor: (options: {autofocus?: string}) => {
+            editorSpies.options = options
+            return editor
+        },
+        EditorContent: () => null,
+    }
 })
 
 type ComposeProps = ComponentProps<typeof ComposeModal>
@@ -96,6 +106,12 @@ describe('ComposeModal: basics', () => {
         renderCompose({initial: {to: 'x@y.com', subject: 'Hello'}})
         expect(screen.getByPlaceholderText(TO_PLACEHOLDER)).toHaveValue('x@y.com')
         expect(screen.getByDisplayValue('Hello')).toBeInTheDocument()
+    })
+
+    it('puts initial focus at the start of the body, not the To field', () => {
+        const {toInput} = renderCompose()
+        expect(editorSpies.options?.autofocus).toBe('start')
+        expect(document.activeElement).not.toBe(toInput())
     })
 
     it('shows the From dropdown only with more than one sender', () => {

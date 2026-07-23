@@ -118,6 +118,9 @@ export function ComposeModal({accountId, senders, initial, canSaveDraft, onMarkR
     const editor = useEditor({
         extensions: [StarterKit, Link.configure({openOnClick: false, autolink: true, linkOnPaste: true})],
         content: initial?.bodyHtml ?? '',
+        // Initial focus is the top of the body, not the To field: a reply, reply-all or forward opens
+        // ready to type above the quoted text, and a fresh compose reaches To with one Shift+Tab.
+        autofocus: 'start',
         onUpdate: () => noteEditRef.current(),
         editorProps: {
             // Ctrl+Enter (Cmd+Enter on macOS) sends. Returning true stops TipTap from also inserting its
@@ -385,7 +388,7 @@ export function ComposeModal({accountId, senders, initial, canSaveDraft, onMarkR
                     <input value={to} onChange={(e) => {
                         autosave.markDirty()
                         setTo(e.target.value)
-                    }} autoFocus
+                    }}
                            placeholder="name@example.com, other@example.com"/>
                 </label>
                 <label className="field">
