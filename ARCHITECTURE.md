@@ -222,7 +222,7 @@ content (debounced, once the user has edited it) to a single-row local slot thro
 server; on the next launch the UI offers to restore it; sending, saving a server draft or discarding
 it clears the slot.
 
-Offline outbox: the SMTP and IMAP adapters wrap a failed dial with the `ErrOffline` sentinel. When the
+Offline outbox: the SMTP, IMAP and POP3 adapters wrap a failed dial with the `ErrOffline` sentinel. When the
 compose use case sees `ErrOffline` from a send or a draft append, instead of failing it queues the
 operation through the `OutboxStore` port (the `outbox` table, which also carries Bcc and
 attachments so a queued message keeps them on replay) and returns success; the UI surfaces the
@@ -230,7 +230,13 @@ queue as a per-account outbox folder where the waiting messages can be reviewed 
 next successful sync the UI calls replay, which drains the queue oldest-first: each item is re-sent or
 re-appended, removed on success, left in place if still offline, and dropped (with its error reported)
 if it can never succeed. A replayed send keeps the same best-effort Sent copy a direct send leaves. The
-queue covers outgoing mail only; message flag/delete/move actions remain online-only by design.
+queue covers outgoing mail only; message flag/delete/move actions remain online-only by design. Every
+connection attempt is bounded by a short dial timeout (DNS plus the TCP and TLS handshake), so an action
+taken while offline fails within seconds rather than blocking on the client library's or the operating
+system's default wait. Because the online-only actions cannot be queued, their `ErrOffline` is translated
+once at the Wails facade into a plain, user-facing message (the technical dial detail never reaches the
+interface); a batched action carries an offline flag alongside its error so the front end shows that
+message on its own rather than wrapping it in a "N of M could not be ..." line.
 
 Undo send: every send passes through `ComposeService.HoldSend` with the user's undo window (a Mail-menu
 choice of 0 to 30 seconds, default 10, persisted locally). A positive window queues the message in the
