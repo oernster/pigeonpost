@@ -29,6 +29,75 @@ export interface FileIntakePlan {
     attach: File[]
 }
 
+// FileTransfer is the slice of DataTransfer the intake reads, named so tests can hand in plain
+// objects.
+export interface FileTransfer {
+    files?: ArrayLike<File>
+    items?: ArrayLike<{kind: string; getAsFile(): File | null}>
+    getData?(format: string): string
+}
+
+// transferFiles collects the File objects a paste or drop carries, reading both surfaces the
+// engines use: Chromium fills files; WebKit (Safari and the macOS Wails webview) has historically
+// exposed pasted image data only through items, leaving files empty. items is the fallback, read
+// only when files is empty so no engine double-counts.
+export function transferFiles(dt: FileTransfer | null): File[] {
+    if (!dt) {
+        return []
+    }
+    const files = Array.from(dt.files ?? [])
+    if (files.length > 0) {
+        return files
+    }
+    const out: File[] = []
+    for (const item of Array.from(dt.items ?? [])) {
+        if (item.kind === 'file') {
+            const file = item.getAsFile()
+            if (file) {
+                out.push(file)
+            }
+        }
+    }
+    return out
+}
+
+// transferFilePaths reads the file paths a paste carries as file:// URIs (text/uri-list). WebKit
+// never exposes a Finder-copied file as a File object in a paste event; where it exposes anything,
+// it is the file's URI. Those paths ride the existing path-based attachment flow (the backend reads
+// them from disk at send time), so a Finder copy-paste attaches like a picked file.
+export function transferFilePaths(dt: FileTransfer | null): string[] {
+    const raw = dt?.getData?.('text/uri-list') ?? ''
+    const out: string[] = []
+    for (const line of raw.split(/\r?\n/)) {
+        const path = fileURIToPath(line.trim())
+        if (path !== '') {
+            out.push(path)
+        }
+    }
+    return out
+}
+
+// fileURIToPath converts one file:// URI into a local filesystem path, or '' for anything else
+// (a comment line, a remote URL). The host part is empty or localhost by RFC 8089; a Windows path
+// arrives as file:///C:/... whose leading slash is dropped.
+function fileURIToPath(uri: string): string {
+    const lower = uri.toLowerCase()
+    let rest: string
+    if (lower.startsWith('file://localhost/')) {
+        rest = uri.slice('file://localhost'.length)
+    } else if (lower.startsWith('file:///')) {
+        rest = uri.slice('file://'.length)
+    } else {
+        return ''
+    }
+    const decoded = decodeURIComponent(rest)
+    // file:///C:/dir/x.pdf denotes the Windows path C:/dir/x.pdf; the leading slash is the URI's.
+    if (/^\/[A-Za-z]:/.test(decoded)) {
+        return decoded.slice(1)
+    }
+    return decoded
+}
+
 // planFileIntake applies the intake rule to a pasted or dropped file list: an image file embeds, any
 // other file attaches.
 export function planFileIntake(files: readonly File[]): FileIntakePlan {

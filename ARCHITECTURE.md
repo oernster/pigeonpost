@@ -217,8 +217,9 @@ original To and Cc:
    incoming cid becomes data: for display, outgoing data: becomes cid on the wire.
    Bcc recipients are added to the SMTP envelope (de-duplicated with To and Cc) but never
    written to the headers. Attachments turn the body into `multipart/mixed`: files chosen
-   from disk, files pasted or dropped into the compose window (carried as bytes over the bridge,
-   since the webview has no filesystem path for them) plus, optionally, an existing message fetched
+   from disk, files pasted or dropped into the compose window (carried as bytes over the bridge
+   where the engine hands the page File objects, or by path where a paste exposes only file://
+   URIs, as WebKit does for Finder-copied files) plus, optionally, an existing message fetched
    as a `message/rfc822` part, bounded by a total-size cap in the facade that counts embedded images
    too.
 

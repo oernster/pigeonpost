@@ -163,6 +163,38 @@ describe('ComposeModal: paste and drop intake', () => {
         expect(screen.queryByTitle('report.pdf')).toBeNull()
     })
 
+    it('embeds an image arriving only through clipboard items (WebKit paste shape)', async () => {
+        renderCompose()
+        const png = new File([new Uint8Array([137, 80])], 'shot.png', {type: 'image/png'})
+        await act(async () => {
+            const handled = editorSpies.options.editorProps.handlePaste(null, {
+                clipboardData: {files: [], items: [{kind: 'file', getAsFile: () => png}]},
+            })
+            expect(handled).toBe(true)
+        })
+        await waitFor(() => expect(editorSpies.setImageCalls).toHaveLength(1))
+    })
+
+    it('attaches by path when the paste carries file URIs instead of File objects', async () => {
+        renderCompose()
+        await act(async () => {
+            const handled = editorSpies.options.editorProps.handlePaste(null, {
+                clipboardData: {
+                    files: [],
+                    getData: (format: string) =>
+                        format === 'text/uri-list' ? 'file:///Users/oliver/My%20Report.pdf' : '',
+                },
+            })
+            expect(handled).toBe(true)
+        })
+        expect(await screen.findByTitle('/Users/oliver/My Report.pdf')).toBeInTheDocument()
+
+        fireEvent.change(screen.getByPlaceholderText(TO_PLACEHOLDER), {target: {value: 'a@b.com'}})
+        fireEvent.click(screen.getByRole('button', {name: 'Send'}))
+        await waitFor(() => expect(apiSpies.send).toHaveBeenCalled())
+        expect(apiSpies.send.mock.calls[0][0].attachmentPaths).toEqual(['/Users/oliver/My Report.pdf'])
+    })
+
     it('takes a drop on the modal outside the editor', async () => {
         renderCompose()
         const pdf = new File([new Uint8Array([3])], 'dropped.pdf', {type: 'application/pdf'})

@@ -171,9 +171,14 @@ export function ComposeModal({accountId, senders, initial, canSaveDraft, onMarkR
     })
 
     // The paste and drop intake (images embed, other files attach) is the shared hook; its take is
-    // bridged through intakeRef because the editor is built once (above) before this runs.
+    // bridged through intakeRef because the editor is built once (above) before this runs. A paste
+    // that carries file paths rather than File objects attaches by path, deduped like the picker.
     const intake = useComposeIntake({
-        editor, setError, markDirty: autosave.markDirty, initial: initial?.attachmentData,
+        editor,
+        setError,
+        markDirty: autosave.markDirty,
+        addPaths: (paths) => setAttachments((prev) => [...prev, ...paths.filter((p) => !prev.includes(p))]),
+        initial: initial?.attachmentData,
     })
     intakeRef.current = intake.take
 

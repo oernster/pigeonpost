@@ -8,6 +8,8 @@ import {
     intakeSize,
     MAX_TOTAL_ATTACHMENT_BYTES,
     planFileIntake,
+    transferFilePaths,
+    transferFiles,
 } from './composeIntake'
 
 const png = new File([new Uint8Array([137, 80, 78, 71, 1, 2, 3])], 'shot.png', {type: 'image/png'})
@@ -24,6 +26,49 @@ describe('planFileIntake', () => {
 
     it('handles an empty list', () => {
         expect(planFileIntake([])).toEqual({embed: [], attach: []})
+    })
+})
+
+describe('transferFiles', () => {
+    it('prefers the files list when the engine fills it', () => {
+        expect(transferFiles({files: [png], items: []})).toEqual([png])
+    })
+
+    it('falls back to file items when files is empty (WebKit pasted images)', () => {
+        const items = [
+            {kind: 'string', getAsFile: () => null},
+            {kind: 'file', getAsFile: () => png},
+            {kind: 'file', getAsFile: () => null},
+        ]
+        expect(transferFiles({files: [], items})).toEqual([png])
+    })
+
+    it('is empty for a missing transfer or surfaces', () => {
+        expect(transferFiles(null)).toEqual([])
+        expect(transferFiles({})).toEqual([])
+    })
+})
+
+describe('transferFilePaths', () => {
+    it('converts file URIs to local paths, decoding and handling drive letters', () => {
+        const dt = {getData: (format: string) => format === 'text/uri-list'
+            ? 'file:///Users/oliver/My%20Report.pdf\r\nfile:///C:/docs/notes.txt\nfile://localhost/tmp/x.bin'
+            : ''}
+        expect(transferFilePaths(dt)).toEqual([
+            '/Users/oliver/My Report.pdf',
+            'C:/docs/notes.txt',
+            '/tmp/x.bin',
+        ])
+    })
+
+    it('ignores comments, remote URLs and blank lines', () => {
+        const dt = {getData: () => '# comment\r\nhttps://example.org/a.pdf\r\n\r\nfile:///ok.txt'}
+        expect(transferFilePaths(dt)).toEqual(['/ok.txt'])
+    })
+
+    it('is empty without a transfer or a getData surface', () => {
+        expect(transferFilePaths(null)).toEqual([])
+        expect(transferFilePaths({})).toEqual([])
     })
 })
 
