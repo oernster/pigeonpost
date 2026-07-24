@@ -1,3 +1,45 @@
+/* The contacts dialog is wider than the default modal so the address book can lay out as a grid of
+   cards rather than one long column. */
+.modal.contacts {
+    width: min(960px, 94vw);
+    max-width: none;
+}
+
+/* The address book as a three-column card grid; each card stays a .list-item so the shared hover
+   and text styles apply unchanged. On a narrow window the columns collapse before they crush. */
+.contacts-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+}
+
+@media (max-width: 720px) {
+    .contacts-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+.contacts-grid .list-item {
+    min-width: 0;
+}
+
+/* The automatic add-recipients-to-contacts toggle, sitting under the dialog hint. */
+.auto-collect-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 2px 0 10px;
+    font-size: 13px;
+    color: var(--text);
+    cursor: pointer;
+}
+
+/* A right-hand grouping inside a spread action row (Delete contact beside Save). */
+.action-group {
+    display: flex;
+    gap: 10px;
+}
+
 /* Contact-group filter bar: compact chips that filter the address book by group, plus the group
    management actions. Chips wrap, and the spacer pushes the management actions to the right. */
 .cg-bar {

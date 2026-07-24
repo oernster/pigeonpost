@@ -33,6 +33,7 @@ import {
     MessageTags,
     MinimiseToTray,
     RequestQuit,
+    CollectContacts,
     CopyMessage,
     CreateFolder,
     DeleteCalendar,
@@ -533,6 +534,9 @@ export const api = {
     getContact: (id: string): Promise<Contact> => GetContact(id),
     saveContact: (req: ContactInput): Promise<void> => SaveContact(main.ContactRequest.createFrom(req)),
     deleteContact: (id: string): Promise<void> => DeleteContact(id),
+    // collectContacts adds a minimal contact for each address not already in the address book,
+    // returning how many were added; called after a successful send when auto-collect is on.
+    collectContacts: (addresses: string[]): Promise<number> => CollectContacts(addresses),
     listContactGroups: (): Promise<ContactGroup[]> => ListContactGroups(),
     saveContactGroup: (req: ContactGroupInput): Promise<void> =>
         SaveContactGroup(main.ContactGroupRequest.createFrom(req)),

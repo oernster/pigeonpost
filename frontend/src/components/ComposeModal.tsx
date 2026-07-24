@@ -6,6 +6,7 @@ import Link from '@tiptap/extension-link'
 import Image from '@tiptap/extension-image'
 import {api, ComposeInput, Template} from '../api'
 import {DataAttachment} from '../composeIntake'
+import {AUTO_COLLECT_KEY, collectableRecipients, shouldAutoCollect} from '../autoCollect'
 import {useComposeIntake} from '../hooks/useComposeIntake'
 import {useContactPool} from '../hooks/useContactPool'
 import {RecipientField} from './RecipientField'
@@ -268,12 +269,27 @@ export function ComposeModal({accountId, senders, initial, canSaveDraft, onMarkR
     // waits in the Outbox with Cancel send: it shows no undo toast, and it does not mark a reply or
     // forward's original (a schedule cancelled days later must not have already flagged it; the glyph is
     // an accepted gap for scheduled sends).
+    // maybeCollectContacts adds the message's recipients to the address book after a successful
+    // send, when the automatic setting (on by default, toggled on the Contacts page) allows. The
+    // sender's own addresses are never collected. Fire-and-forget: collection must never disturb a
+    // send that has already succeeded.
+    const maybeCollectContacts = () => {
+        if (!shouldAutoCollect(window.localStorage.getItem(AUTO_COLLECT_KEY))) {
+            return
+        }
+        const recipients = collectableRecipients(to, cc, bcc, senders.map((s) => s.address))
+        if (recipients.length > 0) {
+            void api.collectContacts(recipients).catch(() => {})
+        }
+    }
+
     const send = async (at: Date | null) => {
         autosave.stopAutosave()
         setSending(true)
         setError('')
         try {
             const outboxId = await api.send(buildRequest(at))
+            maybeCollectContacts()
             if (at === null) {
                 if (outboxId === '') {
                     // Sent immediately: mark the original now, exactly as before undo-send existed.

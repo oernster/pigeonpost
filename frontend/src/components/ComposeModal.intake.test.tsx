@@ -13,6 +13,7 @@ const apiSpies = vi.hoisted(() => ({
     saveDraftRecovery: vi.fn(),
     pickAttachments: vi.fn(),
     listContacts: vi.fn(),
+    collectContacts: vi.fn(),
 }))
 
 vi.mock('../api', () => ({
@@ -23,6 +24,7 @@ vi.mock('../api', () => ({
         saveDraftRecovery: apiSpies.saveDraftRecovery,
         pickAttachments: apiSpies.pickAttachments,
         listContacts: apiSpies.listContacts,
+        collectContacts: apiSpies.collectContacts,
     },
 }))
 
@@ -89,6 +91,7 @@ beforeEach(() => {
     apiSpies.saveDraftRecovery.mockReset().mockResolvedValue(undefined)
     apiSpies.pickAttachments.mockReset().mockResolvedValue([])
     apiSpies.listContacts.mockReset().mockResolvedValue([])
+    apiSpies.collectContacts.mockReset().mockResolvedValue(0)
     editorSpies.setImageCalls = []
 })
 

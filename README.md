@@ -89,7 +89,9 @@ local-first. A calmer, more predictable alternative to Thunderbird.
   Webex). Early two-way CalDAV sync: a calendar-server account (app password) syncs events both ways,
   server-wins on conflict with the losing local edit kept as a copy.
 - **Contacts**: an address book with postal addresses and birthdays, plus vCard (.vcf) and CSV
-  import/export that round-trips with Outlook and Thunderbird. CSV import reads both exporters'
+  import/export that round-trips with Outlook and Thunderbird. People you email are added to the
+  address book automatically (a minimal contact per new recipient, ready to flesh out or delete),
+  with a toggle on the Contacts page to turn the collection off. CSV import reads both exporters'
   column conventions (including UK and US wording for regions and postcodes) and the encodings they
   actually write, so accented names survive. Importing the same export twice updates the contacts it
   matches instead of duplicating them, and a match is merged so an import never overwrites what you

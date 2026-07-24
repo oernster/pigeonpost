@@ -3,6 +3,7 @@ import {api, Contact, ContactInput, ContactEmailInput, ContactPhoneInput, Contac
 import {useBackdropDismiss} from './useBackdropDismiss'
 import {ModalClose} from './ModalClose'
 import {ConfirmDialog} from './ConfirmDialog'
+import {AUTO_COLLECT_KEY, autoCollectStored, shouldAutoCollect} from '../autoCollect'
 
 interface ContactsModalProps {
     contacts: Contact[]
@@ -110,6 +111,11 @@ export function ContactsModal({contacts, onChanged, onClose}: ContactsModalProps
 
     const set = <K extends keyof ContactForm>(key: K, value: ContactForm[K]) =>
         setForm((f) => (f ? {...f, [key]: value} : f))
+
+    // autoCollect mirrors the persisted add-recipients-to-contacts setting (on by default); the
+    // composer reads the same key at send time.
+    const [autoCollect, setAutoCollect] = useState(() =>
+        shouldAutoCollect(window.localStorage.getItem(AUTO_COLLECT_KEY)))
 
     const [groups, setGroups] = useState<ContactGroup[]>([])
     const [groupFilter, setGroupFilter] = useState('')
@@ -249,11 +255,19 @@ export function ContactsModal({contacts, onChanged, onClose}: ContactsModalProps
 
     return (
         <div className="modal-backdrop" {...dismiss}>
-            <div className="modal" role="dialog" aria-label="Contacts" onClick={(e) => e.stopPropagation()}>
+            <div className="modal contacts" role="dialog" aria-label="Contacts" onClick={(e) => e.stopPropagation()}>
                 <ModalClose onClose={onClose}/>
                 <h2 className="modal-title">Contacts</h2>
                 <p className="setup-hint">Your address book. Import and export use vCard or CSV, so contacts
                     round-trip with Outlook and Thunderbird.</p>
+                <label className="auto-collect-toggle">
+                    <input type="checkbox" checked={autoCollect}
+                           onChange={(e) => {
+                               setAutoCollect(e.target.checked)
+                               window.localStorage.setItem(AUTO_COLLECT_KEY, autoCollectStored(e.target.checked))
+                           }}/>
+                    <span>Add people you email to contacts automatically</span>
+                </label>
                 {error && <div className="compose-error">{error}</div>}
                 {status && <div className="setup-hint">{status}</div>}
 
@@ -292,7 +306,7 @@ export function ContactsModal({contacts, onChanged, onClose}: ContactsModalProps
                 {shownContacts.length === 0 ? (
                     <p className="empty-body">{activeGroup ? 'No contacts in this group yet.' : 'No contacts yet.'}</p>
                 ) : (
-                    <ul className="list">
+                    <ul className="list contacts-grid">
                         {shownContacts.map((c) => (
                             <li key={c.id} className="list-item">
                                 <span className="item-text" onClick={() => openContact(c)}>
@@ -304,14 +318,6 @@ export function ContactsModal({contacts, onChanged, onClose}: ContactsModalProps
                                         {c.emails && c.emails.length > 0 ? c.emails[0].address : c.organization}
                                     </span>
                                 </span>
-                                <button
-                                    className="account-action delete"
-                                    aria-label={`Delete ${c.formattedName}`}
-                                    title="Delete contact"
-                                    onClick={() => setPendingDelete(c)}
-                                >
-                                    &times;
-                                </button>
                             </li>
                         ))}
                     </ul>
@@ -389,10 +395,21 @@ export function ContactsModal({contacts, onChanged, onClose}: ContactsModalProps
                                   onChange={(e) => set('note', e.target.value)}/>
                         <div className="modal-actions spread">
                             <button className="btn" onClick={() => setForm(null)}>Cancel</button>
-                            <button className="btn primary" onClick={() => void save()}
-                                    disabled={busy || displayNameOf(form) === ''}>
-                                {busy ? 'Saving…' : (form.id ? 'Save changes' : 'Add contact')}
-                            </button>
+                            <div className="action-group">
+                                {form.id !== '' && (
+                                    <button className="btn danger"
+                                            onClick={() => {
+                                                const open = contacts.find((c) => c.id === form.id)
+                                                if (open) setPendingDelete(open)
+                                            }}>
+                                        Delete contact
+                                    </button>
+                                )}
+                                <button className="btn primary" onClick={() => void save()}
+                                        disabled={busy || displayNameOf(form) === ''}>
+                                    {busy ? 'Saving…' : (form.id ? 'Save changes' : 'Add contact')}
+                                </button>
+                            </div>
                         </div>
                     </div>
                 )}

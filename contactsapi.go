@@ -129,6 +129,13 @@ func (a *App) DeleteContact(id string) error {
 	return a.contacts.DeleteContact(a.ctx, id)
 }
 
+// CollectContacts adds a minimal contact for each address not already in the address book and
+// returns how many were added. The front end calls it after a successful send when the automatic
+// add-recipients-to-contacts setting is on.
+func (a *App) CollectContacts(addresses []string) (int, error) {
+	return a.contacts.CollectAddresses(a.ctx, addresses)
+}
+
 // ListContactGroups returns every contact group.
 func (a *App) ListContactGroups() ([]ContactGroupDTO, error) {
 	groups, err := a.contacts.ListGroups(a.ctx)

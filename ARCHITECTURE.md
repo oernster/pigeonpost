@@ -515,6 +515,13 @@ contact export/import (Outlook exports the address book as CSV, not vCard; Thund
 The pure decode/encode logic lives in these packages and is covered to 100%; only genuine file or OS
 edges are excluded.
 
+**Automatic collection.** `ContactService.CollectAddresses` adds a minimal contact (the address as
+its display name) for each given address not already anywhere in the address book, case-insensitively
+and best-effort: a malformed address is skipped, never an error. The front end calls it fire-and-forget
+after a successful send with the message's recipients (the sender's own addresses filtered out by the
+gated pure `autoCollect` module), gated by a locally persisted on-by-default setting toggled on the
+Contacts page. Collection is a side effect of sending, so it can never fail a send that succeeded.
+
 The `csv` package is split by concern because the two exporters agree on almost nothing: `mapping.go`
 holds the column-alias tables and the row-to-contact rules, `encoding.go` normalises input to UTF-8
 (neither exporter reliably writes it, and a byte-order mark left in place binds to the first header
