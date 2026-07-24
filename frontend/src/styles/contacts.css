@@ -19,7 +19,17 @@
     }
 }
 
+/* Each card is a row: the text block fills it and the edit pencil sits at the right edge,
+   bottom-aligned so it lines up with the email address line. */
 .contacts-grid .list-item {
+    min-width: 0;
+    flex-direction: row;
+    align-items: flex-end;
+    gap: 6px;
+}
+
+.contacts-grid .item-text {
+    flex: 1;
     min-width: 0;
 }
 

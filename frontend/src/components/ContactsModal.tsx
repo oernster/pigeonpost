@@ -350,7 +350,7 @@ export function ContactsModal({contacts, onChanged, onClose}: ContactsModalProps
                                    onChange={(e) => set('title', e.target.value)}/>
                         </div>
                         <div className="rule-form-row">
-                            <DateField kind="date" ariaLabel="Birthday" pickerTitle="Birthday"
+                            <DateField kind="date" ariaLabel="Birthday" pickerTitle="Birthday" compact
                                        value={form.birthday} onChange={(v) => set('birthday', v)}/>
                         </div>
 

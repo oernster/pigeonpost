@@ -1272,19 +1272,6 @@ function App() {
                     </div>
                 </div>
             )}
-            {closeChoice && (
-                <CloseChoiceDialog
-                    onMinimise={() => {
-                        setCloseChoice(false)
-                        void api.minimiseToTray()
-                    }}
-                    onQuit={() => {
-                        setCloseChoice(false)
-                        void api.requestQuit()
-                    }}
-                    onCancel={() => setCloseChoice(false)}
-                />
-            )}
             {composing && composeAccountId && (
                 <ComposeModal
                     accountId={composeAccountId}
@@ -1504,6 +1491,21 @@ function App() {
                     busy={folderBusy}
                     onConfirm={() => void confirmDeleteFolder()}
                     onCancel={() => setFolderToDelete(null)}
+                />
+            )}
+            {/* The close choice renders after every other overlay, so it surfaces on top of whatever
+                dialog is open when the window close button is pressed, never buried beneath one. */}
+            {closeChoice && (
+                <CloseChoiceDialog
+                    onMinimise={() => {
+                        setCloseChoice(false)
+                        void api.minimiseToTray()
+                    }}
+                    onQuit={() => {
+                        setCloseChoice(false)
+                        void api.requestQuit()
+                    }}
+                    onCancel={() => setCloseChoice(false)}
                 />
             )}
         </div>

@@ -607,6 +607,7 @@ export function ComposeModal({accountId, senders, initial, canSaveDraft, onMarkR
                             className="compose-schedule-input"
                             ariaLabel="Send at"
                             pickerTitle="Send date"
+                            compact
                             value={sendAtValue}
                             onChange={setSendAtValue}
                         />

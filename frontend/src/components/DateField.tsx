@@ -13,6 +13,9 @@ interface DateFieldProps {
     min?: string
     className?: string
     autoFocus?: boolean
+    // compact keeps the field at the input's intrinsic width instead of stretching to fill its row,
+    // for a field that sits alone on a row (the birthday) or in a packed row (send later).
+    compact?: boolean
     // onEnter lets a host dialog submit from the field (the snooze picker), matching the input it
     // replaces.
     onEnter?: () => void
@@ -21,7 +24,7 @@ interface DateFieldProps {
 // DateField is the app's date entry: the native input (typing stays first-class) plus a calendar
 // button that opens the themed DatePickerDialog instead of the engine's own minimal picker. Picking
 // a day merges just the date into the value, so a datetime field keeps the time already typed.
-export function DateField({kind, value, onChange, ariaLabel, pickerTitle, min, className, autoFocus, onEnter}: DateFieldProps) {
+export function DateField({kind, value, onChange, ariaLabel, pickerTitle, min, className, autoFocus, compact, onEnter}: DateFieldProps) {
     const [open, setOpen] = useState(false)
 
     const onKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
@@ -32,7 +35,7 @@ export function DateField({kind, value, onChange, ariaLabel, pickerTitle, min, c
     }
 
     return (
-        <div className="date-field">
+        <div className={compact ? 'date-field compact' : 'date-field'}>
             <input
                 className={className ?? 'tag-name-input'}
                 type={kind}

@@ -211,6 +211,18 @@
     flex: 1;
 }
 
+/* A compact DateField keeps the input's intrinsic width instead of stretching to fill its row: for
+   a field alone on a row (the birthday) or in a packed row (send later). */
+.date-field.compact {
+    flex: 0 0 auto;
+}
+
+.date-field.compact input {
+    flex: none;
+    width: auto;
+    padding-right: 34px;
+}
+
 .tag-palette {
     display: flex;
     flex-wrap: wrap;

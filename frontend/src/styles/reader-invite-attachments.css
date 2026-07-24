@@ -51,6 +51,18 @@
     z-index: 40;
 }
 
+/* A backdrop that must surface above every other open dialog, whatever the DOM order: the close
+   choice, which the window close button can raise while any dialog is open. */
+.modal-backdrop.top {
+    z-index: 60;
+}
+
+/* The unsaved-work callout on the close choice: visually a warning, not body text. */
+.close-work-warning {
+    border-left: 3px solid var(--accent);
+    padding-left: 10px;
+}
+
 .modal {
     position: relative;
     background-color: var(--bg);
