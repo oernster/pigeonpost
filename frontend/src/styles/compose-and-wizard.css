@@ -38,6 +38,17 @@
     cursor: pointer;
 }
 
+.compose-editor .ProseMirror img {
+    max-width: 100%;
+    height: auto;
+    display: block;
+    margin: 0 0 8px;
+}
+
+.compose-editor .ProseMirror img.ProseMirror-selectednode {
+    outline: 2px solid var(--accent);
+}
+
 .compose-link-row {
     display: flex;
     gap: 8px;

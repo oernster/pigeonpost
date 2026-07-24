@@ -3,7 +3,10 @@ import {useBackdropDismiss} from './useBackdropDismiss'
 import {EditorContent, useEditor} from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Link from '@tiptap/extension-link'
+import Image from '@tiptap/extension-image'
 import {api, ComposeInput, Template} from '../api'
+import {DataAttachment} from '../composeIntake'
+import {useComposeIntake} from '../hooks/useComposeIntake'
 import {ModalClose} from './ModalClose'
 import {ConfirmDialog} from './ConfirmDialog'
 import {basename, isValidAddress, normaliseUrl, splitAddresses} from '../composeAddresses'
@@ -52,6 +55,9 @@ export interface ComposeInitial {
     // attachmentPaths pre-attaches files by path, used when the Attach button picks files before opening a
     // fresh compose so the chosen files are already attached.
     attachmentPaths?: string[]
+    // attachmentData pre-attaches in-memory files (pasted or dropped, so the webview holds bytes with no
+    // path), used when an undone send reopens the compose exactly as it was.
+    attachmentData?: DataAttachment[]
     // inReplyToId and replyKind mark this compose as a reply or forward of an existing message, so once it is
     // sent the original can be flagged \Answered (reply / reply-all) or $Forwarded (forward). Both are unset
     // for a fresh compose, a restored draft or an attach-to-new-message.
@@ -114,9 +120,18 @@ export function ComposeModal({accountId, senders, initial, canSaveDraft, onMarkR
     // noteEditRef bridges the editor's onUpdate to the autosave (created below), for the same reason: the
     // editor is built once, but the autosave's noteEdit is recreated each render.
     const noteEditRef = useRef<() => void>(() => {})
+    // intakeRef bridges the editor's paste and drop handlers to the latest intakeFiles, again because the
+    // editor is built once while intakeFiles closes over per-render state.
+    const intakeRef = useRef<(dt: DataTransfer | null) => boolean>(() => false)
 
     const editor = useEditor({
-        extensions: [StarterKit, Link.configure({openOnClick: false, autolink: true, linkOnPaste: true})],
+        extensions: [
+            StarterKit,
+            Link.configure({openOnClick: false, autolink: true, linkOnPaste: true}),
+            // allowBase64 keeps a pasted image's data: URI in the document; the backend lifts it into a
+            // proper inline MIME part at send time.
+            Image.configure({allowBase64: true}),
+        ],
         content: initial?.bodyHtml ?? '',
         // Initial focus is the top of the body, not the To field: a reply, reply-all or forward opens
         // ready to type above the quoted text, and a fresh compose reaches To with one Shift+Tab.
@@ -133,6 +148,10 @@ export function ComposeModal({accountId, senders, initial, canSaveDraft, onMarkR
                 }
                 return false
             },
+            // Pasted or dropped files follow the intake rule: images embed at the cursor, other files
+            // attach. Returning true stops ProseMirror's own handling for the ones taken.
+            handlePaste: (_view, event) => intakeRef.current(event.clipboardData),
+            handleDrop: (_view, event) => intakeRef.current(event.dataTransfer),
         },
     })
 
@@ -151,6 +170,13 @@ export function ComposeModal({accountId, senders, initial, canSaveDraft, onMarkR
         to, cc, bcc, setTo, setCc, setBcc, setError, markDirty: autosave.markDirty,
     })
 
+    // The paste and drop intake (images embed, other files attach) is the shared hook; its take is
+    // bridged through intakeRef because the editor is built once (above) before this runs.
+    const intake = useComposeIntake({
+        editor, setError, markDirty: autosave.markDirty, initial: initial?.attachmentData,
+    })
+    intakeRef.current = intake.take
+
     // buildRequest packs the compose state for the backend. at is the send-later instant (null for an
     // immediate or undo-held send); it takes precedence over the undo window server-side.
     const buildRequest = (at: Date | null = null): ComposeInput => {
@@ -167,6 +193,7 @@ export function ComposeModal({accountId, senders, initial, canSaveDraft, onMarkR
             // Only carry an HTML alternative when the body is non-empty, so an empty message stays plain.
             htmlBody: text.trim() === '' ? '' : html,
             attachmentPaths: attachments,
+            attachmentData: intake.dataAttachments,
             attachmentMessageIds: messageAttachments.map((m) => m.id),
             holdSeconds,
             sendAtMs: at === null ? 0 : at.getTime(),
@@ -184,6 +211,7 @@ export function ComposeModal({accountId, senders, initial, canSaveDraft, onMarkR
         subject,
         bodyHtml: editor?.getHTML() ?? '',
         attachmentPaths: attachments,
+        attachmentData: intake.dataAttachments,
         messageAttachments,
         inReplyToId: initial?.inReplyToId,
         replyKind: initial?.replyKind,
@@ -264,7 +292,8 @@ export function ComposeModal({accountId, senders, initial, canSaveDraft, onMarkR
 
     // canSend mirrors the Send button's enabled state, so Ctrl+Enter behaves exactly like the button.
     const canSend = () => !sending && !savingDraft && to.trim() !== ''
-    const hasAttachments = () => attachments.length > 0 || messageAttachments.length > 0
+    const hasAttachments = () =>
+        attachments.length > 0 || intake.dataAttachments.length > 0 || messageAttachments.length > 0
     // mentionsAttachment reports whether the message the user actually wrote talks about attaching
     // something, so it can prompt a reminder before sending. It passes the editor HTML (not its plain
     // text) so bodyMentionsAttachment can strip the quoted reply or forward chain: an attachment mentioned
@@ -349,6 +378,17 @@ export function ComposeModal({accountId, senders, initial, canSaveDraft, onMarkR
     return (
         <div className="modal-backdrop" {...dismiss}>
             <div className="modal compose" role="dialog" aria-label="New message" onClick={(e) => e.stopPropagation()}
+                 onDragOver={(e) => e.preventDefault()}
+                 onDrop={(e) => {
+                     // Files dropped anywhere on the compose window follow the intake rule (images
+                     // embed, other files attach). A drop on the editor itself is handled by the
+                     // editor's own handleDrop, so it is skipped here rather than taken twice.
+                     if ((e.target as HTMLElement).closest('.ProseMirror')) {
+                         return
+                     }
+                     e.preventDefault()
+                     intakeRef.current(e.dataTransfer)
+                 }}
                  onKeyDownCapture={(e) => {
                      // The editor handles Ctrl+Enter itself (see editorProps); this covers the
                      // To, Cc, Bcc and Subject fields, where there is no editor to intercept it.
@@ -476,7 +516,7 @@ export function ComposeModal({accountId, senders, initial, canSaveDraft, onMarkR
                     <button type="button" className="btn" onClick={() => void addAttachments()}>
                         Attach files
                     </button>
-                    {(attachments.length > 0 || messageAttachments.length > 0) && (
+                    {hasAttachments() && (
                         <ul className="attachment-list">
                             {attachments.map((path) => (
                                 <li key={path} className="attachment-chip">
@@ -486,6 +526,19 @@ export function ComposeModal({accountId, senders, initial, canSaveDraft, onMarkR
                                         className="attachment-remove"
                                         aria-label={`Remove ${basename(path)}`}
                                         onClick={() => removeAttachment(path)}
+                                    >
+                                        &times;
+                                    </button>
+                                </li>
+                            ))}
+                            {intake.dataAttachments.map((a, index) => (
+                                <li key={`${index}-${a.name}`} className="attachment-chip">
+                                    <span className="attachment-name" title={a.name}>{a.name}</span>
+                                    <button
+                                        type="button"
+                                        className="attachment-remove"
+                                        aria-label={`Remove ${a.name}`}
+                                        onClick={() => intake.remove(index)}
                                     >
                                         &times;
                                     </button>

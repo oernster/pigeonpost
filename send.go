@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/base64"
 	"fmt"
 	"mime"
 	"os"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/oernster/pigeonpost/internal/application"
 	"github.com/oernster/pigeonpost/internal/domain"
+	"github.com/oernster/pigeonpost/internal/infrastructure/mailparse"
 )
 
 // ComposeRequest is the front-end payload for sending a message. Recipients are comma-free single
@@ -18,18 +20,29 @@ import (
 // less sends immediately. SendAtMs is send-later: a Unix-millisecond instant queues the send held until
 // then (cancellable from the Outbox) and takes precedence over the undo window; zero means no schedule.
 type ComposeRequest struct {
-	AccountID            string   `json:"accountId"`
-	From                 string   `json:"from"`
-	To                   []string `json:"to"`
-	Cc                   []string `json:"cc"`
-	Bcc                  []string `json:"bcc"`
-	Subject              string   `json:"subject"`
-	Body                 string   `json:"body"`
-	HTMLBody             string   `json:"htmlBody"`
-	AttachmentPaths      []string `json:"attachmentPaths"`
-	AttachmentMessageIDs []string `json:"attachmentMessageIds"`
-	HoldSeconds          int      `json:"holdSeconds"`
-	SendAtMs             int64    `json:"sendAtMs"`
+	AccountID            string                `json:"accountId"`
+	From                 string                `json:"from"`
+	To                   []string              `json:"to"`
+	Cc                   []string              `json:"cc"`
+	Bcc                  []string              `json:"bcc"`
+	Subject              string                `json:"subject"`
+	Body                 string                `json:"body"`
+	HTMLBody             string                `json:"htmlBody"`
+	AttachmentPaths      []string              `json:"attachmentPaths"`
+	AttachmentData       []AttachmentDataEntry `json:"attachmentData"`
+	AttachmentMessageIDs []string              `json:"attachmentMessageIds"`
+	HoldSeconds          int                   `json:"holdSeconds"`
+	SendAtMs             int64                 `json:"sendAtMs"`
+}
+
+// AttachmentDataEntry is an attachment whose bytes came over the bridge rather than from a path: a file
+// pasted or dropped into the compose window, which the webview holds as name plus content with no
+// filesystem path to read from. Content is base64, decoded here rather than typed as []byte so the
+// bridge's wire form is explicit on both sides.
+type AttachmentDataEntry struct {
+	Name        string `json:"name"`
+	ContentType string `json:"contentType"`
+	Content     string `json:"content"`
 }
 
 // rfc822ContentType is the MIME type for a whole email attached to another email.
@@ -121,10 +134,16 @@ func (a *App) ReplayOutbox() (int, error) {
 	return a.compose.ReplayOutbox(a.ctx)
 }
 
-// composeAttachments gathers all attachments for an outgoing message: files chosen from disk plus any
-// existing emails referenced by id, kept in that order.
+// composeAttachments gathers all attachments for an outgoing message: files chosen from disk, files
+// pasted or dropped in as bytes, then any existing emails referenced by id, kept in that order. The
+// size cap covers the images embedded in the HTML body too, since they ship as message parts just as
+// attachments do.
 func (a *App) composeAttachments(req ComposeRequest) ([]domain.Attachment, error) {
 	files, err := readAttachments(req.AttachmentPaths)
+	if err != nil {
+		return nil, err
+	}
+	pasted, err := dataAttachments(req.AttachmentData)
 	if err != nil {
 		return nil, err
 	}
@@ -132,16 +151,34 @@ func (a *App) composeAttachments(req ComposeRequest) ([]domain.Attachment, error
 	if err != nil {
 		return nil, err
 	}
-	all := append(files, messages...)
-	total := 0
+	all := append(append(files, pasted...), messages...)
+	total := mailparse.DataImageBytes(req.HTMLBody)
 	for _, attachment := range all {
 		total += attachment.Size()
 	}
 	if total > maxTotalAttachmentBytes {
-		return nil, fmt.Errorf("attachments total %d MB, over the %d MB limit",
+		return nil, fmt.Errorf("attachments and embedded images total %d MB, over the %d MB limit",
 			total/bytesPerMebibyte, maxAttachmentMebibytes)
 	}
 	return all, nil
+}
+
+// dataAttachments decodes each pasted or dropped file into a domain Attachment (the domain defaults
+// an empty content type).
+func dataAttachments(entries []AttachmentDataEntry) ([]domain.Attachment, error) {
+	out := make([]domain.Attachment, 0, len(entries))
+	for _, entry := range entries {
+		content, err := base64.StdEncoding.DecodeString(entry.Content)
+		if err != nil {
+			return nil, fmt.Errorf("decode pasted attachment %q: %w", entry.Name, err)
+		}
+		attachment, err := domain.NewAttachment(entry.Name, entry.ContentType, content)
+		if err != nil {
+			return nil, fmt.Errorf("build pasted attachment %q: %w", entry.Name, err)
+		}
+		out = append(out, attachment)
+	}
+	return out, nil
 }
 
 // messageAttachments fetches each referenced message's raw bytes and wraps it as a message/rfc822

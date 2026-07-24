@@ -312,6 +312,9 @@ export interface ComposeInput {
     body: string
     htmlBody: string
     attachmentPaths: string[]
+    // attachmentData carries files pasted or dropped into the compose window, where the webview holds
+    // name and bytes but no filesystem path. content is base64 (AttachmentDataEntry in send.go).
+    attachmentData: {name: string; contentType: string; content: string}[]
     attachmentMessageIds: string[]
     // holdSeconds is the undo-send window: greater than zero queues the send for that long (send returns
     // the queued item's id, cancellable until it elapses) and zero sends immediately (send returns '').

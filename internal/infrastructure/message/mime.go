@@ -5,6 +5,7 @@ package message
 
 import (
 	"encoding/base64"
+	"fmt"
 	stdmime "mime"
 	"mime/quotedprintable"
 	"net/mail"
@@ -47,13 +48,74 @@ func BuildMIME(msg domain.OutgoingMessage, date time.Time, messageID string) []b
 // writeContent writes the message body's Content-Type header and body: a multipart/alternative when an
 // HTML alternative is present, otherwise a single text/plain body. Bare URLs in the HTML alternative are
 // anchored on the way out, so a link the sender typed (or a mailto: handoff prefilled) arrives clickable
-// in every client.
+// in every client. An image embedded in the HTML as a data: URI (pasted into the composer, or quoted
+// from a message whose cid: images the reader inlined) is lifted out into a multipart/related image part
+// referenced by cid:, the shape every mail client renders, rather than shipping data: URIs some clients
+// refuse to display.
 func writeContent(b *strings.Builder, msg domain.OutgoingMessage, messageID string) {
-	if html := msg.HTMLBody(); html != "" {
-		writeMultipartBody(b, msg.Body(), mailparse.LinkifyHTML(html), messageID)
-	} else {
+	html := msg.HTMLBody()
+	if html == "" {
 		writeTextPartHeaderless(b, "text/plain; charset=utf-8", msg.Body())
+		return
 	}
+	rewritten, images := mailparse.ExtractDataImages(html)
+	linkified := mailparse.LinkifyHTML(rewritten)
+	if len(images) == 0 {
+		writeMultipartBody(b, msg.Body(), linkified, messageID)
+		return
+	}
+	writeAlternativeWithInline(b, msg.Body(), linkified, images, messageID)
+}
+
+// writeAlternativeWithInline writes a multipart/alternative whose rich variant is a multipart/related
+// carrying the HTML and its embedded images. Nesting the related inside the alternative (rather than
+// the other way round) keeps the plain-text variant image-free, so a text-only reader is never handed
+// image parts it cannot place.
+func writeAlternativeWithInline(b *strings.Builder, plain, html string, images []mailparse.DataImage, messageID string) {
+	boundary := "=_pigeonpost_" + messageID
+	b.WriteString("Content-Type: multipart/alternative; boundary=\"" + boundary + "\"\r\n")
+	b.WriteString("\r\n")
+	writeMIMEPart(b, boundary, "text/plain; charset=utf-8", plain)
+	b.WriteString("--" + boundary + "\r\n")
+	writeRelatedBody(b, html, images, messageID)
+	b.WriteString("\r\n")
+	b.WriteString("--" + boundary + "--\r\n")
+}
+
+// writeRelatedBody writes the multipart/related pairing of the HTML part with the inline image parts
+// its cid: references point at (RFC 2387; the type parameter names the root part).
+func writeRelatedBody(b *strings.Builder, html string, images []mailparse.DataImage, messageID string) {
+	boundary := "=_pigeonpost_related_" + messageID
+	b.WriteString("Content-Type: multipart/related; boundary=\"" + boundary + "\"; type=\"text/html\"\r\n")
+	b.WriteString("\r\n")
+	writeMIMEPart(b, boundary, "text/html; charset=utf-8", html)
+	for ordinal, img := range images {
+		writeInlineImagePart(b, boundary, img, ordinal+1)
+	}
+	b.WriteString("--" + boundary + "--\r\n")
+}
+
+// writeInlineImagePart writes one embedded image as a base64 multipart/related part, its Content-ID
+// matching the HTML's cid: reference and a generated filename so a reader's save-image has a name.
+func writeInlineImagePart(b *strings.Builder, boundary string, img mailparse.DataImage, ordinal int) {
+	name := quoteParam(inlineImageName(img.MediaType, ordinal))
+	b.WriteString("--" + boundary + "\r\n")
+	b.WriteString("Content-Type: " + img.MediaType + "; name=\"" + name + "\"\r\n")
+	b.WriteString("Content-Transfer-Encoding: base64\r\n")
+	b.WriteString("Content-ID: <" + img.CID + ">\r\n")
+	b.WriteString("Content-Disposition: inline; filename=\"" + name + "\"\r\n")
+	b.WriteString("\r\n")
+	b.WriteString(base64Lines(img.Content))
+}
+
+// inlineImageName builds a display filename for an embedded image from its position and media type
+// ("image-1.png"): pasted images have no filename of their own, so one is derived.
+func inlineImageName(mediaType string, ordinal int) string {
+	ext := mediaType
+	if slash := strings.LastIndex(mediaType, "/"); slash >= 0 {
+		ext = mediaType[slash+1:]
+	}
+	return fmt.Sprintf("image-%d.%s", ordinal, ext)
 }
 
 // writeMixedBody wraps the message content, an optional scheduling part and any attachments in a
