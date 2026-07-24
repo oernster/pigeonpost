@@ -22,6 +22,7 @@ export default defineConfig({
         'src/readerFormat.ts',
         'src/composeAddresses.ts',
         'src/composeAttachment.ts',
+        'src/composeIntake.ts',
         'src/accountProviders.ts',
         'src/sidebarDnd.ts',
         'src/calendarModel.ts',

@@ -13,7 +13,7 @@ import {describe, expect, it} from 'vitest'
 const PURE_MODULES = [
     'tz', 'folderPaths', 'threads', 'outbox', 'tagColours',
     'messageText', 'shortcuts', 'print',
-    'readerFormat', 'composeAddresses', 'accountProviders', 'sidebarDnd',
+    'readerFormat', 'composeAddresses', 'composeIntake', 'accountProviders', 'sidebarDnd',
     'calendarModel', 'replyDraft', 'categories', 'caldavAccount', 'unified', 'schedule', 'snooze', 'toolbarNav',
     'undoStack', 'editClipboard', 'paneLayout',
 ]

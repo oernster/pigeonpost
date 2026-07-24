@@ -53,7 +53,7 @@ internal/infrastructure/
     pop3/                   hand-rolled POP3 client (download-to-inbox, local flags)
     smtp/                   emersion go-smtp transport
     mailrouter/             dispatches reads, verification and actions by account protocol
-    mailparse/              shared message-body parsing (MIME to plain-text and HTML, invite extraction)
+    mailparse/              shared message-body parsing (MIME to plain-text and HTML, invite extraction, outgoing embedded-image extraction)
     message/                shared RFC 5322 MIME builder (used by smtp and imap)
     ics/                    emersion go-ical calendar codec (RFC 5545 round-trip, recurrence, iTIP scheduling)
     recurrence/             RRULE expansion over teambition/rrule-go

@@ -1,4 +1,4 @@
-import {describe, expect, it} from 'vitest'
+import {afterEach, describe, expect, it, vi} from 'vitest'
 import {
     attachmentBytes,
     base64Size,
@@ -82,5 +82,34 @@ describe('file reading', () => {
         const nameless = new File([new Uint8Array([1, 2])], '', {type: 'application/octet-stream'})
         const attachment = await fileToDataAttachment(nameless)
         expect(attachment.name).toBe('pasted-file')
+    })
+})
+
+// stubFailingReader replaces FileReader with one that always reports failure, carrying the given
+// error (or none, exercising the fallback), so the rejection paths are reachable in jsdom.
+function stubFailingReader(failure: Error | null) {
+    vi.stubGlobal('FileReader', class {
+        onload: null | (() => void) = null
+        onerror: null | (() => void) = null
+        result: string | ArrayBuffer | null = null
+        error = failure
+        readAsDataURL() {
+            queueMicrotask(() => this.onerror?.())
+        }
+    })
+}
+
+describe('read failures', () => {
+    afterEach(() => vi.unstubAllGlobals())
+
+    it('rejects with the reader error when one is reported', async () => {
+        stubFailingReader(new Error('disk detached'))
+        await expect(fileToDataAttachment(pdf)).rejects.toThrow('disk detached')
+    })
+
+    it('rejects with a fallback naming the file when the reader gives no error', async () => {
+        stubFailingReader(null)
+        const nameless = new File([new Uint8Array([1])], '', {type: 'application/octet-stream'})
+        await expect(fileToDataURI(nameless)).rejects.toThrow('read pasted-file')
     })
 })

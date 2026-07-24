@@ -42,7 +42,11 @@ local-first. A calmer, more predictable alternative to Thunderbird.
   progress cue.
 - **Compose**: TipTap rich text, To/Cc/Bcc, reply, reply-all and forward (Ctrl+R, Ctrl+Shift+R and
   Ctrl+L), file or message attachments
-  (25 MB), reusable message templates, per-account signatures and server Drafts. In-progress writing autosaves locally and is
+  (25 MB), reusable message templates, per-account signatures and server Drafts. Paste an image
+  (a screenshot, a copied picture, an image file) and it embeds in the body at the cursor, keeping
+  its original bytes and sent as a proper inline image every mail client renders; paste or drop any
+  other kind of file and it attaches. The one rule: images embed, files attach; the 25 MB limit
+  counts embedded images too and forwarding a message carries its embedded images along. In-progress writing autosaves locally and is
   offered back after a crash. Undo send holds each message for a few configurable seconds with an Undo
   that reopens it exactly as written. Send later schedules a message for a chosen moment (presets or an
   exact date and time); it waits in the Outbox with Cancel send and leaves while the app is running, or

@@ -32,7 +32,8 @@ enforced by a test in `tests/structural/boundary_test.go`, not by convention.
   ports. Owns SQLite (`storage`), IMAP (`imap`), POP3 (`pop3`, a hand-rolled client), SMTP (`smtp`), the
   shared RFC 5322 MIME builder (`message`, used by both `smtp` for send and `imap` for draft append so
   the message-format logic is not duplicated), the shared message-body parser with HTML sanitising and
-  image-blocking (`mailparse`, used by both the IMAP and POP3 read paths), the per-protocol dispatcher
+  image-blocking (`mailparse`, used by both the IMAP and POP3 read paths and by the MIME builder for
+  the outgoing linkify and embedded-image extraction), the per-protocol dispatcher
   (`mailrouter`, which routes reads, verification and actions to the IMAP or POP3 adapter by account
   protocol), the reminder and unread surfaces (`taskbar`: the Windows taskbar unread-overlay badge and
   reminder flash, no-ops off Windows, plus the notification tray, a Windows tray icon that also carries
@@ -205,10 +206,21 @@ original To and Cc:
    mailto:-prefilled link reaches recipients in any client as a real anchor) and encodes text parts
    quoted-printable rather than 8bit, so a long line (a URL, an unwrapped paragraph) folds losslessly
    instead of being hard-folded mid-content by a relay.
+   An image pasted or dropped into the composer lives in the editor HTML as a `data:` URI, the same
+   representation the reader produces when it resolves a received message's `cid:` images for display,
+   so autosave, draft recovery, the outbox row and a forwarded message's quoted images all ride the
+   existing `html_body` plumbing with no extra state. The conversion to wire shape happens only in the
+   builder: `mailparse.ExtractDataImages` lifts each embedded image out of the HTML, rewrites its src
+   to a `cid:` reference (the id a hash of the image bytes, so a repeated image becomes one part) and
+   the builder emits `multipart/alternative(text/plain, multipart/related(text/html, image parts))`,
+   the nesting that keeps the plain-text variant image-free. The symmetry closes the round trip:
+   incoming cid becomes data: for display, outgoing data: becomes cid on the wire.
    Bcc recipients are added to the SMTP envelope (de-duplicated with To and Cc) but never
    written to the headers. Attachments turn the body into `multipart/mixed`: files chosen
-   from disk plus, optionally, an existing message fetched as a `message/rfc822` part, bounded by a
-   total-size cap in the facade.
+   from disk, files pasted or dropped into the compose window (carried as bytes over the bridge,
+   since the webview has no filesystem path for them) plus, optionally, an existing message fetched
+   as a `message/rfc822` part, bounded by a total-size cap in the facade that counts embedded images
+   too.
 
 Save draft: Compose > Save draft calls the compose use case, which resolves the account's Drafts
 mailbox from the cached folders and, through the `DraftSaver` port, renders the message with the shared

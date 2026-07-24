@@ -40,7 +40,7 @@ documented here.
 | `internal/application` | unit against hand-written fakes | none |
 | `internal/infrastructure/storage` | integration against a real SQLite file | temp dir |
 | `internal/infrastructure/message` | unit on the RFC 5322 MIME builder | none |
-| `internal/infrastructure/mailparse` | unit on the MIME body parsing, HTML sanitising, URL linkifying (bare and markdown-labelled links, solo-line button marking), image blocking and hidden-preheader removal that keeps MJML layout wrappers | none |
+| `internal/infrastructure/mailparse` | unit on the MIME body parsing, HTML sanitising, URL linkifying (bare and markdown-labelled links, solo-line button marking), image blocking, hidden-preheader removal that keeps MJML layout wrappers and the outgoing embedded-image extraction (data: URI to cid part) | none |
 | `internal/infrastructure/mailrouter` | unit on the per-protocol dispatch | none |
 | `internal/infrastructure/smtp` | none (live send only; MIME building lives in `message`) | n/a |
 | `internal/infrastructure/imap` | unit on the source adapter's pure helpers (parsing moved to `mailparse`) | none |
@@ -63,7 +63,7 @@ documented here.
 |---|---|---|
 | internal/domain | 100% | gated |
 | internal/application | 100% | gated |
-| internal/infrastructure/message | 100% | the RFC 5322 MIME builder (pure): multipart assembly, outgoing linkify, quoted-printable text parts |
+| internal/infrastructure/message | 100% | the RFC 5322 MIME builder (pure): multipart assembly, the inline-image related nesting, outgoing linkify, quoted-printable text parts |
 | internal/infrastructure/mailrouter | 100% | per-protocol dispatch (pure) |
 | internal/infrastructure/keychain | 100% | account and CalDAV calendar password paths via go-keyring's in-memory mock |
 | internal/infrastructure/recurrence | ~97% | RRULE expansion and truncation; a few defensive edges uncovered |
@@ -153,9 +153,9 @@ npx vitest run --coverage   # enforce the pure-module coverage gate
 ```
 
 - **Pure modules gated to 100%.** The pure logic modules (`messageText`, `shortcuts`, `print`,
-  `readerFormat`, `composeAddresses`, `composeAttachment`, `accountProviders`, `sidebarDnd`,
-  `calendarModel`, `replyDraft`, `caldavAccount`, `unified`, `schedule`, `snooze`, `toolbarNav`,
-  `undoStack`, `editClipboard`, `paneLayout`)
+  `readerFormat`, `composeAddresses`, `composeAttachment`, `composeIntake`, `accountProviders`,
+  `sidebarDnd`, `calendarModel`, `replyDraft`, `caldavAccount`, `unified`, `schedule`, `snooze`,
+  `toolbarNav`, `undoStack`, `editClipboard`, `paneLayout`)
   carry a v8 coverage gate at 100% lines, functions, statements and branches, listed in `vite.config.ts`
   under `coverage.include`. Hooks and components are tested but not gated: a React hook fuses logic with
   framework plumbing, so a blanket 100% there buys brittle tests, not correctness.

@@ -50,7 +50,8 @@ func TestExtractDataImagesDedupesIdenticalImages(t *testing.T) {
 func TestExtractDataImagesKeepsDocumentOrder(t *testing.T) {
 	second := []byte{9, 9, 9, 9}
 	uriB := "data:image/jpeg;base64," + base64.StdEncoding.EncodeToString(second)
-	_, images := ExtractDataImages(`<p><img src="` + pngDataURI() + `"><img src="` + uriB + `"></p>`)
+	// The src-less img exercises the walk passing over an image element with nothing to lift.
+	_, images := ExtractDataImages(`<p><img src="` + pngDataURI() + `"><img alt="plain"><img src="` + uriB + `"></p>`)
 	if len(images) != 2 {
 		t.Fatalf("images = %d, want 2", len(images))
 	}
