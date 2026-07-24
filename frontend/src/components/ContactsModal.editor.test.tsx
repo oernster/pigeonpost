@@ -86,6 +86,20 @@ describe('ContactsModal: layout and delete placement', () => {
         fireEvent.click(screen.getByRole('button', {name: 'New contact'}))
         expect(screen.queryByRole('button', {name: 'Delete contact'})).toBeNull()
     })
+
+    it('every added address carries a visible remove control that removes it', () => {
+        renderContacts()
+        fireEvent.click(screen.getByText('Jane Doe'))
+        fireEvent.click(screen.getByRole('button', {name: 'Add address'}))
+        fireEvent.click(screen.getByRole('button', {name: 'Add address'}))
+        fireEvent.change(screen.getAllByPlaceholderText('street')[0], {target: {value: '1 First Lane'}})
+        expect(screen.getAllByRole('button', {name: 'Remove address'})).toHaveLength(2)
+
+        fireEvent.click(screen.getAllByRole('button', {name: 'Remove address'})[0])
+        expect(screen.getAllByRole('button', {name: 'Remove address'})).toHaveLength(1)
+        // The first address went; the surviving row is the empty second one.
+        expect(screen.getByPlaceholderText('street')).toHaveValue('')
+    })
 })
 
 describe('ContactsModal: the auto-collect toggle', () => {

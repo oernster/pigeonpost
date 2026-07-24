@@ -50,6 +50,27 @@
     gap: 10px;
 }
 
+/* A postal address in the contact editor: six fields as a three-column grid with the remove button
+   beside them, so it can never be squeezed out of view the way seven items on one flex row were. */
+.contact-address {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+}
+
+.contact-address-grid {
+    flex: 1;
+    min-width: 0;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.contact-address .account-action {
+    flex: none;
+    margin-top: 7px;
+}
+
 /* The edit pencil at the end of each contact card, a sibling affordance to clicking the card. */
 .contact-edit {
     display: flex;

@@ -375,19 +375,21 @@ export function ContactsModal({contacts, onChanged, onClose}: ContactsModalProps
                             </div>
                         ))}
                         {form.addresses.map((ad, i) => (
-                            <div className="rule-form-row" key={`address-${i}`}>
-                                <input className="tag-name-input" placeholder="label (e.g. home)" value={ad.label}
-                                       onChange={(e) => set('addresses', form.addresses.map((x, j) => j === i ? {...x, label: e.target.value} : x))}/>
-                                <input className="tag-name-input" placeholder="street" value={ad.street}
-                                       onChange={(e) => set('addresses', form.addresses.map((x, j) => j === i ? {...x, street: e.target.value} : x))}/>
-                                <input className="tag-name-input" placeholder="city" value={ad.locality}
-                                       onChange={(e) => set('addresses', form.addresses.map((x, j) => j === i ? {...x, locality: e.target.value} : x))}/>
-                                <input className="tag-name-input" placeholder="region" value={ad.region}
-                                       onChange={(e) => set('addresses', form.addresses.map((x, j) => j === i ? {...x, region: e.target.value} : x))}/>
-                                <input className="tag-name-input" placeholder="postal code" value={ad.postalCode}
-                                       onChange={(e) => set('addresses', form.addresses.map((x, j) => j === i ? {...x, postalCode: e.target.value} : x))}/>
-                                <input className="tag-name-input" placeholder="country" value={ad.country}
-                                       onChange={(e) => set('addresses', form.addresses.map((x, j) => j === i ? {...x, country: e.target.value} : x))}/>
+                            <div className="contact-address" key={`address-${i}`}>
+                                <div className="contact-address-grid">
+                                    <input className="tag-name-input" placeholder="label (e.g. home)" value={ad.label}
+                                           onChange={(e) => set('addresses', form.addresses.map((x, j) => j === i ? {...x, label: e.target.value} : x))}/>
+                                    <input className="tag-name-input" placeholder="street" value={ad.street}
+                                           onChange={(e) => set('addresses', form.addresses.map((x, j) => j === i ? {...x, street: e.target.value} : x))}/>
+                                    <input className="tag-name-input" placeholder="city" value={ad.locality}
+                                           onChange={(e) => set('addresses', form.addresses.map((x, j) => j === i ? {...x, locality: e.target.value} : x))}/>
+                                    <input className="tag-name-input" placeholder="region" value={ad.region}
+                                           onChange={(e) => set('addresses', form.addresses.map((x, j) => j === i ? {...x, region: e.target.value} : x))}/>
+                                    <input className="tag-name-input" placeholder="postal code" value={ad.postalCode}
+                                           onChange={(e) => set('addresses', form.addresses.map((x, j) => j === i ? {...x, postalCode: e.target.value} : x))}/>
+                                    <input className="tag-name-input" placeholder="country" value={ad.country}
+                                           onChange={(e) => set('addresses', form.addresses.map((x, j) => j === i ? {...x, country: e.target.value} : x))}/>
+                                </div>
                                 <button className="account-action delete" aria-label="Remove address" title="Remove address"
                                         onClick={() => set('addresses', form.addresses.filter((_, j) => j !== i))}>&times;</button>
                             </div>
