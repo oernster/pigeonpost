@@ -84,7 +84,8 @@ local-first. A calmer, more predictable alternative to Thunderbird.
   POP3); an account's first sync is silent.
 - **Calendar**: month, week and day views (a multi-day event is drawn as one bar across its days), recurring events with per-event time zones, nine
   emoji-labelled event categories, on-screen reminders and ICS import/export (RFC 5545) that round-trips
-  with Outlook and Thunderbird. Meeting
+  with Outlook and Thunderbird. Every date field in the app (event times, repeat-until, a contact's
+  birthday, send later, snooze) opens a themed calendar picker, with direct typing still first-class. Meeting
   invites over iTIP/iMIP (accept, decline, cancel, reply) with clickable join links (Teams, Meet, Zoom,
   Webex). Early two-way CalDAV sync: a calendar-server account (app password) syncs events both ways,
   server-wins on conflict with the losing local edit kept as a copy.
@@ -97,7 +98,9 @@ local-first. A calmer, more predictable alternative to Thunderbird.
   matches instead of duplicating them, and a match is merged so an import never overwrites what you
   have already recorded.
 - **Trust**: a dark theme with a light toggle, passwords held in the OS keychain (never the database)
-  and external links opened in your browser.
+  and external links opened in your browser. Closing the window while something is still open (a
+  half-written message, say) surfaces the keep-in-tray-or-quit choice on top at once and warns that
+  unsaved work may be lost, with Go back as the default so nothing is lost silently.
 
 Planned: move/delete rules, OS-delivered calendar alarms, two-way CardDAV contact sync. The
 candidates parked beyond these are triaged with their rationale in

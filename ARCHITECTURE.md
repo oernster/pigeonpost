@@ -531,8 +531,12 @@ stable per-contact id, so matching is a policy over the whole address book and l
 `ContactService.ImportContacts`, which matches on id or shared email address and merges through the
 pure `Contact.MergedWith` in the domain.
 
-**UI.** A contacts pane (list plus an editor dialog, reusing the confirm-before-delete rule) and
-calendar month, week and day views, both clients of the Application use cases only. Date entry
+**UI.** A contacts dialog and calendar month, week and day views, both clients of the Application
+use cases only. The contacts dialog is wide, laying the address book out as a three-column card
+grid; each card opens its contact on click or via its edit pencil, and deletion lives at the end of
+the open contact's editor beside Save (still behind the confirm-before-delete rule) rather than on
+the list rows. A postal address in the editor is a three-column field grid with its remove control
+alongside, so it cannot be squeezed out of view. Date entry
 everywhere in the app (a contact's birthday, an event's start and end, repeat-until, send later and
 the snooze picker) is the shared `DateField` component: the native input stays for typing, while its
 calendar button opens the themed `DatePickerDialog` instead of the engine's minimal native picker;
@@ -616,7 +620,13 @@ notification-area icon: left-clicking it reopens the window, and its right-click
 menu (About, Licence, Check for Updates) plus Open and Quit. Where a restorable tray icon exists (only
 Windows, gated by `Tray.CanHideToTray`), the window's close button does not quit: `OnBeforeClose` keeps
 the window open and emits `app:close-request`, and the front end shows its own dark-themed dialog
-offering Minimise to tray or Quit. Minimise calls `MinimiseToTray` (which hides the window so the
+offering Minimise to tray or Quit. The dialog renders last in App's overlay list on a raised backdrop
+(`modal-backdrop top`), so it surfaces above whatever dialog is open when the close button is pressed
+rather than painting beneath a later-mounted sibling; the Escape stack still closes one layer at a
+time. When another dialog is open as it appears (a message being written, a contact being edited), it
+samples that fact once on open, states plainly that unsaved work may be lost on quit and offers Go
+back as the focused default so the user can finish or save first; Quit stays one deliberate click
+away. Minimise calls `MinimiseToTray` (which hides the window so the
 scheduler and mail sync keep running in the background); Quit calls `RequestQuit`; dismissing the dialog
 leaves the window open. A native dialog is deliberately avoided so the prompt matches the app theme.
 Where no tray icon exists the close button simply quits. The tray menu's Quit sets a flag so it exits
