@@ -40,6 +40,29 @@
     gap: 10px;
 }
 
+/* The edit pencil at the end of each contact card, a sibling affordance to clicking the card. */
+.contact-edit {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+    width: 26px;
+    height: 26px;
+    padding: 0;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    background: none;
+    color: var(--text-dim);
+    cursor: pointer;
+}
+
+.contact-edit:enabled:hover,
+.contact-edit:enabled:focus-visible {
+    color: var(--text);
+    border-color: var(--accent);
+    outline: none;
+}
+
 /* Contact-group filter bar: compact chips that filter the address book by group, plus the group
    management actions. Chips wrap, and the spacer pushes the management actions to the right. */
 .cg-bar {

@@ -1,6 +1,7 @@
 import {useState} from 'react'
 import {ModalClose} from './ModalClose'
 import {useBackdropDismiss} from './useBackdropDismiss'
+import {DateField} from './DateField'
 import {fromDatetimeLocal, isSchedulable} from '../schedule'
 
 interface ScheduleDialogProps {
@@ -28,21 +29,18 @@ export function ScheduleDialog({title, label, confirmLabel, onSubmit, onCancel}:
             <div className="modal" role="dialog" aria-label={title} onClick={(e) => e.stopPropagation()}>
                 <ModalClose onClose={onCancel}/>
                 <h2 className="modal-title">{title}</h2>
-                <label className="field">
+                <div className="field">
                     <span>{label}</span>
-                    <input
-                        type="datetime-local"
+                    <DateField
+                        kind="datetime-local"
+                        ariaLabel={label}
+                        pickerTitle={label}
                         value={value}
                         autoFocus
-                        onChange={(e) => setValue(e.target.value)}
-                        onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                                e.preventDefault()
-                                submit()
-                            }
-                        }}
+                        onChange={setValue}
+                        onEnter={submit}
                     />
-                </label>
+                </div>
                 <div className="modal-actions spread">
                     <button className="btn" onClick={onCancel}>Cancel</button>
                     <button className="btn primary" onClick={submit} disabled={!valid}>

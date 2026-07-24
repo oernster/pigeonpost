@@ -10,6 +10,7 @@ import {AUTO_COLLECT_KEY, collectableRecipients, shouldAutoCollect} from '../aut
 import {useComposeIntake} from '../hooks/useComposeIntake'
 import {useContactPool} from '../hooks/useContactPool'
 import {RecipientField} from './RecipientField'
+import {DateField} from './DateField'
 import {ModalClose} from './ModalClose'
 import {ConfirmDialog} from './ConfirmDialog'
 import {basename, isValidAddress, normaliseUrl, splitAddresses} from '../composeAddresses'
@@ -601,12 +602,13 @@ export function ComposeModal({accountId, senders, initial, canSaveDraft, onMarkR
                                 {choice.label}
                             </button>
                         ))}
-                        <input
-                            type="datetime-local"
+                        <DateField
+                            kind="datetime-local"
                             className="compose-schedule-input"
-                            aria-label="Send at"
+                            ariaLabel="Send at"
+                            pickerTitle="Send date"
                             value={sendAtValue}
-                            onChange={(e) => setSendAtValue(e.target.value)}
+                            onChange={setSendAtValue}
                         />
                         <button
                             type="button"

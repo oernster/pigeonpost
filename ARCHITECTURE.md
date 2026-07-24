@@ -532,7 +532,12 @@ stable per-contact id, so matching is a policy over the whole address book and l
 pure `Contact.MergedWith` in the domain.
 
 **UI.** A contacts pane (list plus an editor dialog, reusing the confirm-before-delete rule) and
-calendar month, week and day views, both clients of the Application use cases only. The week and day
+calendar month, week and day views, both clients of the Application use cases only. Date entry
+everywhere in the app (a contact's birthday, an event's start and end, repeat-until, send later and
+the snooze picker) is the shared `DateField` component: the native input stays for typing, while its
+calendar button opens the themed `DatePickerDialog` instead of the engine's minimal native picker;
+the dialog's month-grid model is the gated pure `datePicker` module and picking a day merges only
+the date, so a datetime field keeps the time already typed. The week and day
 views are an hour time-grid: an all-day strip, timed events sized by start and end, clashing events in
 side-by-side lanes. The month view lays each week's events out as bars: a multi-day event spans the day
 columns it covers as one continuous bar, squared where a week boundary clips it and stacked in lanes above

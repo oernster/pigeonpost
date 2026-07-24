@@ -138,6 +138,79 @@
     outline: none;
 }
 
+/* The themed calendar dialog the picker button opens (DatePickerDialog): a compact month grid over
+   whatever dialog owns the field; the Escape stack closes one layer at a time. */
+.modal.datepick {
+    width: 320px;
+}
+
+.datepick-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+
+.datepick-label {
+    font-size: 14px;
+    color: var(--text);
+}
+
+.datepick-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 2px;
+}
+
+.datepick-weekday {
+    text-align: center;
+    font-size: 11px;
+    color: var(--text-dim);
+    padding: 4px 0;
+}
+
+.datepick-day {
+    border: 1px solid transparent;
+    border-radius: 6px;
+    background: none;
+    color: var(--text);
+    font-family: inherit;
+    font-size: 13px;
+    padding: 6px 0;
+    cursor: pointer;
+}
+
+.datepick-day.out {
+    color: var(--text-dim);
+}
+
+.datepick-day.today {
+    border-color: var(--border);
+}
+
+.datepick-day.selected {
+    background-color: var(--accent);
+    color: var(--accent-ink);
+}
+
+.datepick-day:enabled:hover,
+.datepick-day:enabled:focus-visible {
+    border-color: var(--accent);
+    outline: none;
+}
+
+.datepick-day:disabled {
+    color: var(--text-dim);
+    opacity: 0.4;
+    cursor: default;
+}
+
+/* A DateField inside a labelled .field row takes the input's flex slot. */
+.field .date-field {
+    flex: 1;
+}
+
 .tag-palette {
     display: flex;
     flex-wrap: wrap;

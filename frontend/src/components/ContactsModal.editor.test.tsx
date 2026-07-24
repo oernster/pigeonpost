@@ -64,6 +64,13 @@ describe('ContactsModal: layout and delete placement', () => {
         expect(screen.queryByRole('button', {name: 'Delete Jane Doe'})).toBeNull()
     })
 
+    it('opens the editor from the pencil button on a card', () => {
+        renderContacts()
+        fireEvent.click(screen.getByRole('button', {name: 'Edit Jane Doe'}))
+        expect(screen.getByRole('button', {name: 'Save changes'})).toBeInTheDocument()
+        expect(screen.getByDisplayValue('Jane')).toBeInTheDocument()
+    })
+
     it('offers Delete contact at the end of an open contact and deletes after confirming', async () => {
         const {onChanged} = renderContacts()
         fireEvent.click(screen.getByText('Jane Doe'))

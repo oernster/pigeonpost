@@ -1,4 +1,4 @@
-import {useRef, useState} from 'react'
+import {useState} from 'react'
 import type {Dispatch, SetStateAction} from 'react'
 import {api, Calendar, CalendarEventInput, EventScope} from '../api'
 import {EVENT_CATEGORIES} from '../categories'
@@ -7,7 +7,7 @@ import {ModalClose} from './ModalClose'
 import {ConfirmDialog} from './ConfirmDialog'
 import {ScopeChooser} from './ScopeChooser'
 import {RecurrenceEditor} from './RecurrenceEditor'
-import {PickerButton} from './PickerButton'
+import {DateField} from './DateField'
 import {
     DEFAULT_ATTENDEE_ROLE,
     DEFAULT_ATTENDEE_STATUS,
@@ -89,8 +89,6 @@ export function EventFormModal({
     cancelledSent, setCancelledSent, banners, onChanged, bumpReload,
 }: EventFormModalProps) {
     const {error, status, busy, setError, setStatus, setBusy} = banners
-    const startRef = useRef<HTMLInputElement>(null)
-    const endRef = useRef<HTMLInputElement>(null)
     const [cancelMeeting, setCancelMeeting] = useState(false)
     const [pendingDelete, setPendingDelete] = useState<{id: string; summary: string} | null>(null)
     const [deleteScope, setDeleteScope] = useState<{seriesId: string; occurrence: string; summary: string} | null>(null)
@@ -335,18 +333,12 @@ export function EventFormModal({
                                    onChange={(e) => set('allDay', e.target.checked)}/> All day
                         </label>
                         <div className="rule-form-row">
-                            <div className="date-field">
-                                <input ref={startRef} className="tag-name-input"
-                                       type={form.allDay ? 'date' : 'datetime-local'}
-                                       value={form.start} onChange={(e) => set('start', e.target.value)}/>
-                                <PickerButton target={startRef}/>
-                            </div>
-                            <div className="date-field">
-                                <input ref={endRef} className="tag-name-input"
-                                       type={form.allDay ? 'date' : 'datetime-local'}
-                                       value={form.end} onChange={(e) => set('end', e.target.value)}/>
-                                <PickerButton target={endRef}/>
-                            </div>
+                            <DateField kind={form.allDay ? 'date' : 'datetime-local'} ariaLabel="Start"
+                                       pickerTitle="Start date" value={form.start}
+                                       onChange={(v) => set('start', v)}/>
+                            <DateField kind={form.allDay ? 'date' : 'datetime-local'} ariaLabel="End"
+                                       pickerTitle="End date" value={form.end}
+                                       onChange={(v) => set('end', v)}/>
                         </div>
                         {!form.allDay && (
                             <label className="cal-tz">

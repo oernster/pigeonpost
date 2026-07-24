@@ -25,6 +25,7 @@ export default defineConfig({
         'src/composeIntake.ts',
         'src/recipientSuggest.ts',
         'src/autoCollect.ts',
+        'src/datePicker.ts',
         'src/accountProviders.ts',
         'src/sidebarDnd.ts',
         'src/calendarModel.ts',

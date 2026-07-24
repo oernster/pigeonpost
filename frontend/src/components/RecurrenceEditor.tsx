@@ -7,8 +7,8 @@
 // never, after a count, or on a date). Rarer rule parts are not offered but are preserved only if the
 // parent does not overwrite them, so this editor is used for app-authored rules; the monthly and yearly
 // weekday patterns are recomputed from the event start rather than preserved verbatim.
-import {useEffect, useRef, useState} from 'react'
-import {PickerButton} from './PickerButton'
+import {useEffect, useState} from 'react'
+import {DateField} from './DateField'
 
 // WEEKDAYS lists the RFC 5545 weekday codes in display order with a short label for the weekly picker.
 const WEEKDAYS: {code: string; label: string}[] = [
@@ -207,7 +207,6 @@ interface RecurrenceEditorProps {
 
 export function RecurrenceEditor({value, onChange, startDate}: RecurrenceEditorProps) {
     const [state, setState] = useState<RuleState>(() => parseRule(value))
-    const untilRef = useRef<HTMLInputElement>(null)
     const minUntil = tomorrowInput()
     const facts = startFactsOf(startDate)
 
@@ -322,11 +321,9 @@ export function RecurrenceEditor({value, onChange, startDate}: RecurrenceEditorP
                         </label>
                     )}
                     {state.endMode === 'until' && (
-                        <div className="date-field">
-                            <input ref={untilRef} className="tag-name-input" type="date" aria-label="Repeat until"
-                                   min={minUntil} value={state.until} onChange={(e) => changeUntil(e.target.value)}/>
-                            <PickerButton target={untilRef}/>
-                        </div>
+                        <DateField kind="date" ariaLabel="Repeat until" pickerTitle="Repeat until"
+                                   min={minUntil} value={state.until}
+                                   onChange={(v) => changeUntil(v)}/>
                     )}
                 </div>
             )}
