@@ -16,6 +16,7 @@ const apiSpies = vi.hoisted(() => ({
     clearDraftRecovery: vi.fn(),
     saveDraftRecovery: vi.fn(),
     pickAttachments: vi.fn(),
+    listContacts: vi.fn(),
 }))
 
 vi.mock('../api', () => ({
@@ -25,6 +26,7 @@ vi.mock('../api', () => ({
         clearDraftRecovery: apiSpies.clearDraftRecovery,
         saveDraftRecovery: apiSpies.saveDraftRecovery,
         pickAttachments: apiSpies.pickAttachments,
+        listContacts: apiSpies.listContacts,
     },
 }))
 
@@ -90,6 +92,7 @@ beforeEach(() => {
     apiSpies.clearDraftRecovery.mockReset().mockResolvedValue(undefined)
     apiSpies.saveDraftRecovery.mockReset().mockResolvedValue(undefined)
     apiSpies.pickAttachments.mockReset().mockResolvedValue([])
+    apiSpies.listContacts.mockReset().mockResolvedValue([])
 })
 
 afterEach(() => cleanup())

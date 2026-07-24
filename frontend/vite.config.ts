@@ -23,6 +23,7 @@ export default defineConfig({
         'src/composeAddresses.ts',
         'src/composeAttachment.ts',
         'src/composeIntake.ts',
+        'src/recipientSuggest.ts',
         'src/accountProviders.ts',
         'src/sidebarDnd.ts',
         'src/calendarModel.ts',

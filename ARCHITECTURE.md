@@ -223,6 +223,13 @@ original To and Cc:
    as a `message/rfc822` part, bounded by a total-size cap in the facade that counts embedded images
    too.
 
+Recipient autocomplete: the To, Cc and Bcc fields suggest matching addresses from the address book
+as an address fragment is typed. The matching, ranking and text-splicing logic is the gated pure
+`recipientSuggest` module; the shared suggestion pool loads lazily through the contacts use case on
+the first touch of a recipient field, so an untouched compose makes no call. Accepting a suggestion
+only inserts text into the ordinary input, so the field stays freely editable and the backend
+remains the address validator.
+
 Save draft: Compose > Save draft calls the compose use case, which resolves the account's Drafts
 mailbox from the cached folders and, through the `DraftSaver` port, renders the message with the shared
 `message` builder and appends it to that mailbox on the server (IMAP APPEND, flagged `\Draft \Seen`).

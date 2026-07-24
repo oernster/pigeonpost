@@ -7,6 +7,8 @@ import Image from '@tiptap/extension-image'
 import {api, ComposeInput, Template} from '../api'
 import {DataAttachment} from '../composeIntake'
 import {useComposeIntake} from '../hooks/useComposeIntake'
+import {useContactPool} from '../hooks/useContactPool'
+import {RecipientField} from './RecipientField'
 import {ModalClose} from './ModalClose'
 import {ConfirmDialog} from './ConfirmDialog'
 import {basename, isValidAddress, normaliseUrl, splitAddresses} from '../composeAddresses'
@@ -181,6 +183,10 @@ export function ComposeModal({accountId, senders, initial, canSaveDraft, onMarkR
         initial: initial?.attachmentData,
     })
     intakeRef.current = intake.take
+
+    // The contact suggestion pool behind the To, Cc and Bcc autocompletes, loaded lazily on the
+    // first touch of a recipient field and shared by all three.
+    const contacts = useContactPool()
 
     // buildRequest packs the compose state for the backend. at is the send-later instant (null for an
     // immediate or undo-held send); it takes precedence over the undo window server-side.
@@ -428,28 +434,24 @@ export function ComposeModal({accountId, senders, initial, canSaveDraft, onMarkR
                         </select>
                     </label>
                 )}
-                <label className="field">
-                    <span>To</span>
-                    <input value={to} onChange={(e) => {
-                        autosave.markDirty()
-                        setTo(e.target.value)
-                    }}
-                           placeholder="name@example.com, other@example.com"/>
-                </label>
-                <label className="field">
-                    <span>Cc</span>
-                    <input value={cc} onChange={(e) => {
-                        autosave.markDirty()
-                        setCc(e.target.value)
-                    }}/>
-                </label>
-                <label className="field">
-                    <span>Bcc</span>
-                    <input value={bcc} onChange={(e) => {
-                        autosave.markDirty()
-                        setBcc(e.target.value)
-                    }}/>
-                </label>
+                <RecipientField label="To" value={to} placeholder="name@example.com, other@example.com"
+                                pool={contacts.pool} ensurePool={contacts.ensurePool}
+                                onChange={(value) => {
+                                    autosave.markDirty()
+                                    setTo(value)
+                                }}/>
+                <RecipientField label="Cc" value={cc}
+                                pool={contacts.pool} ensurePool={contacts.ensurePool}
+                                onChange={(value) => {
+                                    autosave.markDirty()
+                                    setCc(value)
+                                }}/>
+                <RecipientField label="Bcc" value={bcc}
+                                pool={contacts.pool} ensurePool={contacts.ensurePool}
+                                onChange={(value) => {
+                                    autosave.markDirty()
+                                    setBcc(value)
+                                }}/>
                 <label className="field">
                     <span>Subject</span>
                     <input value={subject} onChange={(e) => {
