@@ -158,6 +158,11 @@ function App() {
     const neutralFocusRef = useRef<HTMLSpanElement>(null)
     useEffect(() => {
         const claimNeutralFocus = () => {
+            // While any dialog is open its own focus management rules: grabbing the anchor here
+            // would pull focus out of a compose or confirm the user is mid-way through.
+            if (document.querySelector('.modal')) {
+                return
+            }
             const active = document.activeElement
             if (!active || active === document.body || active === neutralFocusRef.current) {
                 neutralFocusRef.current?.focus()
@@ -1272,7 +1277,10 @@ function App() {
                     </div>
                 </div>
             )}
-            {composing && composeAccountId && (
+            {/* Gated on composing alone: an account-state blip must never silently unmount a compose
+                the user is writing. With no resolvable account the modal still shows and a send simply
+                fails with an error, which preserves the message. */}
+            {composing && (
                 <ComposeModal
                     accountId={composeAccountId}
                     senders={sendersFor(composeAccount)}

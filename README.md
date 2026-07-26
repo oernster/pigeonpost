@@ -53,7 +53,8 @@ local-first. A calmer, more predictable alternative to Thunderbird.
   its original bytes and sent as a proper inline image every mail client renders; paste or drop any
   other kind of file and it attaches. The one rule: images embed, files attach; the 25 MB limit
   counts embedded images too and forwarding a message carries its embedded images along. In-progress writing autosaves locally and is
-  offered back after a crash. Undo send holds each message for a few configurable seconds with an Undo
+  offered back after a crash, and closing a message you have edited (by any route, including a click
+  outside the window) asks before discarding it. Undo send holds each message for a few configurable seconds with an Undo
   that reopens it exactly as written. Send later schedules a message for a chosen moment (presets or an
   exact date and time); it waits in the Outbox with Cancel send and leaves while the app is running, or
   at the next launch after the chosen time. Sends made offline queue in a per-account outbox and deliver on the next sync.

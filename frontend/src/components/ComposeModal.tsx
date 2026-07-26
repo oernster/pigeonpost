@@ -100,7 +100,6 @@ interface ComposeModalProps {
 
 
 export function ComposeModal({accountId, senders, initial, canSaveDraft, onMarkReplied, onMarkForwarded, holdSeconds, onHeld, onClose}: ComposeModalProps) {
-    const dismiss = useBackdropDismiss(onClose)
     // The chosen From address. It defaults to the reply's delivered-to address when given, otherwise the
     // account's primary (first) sender. The backend validates it against the account's owned addresses.
     const [from, setFrom] = useState(initial?.from || senders[0]?.address || '')
@@ -189,6 +188,24 @@ export function ComposeModal({accountId, senders, initial, canSaveDraft, onMarkR
     // The contact suggestion pool behind the To, Cc and Bcc autocompletes, loaded lazily on the
     // first touch of a recipient field and shared by all three.
     const contacts = useContactPool()
+
+    // Every discard path (the backdrop, Escape, the close cross, Cancel) goes through requestClose:
+    // a compose the user has actually edited and that still holds content must confirm before it is
+    // thrown away, so a stray click (such as the one that refocuses the window) can never silently
+    // lose a message. An untouched or emptied-out compose closes at once. Send and Save draft call
+    // onClose directly, having preserved the message.
+    const [confirmDiscard, setConfirmDiscard] = useState(false)
+    const composedContent = () =>
+        to.trim() !== '' || cc.trim() !== '' || bcc.trim() !== '' || subject.trim() !== '' ||
+        (editor?.getText() ?? '').trim() !== ''
+    const requestClose = () => {
+        if (autosave.isDirty() && composedContent()) {
+            setConfirmDiscard(true)
+            return
+        }
+        onClose()
+    }
+    const dismiss = useBackdropDismiss(requestClose)
 
     // buildRequest packs the compose state for the backend. at is the send-later instant (null for an
     // immediate or undo-held send); it takes precedence over the undo window server-side.
@@ -426,7 +443,7 @@ export function ComposeModal({accountId, senders, initial, canSaveDraft, onMarkR
                          attemptSend()
                      }
                  }}>
-                <ModalClose onClose={onClose}/>
+                <ModalClose onClose={requestClose}/>
                 <h2 className="modal-title">New message</h2>
                 {error && <div className="compose-error">{error}</div>}
                 {correction.pending && (
@@ -632,7 +649,7 @@ export function ComposeModal({accountId, senders, initial, canSaveDraft, onMarkR
                     </div>
                 )}
                 <div className="modal-actions spread">
-                    <button className="btn" onClick={onClose} disabled={sending || savingDraft}>Cancel</button>
+                    <button className="btn" onClick={requestClose} disabled={sending || savingDraft}>Cancel</button>
                     <div className="compose-send-group">
                         {canSaveDraft && (
                             <button className="btn" onClick={() => void saveDraft()} disabled={sending || savingDraft}>
@@ -657,6 +674,15 @@ export function ComposeModal({accountId, senders, initial, canSaveDraft, onMarkR
                 </div>
             </div>
 
+            {confirmDiscard && (
+                <ConfirmDialog
+                    title="Discard message?"
+                    message="This message has not been sent or saved as a draft. Discard it?"
+                    confirmLabel="Discard"
+                    onConfirm={onClose}
+                    onCancel={() => setConfirmDiscard(false)}
+                />
+            )}
             {attachWarn && (
                 <ConfirmDialog
                     title="Attachment reminder"

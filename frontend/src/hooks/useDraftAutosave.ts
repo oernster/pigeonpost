@@ -41,6 +41,9 @@ export function useDraftAutosave({accountId, to, cc, bcc, subject, editor}: Draf
     const resumeAutosave = () => {
         stopRef.current = false
     }
+    // isDirty reports whether the user has actually edited this compose, so the close paths can tell
+    // a message worth guarding from an untouched template.
+    const isDirty = () => dirtyRef.current
 
     useEffect(() => {
         if (!dirtyRef.current || stopRef.current) return
@@ -65,5 +68,5 @@ export function useDraftAutosave({accountId, to, cc, bcc, subject, editor}: Draf
         return () => window.clearTimeout(timer)
     }, [accountId, to, cc, bcc, subject, bodyTick, editor])
 
-    return {markDirty, noteEdit, stopAutosave, resumeAutosave}
+    return {markDirty, noteEdit, stopAutosave, resumeAutosave, isDirty}
 }

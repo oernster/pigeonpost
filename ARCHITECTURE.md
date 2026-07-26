@@ -244,6 +244,15 @@ mailbox from the cached folders and, through the `DraftSaver` port, renders the 
 Unlike a send, a draft may be incomplete (no recipients, empty body), so it is built with the lenient
 `NewDraftMessage`.
 
+Compose discard guard: every discard path out of the compose window (backdrop click, Escape, the
+close cross, Cancel) routes through one guard in `ComposeModal`: a compose the user has actually
+edited (the autosave's dirty flag) that still holds content confirms "Discard message?" before
+closing, so a stray click, such as the one that refocuses the app window onto the backdrop, can
+never silently lose a message. An untouched or emptied-out compose closes at once. Send and Save
+draft close directly, having preserved the message. The modal's render in `App` is gated on the
+composing flag alone (not the resolved account), so an account-state change can never unmount a
+compose in progress, and the neutral-focus anchor declines to take focus while any dialog is open.
+
 Draft recovery: separately from the server-side Save draft, the compose window autosaves its in-progress
 content (debounced, once the user has edited it) to a single-row local slot through the
 `DraftRecoveryStore` port (the `draft_recovery` table). It is local only and never sent to the
