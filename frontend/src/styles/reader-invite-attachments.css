@@ -237,7 +237,9 @@
     margin-bottom: 8px;
 }
 
-.field span {
+/* The direct child span is the row's label column ("To", "Cc"); the child combinator keeps the
+   fixed width off spans nested deeper, such as the recipient-suggestion rows. */
+.field > span {
     width: 60px;
     color: var(--text-dim);
     font-size: 13px;
@@ -316,13 +318,21 @@
     padding-left: 6px;
 }
 
+/* Both parts of a row stay on one line and ellipsise rather than wrap or overflow: a display name
+   that is itself an address, or a very long address, must never spill into its neighbour. */
 .recipient-option-name {
     color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .recipient-option-address {
     color: var(--text-dim);
     font-size: 12px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .compose-toolbar {

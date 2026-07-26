@@ -50,7 +50,10 @@ export function suggestionPool(contacts: readonly SuggestibleContact[]): Suggest
                 continue
             }
             seen.add(key)
-            pool.push({address, name, display: name === '' ? address : `${name} <${address}>`})
+            // An auto-collected contact often has its address as its display name; treat that as
+            // no name, so the row and the display label show the address once, not twice.
+            const rowName = name.toLowerCase() === key ? '' : name
+            pool.push({address, name: rowName, display: rowName === '' ? address : `${rowName} <${address}>`})
         }
     }
     return pool

@@ -31,6 +31,11 @@ describe('suggestionPool', () => {
         expect(pool[0].name).toBe('Ada Lovelace')
     })
 
+    it('treats a display name that is the address itself as no name', () => {
+        const pool = suggestionPool([contact('Self@Example.com', ['self@example.com'])])
+        expect(pool).toEqual([{address: 'self@example.com', name: '', display: 'self@example.com'}])
+    })
+
     it('dedupes addresses case-insensitively, first holder winning', () => {
         const pool = suggestionPool([
             contact('First', ['Shared@Example.com']),
