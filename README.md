@@ -46,7 +46,9 @@ local-first. A calmer, more predictable alternative to Thunderbird.
   or Bcc suggests matching addresses from your contacts (accept with Enter, Tab or a click); a
   suggestion just inserts text, so you can edit it freely afterwards, and accepting with Enter or a
   click adds the separator too, so you can type the next address straight away. Typing a space after
-  a complete address does the same, so a list flows without punctuation. Paste an image
+  a complete address does the same, so a list flows without punctuation. Each suggestion shows the
+  contact's name beside its address on one line (long values shorten with an ellipsis) and a contact
+  whose name is just its own address shows it once. Paste an image
   (a screenshot, a copied picture, an image file) and it embeds in the body at the cursor, keeping
   its original bytes and sent as a proper inline image every mail client renders; paste or drop any
   other kind of file and it attaches. The one rule: images embed, files attach; the 25 MB limit

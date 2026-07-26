@@ -232,7 +232,11 @@ remains the address validator. Acceptance by Enter or click also appends the can
 ("; ") so the next address can be typed immediately (Tab does not, since focus is leaving the
 field), and a space typed at the end of a complete address inserts the separator the same way; both
 are pure `recipientSuggest` functions sharing the separator constant with the separator-correction
-helper in `composeAddresses`.
+helper in `composeAddresses`. The suggestion pool treats a display name that is the contact's own
+address as no name, so such a contact (auto-collected ones often are) is offered as the bare
+address rather than the address twice. In the stylesheet the fixed-width label column of a compose
+row is scoped to the field's direct child span, keeping it off the suggestion rows, whose name and
+address spans stay on one line and ellipsise rather than wrap or overflow.
 
 Save draft: Compose > Save draft calls the compose use case, which resolves the account's Drafts
 mailbox from the cached folders and, through the `DraftSaver` port, renders the message with the shared
