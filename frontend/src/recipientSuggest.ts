@@ -4,7 +4,7 @@
 // stays an ordinary text input throughout: a suggestion only ever inserts text, so the user can edit
 // or replace it freely afterwards. No React, no api runtime, so it is unit-tested in isolation.
 
-import {splitAddresses} from './composeAddresses'
+import {ADDRESS_SEPARATOR, isValidAddress, splitAddresses} from './composeAddresses'
 
 // MAX_SUGGESTIONS caps the dropdown at a scan-friendly height.
 export const MAX_SUGGESTIONS = 8
@@ -98,12 +98,24 @@ export function suggestionsFor(pool: readonly Suggestion[], value: string, limit
 
 // applySuggestion replaces the fragment being typed with the accepted address, keeping everything
 // before it and adding the space a separator-tight prefix ("a@b.com,") is missing. Only text is
-// inserted, so the result remains freely editable.
-export function applySuggestion(value: string, suggestion: Suggestion): string {
+// inserted, so the result remains freely editable. With continueList set the separator is appended
+// too, so the next address can be typed immediately without punctuation first.
+export function applySuggestion(value: string, suggestion: Suggestion, continueList = false): string {
     const {start} = activeFragment(value)
     let prefix = value.slice(0, start)
     if (prefix !== '' && !prefix.endsWith(' ')) {
         prefix += ' '
     }
-    return prefix + suggestion.address
+    return prefix + suggestion.address + (continueList ? ADDRESS_SEPARATOR : '')
+}
+
+// advanceToNextAddress starts the next address once the current one is complete: when the fragment
+// being typed is a valid address it returns the value with the separator appended, ready for the
+// next address to be typed immediately. It returns null otherwise (mid-address, empty or an
+// already-separated tail), so a typed space keeps its ordinary meaning.
+export function advanceToNextAddress(value: string): string | null {
+    if (!isValidAddress(activeFragment(value).text.trim())) {
+        return null
+    }
+    return value.trimEnd() + ADDRESS_SEPARATOR
 }

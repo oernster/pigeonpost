@@ -11,6 +11,10 @@ export function normaliseUrl(url: string): string {
     return `https://${trimmed}`
 }
 
+// ADDRESS_SEPARATOR is the canonical separator written between addresses wherever the app inserts
+// one itself (separator correction, suggestion acceptance, the space shortcut).
+export const ADDRESS_SEPARATOR = '; '
+
 export function splitAddresses(value: string): string[] {
     // Accept both comma and semicolon between addresses, so a list pasted from a client that uses ";"
     // (such as Outlook) is split the same as a comma-separated one.
@@ -37,7 +41,7 @@ export function detectSeparatorFix(value: string): string | null {
     if (found.length < 2) return null
     const tokens = splitAddresses(value)
     if (tokens.length === found.length && tokens.every(isValidAddress)) return null
-    return found.join('; ')
+    return found.join(ADDRESS_SEPARATOR)
 }
 
 // basename returns the final path segment of a file path, handling both Windows and POSIX separators,

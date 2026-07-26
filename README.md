@@ -44,7 +44,9 @@ local-first. A calmer, more predictable alternative to Thunderbird.
   Ctrl+L), file or message attachments
   (25 MB), reusable message templates, per-account signatures and server Drafts. Typing in To, Cc
   or Bcc suggests matching addresses from your contacts (accept with Enter, Tab or a click); a
-  suggestion just inserts text, so you can edit it freely afterwards. Paste an image
+  suggestion just inserts text, so you can edit it freely afterwards, and accepting with Enter or a
+  click adds the separator too, so you can type the next address straight away. Typing a space after
+  a complete address does the same, so a list flows without punctuation. Paste an image
   (a screenshot, a copied picture, an image file) and it embeds in the body at the cursor, keeping
   its original bytes and sent as a proper inline image every mail client renders; paste or drop any
   other kind of file and it attaches. The one rule: images embed, files attach; the 25 MB limit

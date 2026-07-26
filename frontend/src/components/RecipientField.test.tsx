@@ -48,16 +48,27 @@ describe('RecipientField', () => {
         expect(ensurePool).toHaveBeenCalled()
     })
 
-    it('accepts the highlighted suggestion with Enter, inserting plain text', () => {
+    it('accepts the highlighted suggestion with Enter, ready for the next address', () => {
         render(<Harness/>)
         fireEvent.change(input(), {target: {value: 'jan'}})
         fireEvent.keyDown(input(), {key: 'ArrowDown'})
         fireEvent.keyDown(input(), {key: 'Enter'})
-        expect(input().value).toBe('janet@books.example')
+        expect(input().value).toBe('janet@books.example; ')
         expect(screen.queryByRole('listbox')).toBeNull()
     })
 
-    it('accepts with Tab too', () => {
+    it('suggests again for an address typed straight after an acceptance', () => {
+        render(<Harness/>)
+        fireEvent.change(input(), {target: {value: 'janet'}})
+        fireEvent.keyDown(input(), {key: 'Enter'})
+        fireEvent.change(input(), {target: {value: `${input().value}jan`}})
+        const options = screen.getAllByRole('option')
+        expect(options.map((o) => o.textContent)).toEqual(['Jane Doejane@example.com'])
+        fireEvent.keyDown(input(), {key: 'Enter'})
+        expect(input().value).toBe('janet@books.example; jane@example.com; ')
+    })
+
+    it('accepts with Tab too, without a trailing separator', () => {
         render(<Harness/>)
         fireEvent.change(input(), {target: {value: 'jan'}})
         fireEvent.keyDown(input(), {key: 'Tab'})
@@ -68,7 +79,7 @@ describe('RecipientField', () => {
         render(<Harness/>)
         fireEvent.change(input(), {target: {value: 'bob@quarry.example, jan'}})
         fireEvent.click(screen.getAllByRole('option')[0])
-        expect(input().value).toBe('bob@quarry.example, jane@example.com')
+        expect(input().value).toBe('bob@quarry.example, jane@example.com; ')
     })
 
     it('wraps the highlight with the arrow keys', () => {
@@ -76,7 +87,25 @@ describe('RecipientField', () => {
         fireEvent.change(input(), {target: {value: 'jan'}})
         fireEvent.keyDown(input(), {key: 'ArrowUp'})
         fireEvent.keyDown(input(), {key: 'Enter'})
-        expect(input().value).toBe('janet@books.example')
+        expect(input().value).toBe('janet@books.example; ')
+    })
+
+    it('turns a space after a complete typed address into the separator', () => {
+        render(<Harness/>)
+        fireEvent.change(input(), {target: {value: 'typed@elsewhere.example'}})
+        fireEvent.keyDown(input(), {key: ' '})
+        expect(input().value).toBe('typed@elsewhere.example; ')
+    })
+
+    it('leaves a space alone mid-address and away from the end of the field', () => {
+        render(<Harness/>)
+        fireEvent.change(input(), {target: {value: 'jan'}})
+        fireEvent.keyDown(input(), {key: ' '})
+        expect(input().value).toBe('jan')
+        fireEvent.change(input(), {target: {value: 'typed@elsewhere.example'}})
+        input().setSelectionRange(0, 0)
+        fireEvent.keyDown(input(), {key: ' '})
+        expect(input().value).toBe('typed@elsewhere.example')
     })
 
     it('closes on Escape without touching the field and stops the event there', () => {

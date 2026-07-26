@@ -1,6 +1,7 @@
 import {describe, expect, it} from 'vitest'
 import {
     activeFragment,
+    advanceToNextAddress,
     applySuggestion,
     MAX_SUGGESTIONS,
     Suggestion,
@@ -110,5 +111,28 @@ describe('applySuggestion', () => {
 
     it('adds the missing space after a tight separator', () => {
         expect(applySuggestion('bob@quarry.example,jan', jane)).toBe('bob@quarry.example, jane@example.com')
+    })
+
+    it('appends the separator when continuing the list', () => {
+        expect(applySuggestion('jan', jane, true)).toBe('jane@example.com; ')
+        expect(applySuggestion('bob@quarry.example, jan', jane, true))
+            .toBe('bob@quarry.example, jane@example.com; ')
+    })
+})
+
+describe('advanceToNextAddress', () => {
+    it('appends the separator once the fragment is a complete address', () => {
+        expect(advanceToNextAddress('bob@quarry.example')).toBe('bob@quarry.example; ')
+    })
+
+    it('judges only the fragment after the last separator', () => {
+        expect(advanceToNextAddress('a@b.example, bob@quarry.example'))
+            .toBe('a@b.example, bob@quarry.example; ')
+    })
+
+    it('leaves an incomplete, empty or already-separated fragment alone', () => {
+        expect(advanceToNextAddress('bob')).toBeNull()
+        expect(advanceToNextAddress('')).toBeNull()
+        expect(advanceToNextAddress('a@b.example, ')).toBeNull()
     })
 })

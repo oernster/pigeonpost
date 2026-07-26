@@ -1,6 +1,6 @@
 import {useState} from 'react'
 import type {KeyboardEvent} from 'react'
-import {applySuggestion, Suggestion, suggestionsFor} from '../recipientSuggest'
+import {advanceToNextAddress, applySuggestion, Suggestion, suggestionsFor} from '../recipientSuggest'
 
 interface RecipientFieldProps {
     label: string
@@ -14,9 +14,11 @@ interface RecipientFieldProps {
 
 // RecipientField is one To / Cc / Bcc row: an ordinary text input with a contact-suggestion
 // dropdown under it while an address fragment is being typed. Accepting a suggestion (Enter, Tab
-// or a click) only inserts text, so the field stays freely editable afterwards; Escape closes the
-// dropdown without touching the field (and without closing the dialog, which owns Escape
-// otherwise). Arrow keys move the highlight and wrap.
+// or a click) only inserts text, so the field stays freely editable afterwards; Enter and click
+// also append the separator, so the next address can be typed immediately (Tab does not, since
+// focus is leaving the field). A space typed at the end of a complete address inserts the
+// separator the same way. Escape closes the dropdown without touching the field (and without
+// closing the dialog, which owns Escape otherwise). Arrow keys move the highlight and wrap.
 export function RecipientField({label, value, placeholder, pool, ensurePool, onChange}: RecipientFieldProps) {
     const [open, setOpen] = useState(false)
     const [highlight, setHighlight] = useState(0)
@@ -26,13 +28,29 @@ export function RecipientField({label, value, placeholder, pool, ensurePool, onC
     // shrinking as the fragment narrows.
     const active = Math.min(highlight, Math.max(suggestions.length - 1, 0))
 
-    const accept = (suggestion: Suggestion) => {
-        onChange(applySuggestion(value, suggestion))
+    const accept = (suggestion: Suggestion, continueList: boolean) => {
+        onChange(applySuggestion(value, suggestion, continueList))
         setOpen(false)
     }
 
     const onKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
-        if (suggestions.length === 0 || e.ctrlKey || e.metaKey || e.altKey) {
+        if (e.ctrlKey || e.metaKey || e.altKey) {
+            return
+        }
+        if (e.key === ' ') {
+            // A space is never valid inside an address, so at the end of a complete one it means
+            // "next address": insert the separator instead. Only at the end of the field, so a
+            // space typed while editing mid-list keeps its ordinary meaning.
+            const caretAtEnd = e.currentTarget.selectionStart === value.length
+                && e.currentTarget.selectionEnd === value.length
+            const advanced = advanceToNextAddress(value)
+            if (caretAtEnd && advanced !== null) {
+                e.preventDefault()
+                onChange(advanced)
+            }
+            return
+        }
+        if (suggestions.length === 0) {
             return
         }
         if (e.key === 'ArrowDown') {
@@ -43,10 +61,11 @@ export function RecipientField({label, value, placeholder, pool, ensurePool, onC
             setHighlight((active - 1 + suggestions.length) % suggestions.length)
         } else if (e.key === 'Enter') {
             e.preventDefault()
-            accept(suggestions[active])
+            accept(suggestions[active], true)
         } else if (e.key === 'Tab') {
-            // Accept without preventDefault, so Tab both takes the suggestion and moves on.
-            accept(suggestions[active])
+            // Accept without preventDefault, so Tab both takes the suggestion and moves on. No
+            // separator: focus is leaving the field, so a trailing one would just be clutter.
+            accept(suggestions[active], false)
         } else if (e.key === 'Escape') {
             // Stop the dialog's own Escape handling: the first press closes the dropdown only.
             e.preventDefault()
@@ -85,7 +104,7 @@ export function RecipientField({label, value, placeholder, pool, ensurePool, onC
                                 // mousedown is swallowed so the input keeps focus and its blur-close
                                 // never races the click that accepts.
                                 onMouseDown={(e) => e.preventDefault()}
-                                onClick={() => accept(s)}
+                                onClick={() => accept(s, true)}
                                 onMouseEnter={() => setHighlight(index)}
                             >
                                 <span className="recipient-option-name">{s.name || s.address}</span>
