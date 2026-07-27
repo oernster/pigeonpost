@@ -54,6 +54,7 @@ documented here.
 | `internal/infrastructure/remoteimage` | unit on the SSRF guard and resolver against local stub servers (httptest) | local HTTP server |
 | `internal/infrastructure/keychain` | unit via go-keyring's in-memory mock | none |
 | `internal/infrastructure/taskbar` | unit on the pure label formatting; Win32 overlay excluded | none |
+| `internal/infrastructure/sound` | unit on the chime synthesis and WAV encoding; the winmm playback call excluded | none |
 | `internal/installer` | unit on payload extraction and paths | temp dir |
 | `tests/structural` | AST scan of the source tree | file reads |
 
@@ -68,6 +69,7 @@ documented here.
 | internal/infrastructure/keychain | 100% | account and CalDAV calendar password paths via go-keyring's in-memory mock |
 | internal/infrastructure/recurrence | ~97% | RRULE expansion and truncation; a few defensive edges uncovered |
 | internal/infrastructure/vcard | ~97% | vCard codec round-trip |
+| internal/infrastructure/sound | ~97% | the notification chime's synthesis, normalisation and WAV encoding (pure); only the winmm playback call is excluded |
 | internal/infrastructure/oauth | ~95% | token flow against stubbed endpoints; real-network edges excluded |
 | internal/infrastructure/mailparse | ~94% | MIME body parsing, HTML sanitising, URL linkifying, image blocking and hidden-preheader removal that keeps MJML layout wrappers and mso-hide content (pure); a few defensive decode branches uncovered |
 | internal/infrastructure/ics | ~92% | RFC 5545 codec round-trip, recurrence and scheduling payloads |
@@ -98,6 +100,10 @@ documented here.
 - **Windows taskbar overlay** (`taskbar/overlay_windows.go`): the Win32 `ITaskbarList3` calls that draw
   the unread badge are Windows-only and build-tagged; the no-op stub and the pure label formatting are
   covered.
+- **Notification chime playback** (`sound/play_windows.go`): the `winmm` `PlaySound` call, and the
+  `Play` entry point that reaches it, would make an audible noise on every test run. The synthesis
+  behind it is pure and fully covered, down to the WAV header fields and the fades at both ends, so
+  what is excluded is the syscall alone.
 - **Win32 side effects** (`installer/windows.go`): registry writes, shortcut creation and shell-folder
   resolution. These mutate the real machine and are verified by running the installer, not in unit
   tests.

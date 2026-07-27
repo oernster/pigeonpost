@@ -64,6 +64,7 @@ internal/infrastructure/
     remoteimage/            SSRF-guarded fetcher that inlines blocked remote images on request
     keychain/               OS keychain vault
     taskbar/                Windows taskbar unread badge, tray icon and desktop notifications (no-op stub elsewhere)
+    sound/                  synthesised notification chime, played through winmm on Windows (no-op stub elsewhere)
 internal/installer/         install logic used by the setup program
 installer/                  bespoke per-user setup program (Wails app: install/repair/upgrade/uninstall)
 tools/genicons/             icon generator (master PNG -> ico + png set)
