@@ -10,6 +10,8 @@ import (
 	"unsafe"
 
 	"golang.org/x/sys/windows"
+
+	"github.com/oernster/pigeonpost/internal/infrastructure/sound"
 )
 
 // Tray is a persistent Windows notification-area icon. Left-clicking it restores the main window;
@@ -274,14 +276,18 @@ func (t *Tray) addIcon() {
 }
 
 // showBalloon raises a balloon notification on the existing tray icon by modifying the tray entry with
-// the info flags and the title and body text set.
+// the info flags and the title and body text set, then sounds PigeonPost's own chime. The shell's
+// default notification sound is suppressed with niifNoSound: it is the same sound every other app and
+// tool raising a stock notification gets, so leaving it in place makes new mail indistinguishable by
+// ear from anything else on the machine.
 func (t *Tray) showBalloon(title, body string) {
 	n := t.baseNID()
 	n.uFlags = nifInfo
-	n.dwInfoFlags = niifInfo
+	n.dwInfoFlags = niifInfo | niifNoSound
 	copyUTF16(n.szInfo[:], body)
 	copyUTF16(n.szInfoTitle[:], title)
 	procShellNotifyIcon.Call(nimModify, uintptr(unsafe.Pointer(&n)))
+	sound.Play()
 }
 
 // deleteIcon removes the tray icon.

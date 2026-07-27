@@ -37,7 +37,8 @@ enforced by a test in `tests/structural/boundary_test.go`, not by convention.
   (`mailrouter`, which routes reads, verification and actions to the IMAP or POP3 adapter by account
   protocol), the reminder and unread surfaces (`taskbar`: the Windows taskbar unread-overlay badge and
   reminder flash, no-ops off Windows, plus the notification tray, a Windows tray icon that also carries
-  the unread badge, or a native desktop notification elsewhere), the OS keychain (`keychain`), the
+  the unread badge, or a native desktop notification elsewhere), the notification chime (`sound`, a
+  synthesised WAV played through `winmm` on Windows and a no-op elsewhere), the OS keychain (`keychain`), the
   calendar and contacts codecs (`ics`, `recurrence`, `vcard` and `csv`), the CalDAV sync client
   (`caldav`), the Microsoft OAuth token flow (`oauth`) and the SSRF-guarded remote-image fetcher
   (`remoteimage`). Never imported by Domain or Application. The
@@ -631,6 +632,20 @@ package's `Tray`. The tray notification is a Windows balloon on the tray icon, o
 notification off Windows (a freedesktop D-Bus notification on Linux, an `osascript` notification on
 macOS, a no-op on any other platform). Both alerts skip when the window is already in the foreground, so
 an in-view reminder relies on its banner alone.
+
+**The notification sound.** On Windows a balloon raised through `Shell_NotifyIconW` plays the shell's
+one default notification sound, which is the same sound every other app and tool raising a stock
+notification gets, so a PigeonPost alert cannot be told apart by ear from anything else on the machine.
+The tray therefore sets `NIIF_NOSOUND` to silence the shell and plays its own chime through
+`infrastructure/sound`, a soft falling pair pitched low and wooden where the system sounds are bright
+and glassy. The chime is synthesised from named constants rather than shipped as an asset, so there is
+no binary in the repository and nothing to resolve at runtime across the dev, Wails and packaged
+builds; the synthesis is a pure function and is unit tested, leaving only the `winmm` `PlaySound` call
+itself outside coverage. Playback is asynchronous and reads the buffer after the call returns, which is
+safe because the rendering is cached once for the life of the process. Every tray notification shares
+the one chime (new mail, a due reminder and a snoozed message returning), so PigeonPost has a single
+recognisable voice. Off Windows the sound is left to the desktop's own notification service, which
+chooses it from the user's theme, so there is nothing to override.
 
 **Close to tray.** On Windows the `Tray` is a persistent, clickable
 notification-area icon: left-clicking it reopens the window, and its right-click menu mirrors the Help

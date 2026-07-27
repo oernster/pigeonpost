@@ -30,6 +30,9 @@ const (
 	nifTip     = 0x04
 	nifInfo    = 0x10
 	niifInfo   = 0x01
+	// niifNoSound stops the shell playing its default notification sound with the balloon, so
+	// PigeonPost can play its own chime instead of the one every other app's notification uses.
+	niifNoSound = 0x10
 
 	mfString    = 0x0000
 	mfSeparator = 0x0800
