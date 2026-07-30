@@ -63,6 +63,17 @@ export interface EventForm {
     series: boolean
 }
 
+// meetingView is the slice of the form the attendees can see: the fields the outgoing iTIP REQUEST
+// carries (title, times, zone, location, description, category, recurrence and the invited list).
+// Reminders and the local calendar assignment are deliberately absent: they are private to this machine,
+// so editing them must not email the attendees an update.
+export const meetingView = (f: EventForm): string => JSON.stringify({
+    summary: f.summary, description: f.description, location: f.location, category: f.category,
+    allDay: f.allDay, start: f.start, end: f.end, timeZone: f.allDay ? '' : f.timeZone,
+    recurrence: f.recurrence,
+    attendees: f.attendees.map((a) => [a.address, a.commonName, a.role, a.rsvp]),
+})
+
 interface EventFormModalProps {
     form: EventForm
     setForm: Dispatch<SetStateAction<EventForm | null>>
@@ -89,6 +100,10 @@ export function EventFormModal({
     cancelledSent, setCancelledSent, banners, onChanged, bumpReload,
 }: EventFormModalProps) {
     const {error, status, busy, setError, setStatus, setBusy} = banners
+    // openedView is the meeting view of the form as it was opened; comparing against it on save decides
+    // whether the attendees need an update at all. The modal mounts fresh for each opened event, so the
+    // initializer runs exactly once per edit session.
+    const [openedView] = useState(() => meetingView(form))
     const [cancelMeeting, setCancelMeeting] = useState(false)
     const [pendingDelete, setPendingDelete] = useState<{id: string; summary: string} | null>(null)
     const [deleteScope, setDeleteScope] = useState<{seriesId: string; occurrence: string; summary: string} | null>(null)
@@ -137,10 +152,18 @@ export function EventFormModal({
         return accountName ? `${accountName} (${accountEmail})` : accountEmail
     }
 
-    // primaryActionLabel names the save button. For a meeting with a usable account, saving also emails the
-    // invitation to the attendees, so the label says so rather than a plain Save.
+    // meetingChangedSinceOpen says whether the attendees can see any difference: a new event is always a
+    // change, an existing one only when its meeting view moved since the form opened. A reminder or
+    // calendar tweak leaves the view identical, so the save stays local.
+    const meetingChangedSinceOpen = form.id === '' || meetingView(form) !== openedView
+    // sendsOnSave says whether this save will email the attendees: the event is a meeting, an account can
+    // send, it is not already cancelled and something the attendees can see changed.
+    const sendsOnSave = form.attendees.length > 0 && accountId !== '' && !cancelledSent && meetingChangedSinceOpen
+
+    // primaryActionLabel names the save button. When saving will also email the attendees, the label says
+    // so rather than a plain Save.
     const primaryActionLabel = (): string => {
-        if (form.attendees.length > 0 && accountId !== '' && !cancelledSent) {
+        if (sendsOnSave) {
             return form.id ? 'Save and send update' : 'Send invitation'
         }
         return form.id ? 'Save changes' : 'Add event'
@@ -185,11 +208,17 @@ export function EventFormModal({
             bumpReload()
             onChanged()
             // Saving a meeting sends its invitation: adding attendees and saving is what invites them, the
-            // same way a calendar app's meeting Send both saves and notifies. Re-saving sends an update.
+            // same way a calendar app's meeting Send both saves and notifies. Re-saving sends an update,
+            // but only when something the attendees can see changed: a reminder or calendar tweak is a
+            // local detail and saving it must not email anyone.
             if (hasAttendees && !cancelledSent) {
                 if (accountId === '') {
                     console.warn('meeting invite: not sending, no account selected', {savedId})
                     setStatus('Meeting saved. Select an account to send the invitation to the attendees.')
+                } else if (!meetingChangedSinceOpen) {
+                    console.info('meeting invite: not sending, no attendee-visible change', {savedId})
+                    setStatus('Saved. The attendees were not emailed: nothing they can see changed.')
+                    setForm(null)
                 } else {
                     console.info('meeting invite: sending request', {accountId, savedId, attendees: form.attendees.length})
                     await api.sendMeetingRequest(accountId, savedId)
@@ -449,7 +478,11 @@ export function EventFormModal({
                                         <p className="setup-hint">
                                             {cancelledSent
                                                 ? 'This meeting has been cancelled. The attendees have been notified.'
-                                                : `Saving ${form.id === '' ? 'this meeting' : ''} sends an invitation to the attendees by email.`}
+                                                : sendsOnSave
+                                                    ? (form.id === ''
+                                                        ? 'Saving this meeting sends an invitation to the attendees by email.'
+                                                        : 'Saving sends an update to the attendees by email.')
+                                                    : 'Saving keeps the change local. An update is emailed only when something the attendees can see changes.'}
                                         </p>
                                         {form.id !== '' && (
                                             <div className="invite-card-actions">

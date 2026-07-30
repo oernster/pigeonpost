@@ -218,6 +218,38 @@ describe('CalendarModal: meetings', () => {
         expect(await screen.findByText(/Invitation sent to 1 attendee/)).toBeInTheDocument()
     })
 
+    it('saves a reminder-only change to a meeting without emailing the attendees', async () => {
+        const meeting = makeEvent({
+            id: 'm1', summary: 'Review',
+            attendees: [{address: 'a@b.com', commonName: '', role: 'REQ-PARTICIPANT', status: 'NEEDS-ACTION', rsvp: true}],
+            organizer: {address: 'me@x.com', commonName: 'Me'},
+        })
+        apiSpies.listEventInstances.mockResolvedValue([makeInstance(meeting)])
+        renderCalendar({accountId: 'acc1'})
+        fireEvent.click(await screen.findByRole('button', {name: /Review/}))
+        fireEvent.click(screen.getByRole('button', {name: '+ Add reminder'}))
+        fireEvent.click(screen.getByRole('button', {name: 'Save changes'}))
+        await waitFor(() => expect(apiSpies.saveEvent).toHaveBeenCalledWith(expect.objectContaining({id: 'm1'})))
+        expect(apiSpies.sendMeetingRequest).not.toHaveBeenCalled()
+        await waitFor(() => expect(screen.queryByRole('dialog', {name: 'Edit event'})).toBeNull())
+        expect(await screen.findByText(/The attendees were not emailed/)).toBeInTheDocument()
+    })
+
+    it('sends an update when a change the attendees can see is saved', async () => {
+        const meeting = makeEvent({
+            id: 'm1', summary: 'Review',
+            attendees: [{address: 'a@b.com', commonName: '', role: 'REQ-PARTICIPANT', status: 'NEEDS-ACTION', rsvp: true}],
+            organizer: {address: 'me@x.com', commonName: 'Me'},
+        })
+        apiSpies.listEventInstances.mockResolvedValue([makeInstance(meeting)])
+        renderCalendar({accountId: 'acc1'})
+        fireEvent.click(await screen.findByRole('button', {name: /Review/}))
+        fireEvent.change(screen.getByDisplayValue('Review'), {target: {value: 'Review v2'}})
+        fireEvent.click(screen.getByRole('button', {name: 'Save and send update'}))
+        await waitFor(() => expect(apiSpies.saveEvent).toHaveBeenCalledWith(expect.objectContaining({summary: 'Review v2'})))
+        await waitFor(() => expect(apiSpies.sendMeetingRequest).toHaveBeenCalledWith('acc1', 'evt-new'))
+    })
+
     it('cancels an existing meeting after confirming', async () => {
         const meeting = makeEvent({
             id: 'm1', summary: 'Review',
