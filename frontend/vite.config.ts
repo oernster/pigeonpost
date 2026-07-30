@@ -38,6 +38,7 @@ export default defineConfig({
         'src/undoStack.ts',
         'src/editClipboard.ts',
         'src/paneLayout.ts',
+        'src/emailColors.ts',
       ],
       thresholds: {lines: 100, functions: 100, statements: 100, branches: 100},
     },

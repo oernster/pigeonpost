@@ -162,19 +162,19 @@ npx vitest run --coverage   # enforce the pure-module coverage gate
   `readerFormat`, `composeAddresses`, `composeAttachment`, `composeIntake`, `recipientSuggest`,
   `autoCollect`, `datePicker`, `accountProviders`, `sidebarDnd`, `calendarModel`, `replyDraft`,
   `caldavAccount`, `unified`, `schedule`, `snooze`, `toolbarNav`, `undoStack`, `editClipboard`,
-  `paneLayout`)
+  `paneLayout`, `emailColors`)
   carry a v8 coverage gate at 100% lines, functions, statements and branches, listed in `vite.config.ts`
   under `coverage.include`. Hooks and components are tested but not gated: a React hook fuses logic with
   framework plumbing, so a blanket 100% there buys brittle tests, not correctness.
 - **Structural boundary test.** `src/test/boundary.test.ts` scans the top-level `src/*.ts` modules and
   keeps the gated pure modules pure, the front-end analogue of `boundary_test.go`.
-- **The reader's colour treatment** (`components/emailDarkMode.ts`) is tested on both halves: its colour
-  arithmetic (colour parsing, alpha compositing, sRGB relative luminance, contrast ratio, what counts as a
-  dark background and what counts as a background image that actually paints) directly in
-  `emailDarkMode.test.ts`; its per-region decisions go through the rendered frame in
+- **The reader's colour treatment** is tested on both halves: its colour arithmetic (colour parsing, alpha
+  compositing, sRGB relative luminance, contrast ratio, what counts as a dark background and what counts as
+  a background image that actually paints) lives in `src/emailColors.ts` under the gate above, pinned
+  directly by `emailColors.test.ts`; the DOM walk that applies those judgements stays in
+  `components/emailDarkMode.ts` and its per-region decisions go through the rendered frame in
   `EmailHtmlFrame.test.tsx`, which reads the resulting element styles rather than a stylesheet string
-  because the decision depends on each element's own background. It sits under `components/` and mixes that
-  arithmetic with a DOM walk, so it is not in the gated list above.
+  because the decision depends on each element's own background.
 - **Characterization-first.** The `App.tsx` and component decomposition was done test-first: each
   extraction was preceded by a characterization test pinning the behaviour on the un-extracted code, so
   every move was behaviour-preserving by construction. `App.test.tsx` characterizes App at its outer

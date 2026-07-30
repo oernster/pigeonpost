@@ -8,7 +8,7 @@ import {
     paintsBackground,
     parseColor,
     relativeLuminance,
-} from './emailDarkMode'
+} from './emailColors'
 
 const WHITE = {r: 255, g: 255, b: 255, a: 1}
 const BLACK = {r: 0, g: 0, b: 0, a: 1}
@@ -23,6 +23,11 @@ describe('parseColor', () => {
         // The "transparent" keyword resolves to this, and an element carrying it defines no background of
         // its own: the surface above it still governs.
         expect(parseColor('rgba(0, 0, 0, 0)')?.a).toBe(0)
+    })
+
+    it('treats an unreadable fourth part as full alpha', () => {
+        // The channels are sound, so the colour is kept; only the broken alpha falls back to opaque.
+        expect(parseColor('rgba(1, 2, 3, x)')).toEqual({r: 1, g: 2, b: 3, a: 1})
     })
 
     it('returns null for anything it cannot read', () => {
