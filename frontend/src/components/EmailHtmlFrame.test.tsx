@@ -136,16 +136,39 @@ describe('EmailHtmlFrame: dark mode', () => {
         expect(doc).not.toContain('[style*="background-image"]{')
     })
 
-    it('renders a dark-mode-aware email natively, without inverting it', () => {
+    it('pins the light colour scheme on the iframe element in both themes', () => {
+        // This is the pin that actually governs prefers-color-scheme inside the message: an embedded document
+        // takes its colour-scheme preference from its embedder, and declaring it inside the frame's own
+        // document does not change it (measured in Chromium/WebView2). Without it the frame inherits the app's
+        // dark scheme and a partial-dark email switches its own rules on, which is the blinding case.
+        for (const dark of [false, true]) {
+            expect(renderFrame({dark}).frame.style.colorScheme).toBe('light')
+        }
+    })
+
+    it('also declares the light scheme inside the frame document', () => {
+        // Not what drives prefers-color-scheme (the element pin above does that), but it sets the used scheme
+        // for UA-rendered controls inside the message.
+        for (const dark of [false, true]) {
+            const doc = frameHtml(renderFrame({dark}).frame)
+            expect(doc).toContain('name="color-scheme" content="light"')
+            expect(doc).toContain(':root{color-scheme:light;}')
+        }
+    })
+
+    it('inverts an email that ships partial dark-mode styling rather than trusting it to darken itself', () => {
         const {frame} = renderFrame({
             dark: true,
-            html: '<style>@media (prefers-color-scheme:dark){body{background:#181a1a;color:#fff}}</style><p>Hi</p>',
+            html: '<style>@media (prefers-color-scheme:dark){body{background:#181a1a;color:#fff}}</style>' +
+                '<table bgcolor="#ffffff"><tr><td>Hi</td></tr></table>',
         })
         const doc = frameHtml(frame)
-        // The message darkens itself, so the frame must not invert it (that would flip it back to light); it
-        // renders on a dark paper and the message's own prefers-color-scheme:dark rules apply.
-        expect(doc).not.toContain('invert(1)')
-        expect(doc).toContain('background:#1a1a1a;color:#e6e6e6')
+        // Dark-mode support in HTML email is almost always partial: the media query recolours a few elements
+        // while bgcolor attributes and inline styles keep the bulk of the page white. Deferring to it left the
+        // reader blinding in the dark theme, so the frame pins the message to light and inverts it like any
+        // other.
+        expect(doc).toContain('html{filter:invert(1) hue-rotate(180deg);}')
+        expect(doc).toContain('name="color-scheme" content="light"')
     })
 
     it('still inverts a light-only email that has no dark-mode styling', () => {

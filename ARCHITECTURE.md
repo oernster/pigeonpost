@@ -168,12 +168,16 @@ Read a message body:
    `data:` URI, sidestepping the CORP/CORS rules that would otherwise stop the iframe embedding it by URL.
    The fetch is SSRF-guarded by a `net.Dialer.Control` hook that checks the real post-DNS connect IP and
    rejects private, loopback, link-local and CGNAT addresses, under size, timeout and redirect caps and an
-   image-only content-type check. In the dark theme the frame first checks whether the message ships its own dark-mode
-   styling (a `prefers-color-scheme: dark` block, common with large senders): if it does, the frame reports the
-   app's dark scheme and lets the message render natively on a dark paper, because inverting an email that has
-   already darkened itself would flip it back to light (its dark background becoming a light page and a
-   forced-white product tile becoming black). Only a light-designed message (the overwhelming majority, which
-   never anticipates dark mode) is inverted: the frame inverts the whole document with a hue-rotate to darken
+   image-only content-type check. The frame is pinned to the light colour scheme in both themes, so
+   every message renders in its light design. The pin sits as `color-scheme: light` on the iframe ELEMENT,
+   because an embedded document takes its colour-scheme preference from its embedder and the same declaration
+   inside the frame's own document does not change it (measured in Chromium/WebView2); the print path pins its
+   frame the same way. Without the pin the frame inherits the app's dark scheme and any
+   `prefers-color-scheme: dark` rules the message carries switch themselves on; dark-mode
+   support in HTML email is almost always partial, a media query recolouring a handful of elements while
+   `bgcolor` attributes and inline styles keep the bulk of the page white, so deferring to it left the reader
+   blinding in the dark theme. With one uniform light design to work from, the dark theme
+   inverts the whole document with a hue-rotate to darken
    it, then re-inverts only leaf media (images, logos) and an image on an otherwise-empty box back to true
    colour, never a content-bearing container with a `background` attribute or background-image: a `filter` on a
    wrapper and one on its descendants compound, so re-inverting a content wrapper would flip its whole subtree

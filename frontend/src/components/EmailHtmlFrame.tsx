@@ -1,14 +1,11 @@
 import {useEffect, useRef} from 'react'
 
-// The email renders on a paper surface with readable defaults. Most HTML email is authored only for a light
-// background, so the default surface is white and the app darkens it by inverting the whole document (see
-// darkModeStyle). An email that ships its own dark-mode styling is the exception: it renders natively on a
-// dark paper instead, because inverting an already-dark email would turn it light again. These are the design
-// tokens for both surfaces, named rather than inlined so the base stylesheet carries no bare magic numbers.
+// The email renders on a paper surface with readable defaults. Every message is treated as light-designed:
+// the frame pins the document to the light colour scheme (see FORCED_LIGHT_SCHEME) and the app darkens it by
+// inverting the whole document in the dark theme (see darkModeStyle). These are the design tokens for that
+// surface, named rather than inlined so the base stylesheet carries no bare magic numbers.
 const PAPER_BACKGROUND = '#ffffff'
 const PAPER_INK = '#1a1a1a'
-const PAPER_BACKGROUND_DARK = '#1a1a1a'
-const PAPER_INK_DARK = '#e6e6e6'
 const FRAME_PADDING_PX = 12
 // 15px with a 1.6 leading, matching the app's own reading surfaces: email is read at length, so the frame
 // gets the full base size rather than a compacted UI size. Segoe UI Variable Text leads the stack for the
@@ -18,27 +15,39 @@ const FRAME_FONT_SIZE_PX = 15
 const FRAME_LINE_HEIGHT = 1.6
 const FRAME_FONT_STACK = "'Segoe UI Variable Text','Segoe UI',-apple-system,BlinkMacSystemFont,system-ui,sans-serif"
 
-// paperStyle gives the email a page with readable defaults and stops a wide image or table overflowing the
-// reader. The message's own inline styles and <style> blocks layer on top of it. It is authored once and
-// reused for the light paper, the inverted-dark base and the native-dark paper.
-function paperStyle(background: string, ink: string): string {
-    return (
-        `html,body{margin:0;padding:${FRAME_PADDING_PX}px;background:${background};color:${ink};` +
-        `font:${FRAME_FONT_SIZE_PX}px/${FRAME_LINE_HEIGHT} ${FRAME_FONT_STACK};overflow-wrap:break-word;}` +
-        'img{max-width:100%;height:auto;}table{max-width:100%;}' +
-        // A link that stands alone on its own line (marked pp-solo-link by the body parser) reads as a
-        // call to action, so it is presented as a button rather than a raw link.
-        'a.pp-solo-link{display:inline-block;margin:4px 0;padding:9px 20px;border-radius:18px;' +
-        'background:#2f6fed;color:#ffffff;text-decoration:none;font-weight:600;}'
-    )
-}
-const baseStyle = paperStyle(PAPER_BACKGROUND, PAPER_INK)
-const baseStyleDark = paperStyle(PAPER_BACKGROUND_DARK, PAPER_INK_DARK)
+// The frame is pinned to the light colour scheme whatever the app theme is, so the message always renders in
+// its light design and the dark theme has one uniform document to invert. Without the pin the frame inherits
+// the app's dark scheme and any prefers-color-scheme:dark rules the message carries switch themselves on.
+// That is the blinding case: dark-mode support in HTML email is almost always partial, a media query that
+// recolours a handful of elements while the bulk of the page stays white through bgcolor attributes and
+// inline styles no media query can reach, so the message ends up mostly white with a few dark patches.
+//
+// The pin that actually governs prefers-color-scheme is FRAME_COLOR_SCHEME, set on the iframe ELEMENT in this
+// document: an embedded document takes its colour-scheme preference from its embedder. Declaring
+// color-scheme inside the frame's own document does NOT change it (measured in Chromium/WebView2: with the
+// declaration in the frame, prefers-color-scheme:dark still matched and a partial-dark email still darkened
+// itself; with it on the element, the same email rendered light). FORCED_LIGHT_SCHEME keeps the declaration
+// in the document too, where it still sets the used scheme for UA-rendered controls inside the message. The
+// print path pins its frame the same way, on the element (see print.ts).
+const FRAME_COLOR_SCHEME = 'light'
+const FORCED_LIGHT_SCHEME = `:root{color-scheme:${FRAME_COLOR_SCHEME};}`
 
-// darkModeStyle renders the email dark when the app theme is dark. Virtually all HTML email is authored for a
-// light background and never anticipates dark mode, so the only technique that darkens an arbitrary message
-// (rather than only the few that ship a prefers-color-scheme variant) is to invert the whole light-designed
-// document: a white background becomes dark and dark body text becomes light. Real media is then re-inverted
+// baseStyle gives the email a page with readable defaults and stops a wide image or table overflowing the
+// reader. The message's own inline styles and <style> blocks layer on top of it.
+const baseStyle =
+    FORCED_LIGHT_SCHEME +
+    `html,body{margin:0;padding:${FRAME_PADDING_PX}px;background:${PAPER_BACKGROUND};color:${PAPER_INK};` +
+    `font:${FRAME_FONT_SIZE_PX}px/${FRAME_LINE_HEIGHT} ${FRAME_FONT_STACK};overflow-wrap:break-word;}` +
+    'img{max-width:100%;height:auto;}table{max-width:100%;}' +
+    // A link that stands alone on its own line (marked pp-solo-link by the body parser) reads as a
+    // call to action, so it is presented as a button rather than a raw link.
+    'a.pp-solo-link{display:inline-block;margin:4px 0;padding:9px 20px;border-radius:18px;' +
+    'background:#2f6fed;color:#ffffff;text-decoration:none;font-weight:600;}'
+
+// darkModeStyle renders the email dark when the app theme is dark. HTML email is authored for a light
+// background and, where it anticipates dark mode at all, does so only partially, so the only technique that
+// darkens an arbitrary message is to invert the whole light-designed document (which FORCED_LIGHT_SCHEME
+// guarantees it is): a white background becomes dark and dark body text becomes light. Real media is then re-inverted
 // with the same filter, which double-inverts it back to its true colours, so photos and logos still look
 // right. The 180deg hue-rotate keeps hues recognisable rather than turning them complementary.
 //
@@ -82,43 +91,22 @@ interface EmailHtmlFrameProps {
     // has asked for images, the parent passes the proxy-resolved HTML whose remote images are inlined as data:
     // URIs; otherwise it passes the parked HTML, which shows no images.
     html: string
-    // dark renders the email to match the app's dark theme. A light-designed message is inverted inside the
-    // frame; a message that carries its own dark-mode styling is left to render natively on a dark paper. It
-    // is false in the light theme, where the email keeps its faithful white surface.
+    // dark renders the email to match the app's dark theme by inverting the message inside the frame. It is
+    // false in the light theme, where the email keeps its faithful white surface.
     dark: boolean
     // onOpenLink receives an http/https/mailto href when a link inside the email is clicked; the parent
     // opens it in the external browser rather than letting it navigate the frame or the app.
     onOpenLink: (href: string) => void
 }
 
-// EMAIL_DARK_MODE_SIGNAL detects an email that ships its own dark-mode styling. A prefers-color-scheme:dark
-// media query is the reliable, standards-based signal, used heavily by large senders such as Amazon. When it
-// is present the frame lets the message darken itself (the frame reports the app's dark scheme, so the
-// message's own dark rules apply) and skips the invert: inverting an email that has already darkened itself
-// flips it back to light, its dark background becoming a light page with dark text and a forced-white product
-// tile becoming black.
-const EMAIL_DARK_MODE_SIGNAL = /prefers-color-scheme\s*:\s*dark/i
-
-// htmlSupportsDarkMode reports whether the message carries its own dark-mode styling, so the frame can let it
-// render natively rather than inverting it.
-function htmlSupportsDarkMode(html: string): boolean {
-    return EMAIL_DARK_MODE_SIGNAL.test(html)
-}
-
 // buildFrameDocument assembles the self-contained document the parent writes into the iframe. It is a
 // full HTML document so the CSP meta tag governs the message; the sanitised body is dropped in verbatim. The
-// theme decides the surface, not the body: a light message is inverted to darken it, while a message that
-// carries its own dark mode renders natively on a dark paper.
+// theme decides the surface, not the body: the message always renders in its light design (pinned by the
+// colour-scheme meta and FORCED_LIGHT_SCHEME) and the dark theme inverts that whole design.
 function buildFrameDocument(html: string, dark: boolean): string {
-    let surfaceStyle: string
-    if (!dark) {
-        surfaceStyle = baseStyle
-    } else if (htmlSupportsDarkMode(html)) {
-        surfaceStyle = baseStyleDark
-    } else {
-        surfaceStyle = baseStyle + darkModeStyle
-    }
+    const surfaceStyle = dark ? baseStyle + darkModeStyle : baseStyle
     return '<!doctype html><html><head><meta charset="utf-8">' +
+        `<meta name="color-scheme" content="${FRAME_COLOR_SCHEME}">` +
         `<meta http-equiv="Content-Security-Policy" content="${CONTENT_SECURITY_POLICY}">` +
         `<style>${surfaceStyle}</style></head><body>${html}</body></html>`
 }
@@ -243,6 +231,9 @@ export function EmailHtmlFrame({html, dark, onOpenLink}: EmailHtmlFrameProps) {
             ref={frameRef}
             className="reader-html-frame"
             title="Email content"
+            // The pin that governs prefers-color-scheme inside the message: it has to sit on the element,
+            // not in the frame's own document (see FRAME_COLOR_SCHEME).
+            style={{colorScheme: FRAME_COLOR_SCHEME}}
             sandbox="allow-same-origin allow-scripts"
         />
     )
