@@ -1,9 +1,11 @@
 import {useEffect, useRef} from 'react'
 
-// The email renders on a paper surface with readable defaults. Every message is treated as light-designed:
-// the frame pins the document to the light colour scheme (see FORCED_LIGHT_SCHEME) and the app darkens it by
-// inverting the whole document in the dark theme (see darkModeStyle). These are the design tokens for that
-// surface, named rather than inlined so the base stylesheet carries no bare magic numbers.
+import {applyEmailColorTreatment} from './emailDarkMode'
+
+// The email renders on a paper surface with readable defaults. The message is pinned to the light colour
+// scheme (see FRAME_COLOR_SCHEME) so it always renders in the one design its author finished, and the
+// document is then coloured for the app's theme element by element (see emailDarkMode). These are the design
+// tokens for the paper, named rather than inlined so the base stylesheet carries no bare magic numbers.
 const PAPER_BACKGROUND = '#ffffff'
 const PAPER_INK = '#1a1a1a'
 const FRAME_PADDING_PX = 12
@@ -44,37 +46,6 @@ const baseStyle =
     'a.pp-solo-link{display:inline-block;margin:4px 0;padding:9px 20px;border-radius:18px;' +
     'background:#2f6fed;color:#ffffff;text-decoration:none;font-weight:600;}'
 
-// darkModeStyle renders the email dark when the app theme is dark. HTML email is authored for a light
-// background and, where it anticipates dark mode at all, does so only partially, so the only technique that
-// darkens an arbitrary message is to invert the whole light-designed document (which FORCED_LIGHT_SCHEME
-// guarantees it is): a white background becomes dark and dark body text becomes light. Real media is then re-inverted
-// with the same filter, which double-inverts it back to its true colours, so photos and logos still look
-// right. The 180deg hue-rotate keeps hues recognisable rather than turning them complementary.
-//
-// The re-invert targets only leaf media: the replaced elements (img, picture, video, svg, canvas) plus a
-// background image on an otherwise-empty box. It must never match a container that holds content. A CSS
-// filter on an element and one on its descendant compound, so re-inverting a content-bearing box (a layout
-// table cell carrying a background attribute or a background-image, as Amazon-style transactional email
-// uses) double-inverts that whole subtree back to light: it defeats dark mode for the block and leaves the
-// descendant images (a product thumbnail, a logo) inverted the wrong way. Restricting the background match
-// to :empty keeps a genuinely decorative background image looking right while never flipping a content
-// wrapper. A plain background-colour is never matched, so a coloured box keeps its inverted dark fill.
-const DARK_INVERT_FILTER = 'invert(1) hue-rotate(180deg)'
-const DARK_MEDIA_SELECTOR = 'img,picture,video,svg,canvas,[background]:empty,[style*="background-image"]:empty'
-// DARK_MEDIA_FRAME is a border drawn around re-inverted media in dark mode. Keeping media at its true colour
-// is right for a photo. A genuinely dark image (a book cover, a dark logo) was designed to sit on the
-// sender's light page, so once the surround inverts to dark it has no contrast and reads as a dark block on
-// a dark cell; the frame gives it a visible edge. The colour rides the filtered media, so it renders as a
-// mid-grey line against both the dark image and the dark surround. It is !important because HTML email almost
-// universally resets image borders (an inline border:0 that kills the old linked-image border), which would
-// otherwise beat this stylesheet rule and leave the frame off exactly the product images that need it.
-// box-sizing keeps the border from resizing a fixed-dimension image. The frame also lands faintly on a spacer
-// or tracking image, an accepted cost for readable covers.
-const DARK_MEDIA_FRAME = '2px solid #808080'
-const darkModeStyle =
-    `html{filter:${DARK_INVERT_FILTER};}` +
-    `${DARK_MEDIA_SELECTOR}{filter:${DARK_INVERT_FILTER};border:${DARK_MEDIA_FRAME} !important;box-sizing:border-box;}`
-
 // The iframe is the security boundary. Its Content-Security-Policy grants no script-src (so no JavaScript runs
 // even if some slipped past the sanitiser), blocks every default source and permits only inline styles, data:
 // fonts plus data: images. It never allows a remote http/https image: a message's remote images are fetched
@@ -91,8 +62,9 @@ interface EmailHtmlFrameProps {
     // has asked for images, the parent passes the proxy-resolved HTML whose remote images are inlined as data:
     // URIs; otherwise it passes the parked HTML, which shows no images.
     html: string
-    // dark renders the email to match the app's dark theme by inverting the message inside the frame. It is
-    // false in the light theme, where the email keeps its faithful white surface.
+    // dark colours the email to match the app's dark theme, region by region, so a message that mixes
+    // light-designed and dark-designed blocks renders dark throughout. It is false in the light theme, where
+    // the email keeps its faithful white surface.
     dark: boolean
     // onOpenLink receives an http/https/mailto href when a link inside the email is clicked; the parent
     // opens it in the external browser rather than letting it navigate the frame or the app.
@@ -101,14 +73,14 @@ interface EmailHtmlFrameProps {
 
 // buildFrameDocument assembles the self-contained document the parent writes into the iframe. It is a
 // full HTML document so the CSP meta tag governs the message; the sanitised body is dropped in verbatim. The
-// theme decides the surface, not the body: the message always renders in its light design (pinned by the
-// colour-scheme meta and FORCED_LIGHT_SCHEME) and the dark theme inverts that whole design.
-function buildFrameDocument(html: string, dark: boolean): string {
-    const surfaceStyle = dark ? baseStyle + darkModeStyle : baseStyle
+// document itself is theme-independent: the message always renders in its light design (pinned by the
+// colour-scheme meta and FORCED_LIGHT_SCHEME) and the theme is applied afterwards by the colour treatment,
+// which needs the laid-out document to read each region's authored background.
+function buildFrameDocument(html: string): string {
     return '<!doctype html><html><head><meta charset="utf-8">' +
         `<meta name="color-scheme" content="${FRAME_COLOR_SCHEME}">` +
         `<meta http-equiv="Content-Security-Policy" content="${CONTENT_SECURITY_POLICY}">` +
-        `<style>${surfaceStyle}</style></head><body>${html}</body></html>`
+        `<style>${baseStyle}</style></head><body>${html}</body></html>`
 }
 
 // isOpenableHref reports whether a link's href is one we open externally (http, https or mailto). Other
@@ -153,7 +125,7 @@ export function EmailHtmlFrame({html, dark, onOpenLink}: EmailHtmlFrameProps) {
     const onOpenLinkRef = useRef(onOpenLink)
     onOpenLinkRef.current = onOpenLink
 
-    const doc = buildFrameDocument(html, dark)
+    const doc = buildFrameDocument(html)
 
     useEffect(() => {
         const frame = frameRef.current
@@ -199,6 +171,11 @@ export function EmailHtmlFrame({html, dark, onOpenLink}: EmailHtmlFrameProps) {
             }
             boundDocument = contentDocument
             contentDocument.addEventListener('click', onClick)
+            // Colour the message for the theme. This runs synchronously after the write, before the frame can
+            // paint, so the reader never sees the untreated document flash. The treatment marks the document
+            // it has walked, so the second attach an engine's load event triggers is a no-op rather than a
+            // second pass that would invert everything back.
+            applyEmailColorTreatment(contentDocument, dark)
             resizeToContent(frame)
             // A ResizeObserver on the body keeps the height correct as late images load or the layout
             // reflows. It is absent in some environments (jsdom), so its use is guarded.
@@ -224,7 +201,7 @@ export function EmailHtmlFrame({html, dark, onOpenLink}: EmailHtmlFrameProps) {
             frame.removeEventListener('load', attach)
             detach()
         }
-    }, [doc])
+    }, [doc, dark])
 
     return (
         <iframe

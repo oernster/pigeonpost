@@ -33,6 +33,18 @@ var htmlSanitizer = buildSanitizer()
 // blockedImageAttr holds a remote image's original src while it is prevented from loading.
 const blockedImageAttr = "data-pp-src"
 
+// parkedCSSURLScheme is the scheme a remote CSS url(...) target is parked behind until the reader asks for
+// images, with the target base64url-encoded after it. It is the CSS counterpart of blockedImageAttr and must
+// match the remoteimage package's copy, which reads it back to fetch (the two are kept in step by this
+// value rather than a shared symbol, since one infrastructure adapter does not import another).
+//
+// The target is encoded rather than left readable for two reasons. It keeps the parked value inside the
+// character set cssValueMatcher accepts, so a URL carrying a query string does not fail the sanitiser's
+// value check and take its whole declaration (background-colour and all) down with it. And an unknown
+// scheme cannot be fetched: the browser resolves it, finds no handler and makes no request, so a parked
+// background still cannot report that the message was opened.
+const parkedCSSURLScheme = "pp-blocked:"
+
 // visualStyleProperties are the inline-CSS properties the sanitiser keeps so an email renders with its
 // intended fonts, colours, spacing, borders and layout. bluemonday drops any property not listed here, so
 // the set is deliberately comprehensive. It is safe to keep this much styling because the reader shows the

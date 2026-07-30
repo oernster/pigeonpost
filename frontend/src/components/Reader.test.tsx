@@ -426,12 +426,13 @@ describe('Reader: message body', () => {
         expect(screen.getByText('just text')).toBeInTheDocument()
     })
 
-    it('renders the email dark, inverted to match the app, when the dark theme is on', () => {
+    it('renders the email dark, coloured to match the app, when the dark theme is on', () => {
         const {container} = renderReader({dark: true, body: makeBody({html: '<p>Message body</p>'})})
-        const frameDoc =
-            (container.querySelector('iframe.reader-html-frame') as HTMLIFrameElement).contentDocument
-                ?.documentElement.outerHTML ?? ''
-        expect(frameDoc).toContain('html{filter:invert(1) hue-rotate(180deg);}')
+        const frameRoot = (container.querySelector('iframe.reader-html-frame') as HTMLIFrameElement)
+            .contentDocument?.documentElement as HTMLElement
+        // The treatment runs on the written document rather than through a stylesheet rule, because the
+        // decision is per region: see EmailHtmlFrame's colour-treatment tests for the region behaviour.
+        expect(frameRoot.style.filter).toContain('invert(1) hue-rotate(180deg)')
     })
 })
 

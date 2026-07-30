@@ -1,6 +1,7 @@
 package mailparse
 
 import (
+	"encoding/base64"
 	"regexp"
 	"strings"
 
@@ -14,7 +15,7 @@ import (
 // duplicate the visible content; they are dropped here while their hiding style is still readable.
 // Second it stops the message from auto-loading any remote resource, which would leak that the reader
 // opened it (and their IP) to the sender. It parks a remote <img> or <picture> <source> src into a
-// data attribute and drops srcset; it also neutralises remote url(...) references in inline style
+// data attribute and drops srcset; it also parks remote url(...) references in inline style
 // attributes and <style> elements, so a CSS background cannot be used as a tracking pixel either. An
 // embedded image is shown at once: a cid: reference is resolved to the message's own image part as a
 // data: URI, while an inline data: URI is kept. On a parse or render failure the original HTML is returned
@@ -31,11 +32,11 @@ func prepareHTML(source string, inline map[string]inlineImage) string {
 			case "img", "source":
 				parkElementSource(n, inline)
 			case "style":
-				stripStyleElementURLs(n)
+				parkStyleElementURLs(n)
 			case "a":
 				normaliseAnchorHref(n)
 			}
-			stripStyleAttrURLs(n)
+			parkStyleAttrURLs(n)
 		}
 		var next *html.Node
 		for c := n.FirstChild; c != nil; c = next {
@@ -154,33 +155,77 @@ func parkElementSource(n *html.Node, inline map[string]inlineImage) {
 // told apart from an embedded one.
 var remoteCSSURLRe = regexp.MustCompile(`(?i)url\(\s*['"]?([^)'"]*)['"]?\s*\)`)
 
-// stripRemoteCSSURLs replaces every remote url(...) in a CSS fragment with an empty url(), leaving
-// embedded data: and cid: references intact. A tracker can pull a remote file through a CSS background
-// just as through an <img>, so this closes that vector in both inline styles and <style> elements.
-func stripRemoteCSSURLs(css string) string {
-	return remoteCSSURLRe.ReplaceAllStringFunc(css, func(match string) string {
-		target := strings.ToLower(strings.TrimSpace(remoteCSSURLRe.FindStringSubmatch(match)[1]))
-		if strings.HasPrefix(target, "data:") || strings.HasPrefix(target, "cid:") {
-			return match
-		}
-		return "url()"
-	})
+// parkRemoteCSSURLs parks every remote url(...) in a CSS fragment behind the unfetchable parked scheme,
+// leaving embedded data: and cid: references intact. A tracker can pull a remote file through a CSS
+// background just as through an <img>, so nothing loads here until the reader asks; parking rather than
+// discarding is what lets the reader ask at all. It is the CSS counterpart of parkElementSource.
+//
+// Discarding the target used to be the behaviour, and it stranded any text the sender coloured for a
+// background image: with the image gone for good, a heading set white to sit on a dark photo fell back to
+// the sender's pale background-colour and became invisible, which the reader's dark treatment then rendered
+// as black on black. A target that is neither remote nor embedded (a relative path, which has no base to
+// resolve against here) has nothing to park and is emptied as before.
+func parkRemoteCSSURLs(css string) string {
+	matches := remoteCSSURLRe.FindAllStringSubmatchIndex(css, -1)
+	if len(matches) == 0 {
+		return css
+	}
+	var b strings.Builder
+	last := 0
+	for _, m := range matches {
+		b.WriteString(css[last:m[0]])
+		b.WriteString(parkOneCSSURL(css, m))
+		last = m[1]
+	}
+	b.WriteString(css[last:])
+	return b.String()
 }
 
-// stripStyleAttrURLs neutralises remote url(...) references in an element's inline style attribute.
-func stripStyleAttrURLs(n *html.Node) {
+// parkOneCSSURL decides what one url(...) becomes. m is the match's index pairs: the whole match followed by
+// the captured target.
+func parkOneCSSURL(css string, m []int) string {
+	match := css[m[0]:m[1]]
+	target := strings.TrimSpace(css[m[2]:m[3]])
+	lowered := strings.ToLower(target)
+	if strings.HasPrefix(lowered, "data:") || strings.HasPrefix(lowered, "cid:") {
+		return match
+	}
+	// A font source is emptied rather than parked. Parking exists so the reader can ask for the resource
+	// later, and a font never comes back: the image proxy rejects it on content type. Parking one would only
+	// buy an outbound request to the sender's CDN, on a press of Load images, that cannot succeed.
+	if !isRemoteURL(target) || isFontSourceDeclaration(css[:m[0]]) {
+		return "url()"
+	}
+	return "url(" + parkedCSSURLScheme + base64.RawURLEncoding.EncodeToString([]byte(target)) + ")"
+}
+
+// isFontSourceDeclaration reports whether the CSS ending at a url(...) is inside a src declaration, which in
+// email CSS means an @font-face source. It reads back to the start of the current declaration and compares
+// the property name, so a url() later in a multi-value src (the usual "local(...), url(...)" pair) is caught
+// as readily as one on its own.
+func isFontSourceDeclaration(before string) bool {
+	declaration := before[strings.LastIndexAny(before, ";{}")+1:]
+	colon := strings.Index(declaration, ":")
+	if colon < 0 {
+		return false
+	}
+	return strings.EqualFold(strings.TrimSpace(declaration[:colon]), "src")
+}
+
+// parkStyleAttrURLs parks remote url(...) references in an element's inline style attribute.
+func parkStyleAttrURLs(n *html.Node) {
 	for i, attr := range n.Attr {
 		if strings.EqualFold(attr.Key, "style") {
-			n.Attr[i].Val = stripRemoteCSSURLs(attr.Val)
+			n.Attr[i].Val = parkRemoteCSSURLs(attr.Val)
 		}
 	}
 }
 
-// stripStyleElementURLs neutralises remote url(...) references inside a <style> element's CSS text.
-func stripStyleElementURLs(n *html.Node) {
+// parkStyleElementURLs parks remote url(...) references inside a <style> element's CSS text.
+func parkStyleElementURLs(n *html.Node) {
 	for c := n.FirstChild; c != nil; c = c.NextSibling {
 		if c.Type == html.TextNode {
-			c.Data = stripRemoteCSSURLs(c.Data)
+			c.Data = parkRemoteCSSURLs(c.Data)
 		}
 	}
 }

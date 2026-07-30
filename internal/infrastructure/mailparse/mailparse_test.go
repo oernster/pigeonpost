@@ -1,6 +1,7 @@
 package mailparse
 
 import (
+	"encoding/base64"
 	"strings"
 	"testing"
 )
@@ -325,21 +326,98 @@ func TestPrepareHTMLParksPictureSource(t *testing.T) {
 	}
 }
 
-func TestPrepareHTMLStripsRemoteCSSBackgroundInStyleAttr(t *testing.T) {
+// parkedCSSTarget decodes the target of the first parked CSS reference in some prepared HTML, so a test can
+// check both that nothing is fetchable and that the original URL survived for the reader to ask for later.
+func parkedCSSTarget(t *testing.T, prepared string) string {
+	t.Helper()
+	const open = "url(" + parkedCSSURLScheme
+	start := strings.Index(prepared, open)
+	if start < 0 {
+		t.Fatalf("expected a parked CSS reference in: %s", prepared)
+	}
+	rest := prepared[start+len(open):]
+	end := strings.Index(rest, ")")
+	if end < 0 {
+		t.Fatalf("parked CSS reference was not closed in: %s", prepared)
+	}
+	decoded, err := base64.RawURLEncoding.DecodeString(rest[:end])
+	if err != nil {
+		t.Fatalf("parked CSS target did not decode: %v", err)
+	}
+	return string(decoded)
+}
+
+// assertNoLiveRemoteURL checks that nothing in the prepared HTML is a reference a browser would fetch. The
+// parked form is deliberately not a fetchable URL: the scheme has no handler, so it never leaves the machine.
+func assertNoLiveRemoteURL(t *testing.T, prepared string) {
+	t.Helper()
+	for _, live := range []string{"url(http", "url('http", `url("http`} {
+		if strings.Contains(prepared, live) {
+			t.Errorf("a remote CSS url must not stay live, got: %s", prepared)
+		}
+	}
+}
+
+func TestPrepareHTMLParksRemoteCSSBackgroundInStyleAttr(t *testing.T) {
 	out := prepareHTML(`<div style="color:red;background:url('http://tracker.example/bg.png')">hi</div>`, nil)
-	if strings.Contains(out, "tracker.example") {
-		t.Errorf("a remote CSS url should be stripped, got: %s", out)
+	assertNoLiveRemoteURL(t, out)
+	// The target is kept, parked, rather than discarded. Discarding it stranded any text the sender coloured
+	// for the image: with the background gone for good, a heading set white to sit on a dark photo fell back
+	// to the sender's pale colour and could never be recovered by loading images.
+	if got := parkedCSSTarget(t, out); got != "http://tracker.example/bg.png" {
+		t.Errorf("the parked target should decode to the original url, got: %s", got)
 	}
 	if !strings.Contains(out, "color:red") {
 		t.Errorf("an unrelated style declaration should be preserved, got: %s", out)
 	}
 }
 
-func TestPrepareHTMLStripsRemoteURLInStyleElement(t *testing.T) {
+func TestPrepareHTMLParksRemoteURLInStyleElement(t *testing.T) {
 	out := prepareHTML(`<style>.hero{background:url(https://tracker.example/hero.jpg)}</style>`, nil)
-	if strings.Contains(out, "tracker.example") {
-		t.Errorf("a remote url inside a <style> element should be stripped, got: %s", out)
+	assertNoLiveRemoteURL(t, out)
+	if got := parkedCSSTarget(t, out); got != "https://tracker.example/hero.jpg" {
+		t.Errorf("the parked target should decode to the original url, got: %s", got)
 	}
+}
+
+func TestPrepareHTMLEmptiesFontSourceRatherThanParkingIt(t *testing.T) {
+	// Both senders in the reported cases carry @font-face blocks. Parking those would mean a press of Load
+	// images fires requests at the sender's CDN for resources the image proxy rejects on content type anyway,
+	// so a font source is emptied exactly as before and only image references become askable.
+	out := prepareHTML(`<style>@font-face{font-family:'X';`+
+		`src:local('X'), url('https://cdn.example/x.woff2') format('woff2')}`+
+		`.hero{background-image:url('https://cdn.example/hero.jpg')}</style>`, nil)
+	assertNoLiveRemoteURL(t, out)
+	if strings.Contains(out, "x.woff2") {
+		t.Errorf("a font source should not survive in readable form, got: %s", out)
+	}
+	if got := parkedCSSTarget(t, out); got != "https://cdn.example/hero.jpg" {
+		t.Errorf("the background should be the parked reference, got: %s", got)
+	}
+	if n := strings.Count(out, parkedCSSURLScheme); n != 1 {
+		t.Errorf("expected exactly the background parked, got %d parked references: %s", n, out)
+	}
+}
+
+func TestPrepareHTMLParksURLWithQueryStringThroughSanitising(t *testing.T) {
+	// The sanitiser's CSS value check rejects characters no ordinary value uses, "?" and "&" among them, and
+	// drops the whole declaration when it sees one. Encoding the parked target keeps it inside the accepted
+	// set, so a background URL carrying a query string cannot take its own background-colour down with it.
+	raw := "MIME-Version: 1.0\r\n" +
+		"Content-Type: text/html; charset=utf-8\r\n" +
+		"\r\n" +
+		`<div style="background-color:#123456;background-image:url('https://cdn.example/a.jpg?t=1&v=2')">hi</div>` + "\r\n"
+	parsed, err := ParseBody([]byte(raw))
+	if err != nil {
+		t.Fatalf("ParseBody: %v", err)
+	}
+	if !strings.Contains(parsed.HTML, "#123456") {
+		t.Errorf("the background colour should survive sanitising, got: %s", parsed.HTML)
+	}
+	if !strings.Contains(parsed.HTML, parkedCSSURLScheme) {
+		t.Errorf("the parked background should survive sanitising, got: %s", parsed.HTML)
+	}
+	assertNoLiveRemoteURL(t, parsed.HTML)
 }
 
 func TestPrepareHTMLKeepsEmbeddedDataURI(t *testing.T) {

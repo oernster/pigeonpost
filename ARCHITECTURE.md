@@ -168,22 +168,43 @@ Read a message body:
    `data:` URI, sidestepping the CORP/CORS rules that would otherwise stop the iframe embedding it by URL.
    The fetch is SSRF-guarded by a `net.Dialer.Control` hook that checks the real post-DNS connect IP and
    rejects private, loopback, link-local and CGNAT addresses, under size, timeout and redirect caps and an
-   image-only content-type check. The frame is pinned to the light colour scheme in both themes, so
-   every message renders in its light design. The pin sits as `color-scheme: light` on the iframe ELEMENT,
-   because an embedded document takes its colour-scheme preference from its embedder and the same declaration
-   inside the frame's own document does not change it (measured in Chromium/WebView2); the print path pins its
-   frame the same way. Without the pin the frame inherits the app's dark scheme and any
-   `prefers-color-scheme: dark` rules the message carries switch themselves on; dark-mode
-   support in HTML email is almost always partial, a media query recolouring a handful of elements while
-   `bgcolor` attributes and inline styles keep the bulk of the page white, so deferring to it left the reader
-   blinding in the dark theme. With one uniform light design to work from, the dark theme
-   inverts the whole document with a hue-rotate to darken
-   it, then re-inverts only leaf media (images, logos) and an image on an otherwise-empty box back to true
-   colour, never a content-bearing container with a `background` attribute or background-image: a `filter` on a
-   wrapper and one on its descendants compound, so re-inverting a content wrapper would flip its whole subtree
-   back to light. Re-inverted media also carries a mid-grey hairline (with `box-sizing: border-box` so it does
-   not resize the image), so a genuinely dark image keeps contrast against the now-dark surround instead of
-   reading as a dark block on a dark cell.
+   image-only content-type check. A remote CSS `url(...)` is parked too, behind an unfetchable
+   `pp-blocked:` scheme with the target base64url-encoded, so a background image is restored by the same
+   proxy on the same request. Encoding keeps the parked value inside the character set the sanitiser's CSS
+   value check accepts, so a URL with a query string cannot take its whole declaration (background colour and
+   all) down with it; a `@font-face` source is emptied rather than parked, since the proxy's image-only
+   content-type check would reject a font anyway and parking one would only buy a futile outbound request.
+4. The frame is pinned to the light colour scheme in both themes, so every message renders in its light
+   design. The pin sits as `color-scheme: light` on the iframe ELEMENT, because an embedded document takes
+   its colour-scheme preference from its embedder and the same declaration inside the frame's own document
+   does not change it (measured in Chromium/WebView2); the print path pins its frame the same way. Without
+   the pin the frame inherits the app's dark scheme and any `prefers-color-scheme: dark` rules the message
+   carries switch themselves on; dark-mode support in HTML email is almost always partial, a media query
+   recolouring a handful of elements while `bgcolor` attributes and inline styles keep the bulk of the page
+   white, so deferring to it left the reader blinding in the dark theme.
+
+   The theme is then applied per element by `emailDarkMode`, which walks the written document. A single
+   document-wide invert cannot work, because one message routinely mixes light-designed and dark-designed
+   regions: Steam's wishlist mail is a dark panel (`bgcolor #212429`, white text) inside a white wrapper with
+   a white footer, and inverting the lot renders half of it upside down. Classifying the whole message either
+   way fails for the same reason. So the walk inverts at the root and inverts a second time wherever the
+   sender already designed dark, which returns that region to its authored colours. A `filter` on an element
+   and one on its descendants compound, so what governs is the PARITY of the filters above a node: the walk
+   carries it down and flips only where parity disagrees with the background the author gave that element.
+   The invariant is uniform, every region ends up rendering dark. Media (`img`, `picture`, `video`, `svg`,
+   `canvas`) is forced to an even parity so a photo or logo always shows true colour, and media flipped back
+   inside an inverted region carries a mid-grey hairline (with `box-sizing: border-box` so it does not resize
+   the image) so a genuinely dark image keeps an edge against the now-dark surround.
+
+   The same walk repairs text that cannot be read against its own background, in both themes. The cause is
+   usually a background image that did not render: ClearScore's hero colours its heading `#ffffff` for a
+   remote photo and leaves `#EAF5F5` as the fallback, so with the image absent the heading is white on
+   near-white, which the invert turned into black on black. Text under a contrast ratio of 2 is reset to the
+   paper ink; the repair is skipped wherever a background image is actually painting, since the sender's
+   choice is then the right one. What counts as painting is a `data:` image or a gradient, not merely a
+   computed `background-image` that is not `none`: a parked or emptied `url()` still computes as a url (an
+   empty one resolves against the document itself) while painting nothing, so testing for `none` would
+   suppress the repair on exactly the elements that lost their backdrop.
 
 Printing a message reuses the same sanitised HTML. The message's parked remote images are restored for the
 printed copy; the document is rendered into a hidden iframe that is invoked through the browser's print

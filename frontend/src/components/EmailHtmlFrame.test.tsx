@@ -5,6 +5,7 @@
 import {afterEach, describe, expect, it, vi} from 'vitest'
 import {cleanup, render} from '@testing-library/react'
 import {EmailHtmlFrame} from './EmailHtmlFrame'
+import {applyEmailColorTreatment} from './emailDarkMode'
 
 afterEach(() => cleanup())
 
@@ -90,50 +91,139 @@ describe('EmailHtmlFrame: sandbox and CSP', () => {
     })
 })
 
-describe('EmailHtmlFrame: dark mode', () => {
+describe('EmailHtmlFrame: colour treatment', () => {
+    // The treatment runs on the document the component wrote, so these read the resulting element styles
+    // rather than a stylesheet string: the decision is per element and depends on each element's own
+    // background, which only the written document carries.
+    function find(frame: HTMLIFrameElement, id: string): HTMLElement {
+        return frame.contentDocument?.getElementById(id) as HTMLElement
+    }
+
+    function root(frame: HTMLIFrameElement): HTMLElement {
+        return frame.contentDocument?.documentElement as HTMLElement
+    }
+
     it('keeps the faithful white surface with no inversion in light mode', () => {
-        const {frame} = renderFrame({dark: false})
-        const doc = frameHtml(frame)
-        expect(doc).toContain('background:#ffffff')
-        expect(doc).not.toContain('invert(1)')
+        const {frame} = renderFrame({dark: false, html: '<div id="card" style="background-color:#ffffff">Hi</div>'})
+        expect(frameHtml(frame)).toContain('background:#ffffff')
+        expect(root(frame).style.filter).toBe('')
+        expect(find(frame, 'card').style.filter).toBe('')
     })
 
-    it('inverts the whole document to render dark when the app theme is dark', () => {
+    it('inverts the document at the root when the app theme is dark', () => {
         const {frame} = renderFrame({dark: true})
-        // The light-designed document is inverted so a white background becomes dark and dark text light.
-        expect(frameHtml(frame)).toContain('html{filter:invert(1) hue-rotate(180deg);}')
+        // The root flip is what darkens the paper and every light-designed region sitting on it.
+        expect(root(frame).style.filter).toContain('invert(1) hue-rotate(180deg)')
     })
 
-    it('re-inverts images so photos and logos keep their true colours in dark mode', () => {
-        const {frame} = renderFrame({dark: true})
-        // The same filter on media double-inverts it back to its original colours; a plain background-colour
-        // is deliberately not matched, so a coloured box keeps its inverted dark fill.
-        expect(frameHtml(frame)).toContain(
-            'img,picture,video,svg,canvas,[background]:empty,[style*="background-image"]:empty{filter:invert(1) hue-rotate(180deg);border:2px solid #808080 !important;box-sizing:border-box;}',
-        )
+    it('leaves a region the sender already designed dark rendering as authored', () => {
+        const {frame} = renderFrame({
+            dark: true,
+            // Steam's wishlist mail in miniature: a dark panel with white text inside a light message.
+            html: '<div id="panel" style="background-color:#212429;color:#ffffff">1 GAME ON SALE</div>',
+        })
+        // A second filter on the panel cancels the root one for that subtree, so the panel keeps the dark
+        // background and white text its author chose instead of being flipped to a light panel with black
+        // text, which is what a single document-wide invert produced.
+        expect(find(frame, 'panel').style.filter).toContain('invert(1) hue-rotate(180deg)')
     })
 
-    it('frames re-inverted media with an !important border so it survives an email border reset', () => {
-        const {frame} = renderFrame({dark: true})
-        const doc = frameHtml(frame)
-        // A mid-grey border rides the re-inverted media so a dark cover cannot read as a dark block on a dark
-        // cell (the Amazon book-cover contrast bug). It is !important because HTML email almost universally
-        // sets an inline border:0 on images, which would otherwise beat this rule and drop the frame.
-        expect(doc).toContain('border:2px solid #808080 !important')
-        expect(doc).toContain('box-sizing:border-box')
+    it('inverts a light region rather than flipping it twice', () => {
+        const {frame} = renderFrame({
+            dark: true,
+            html: '<div id="card" style="background-color:#ffffff;color:#111111">Light card</div>',
+        })
+        // The root flip already renders this dark, so touching it again would undo the dark theme.
+        expect(find(frame, 'card').style.filter).toBe('')
     })
 
-    it('does not re-invert a content-bearing background container, which would flip its subtree back to light', () => {
-        const {frame} = renderFrame({dark: true})
-        const doc = frameHtml(frame)
-        // A filter on a container and one on its descendants compound, so re-inverting a layout cell that
-        // carries a background attribute or image would double-invert its whole subtree back to light (the
-        // Amazon order-email bug) and flip its child images the wrong way. Only :empty background boxes, which
-        // hold no content, are matched, so the bare blanket forms must be absent.
-        expect(doc).toContain('[background]:empty')
-        expect(doc).toContain('[style*="background-image"]:empty')
-        expect(doc).not.toContain('[background],')
-        expect(doc).not.toContain('[style*="background-image"]{')
+    it('keeps a nested light region dark inside a region designed dark', () => {
+        const {frame} = renderFrame({
+            dark: true,
+            html: '<div id="panel" style="background-color:#212429">' +
+                '<div id="inner" style="background-color:#ffffff">white callout</div></div>',
+        })
+        // The panel restored the authored colours for its subtree, so the white callout inside it needs a
+        // flip of its own to come back to dark. Parity, not depth, is what the walk tracks.
+        expect(find(frame, 'panel').style.filter).toContain('invert(1)')
+        expect(find(frame, 'inner').style.filter).toContain('invert(1)')
+    })
+
+    it('re-inverts media in an inverted region so photos and logos keep their true colours', () => {
+        const {frame} = renderFrame({dark: true, html: '<img id="shot" src="data:image/gif;base64,R0lGOD">'})
+        const shot = find(frame, 'shot')
+        // The image sits on the inverted paper, so it needs its own flip to land back on true colour. The
+        // mid-grey frame is !important because HTML email almost universally resets image borders inline.
+        expect(shot.style.filter).toContain('invert(1) hue-rotate(180deg)')
+        expect(shot.style.getPropertyValue('border')).toBe('2px solid rgb(128, 128, 128)')
+        expect(shot.style.getPropertyPriority('border')).toBe('important')
+    })
+
+    it('leaves media alone where the region around it already renders as authored', () => {
+        const {frame} = renderFrame({
+            dark: true,
+            html: '<div style="background-color:#212429"><img id="logo" src="data:image/gif;base64,R0lGOD"></div>',
+        })
+        const logo = find(frame, 'logo')
+        // Two flips are already in force here, so the logo is showing its true colours; flipping it again
+        // would turn it into its own negative. It needs no frame either, the author composed it against dark.
+        expect(logo.style.filter).toBe('')
+        expect(logo.style.getPropertyValue('border')).toBe('')
+    })
+
+    it('rescues text left invisible by a background image that did not render', () => {
+        const {frame} = renderFrame({
+            dark: true,
+            // ClearScore's hero: white text over a remote photo, with a near-white colour as the fallback.
+            // The photo never renders, so the heading is white on #EAF5F5, which the invert turned into
+            // black on black.
+            html: '<div style="background-color:#EAF5F5"><h1 id="hero" style="color:#ffffff">Your options</h1></div>',
+        })
+        expect(find(frame, 'hero').style.color).toBe('rgb(26, 26, 26)')
+    })
+
+    it('rescues that text in the light theme too, where it was equally invisible', () => {
+        const {frame} = renderFrame({
+            dark: false,
+            html: '<div style="background-color:#EAF5F5"><h1 id="hero" style="color:#ffffff">Your options</h1></div>',
+        })
+        // White on #EAF5F5 is a contrast ratio of 1.1 whichever theme is showing; the invert only made the
+        // failure conspicuous.
+        expect(find(frame, 'hero').style.color).toBe('rgb(26, 26, 26)')
+    })
+
+    it('renders a region with a painting background image as its author composed it', () => {
+        const {frame} = renderFrame({
+            dark: true,
+            html: '<div id="hero-box" style="background-color:#EAF5F5;background-image:url(data:image/gif;base64,R0lGOD)">' +
+                '<h1>Your options</h1></div>',
+        })
+        // Once the photo loads, the sender's picture and the white text over it are one composition. Leaving
+        // the region inverted would render the photograph as its negative, so it is flipped back to authored
+        // exactly as leaf media is.
+        expect(find(frame, 'hero-box').style.filter).toContain('invert(1) hue-rotate(180deg)')
+    })
+
+    it('leaves text alone where a background image is actually painting', () => {
+        const {frame} = renderFrame({
+            dark: true,
+            html: '<div style="background-color:#EAF5F5;background-image:url(data:image/gif;base64,R0lGOD)">' +
+                '<h1 id="hero" style="color:#ffffff">Your options</h1></div>',
+        })
+        // With the image loaded the colour underneath is not what the reader sees, so the sender's white is
+        // the right choice and must not be overridden. The repair marks what it sets !important, so an
+        // untouched element is one whose colour carries no priority.
+        expect(find(frame, 'hero').style.getPropertyPriority('color')).toBe('')
+        expect(find(frame, 'hero').style.color).toBe('rgb(255, 255, 255)')
+    })
+
+    it('leaves readable text alone rather than flattening the sender palette', () => {
+        const {frame} = renderFrame({
+            dark: true,
+            html: '<div style="background-color:#ffffff"><p id="body" style="color:#3999ec">Special promotion</p></div>',
+        })
+        expect(find(frame, 'body').style.getPropertyPriority('color')).toBe('')
+        expect(find(frame, 'body').style.color).toBe('rgb(57, 153, 236)')
     })
 
     it('pins the light colour scheme on the iframe element in both themes', () => {
@@ -156,24 +246,28 @@ describe('EmailHtmlFrame: dark mode', () => {
         }
     })
 
-    it('inverts an email that ships partial dark-mode styling rather than trusting it to darken itself', () => {
+    it('treats an email that ships partial dark-mode styling like any other', () => {
         const {frame} = renderFrame({
             dark: true,
             html: '<style>@media (prefers-color-scheme:dark){body{background:#181a1a;color:#fff}}</style>' +
-                '<table bgcolor="#ffffff"><tr><td>Hi</td></tr></table>',
+                '<div id="card" style="background-color:#ffffff">Hi</div>',
         })
-        const doc = frameHtml(frame)
         // Dark-mode support in HTML email is almost always partial: the media query recolours a few elements
-        // while bgcolor attributes and inline styles keep the bulk of the page white. Deferring to it left the
-        // reader blinding in the dark theme, so the frame pins the message to light and inverts it like any
-        // other.
-        expect(doc).toContain('html{filter:invert(1) hue-rotate(180deg);}')
-        expect(doc).toContain('name="color-scheme" content="light"')
+        // while bgcolor attributes and inline styles keep the bulk of the page white. The frame pins the
+        // message to light so those rules never fire, and colours it from its actual backgrounds instead.
+        expect(root(frame).style.filter).toContain('invert(1)')
+        expect(find(frame, 'card').style.filter).toBe('')
+        expect(frameHtml(frame)).toContain('name="color-scheme" content="light"')
     })
 
-    it('still inverts a light-only email that has no dark-mode styling', () => {
+    it('does not treat the same document twice', () => {
         const {frame} = renderFrame({dark: true, html: '<p>plain light email</p>'})
-        expect(frameHtml(frame)).toContain('html{filter:invert(1) hue-rotate(180deg);}')
+        const doc = frame.contentDocument as Document
+        const before = root(frame).style.filter
+        // The component attaches once after writing and again on any load event. A second pass would flip
+        // every region back and undo the theme, so the treated document is marked.
+        applyEmailColorTreatment(doc, true)
+        expect(root(frame).style.filter).toBe(before)
     })
 })
 

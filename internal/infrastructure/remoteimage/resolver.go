@@ -70,13 +70,16 @@ func (r *Resolver) Resolve(ctx context.Context, fragment string) (string, error)
 		return fragment, nil
 	}
 	var blocked []blockedImage
+	var parked []parkedCSS
 	for _, n := range nodes {
 		collectBlockedImages(n, &blocked)
+		collectParkedCSS(n, &parked)
 	}
-	if len(blocked) == 0 {
+	if len(blocked) == 0 && len(parked) == 0 {
 		return fragment, nil
 	}
 	r.inlineImages(ctx, blocked)
+	r.inlineCSSBackgrounds(ctx, parked)
 	var b strings.Builder
 	for _, n := range nodes {
 		if err := html.Render(&b, n); err != nil {
@@ -103,31 +106,56 @@ func collectBlockedImages(n *html.Node, out *[]blockedImage) {
 	}
 }
 
-// inlineImages fetches every blocked image concurrently (capped by maxConcurrentFetches) and, for each fetch
-// that succeeds, rewrites its node's parked attribute to a src data: URI. The fetches run concurrently but
-// every node is rewritten here on the single calling goroutine after they finish, so the parse tree is never
-// mutated concurrently.
-func (r *Resolver) inlineImages(ctx context.Context, blocked []blockedImage) {
-	dataURIs := make([]string, len(blocked))
+// fetchAll fetches a set of URLs concurrently (capped by maxConcurrentFetches) and returns a data: URI for
+// each that succeeded, keyed by URL. A URL whose fetch failed is simply absent, so a caller leaves that
+// reference parked rather than replacing it with nothing. The fetches run concurrently and every result is
+// written to its own slot, so the map is assembled on the single calling goroutine afterwards.
+func (r *Resolver) fetchAll(ctx context.Context, urls []string) map[string]string {
+	uris := make([]string, len(urls))
 	sem := make(chan struct{}, maxConcurrentFetches)
 	var wg sync.WaitGroup
-	for i, img := range blocked {
+	for i, url := range urls {
 		wg.Add(1)
-		go func(index int, url string) {
+		go func(index int, target string) {
 			defer wg.Done()
 			sem <- struct{}{}
 			defer func() { <-sem }()
-			data, contentType, err := r.fetch(ctx, url)
+			data, contentType, err := r.fetch(ctx, target)
 			if err != nil {
 				return
 			}
-			dataURIs[index] = dataURI(contentType, data)
-		}(i, img.url)
+			uris[index] = dataURI(contentType, data)
+		}(i, url)
 	}
 	wg.Wait()
-	for i, img := range blocked {
-		if dataURIs[i] != "" {
-			setImageSource(img.node, dataURIs[i])
+	resolved := make(map[string]string, len(urls))
+	for i, url := range urls {
+		if uris[i] != "" {
+			resolved[url] = uris[i]
+		}
+	}
+	return resolved
+}
+
+// inlineImages fetches every blocked image and, for each fetch that succeeds, rewrites its node's parked
+// attribute to a src data: URI. An image whose fetch failed is left parked, so it simply does not show.
+func (r *Resolver) inlineImages(ctx context.Context, blocked []blockedImage) {
+	if len(blocked) == 0 {
+		return
+	}
+	seen := make(map[string]struct{}, len(blocked))
+	var urls []string
+	for _, img := range blocked {
+		if _, done := seen[img.url]; done {
+			continue
+		}
+		seen[img.url] = struct{}{}
+		urls = append(urls, img.url)
+	}
+	resolved := r.fetchAll(ctx, urls)
+	for _, img := range blocked {
+		if uri, ok := resolved[img.url]; ok {
+			setImageSource(img.node, uri)
 		}
 	}
 }
