@@ -31,11 +31,16 @@ type goFile struct {
 	ast     *ast.File
 }
 
+// excludedDirs are the directory names the scan does not descend into: they hold no project source. The
+// dot-directories matter more than they look. A git worktree checked out under the repository (agent tooling
+// puts them in .claude/worktrees) is a second full copy of the tree, so scanning it reports that copy's
+// main package as a second composition root and fails this suite on a checkout where nothing is wrong.
 var excludedDirs = map[string]bool{
 	"frontend":     true,
 	"build":        true,
 	"node_modules": true,
 	".git":         true,
+	".claude":      true,
 }
 
 func scanRepo(t *testing.T) []goFile {

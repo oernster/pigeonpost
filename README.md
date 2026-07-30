@@ -34,9 +34,12 @@ local-first. A calmer, more predictable alternative to Thunderbird.
 - **Mail**: folders and summaries cached to local SQLite and read offline; bodies fetched on open and
   cached. HTML renders faithfully in a sandboxed frame that keeps the sender's own styles while running
   no scripts and making no remote requests; remote images are blocked by default until you load them
-  (per message or a "Load images by default" toggle). In the dark theme a message that ships its own dark
-  mode is shown in that native design, while a light-designed message is inverted to read comfortably, its
-  photos and logos keeping their true colour. Bare web addresses in a message are clickable (opening in
+  (per message or a "Load images by default" toggle), which also restores the backgrounds a message styles
+  with CSS. In the dark theme the reader darkens a message region by region rather than all at once: a block
+  its sender already designed dark is left in that design and a light block is darkened, so a message that
+  mixes the two (a dark brand panel above a white footer, say) reads correctly throughout, with photos and
+  logos keeping their true colour. Text a sender coloured for a background image that has not loaded is
+  corrected so it stays readable rather than disappearing into its own background. Bare web addresses in a message are clickable (opening in
   your browser, never inside the app), markdown-style `[label](url)` links show their label and a link
   standing alone on its own line is presented as a button. Attachments save from the reader (cached for offline). Sync runs per account with its own
   progress cue.

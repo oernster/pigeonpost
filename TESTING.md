@@ -40,7 +40,7 @@ documented here.
 | `internal/application` | unit against hand-written fakes | none |
 | `internal/infrastructure/storage` | integration against a real SQLite file | temp dir |
 | `internal/infrastructure/message` | unit on the RFC 5322 MIME builder | none |
-| `internal/infrastructure/mailparse` | unit on the MIME body parsing, HTML sanitising, URL linkifying (bare and markdown-labelled links, solo-line button marking), image blocking, hidden-preheader removal that keeps MJML layout wrappers and the outgoing embedded-image extraction (data: URI to cid part) | none |
+| `internal/infrastructure/mailparse` | unit on the MIME body parsing, HTML sanitising, URL linkifying (bare and markdown-labelled links, solo-line button marking), image and CSS-background parking, hidden-preheader removal that keeps MJML layout wrappers and the outgoing embedded-image extraction (data: URI to cid part) | none |
 | `internal/infrastructure/mailrouter` | unit on the per-protocol dispatch | none |
 | `internal/infrastructure/smtp` | none (live send only; MIME building lives in `message`) | n/a |
 | `internal/infrastructure/imap` | unit on the source adapter's pure helpers (parsing moved to `mailparse`) | none |
@@ -51,7 +51,7 @@ documented here.
 | `internal/infrastructure/csv` | unit on the Outlook CSV codec round-trip | none |
 | `internal/infrastructure/caldav` | unit against a local stub CalDAV server (httptest) | local HTTP server |
 | `internal/infrastructure/oauth` | unit against stubbed token endpoints (httptest) | local HTTP server |
-| `internal/infrastructure/remoteimage` | unit on the SSRF guard and resolver against local stub servers (httptest) | local HTTP server |
+| `internal/infrastructure/remoteimage` | unit on the SSRF guard and the resolver for both parked images and parked CSS backgrounds, against local stub servers (httptest) and an injected fetch seam | local HTTP server |
 | `internal/infrastructure/keychain` | unit via go-keyring's in-memory mock | none |
 | `internal/infrastructure/taskbar` | unit on the pure label formatting; Win32 overlay excluded | none |
 | `internal/infrastructure/sound` | unit on the chime synthesis and WAV encoding; the winmm playback call excluded | none |
@@ -71,10 +71,10 @@ documented here.
 | internal/infrastructure/vcard | ~97% | vCard codec round-trip |
 | internal/infrastructure/sound | ~97% | the notification chime's synthesis, normalisation and WAV encoding (pure); only the winmm playback call is excluded |
 | internal/infrastructure/oauth | ~95% | token flow against stubbed endpoints; real-network edges excluded |
-| internal/infrastructure/mailparse | ~94% | MIME body parsing, HTML sanitising, URL linkifying, image blocking and hidden-preheader removal that keeps MJML layout wrappers and mso-hide content (pure); a few defensive decode branches uncovered |
+| internal/infrastructure/mailparse | ~94% | MIME body parsing, HTML sanitising, URL linkifying, image and CSS-background parking (including the font-source exception) and hidden-preheader removal that keeps MJML layout wrappers and mso-hide content (pure); a few defensive decode branches uncovered |
 | internal/infrastructure/ics | ~92% | RFC 5545 codec round-trip, recurrence and scheduling payloads |
+| internal/infrastructure/remoteimage | ~92% | the SSRF guard and the resolver for parked images and parked CSS backgrounds against stub servers; the live-wired constructor excluded |
 | internal/infrastructure/csv | ~91% | Outlook CSV codec round-trip |
-| internal/infrastructure/remoteimage | ~90% | the SSRF guard and resolver against stub servers; the live-wired constructor excluded |
 | internal/infrastructure/caldav | ~82% | request and parse logic against a stub server; live-server edges and the live-wired writer factory excluded |
 | internal/infrastructure/storage | ~79% | logic and error paths covered, including keyset message pagination and the atomic tag-keyword and flag-pending sync writes; see exclusions |
 | internal/infrastructure/pop3 | ~40% | response and UIDL parsing covered; the live dial and download excluded |
@@ -168,6 +168,13 @@ npx vitest run --coverage   # enforce the pure-module coverage gate
   framework plumbing, so a blanket 100% there buys brittle tests, not correctness.
 - **Structural boundary test.** `src/test/boundary.test.ts` scans the top-level `src/*.ts` modules and
   keeps the gated pure modules pure, the front-end analogue of `boundary_test.go`.
+- **The reader's colour treatment** (`components/emailDarkMode.ts`) is tested on both halves: its colour
+  arithmetic (colour parsing, alpha compositing, sRGB relative luminance, contrast ratio, what counts as a
+  dark background and what counts as a background image that actually paints) directly in
+  `emailDarkMode.test.ts`; its per-region decisions go through the rendered frame in
+  `EmailHtmlFrame.test.tsx`, which reads the resulting element styles rather than a stylesheet string
+  because the decision depends on each element's own background. It sits under `components/` and mixes that
+  arithmetic with a DOM walk, so it is not in the gated list above.
 - **Characterization-first.** The `App.tsx` and component decomposition was done test-first: each
   extraction was preceded by a characterization test pinning the behaviour on the un-extracted code, so
   every move was behaviour-preserving by construction. `App.test.tsx` characterizes App at its outer

@@ -61,7 +61,7 @@ internal/infrastructure/
     csv/                    Outlook CSV contacts codec
     caldav/                 two-way CalDAV calendar sync client
     oauth/                  Microsoft OAuth token flow (authorization code + PKCE, loopback redirect)
-    remoteimage/            SSRF-guarded fetcher that inlines blocked remote images on request
+    remoteimage/            SSRF-guarded fetcher that inlines blocked remote images and CSS backgrounds on request
     keychain/               OS keychain vault
     taskbar/                Windows taskbar unread badge, tray icon and desktop notifications (no-op stub elsewhere)
     sound/                  synthesised notification chime, played through winmm on Windows (no-op stub elsewhere)

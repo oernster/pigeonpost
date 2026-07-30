@@ -40,7 +40,7 @@
             {"@type": "Question", "name": "Is my Microsoft password safe?",
              "acceptedAnswer": {"@type": "Answer", "text": "You sign in through Microsoft in your own browser, so PigeonPost never sees your password. It keeps your Microsoft sign-in token in your OS keychain."}},
             {"@type": "Question", "name": "Can opening a message track me?",
-             "acceptedAnswer": {"@type": "Answer", "text": "No. HTML renders in a sandboxed frame that runs no scripts and makes no remote requests. Remote images stay blocked until you load them, so opening a message cannot tell the sender you read it."}},
+             "acceptedAnswer": {"@type": "Answer", "text": "No. HTML renders in a sandboxed frame that runs no scripts and makes no remote requests. Remote images stay blocked until you load them; the backgrounds a message styles with CSS are held back the same way, so opening a message cannot tell the sender you read it."}},
             {"@type": "Question", "name": "It is one developer. What if it stops?",
              "acceptedAnswer": {"@type": "Answer", "text": "It is GPL-3.0 with the full source on GitHub, free to read, fork or continue. Your mail stays with your provider and your calendar and contacts live in standard files, so nothing is trapped."}},
             {"@type": "Question", "name": "Does it work offline?",
@@ -163,8 +163,9 @@
             <div class="item">
                 <p class="q">Can opening a message track me?</p>
                 <p class="a">No. HTML renders in a sandboxed frame that runs no scripts and makes no remote
-                    requests. Remote images stay blocked until you load them, so opening a message cannot tell
-                    the sender you read it.</p>
+                    requests. Remote images stay blocked until you load them; the backgrounds a message styles
+                    with CSS are held back the same way, so opening a message cannot tell the sender you read
+                    it.</p>
             </div>
             <div class="item">
                 <p class="q">It is one developer. What if it stops?</p>
