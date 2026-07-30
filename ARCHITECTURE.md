@@ -727,7 +727,12 @@ organizer and attendees so a meeting round-trips through the calendar editor. As
 facade, these binding files are build-verified (they hold no logic beyond DTO mapping) rather than
 unit-tested; the correctness lives in the domain and application layers behind them. In the UI the reader
 shows an invite card (Accept, Tentative or Decline a request, remove a cancellation, apply a reply) and
-the calendar event editor edits a meeting's attendee list and sends its invitations and cancellations. A
+the calendar event editor edits a meeting's attendee list and sends its invitations and cancellations.
+Re-saving an existing meeting emails an update only when a field the attendees can see changed: the form
+snapshots the attendee-visible slice of the event on open (title, times, zone, location, description,
+category, recurrence and the attendee list, the fields the encoded REQUEST carries) and compares it on
+save, so a reminder or local calendar tweak saves without emailing an update; the primary button and the
+hint text state in advance whether the save will email the attendees. A
 join link an invite carries in its location or description (Microsoft Teams, Google Meet, Zoom or Webex,
 matched by host) surfaces as a Join button in the event editor, and any other link in the description is
 clickable; both open in the external browser through the existing `OpenExternal` facade method, so this
