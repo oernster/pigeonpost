@@ -265,6 +265,14 @@
                 <span class="check"></span>
                 <span class="label">Launch PigeonPost when I sign in</span>
             </label>
+            <label class="option">
+                <input type="checkbox" id="launch-manage"/>
+                <span class="check"></span>
+                <span>
+                    <span class="label">Launch PigeonPost when setup finishes</span><br/>
+                    <span class="hint">Opens the app when you close setup or when a repair completes.</span>
+                </span>
+            </label>
         </section>
 
         <!-- Upgrade -->
@@ -481,13 +489,38 @@
         const boot = $('boot-manage')
         boot.checked = state.launchOnBoot
         boot.onchange = () => backend().SetLaunchOnBoot(boot.checked)
+        // Ticked by default: someone opening setup over an installed PigeonPost usually wants the app
+        // running when they are done, whether they repaired it or just closed setup.
+        $('launch-manage').checked = true
+        // launchIfTicked starts the app when the option is ticked, tolerating a launch failure so
+        // closing setup is never blocked by it.
+        const launchIfTicked = async () => {
+            if ($('launch-manage').checked) {
+                try {
+                    await backend().LaunchApp()
+                } catch (e) {
+                }
+            }
+        }
         showScreen('manage')
         setFooter([
             {label: 'Uninstall', kind: 'danger', onClick: () => routeUninstall(state)},
-            {label: 'Close', onClick: () => backend().Quit()},
             {
-                label: 'Repair', kind: 'primary', onClick: () => withAppClosed(() => run(
-                    () => backend().Repair(), 'Repairing PigeonPost', 'Repair complete', 'PigeonPost has been reinstalled.'))
+                label: 'Close', onClick: async () => {
+                    await launchIfTicked()
+                    backend().Quit()
+                }
+            },
+            {
+                label: 'Repair', kind: 'primary', onClick: () => {
+                    const launchAfter = $('launch-manage').checked
+                    return withAppClosed(() => run(
+                        () => backend().Repair().then(() => {
+                            if (launchAfter) return backend().LaunchApp()
+                        }),
+                        'Repairing PigeonPost', 'Repair complete',
+                        'PigeonPost has been reinstalled.' + (launchAfter ? ' PigeonPost is starting.' : '')))
+                }
             },
         ])
     }
