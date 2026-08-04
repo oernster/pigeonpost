@@ -82,7 +82,7 @@ function App() {
     messagesRef.current = messages
     // Flat-view keyset pagination: the folder listing loads one page at a time so a huge folder (a real
     // Trash of tens of thousands of messages) opens without loading every row at once. Conversation view
-    // and search load the whole set instead (threading and search each need it), bounded by the virtualized
+    // and search load the whole set instead (threading and search each need it), bounded by the virtualised
     // list so the render does not freeze.
     const pagination = useFolderPagination()
     const [error, setError] = useState<string>('')
@@ -506,7 +506,7 @@ function App() {
     //
     // The flat view (the default) loads only the first page and lets loadMoreMessages append the rest as
     // the user scrolls, so a folder of tens of thousands of messages opens without loading every row.
-    // Conversation view needs the whole folder to thread it, so it loads every row (the virtualized list
+    // Conversation view needs the whole folder to thread it, so it loads every row (the virtualised list
     // renders only what is on screen, so even a 48k folder does not freeze the render). Every (re)load
     // resets pagination. opts overrides the direction or the view mode when a toggle drives the reload
     // before its state has settled; skipSync loads once without re-syncing for a caller that has just

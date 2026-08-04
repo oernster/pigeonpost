@@ -21,7 +21,7 @@ var searchFieldOps = map[string]SearchField{
 // (before:/after:/on:) are interpreted in; it is injected so the domain never reads the wall clock or
 // the machine locale itself.
 //
-// The parser never fails. Input whose structure cannot be tokenized (an unclosed quote) degrades to a
+// The parser never fails. Input whose structure cannot be tokenised (an unclosed quote) degrades to a
 // plain free-text search over the whole input, marked Degraded. An unknown operator prefix, an
 // unrecognised operator operand (has:x, is:x, a malformed date) and a dangling or misplaced OR are all
 // kept as literal search text rather than errors, so a query can only ever search for something.
@@ -73,7 +73,7 @@ func (t searchToken) literal() string {
 }
 
 // scanSearchTokens splits raw input into tokens. It reports ok false only when a quote is left
-// unclosed, which is the one shape that cannot be tokenized reliably.
+// unclosed, which is the one shape that cannot be tokenised reliably.
 func scanSearchTokens(raw string) ([]searchToken, bool) {
 	runes := []rune(raw)
 	tokens := make([]searchToken, 0)

@@ -1,4 +1,4 @@
-// Characterization test for the sidebar at its stable outer interface: its props and its observable
+// Characterisation test for the sidebar at its stable outer interface: its props and its observable
 // behaviour. It renders the real Sidebar and drives each interaction, asserting the DOM plus which callback
 // fired and what was written to localStorage. The interface it pins does not move as the sidebar is
 // decomposed in Phase 2 (the persisted collapsed and order state, the account list with its reorder drag

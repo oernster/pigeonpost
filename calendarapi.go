@@ -51,7 +51,7 @@ type EventDTO struct {
 
 // EventRequest is the front-end payload for creating or updating an event. An empty id means a new
 // event; Start is required and End may be empty. Extra is the opaque preserved ICS, round-tripped
-// unchanged so an edit does not strip unmodelled properties. Organizer and Attendees carry the meeting
+// unchanged so an edit does not strip unmodelled properties. Organiser and Attendees carry the meeting
 // scheduling data; both are empty for an ordinary calendar entry.
 type EventRequest struct {
 	ID          string        `json:"id"`

@@ -347,7 +347,7 @@ type CalendarCodec interface {
 
 // SchedulingCodec converts iTIP (RFC 5546) scheduling messages to and from the text/calendar payload an
 // email carries (RFC 6047 iMIP). It is the seam the scheduling service uses: DecodeScheduling reads an
-// incoming invite or reply (the VCALENDAR METHOD and its events, each with its organizer and attendees),
+// incoming invite or reply (the VCALENDAR METHOD and its events, each with its organiser and attendees),
 // and the encode methods build the REQUEST, REPLY and CANCEL a two-way invite flow sends back out.
 type SchedulingCodec interface {
 	DecodeScheduling(data []byte) (domain.SchedulingMessage, error)
@@ -356,7 +356,7 @@ type SchedulingCodec interface {
 	// EncodeCancel builds a METHOD:CANCEL withdrawing the events.
 	EncodeCancel(events []domain.Event) ([]byte, error)
 	// EncodeReply builds a METHOD:REPLY carrying the responder as the single attendee with the status that
-	// is their answer, so the organizer sees only the response that changed.
+	// is their answer, so the organiser sees only the response that changed.
 	EncodeReply(event domain.Event, responder domain.EmailAddress, status domain.ParticipationStatus) ([]byte, error)
 }
 

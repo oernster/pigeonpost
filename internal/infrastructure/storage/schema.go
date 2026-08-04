@@ -319,7 +319,7 @@ const schemaV22 = `
 ALTER TABLE message_body ADD COLUMN invite TEXT NOT NULL DEFAULT '';
 `
 
-// schemaV23 stores an event's meeting organizer and attendee list (as JSON) so a meeting created or
+// schemaV23 stores an event's meeting organiser and attendee list (as JSON) so a meeting created or
 // received in the app keeps its ORGANIZER and ATTENDEE data, which the scheduling flow needs to send
 // invites and to fold incoming replies back into the stored meeting. Existing rows default to ”, meaning
 // the event is not a scheduled meeting.

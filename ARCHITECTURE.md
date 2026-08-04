@@ -351,7 +351,7 @@ uses: the domain `GroupThreads` groups a folder's summaries into conversations b
 date in either direction. The desktop list mirrors the grouping client-side so it updates instantly with
 optimistic changes, keeping the domain function as the single tested definition.
 
-Large folders: the message list is fully virtualized (`@tanstack/react-virtual`) so only on-screen rows
+Large folders: the message list is fully virtualised (`@tanstack/react-virtual`) so only on-screen rows
 exist in the DOM and it loads in pages of 200 through keyset pagination. `Store.ListMessagesPage`, exposed
 as `MailboxService.MessagesPage`, walks an indexed `(folder_id, date_ms, id)` order (the
 `idx_message_folder_date` index) and resumes strictly after the last row returned, its `(date_ms, id)` tie-break a
@@ -536,7 +536,7 @@ calendar then reuses.
 
 **Domain.** New pure value objects, immutable and validated on construction like the mail entities.
 Address book first: `Contact` (id, vCard UID for lossless round-trip, formatted name, given/family
-name, organization, title, note, and slices of `ContactEmail` and `ContactPhone`, each a labelled
+name, organisation, title, note, and slices of `ContactEmail` and `ContactPhone`, each a labelled
 value) and `ContactGroup` (id, name, member contact ids, with `With*` copy methods for membership).
 Calendar: `Calendar` and `Event` (id, ICS UID, summary, start/end, all-day flag, location,
 description, and an optional recurrence rule), with time entering only as already-resolved values, the
@@ -696,7 +696,7 @@ the same dialogs the in-window Help menu opens, or quit.
 receives the RFC 5546 scheduling messages (REQUEST, REPLY, CANCEL) as RFC 6047 iMIP `text/calendar` mail
 parts. New pure domain value objects carry the data: `Organizer` (a validated address plus an optional
 common name) and `Attendee` (address, common name, a `Role` and a `ParticipationStatus` enum each parsed
-leniently, and an RSVP flag with a `WithStatus` copy method), with `Event` gaining an organizer and an
+leniently, and an RSVP flag with a `WithStatus` copy method), with `Event` gaining an organiser and an
 attendee list (stored as an `event.organizer` column and a JSON `event.attendees`
 column). A `scheduling.go` domain file adds the `Method` enum, the `SchedulingMessage` (a method plus its
 events) and the `CalendarPart` (a method plus the encoded bytes) that an outgoing message carries. These
@@ -706,12 +706,12 @@ The codec seam gains a `SchedulingCodec` port (`DecodeScheduling` reads a VCALEN
 `EncodeRequest`, `EncodeReply` and `EncodeCancel` build the payloads), satisfied by the same `ics`
 adapter over go-ical. The `SchedulingService` use case (application layer, 100% gated) drives the flows:
 `Respond` saves an incoming REQUEST to the calendar with the chosen PARTSTAT and emails a REPLY to the
-organizer; `ApplyReply` folds an incoming REPLY into the organizer's stored meeting, recording the
+organiser; `ApplyReply` folds an incoming REPLY into the organiser's stored meeting, recording the
 responder's status on every event the reply covers (the named occurrence, or the series master plus
 every override when it names none) and appending a responder the meeting does not list (a delegate, or
 a guest answering from a different address) rather than dropping the response; `ApplyCancellation`
 removes the meeting a CANCEL withdraws; and `SendRequest` / `SendCancel` email a REQUEST or CANCEL to a
-meeting's attendees from the organizing account. A recurring meeting is matched as its series master
+meeting's attendees from the organising account. A recurring meeting is matched as its series master
 plus any overrides, keyed by UID and RECURRENCE-ID. Every scheduling send (`scheduling_send.go`) leaves
 the same record an ordinary composed message does: the shared `saveCopyToSent` helper appends a
 best-effort copy to the account's Sent mailbox (skipped for providers that save sent mail server-side),
@@ -733,7 +733,7 @@ so one sent message is both a readable email and a valid iMIP scheduling message
 The Wails facade (`schedulingapi.go`) exposes the flow through `OrganizerDTO`, `AttendeeDTO` and
 `InvitationDTO` and the methods `GetInvitation`, `RespondToInvitation`, `RemoveCancelledMeeting`,
 `ApplyMeetingReply`, `SendMeetingRequest` and `SendMeetingCancel`; `EventDTO` and `EventRequest` carry the
-organizer and attendees so a meeting round-trips through the calendar editor. As with the rest of the
+organiser and attendees so a meeting round-trips through the calendar editor. As with the rest of the
 facade, these binding files are build-verified (they hold no logic beyond DTO mapping) rather than
 unit-tested; the correctness lives in the domain and application layers behind them. In the UI the reader
 shows an invite card (Accept, Tentative or Decline a request, remove a cancellation, apply a reply) and
@@ -820,7 +820,7 @@ GPL-3.0 compatible.
 | Storage | modernc.org/sqlite (pure Go, no CGO) + FTS5 | Local-first, single-writer/multi-reader. |
 | Credentials | zalando/go-keyring | OS keychain; never in the DB. |
 | Front end | React 18 + TypeScript (Vite) | Existing React/TS + Wails lineage. |
-| List virtualization | @tanstack/react-virtual | 100k-message folders scroll smoothly. |
+| List virtualisation | @tanstack/react-virtual | 100k-message folders scroll smoothly. |
 | Drag/drop | native HTML5 drag-and-drop | Message-to-folder, account reorder, folder reparent and reorder. |
 | Rich-text compose | TipTap (ProseMirror) | Clean, sanitisable, email-safe HTML. |
 | HTML mail render | sandboxed iframe + sanitiser | Untrusted HTML is the top security surface. |

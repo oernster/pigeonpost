@@ -49,8 +49,8 @@ export interface EventForm {
     recurrence: string
     // extra is the opaque preserved ICS, carried unchanged so an edit does not strip unmodelled data.
     extra: string
-    // organizerAddress and organizerName carry a loaded meeting's organizer. They are empty for a new
-    // event; on save with attendees the organizer defaults to the active account. attendees is the invited
+    // organizerAddress and organizerName carry a loaded meeting's organiser. They are empty for a new
+    // event; on save with attendees the organiser defaults to the active account. attendees is the invited
     // list: a non-empty list makes the event a meeting.
     organizerAddress: string
     organizerName: string
@@ -145,8 +145,8 @@ export function EventFormModal({
     const removeAttendee = (index: number) =>
         setForm((f) => (f ? {...f, attendees: f.attendees.filter((_, i) => i !== index)} : f))
 
-    // organizerLabel is the organizer shown in the meeting section: the loaded meeting's organizer, or the
-    // active account that will own a newly organized meeting.
+    // organizerLabel is the organiser shown in the meeting section: the loaded meeting's organiser, or the
+    // active account that will own a newly organised meeting.
     const organizerLabel = (): string => {
         if (form.organizerAddress) return form.organizerName || form.organizerAddress
         return accountName ? `${accountName} (${accountEmail})` : accountEmail
@@ -179,9 +179,9 @@ export function EventFormModal({
             // carries no zone.
             const startISO = form.allDay ? toISO(form.start) : zonedWallToISO(form.start, form.timeZone)
             const endISO = form.allDay ? toISO(form.end) : (form.end ? zonedWallToISO(form.end, form.timeZone) : '')
-            // A meeting (any attendees) needs an organizer to be replied to: keep the loaded one, or adopt
-            // the active account when newly organizing. An event with no attendees stays a plain entry with
-            // an empty organizer.
+            // A meeting (any attendees) needs an organiser to be replied to: keep the loaded one, or adopt
+            // the active account when newly organising. An event with no attendees stays a plain entry with
+            // an empty organiser.
             const hasAttendees = form.attendees.length > 0
             const organizerAddress = form.organizerAddress || (hasAttendees ? accountEmail : '')
             const organizerName = form.organizerAddress ? form.organizerName : (hasAttendees ? accountName : '')
@@ -315,7 +315,7 @@ export function EventFormModal({
             // been notified and the meeting cannot be cancelled again.
             setCancelledSent(true)
             // A cancelled meeting is withdrawn: after notifying the attendees, remove it from the
-            // organizer's own calendar too, the way a calendar app deletes a meeting you cancel.
+            // organiser's own calendar too, the way a calendar app deletes a meeting you cancel.
             await api.deleteEvent(form.id)
             setCancelMeeting(false)
             setForm(null)
@@ -445,7 +445,7 @@ export function EventFormModal({
                                 <span>Attendees</span>
                             </div>
                             {form.attendees.length > 0 && (
-                                <p className="setup-hint">Organizer: {organizerLabel()}</p>
+                                <p className="setup-hint">Organiser: {organizerLabel()}</p>
                             )}
                             {form.attendees.map((a, i) => (
                                 <div key={a.address} className="attendee-row">

@@ -155,7 +155,7 @@ func TestDecodeEmptyIsNoContacts(t *testing.T) {
 }
 
 func TestEncodeMinimalContactRoundTrips(t *testing.T) {
-	// No organization, title or note, and an email with no label: exercises the "omit empty field"
+	// No organisation, title or note, and an email with no label: exercises the "omit empty field"
 	// and "no TYPE parameter" paths.
 	email, _ := domain.NewContactEmail("", "min@example.com")
 	c, err := domain.NewContact(domain.ContactInput{

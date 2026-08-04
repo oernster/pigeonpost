@@ -178,7 +178,7 @@ func (c Contact) GivenName() string { return c.givenName }
 // FamilyName returns the optional family (last) name.
 func (c Contact) FamilyName() string { return c.familyName }
 
-// Organization returns the optional organization.
+// Organisation returns the optional organisation.
 func (c Contact) Organization() string { return c.organization }
 
 // Title returns the optional job title.

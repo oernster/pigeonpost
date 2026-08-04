@@ -133,28 +133,33 @@ func (a *App) checkMail(trigger string) {
 	}
 }
 
-// applyIncomingScheduling folds any meeting replies and cancellations the newly arrived messages carry
-// into the calendar, so an attendee's reply updates the organizer's meeting and a cancellation removes the
-// withdrawn one without the user opening each message. It fetches each body first so the scheduling decode
-// can read its calendar part, and asks the front end to reload the calendar when anything changed. A
-// message that is not a meeting, or whose body cannot be fetched, contributes nothing.
+// applyIncomingScheduling folds the meeting scheduling the newly arrived messages carry into the
+// calendar, so an attendee's reply updates the organiser's meeting, a cancellation removes the
+// withdrawn one and an organiser's updated invitation refreshes the other attendees' statuses, all
+// without the user opening each message. It fetches each body first so the scheduling decode can read
+// its calendar part, and asks the front end to reload the calendar when anything changed. Only a fully
+// resolved message (a reply or cancellation, which needs nothing from the user) is marked read; an
+// updated invitation stays unread because it may carry changes the user must still look at. A message
+// that is not a meeting, or whose body cannot be fetched, contributes nothing.
 func (a *App) applyIncomingScheduling(messages []domain.MessageSummary) {
-	changed := false
+	anyChanged := false
 	for _, m := range messages {
 		if _, err := a.body.Body(a.ctx, m.ID()); err != nil {
 			continue
 		}
-		applied, err := a.scheduling.ApplyIncoming(a.ctx, m.ID())
-		if err != nil || !applied {
+		changed, resolved, err := a.scheduling.ApplyIncoming(a.ctx, m.ID())
+		if err != nil {
 			continue
 		}
-		changed = true
-		// The reply or cancellation needed no action from the user, so mark it read (kept, not deleted)
-		// once applied, so it does not linger as unread. Best-effort: a mark-read failure must not undo
-		// the apply that already happened.
-		_ = a.actions.MarkRead(a.ctx, m.ID(), true)
+		if changed {
+			anyChanged = true
+		}
+		if resolved {
+			// Best-effort: a mark-read failure must not undo the apply that already happened.
+			_ = a.actions.MarkRead(a.ctx, m.ID(), true)
+		}
 	}
-	if changed {
+	if anyChanged {
 		runtime.EventsEmit(a.ctx, calendarChangedEventName)
 	}
 }

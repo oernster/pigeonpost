@@ -37,7 +37,7 @@ type EventInput struct {
 	// Extra carries the preserved original ICS opaquely so an in-app edit does not strip the
 	// properties PigeonPost does not model. The UI round-trips it unchanged.
 	Extra string
-	// OrganizerAddress and OrganizerName describe the meeting organizer. OrganizerAddress is empty for an
+	// OrganizerAddress and OrganizerName describe the meeting organiser. OrganizerAddress is empty for an
 	// event that is not a scheduled meeting.
 	OrganizerAddress string
 	OrganizerName    string
@@ -135,7 +135,7 @@ func (s *CalendarService) SaveEvent(ctx context.Context, in EventInput) (string,
 
 // buildEvent resolves the id and UID and constructs the validated domain event from the input, generating an
 // id (and defaulting the UID to it) when none is supplied. It is shared by CalendarService.SaveEvent and the
-// remote-aware CalendarEditService so the organizer, attendee and UID handling lives in one place.
+// remote-aware CalendarEditService so the organiser, attendee and UID handling lives in one place.
 func buildEvent(in EventInput, newID IDGenerator) (domain.Event, error) {
 	id := strings.TrimSpace(in.ID)
 	if id == "" {
@@ -150,7 +150,7 @@ func buildEvent(in EventInput, newID IDGenerator) (domain.Event, error) {
 	}
 	organizer, err := buildOrganizer(in.OrganizerAddress, in.OrganizerName)
 	if err != nil {
-		return domain.Event{}, fmt.Errorf("calendar: build organizer: %w", err)
+		return domain.Event{}, fmt.Errorf("calendar: build organiser: %w", err)
 	}
 	attendees, err := buildAttendees(in.Attendees)
 	if err != nil {
@@ -180,7 +180,7 @@ func buildEvent(in EventInput, newID IDGenerator) (domain.Event, error) {
 	return event, nil
 }
 
-// buildOrganizer builds a meeting organizer from an address and optional name, or the zero organizer
+// buildOrganizer builds a meeting organiser from an address and optional name, or the zero organiser
 // when the address is empty (the event is not a meeting).
 func buildOrganizer(address, name string) (domain.Organizer, error) {
 	if strings.TrimSpace(address) == "" {

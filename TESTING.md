@@ -175,9 +175,9 @@ npx vitest run --coverage   # enforce the pure-module coverage gate
   `components/emailDarkMode.ts` and its per-region decisions go through the rendered frame in
   `EmailHtmlFrame.test.tsx`, which reads the resulting element styles rather than a stylesheet string
   because the decision depends on each element's own background.
-- **Characterization-first.** The `App.tsx` and component decomposition was done test-first: each
-  extraction was preceded by a characterization test pinning the behaviour on the un-extracted code, so
-  every move was behaviour-preserving by construction. `App.test.tsx` characterizes App at its outer
+- **Characterisation-first.** The `App.tsx` and component decomposition was done test-first: each
+  extraction was preceded by a characterisation test pinning the behaviour on the un-extracted code, so
+  every move was behaviour-preserving by construction. `App.test.tsx` characterises App at its outer
   interface (what it renders and which `api` calls fire); the one Wails seam (`../api`) and the runtime
   bindings are stubbed while the pure modules run for real.
 - The Go `./test.ps1` gate and this front-end suite are separate; run both to verify the whole app.

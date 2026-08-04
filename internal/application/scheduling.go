@@ -2,7 +2,6 @@ package application
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 
@@ -21,7 +20,7 @@ type Invitation struct {
 
 // SchedulingService is the use-case boundary for iTIP meeting scheduling (RFC 5546). On the attendee
 // side it reads an incoming invite, replies to it with the recipient's answer and removes a cancelled
-// meeting; on the organizer side it sends invites and cancellations and applies incoming replies to the
+// meeting; on the organiser side it sends invites and cancellations and applies incoming replies to the
 // stored meeting. Its sends leave the same record an ordinary message does: a copy in the Sent mailbox
 // and, when the server is unreachable, a queued outbox item the dispatcher replays later.
 type SchedulingService struct {
@@ -121,8 +120,8 @@ func overlayAttendees(event, stored domain.Event) domain.Event {
 }
 
 // Respond records the recipient's answer to a meeting request: it saves the meeting to the calendar with
-// the recipient's participation status set, then sends a REPLY to the organizer. It returns ErrNotInvitable
-// when the message is not a REQUEST and ErrNoOrganizer when the meeting names no organizer to reply to.
+// the recipient's participation status set, then sends a REPLY to the organiser. It returns ErrNotInvitable
+// when the message is not a REQUEST and ErrNoOrganizer when the meeting names no organiser to reply to.
 func (s *SchedulingService) Respond(ctx context.Context, messageID string, status domain.ParticipationStatus) error {
 	sched, err := s.decodeInvite(ctx, messageID)
 	if err != nil {
@@ -155,143 +154,6 @@ func (s *SchedulingService) Respond(ctx context.Context, messageID string, statu
 		responseWord(status)+": "+primary.Summary(),
 		me.Address()+" has "+strings.ToLower(responseWord(status))+" the meeting.",
 		domain.MethodReply, reply)
-}
-
-// ApplyCancellation removes the meeting a CANCEL message withdraws from the calendar, matching stored
-// events by UID and recurrence id. It returns ErrNotCancellation when the message is not a CANCEL. A
-// cancellation for a meeting not held locally is a no-op.
-func (s *SchedulingService) ApplyCancellation(ctx context.Context, messageID string) error {
-	sched, err := s.decodeInvite(ctx, messageID)
-	if err != nil {
-		return err
-	}
-	if sched.Method() != domain.MethodCancel {
-		return ErrNotCancellation
-	}
-	stored, err := s.calendar.ListEvents(ctx)
-	if err != nil {
-		return fmt.Errorf("scheduling: list meetings: %w", err)
-	}
-	for _, cancelled := range sched.Events() {
-		for _, existing := range stored {
-			if !matches(existing, cancelled) {
-				continue
-			}
-			if err := s.calendar.DeleteEvent(ctx, existing.ID()); err != nil {
-				return fmt.Errorf("scheduling: remove cancelled meeting %q: %w", existing.ID(), err)
-			}
-		}
-	}
-	return nil
-}
-
-// ApplyReply applies an incoming REPLY to the organizer's stored meeting, setting the responding
-// attendee's participation status on every event the reply covers: the exact occurrence when the reply
-// names one (RECURRENCE-ID), or the series master plus every stored override when it does not, since a
-// whole-series reply is the attendee's latest word for all occurrences (RFC 5546). A responder the
-// stored meeting does not list (a delegate, or a guest answering from a different address than the one
-// invited) is added rather than dropped, so their response is never silently lost. It returns
-// ErrNotReply when the message is not a REPLY, ErrNoReplyAttendee when the reply names no attendee,
-// and ErrMeetingNotFound when no stored meeting matches.
-func (s *SchedulingService) ApplyReply(ctx context.Context, messageID string) error {
-	sched, err := s.decodeInvite(ctx, messageID)
-	if err != nil {
-		return err
-	}
-	if sched.Method() != domain.MethodReply {
-		return ErrNotReply
-	}
-	reply := sched.PrimaryEvent()
-	responders := reply.Attendees()
-	if len(responders) == 0 {
-		return ErrNoReplyAttendee
-	}
-	responder := responders[0]
-	stored, err := s.calendar.ListEvents(ctx)
-	if err != nil {
-		return fmt.Errorf("scheduling: list meetings: %w", err)
-	}
-	applied := false
-	for _, existing := range stored {
-		if !replyCovers(existing, reply) {
-			continue
-		}
-		if err := s.calendar.SaveEvent(ctx, withResponder(existing, responder)); err != nil {
-			return fmt.Errorf("scheduling: update meeting %q: %w", existing.ID(), err)
-		}
-		applied = true
-	}
-	if !applied {
-		return ErrMeetingNotFound
-	}
-	return nil
-}
-
-// replyCovers reports whether a stored event is within a reply's reach: the same non-empty UID, and
-// either the reply names that exact occurrence (matching RECURRENCE-ID) or it names none, in which
-// case it covers the whole series (the master and every override).
-func replyCovers(existing, reply domain.Event) bool {
-	if reply.UID() == "" || existing.UID() != reply.UID() {
-		return false
-	}
-	if reply.RecurrenceID().IsZero() {
-		return true
-	}
-	return existing.RecurrenceID().Equal(reply.RecurrenceID())
-}
-
-// withResponder records a responder's participation status on the event: a listed attendee (matched by
-// address, case-insensitively) has their status replaced; an unlisted one is appended as sent, so a
-// delegate's or re-addressed reply still lands on the meeting.
-func withResponder(event domain.Event, responder domain.Attendee) domain.Event {
-	attendees := event.Attendees()
-	for i, a := range attendees {
-		if sameAddress(a.Address(), responder.Address()) {
-			attendees[i] = a.WithStatus(responder.Status())
-			return event.WithAttendees(attendees)
-		}
-	}
-	return event.WithAttendees(append(attendees, responder))
-}
-
-// ApplyIncoming folds a message's meeting scheduling into the calendar automatically, so the user does
-// not have to open each reply or cancellation. A REPLY updates the responding attendee's status; a CANCEL
-// removes the withdrawn meeting; a REQUEST or PUBLISH (which the user answers deliberately) and a message
-// with no invite are left untouched. It reports whether the calendar changed. A reply for a meeting not
-// held locally, or naming no attendee, is a harmless no-op rather than an error, since the poller applies
-// replies blind across every arriving message.
-func (s *SchedulingService) ApplyIncoming(ctx context.Context, messageID string) (bool, error) {
-	sched, err := s.decodeInvite(ctx, messageID)
-	if errors.Is(err, ErrNoInvite) {
-		return false, nil
-	}
-	if err != nil {
-		return false, err
-	}
-	switch sched.Method() {
-	case domain.MethodReply:
-		return appliedReply(s.ApplyReply(ctx, messageID))
-	case domain.MethodCancel:
-		if err := s.ApplyCancellation(ctx, messageID); err != nil {
-			return false, err
-		}
-		return true, nil
-	default:
-		return false, nil
-	}
-}
-
-// appliedReply maps an ApplyReply result to whether the calendar changed, treating a reply for a meeting
-// not held locally or naming no attendee as a no-op rather than an error.
-func appliedReply(err error) (bool, error) {
-	switch {
-	case err == nil:
-		return true, nil
-	case errors.Is(err, ErrMeetingNotFound), errors.Is(err, ErrNoReplyAttendee):
-		return false, nil
-	default:
-		return false, err
-	}
 }
 
 // decodeInvite loads a message's cached body and decodes its scheduling payload. It returns ErrNoInvite

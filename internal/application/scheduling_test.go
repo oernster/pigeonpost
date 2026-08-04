@@ -60,8 +60,8 @@ func schedAddr(t *testing.T, address string) domain.EmailAddress {
 	return a
 }
 
-// schedMeeting builds a meeting event with the given organizer and attendee addresses. An empty
-// organizer yields an event with none; recurrenceID marks a per-occurrence event.
+// schedMeeting builds a meeting event with the given organiser and attendee addresses. An empty
+// organiser yields an event with none; recurrenceID marks a per-occurrence event.
 func schedMeeting(t *testing.T, uid, organizer string, recurrenceID time.Time, attendees ...string) domain.Event {
 	t.Helper()
 	in := domain.EventInput{

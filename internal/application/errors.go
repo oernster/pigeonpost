@@ -64,8 +64,8 @@ var ErrNotCancellation = errors.New("scheduling message is not a cancellation")
 // ErrNotReply is returned when a reply is applied to a message that is not a REPLY.
 var ErrNotReply = errors.New("scheduling message is not a reply")
 
-// ErrNoOrganizer is returned when a meeting names no organizer to send a reply to.
-var ErrNoOrganizer = errors.New("meeting has no organizer to reply to")
+// ErrNoOrganizer is returned when a meeting names no organiser to send a reply to.
+var ErrNoOrganizer = errors.New("meeting has no organiser to reply to")
 
 // ErrNoReplyAttendee is returned when a REPLY carries no attendee whose status could be applied.
 var ErrNoReplyAttendee = errors.New("reply carries no attendee")

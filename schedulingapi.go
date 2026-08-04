@@ -9,14 +9,14 @@ import (
 	"github.com/oernster/pigeonpost/internal/domain"
 )
 
-// OrganizerDTO is the JSON-serialisable view of a meeting organizer.
+// OrganizerDTO is the JSON-serialisable view of a meeting organiser.
 type OrganizerDTO struct {
 	Address    string `json:"address"`
 	CommonName string `json:"commonName"`
 }
 
 // AttendeeDTO is the JSON-serialisable view of a meeting attendee, including their role, reply status
-// and whether the organizer requested a reply.
+// and whether the organiser requested a reply.
 type AttendeeDTO struct {
 	Address    string `json:"address"`
 	CommonName string `json:"commonName"`
@@ -48,7 +48,7 @@ func (a *App) GetInvitation(messageID string) (InvitationDTO, error) {
 }
 
 // RespondToInvitation records the recipient's answer to a meeting request: it saves the meeting with the
-// chosen status and sends a REPLY to the organizer. The status is an ICS PARTSTAT value (ACCEPTED,
+// chosen status and sends a REPLY to the organiser. The status is an ICS PARTSTAT value (ACCEPTED,
 // DECLINED or TENTATIVE). A successful response also marks the invite message answered (best-effort),
 // so the message list shows the replied indicator exactly as it does for an ordinary reply.
 func (a *App) RespondToInvitation(messageID, status string) error {
@@ -71,14 +71,14 @@ func (a *App) RemoveCancelledMeeting(messageID string) error {
 	return a.scheduling.ApplyCancellation(a.ctx, messageID)
 }
 
-// ApplyMeetingReply folds an incoming REPLY into the organizer's stored meeting, updating the
+// ApplyMeetingReply folds an incoming REPLY into the organiser's stored meeting, updating the
 // responding attendee's status.
 func (a *App) ApplyMeetingReply(messageID string) error {
 	return a.scheduling.ApplyReply(a.ctx, messageID)
 }
 
 // SendMeetingRequest emails a meeting REQUEST to the attendees of the event identified by id, inviting
-// them. The event must already carry its organizer and attendee list. It logs each step so a send that
+// them. The event must already carry its organiser and attendee list. It logs each step so a send that
 // does not reach the recipients can be diagnosed from the app log rather than guessed at.
 func (a *App) SendMeetingRequest(accountID, eventID string) error {
 	runtime.LogInfof(a.ctx, "meeting invite: send REQUEST account=%q event=%q", accountID, eventID)

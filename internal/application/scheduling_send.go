@@ -1,7 +1,7 @@
 package application
 
 // The send half of SchedulingService: building and dispatching the iMIP messages the scheduling flows
-// email out (the attendee's REPLY, the organizer's REQUEST and CANCEL). Kept apart from the read and
+// email out (the attendee's REPLY, the organiser's REQUEST and CANCEL). Kept apart from the read and
 // apply flows in scheduling.go so each file stays within the module-size limit. Every send here leaves
 // the same record an ordinary composed message does: a best-effort copy in the account's Sent mailbox,
 // and a queued outbox item (replayed by the compose dispatcher) when the server is unreachable.
@@ -87,7 +87,7 @@ func (s *SchedulingService) enqueue(ctx context.Context, accountID string, msg d
 	return nil
 }
 
-// attendeeAddresses returns the addresses of an event's attendees, the recipients of an organizer send.
+// attendeeAddresses returns the addresses of an event's attendees, the recipients of an organiser send.
 func attendeeAddresses(event domain.Event) []domain.EmailAddress {
 	attendees := event.Attendees()
 	out := make([]domain.EmailAddress, 0, len(attendees))
@@ -111,7 +111,7 @@ func responseWord(status domain.ParticipationStatus) string {
 	}
 }
 
-// organizerSubject is the subject line for an organizer's REQUEST or CANCEL message.
+// organizerSubject is the subject line for an organiser's REQUEST or CANCEL message.
 func organizerSubject(event domain.Event, method domain.Method) string {
 	if method == domain.MethodCancel {
 		return "Cancelled: " + event.Summary()
@@ -119,7 +119,7 @@ func organizerSubject(event domain.Event, method domain.Method) string {
 	return "Invitation: " + event.Summary()
 }
 
-// organizerBody is the human-readable body for an organizer's REQUEST or CANCEL message.
+// organizerBody is the human-readable body for an organiser's REQUEST or CANCEL message.
 func organizerBody(event domain.Event, method domain.Method) string {
 	if method == domain.MethodCancel {
 		return "The meeting " + event.Summary() + " has been cancelled."

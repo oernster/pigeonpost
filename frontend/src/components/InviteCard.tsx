@@ -72,7 +72,7 @@ export function InviteCard({messageId, onActed}: InviteCardProps) {
         }
     }, [messageId])
 
-    // A reply needs no decision from the organizer, so fold it into the meeting automatically when the
+    // A reply needs no decision from the organiser, so fold it into the meeting automatically when the
     // message opens rather than making the user click Update meeting. It runs once per message.
     useEffect(() => {
         if (!invite || invite.method !== 'REPLY') return
@@ -155,7 +155,7 @@ export function InviteCard({messageId, onActed}: InviteCardProps) {
             )}
             {invite.organizer.address && (
                 <div className="invite-card-row">
-                    <span className="invite-card-label">Organizer</span>
+                    <span className="invite-card-label">Organiser</span>
                     <span>{invite.organizer.commonName || invite.organizer.address}</span>
                 </div>
             )}
@@ -187,7 +187,7 @@ export function InviteCard({messageId, onActed}: InviteCardProps) {
                     {confirmResend && (
                         <>
                             <p className="invite-card-note">
-                                The organizer already has your response ({statusLabel(confirmResend)}), so sending it
+                                The organiser already has your response ({statusLabel(confirmResend)}), so sending it
                                 again is unnecessary unless something changed. Send it anyway?
                             </p>
                             <div className="invite-card-actions">

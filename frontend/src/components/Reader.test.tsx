@@ -1,4 +1,4 @@
-// Characterization test for the reader at its stable outer interface: its props and its observable
+// Characterisation test for the reader at its stable outer interface: its props and its observable
 // behaviour. It renders the real Reader with the Wails seam (../api) mocked, drives each interaction and
 // asserts the resulting DOM plus which api calls fired. The interface it pins does not move as the reader
 // is decomposed in Phase 2 (the tag-colour menu, the toolbar and the attachments block are lifted out

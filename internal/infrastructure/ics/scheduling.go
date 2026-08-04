@@ -11,7 +11,7 @@ import (
 )
 
 // DecodeScheduling parses an iTIP payload (a VCALENDAR carrying a METHOD) into a scheduling message. It
-// reuses the VEVENT decoder, so every event keeps its organizer and attendees. An absent or unknown
+// reuses the VEVENT decoder, so every event keeps its organiser and attendees. An absent or unknown
 // METHOD is rejected, as is a payload with no usable event: an iMIP part without an actionable method or
 // event is not a scheduling message.
 func (Codec) DecodeScheduling(data []byte) (domain.SchedulingMessage, error) {
@@ -43,7 +43,7 @@ func (Codec) DecodeScheduling(data []byte) (domain.SchedulingMessage, error) {
 }
 
 // EncodeRequest builds a METHOD:REQUEST calendar inviting the attendees carried on the events. The
-// events already hold their organizer and attendee list from the editor.
+// events already hold their organiser and attendee list from the editor.
 func (Codec) EncodeRequest(events []domain.Event) ([]byte, error) {
 	return encodeScheduling(domain.MethodRequest, events)
 }
@@ -54,7 +54,7 @@ func (Codec) EncodeCancel(events []domain.Event) ([]byte, error) {
 }
 
 // EncodeReply builds a METHOD:REPLY calendar carrying the responder's decision. Per RFC 5546 a reply
-// names the organizer and a single attendee, the responder, with the PARTSTAT that is their answer, so
+// names the organiser and a single attendee, the responder, with the PARTSTAT that is their answer, so
 // the event's own attendee list is replaced by that one attendee. A per-occurrence reply keeps the
 // event's RECURRENCE-ID, which eventToComponent already writes for an override.
 func (Codec) EncodeReply(event domain.Event, responder domain.EmailAddress, status domain.ParticipationStatus) ([]byte, error) {
@@ -67,7 +67,7 @@ func (Codec) EncodeReply(event domain.Event, responder domain.EmailAddress, stat
 }
 
 // encodeScheduling writes the events as a single VCALENDAR stamped with the scheduling method. It reuses
-// the VEVENT encoder, so each event keeps its organizer and attendees, and prepends the VTIMEZONE
+// the VEVENT encoder, so each event keeps its organiser and attendees, and prepends the VTIMEZONE
 // definitions so the events' TZID references resolve within the payload.
 func encodeScheduling(method domain.Method, events []domain.Event) ([]byte, error) {
 	if len(events) == 0 {

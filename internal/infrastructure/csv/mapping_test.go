@@ -154,7 +154,7 @@ func TestDecodeThunderbirdUKExport(t *testing.T) {
 }
 
 func TestDecodeThunderbirdUSWording(t *testing.T) {
-	// A US Thunderbird build words the same columns State, ZipCode and Organization.
+	// A US Thunderbird build words the same columns State, ZipCode and Organisation.
 	data := lines(
 		"Display Name,Primary Email,Home Address,Home City,Home State,Home ZipCode,Home Country,Organization",
 		"Jack Harkness,jack@example.com,1 Roald Dahl Plass,Cardiff,Wales,CF10 5AL,UK,Torchwood",

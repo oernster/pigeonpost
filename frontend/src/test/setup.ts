@@ -2,7 +2,7 @@
 // rest) on Vitest's expect, so component tests added later can assert against the rendered DOM.
 import '@testing-library/jest-dom/vitest'
 
-// The message list is virtualized with @tanstack/react-virtual, which sizes the scroll viewport and each
+// The message list is virtualised with @tanstack/react-virtual, which sizes the scroll viewport and each
 // row from offsetHeight (see virtual-core's getRect and measureElement) and scrolls the container with
 // scrollTo. jsdom runs no layout, so offsetHeight is 0 (which would collapse the virtual window and render
 // no rows) and scrollTo is absent. Give the scroll container a tall viewport and every measured row a fixed

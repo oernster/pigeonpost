@@ -54,15 +54,15 @@ func ParseParticipationStatus(s string) (ParticipationStatus, error) {
 	return "", ErrInvalidParticipationStatus
 }
 
-// Organizer is the party that owns a meeting and receives the replies to it, matching the RFC 5545
+// Organiser is the party that owns a meeting and receives the replies to it, matching the RFC 5545
 // ORGANIZER property: a validated address with an optional common name. It is immutable once created.
 type Organizer struct {
 	address    EmailAddress
 	commonName string
 }
 
-// NewOrganizer builds an organizer from a validated address and an optional common name. A zero address
-// is rejected: an organizer without an address cannot be replied to.
+// NewOrganizer builds an organiser from a validated address and an optional common name. A zero address
+// is rejected: an organiser without an address cannot be replied to.
 func NewOrganizer(address EmailAddress, commonName string) (Organizer, error) {
 	if address.IsZero() {
 		return Organizer{}, ErrEmptyOrganizerAddress
@@ -70,14 +70,14 @@ func NewOrganizer(address EmailAddress, commonName string) (Organizer, error) {
 	return Organizer{address: address, commonName: strings.TrimSpace(commonName)}, nil
 }
 
-// Address returns the organizer's validated address.
+// Address returns the organiser's validated address.
 func (o Organizer) Address() EmailAddress { return o.address }
 
 // CommonName returns the optional display name, which may be empty.
 func (o Organizer) CommonName() string { return o.commonName }
 
-// IsZero reports whether this is the empty organizer, the value an event carries when it has no
-// organizer.
+// IsZero reports whether this is the empty organiser, the value an event carries when it has no
+// organiser.
 func (o Organizer) IsZero() bool { return o.address.IsZero() }
 
 // AttendeeInput carries the fields for constructing an Attendee. Address is required; Role and Status
@@ -135,7 +135,7 @@ func (a Attendee) Role() Role { return a.role }
 // Status returns the attendee's reply state.
 func (a Attendee) Status() ParticipationStatus { return a.status }
 
-// RSVP reports whether the organizer has requested a reply from this attendee.
+// RSVP reports whether the organiser has requested a reply from this attendee.
 func (a Attendee) RSVP() bool { return a.rsvp }
 
 // WithStatus returns a copy of the attendee with its reply state replaced, used when an incoming REPLY

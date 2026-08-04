@@ -10,7 +10,7 @@ import (
 	"github.com/oernster/pigeonpost/internal/infrastructure/ics"
 )
 
-// TestSendRequestWithRealCodecReachesTransport proves the actual organizer send path end to end: given a
+// TestSendRequestWithRealCodecReachesTransport proves the actual organiser send path end to end: given a
 // meeting with attendees, SendRequest builds a REQUEST with the real ICS codec (not the fake) and hands
 // the transport a message addressed to the attendees carrying a text/calendar REQUEST part. It exercises
 // the real encoder and message construction the fake-codec tests skip.

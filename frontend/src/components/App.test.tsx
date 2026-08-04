@@ -1,9 +1,9 @@
-// Characterization test for App at its stable outer interface. App is the root component and takes no
+// Characterisation test for App at its stable outer interface. App is the root component and takes no
 // props, so its interface is purely its observable behaviour: what it renders and which api calls fire in
 // response to mount and the core user gestures. This suite pins that behaviour BEFORE Phase 3 decomposes App
 // into hooks and sub-components (useMessageStore, useSelection, useFolders, useAccounts, TitleBar, AppModals
 // and the rest). None of those extractions change what App does on screen, so this suite staying green is the
-// proof each one preserved behaviour, exactly as the modal characterization tests were the proof in Phase 2.
+// proof each one preserved behaviour, exactly as the modal characterisation tests were the proof in Phase 2.
 //
 // ../api is stubbed (the one Wails seam) and ../wailsjs/runtime is stubbed for Environment and EventsOn (the
 // only two runtime bindings the tree reads). The pure modules (messageText, shortcuts, threads, outbox,
@@ -714,7 +714,7 @@ describe('App: backend events', () => {
 })
 
 // The menu definitions and the accelerator effect that Phase 3.13 moves into useMenus. The menu-item onClick
-// paths are already characterized (Move to, Mark as junk, Tag with colour, Reading pane); these pin the two
+// paths are already characterised (Move to, Mark as junk, Tag with colour, Reading pane); these pin the two
 // pieces unique to this step: the Ctrl+N accelerator (menuShortcutsRef + matchesShortcut) and an uncovered
 // File-menu item.
 describe('App: menus', () => {

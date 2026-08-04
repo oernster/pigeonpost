@@ -238,7 +238,7 @@ export interface CalendarInput {
     colour: string
 }
 
-// MeetingOrganizerInput is the organizer written onto an event when it is a meeting. An empty address
+// MeetingOrganizerInput is the organiser written onto an event when it is a meeting. An empty address
 // marks an ordinary (non-meeting) event.
 export interface MeetingOrganizerInput {
     address: string
@@ -273,7 +273,7 @@ export interface CalendarEventInput {
     // reminders are lead times in whole minutes before the event start (0 means at the start).
     reminders: number[]
     extra: string
-    // organizer and attendees carry the meeting scheduling data. organizer.address is empty and attendees
+    // organiser and attendees carry the meeting scheduling data. organiser.address is empty and attendees
     // is empty for an ordinary calendar entry.
     organizer: MeetingOrganizerInput
     attendees: MeetingAttendeeInput[]

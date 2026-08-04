@@ -19,7 +19,7 @@ export const messageDragType = 'application/x-pigeonpost-message'
 const REPLIED_GLYPH = '\u{21A9}\u{FE0E}'
 const FORWARDED_GLYPH = '\u{21AA}\u{FE0E}'
 
-// The list is virtualized: only the rows on screen are in the DOM, so a folder of tens of thousands of
+// The list is virtualised: only the rows on screen are in the DOM, so a folder of tens of thousands of
 // messages renders without freezing. These size hints seed the scrollbar before a row's real height is
 // measured (a message row is one to three lines; a conversation header is a single line) and OVERSCAN
 // keeps a few rows rendered just past the viewport so keyboard navigation and scrolling stay smooth.
@@ -181,7 +181,7 @@ export function MessageList(props: MessageListProps) {
 
     const virtualItems = virtualizer.getVirtualItems()
 
-    // When the active row changes (a click or a keyboard move) scroll it into view. With virtualization the
+    // When the active row changes (a click or a keyboard move) scroll it into view. With virtualisation the
     // target row may be unmounted, so focus() alone cannot reach it; scrolling mounts it, then focus lands
     // on it once it is in the DOM so Enter, Space and the roving tabindex work. Keyed on activeId alone: a
     // list change (an appended page) must not yank the scroll back to the active row.

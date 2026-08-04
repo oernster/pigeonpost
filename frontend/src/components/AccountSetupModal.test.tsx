@@ -1,4 +1,4 @@
-// Characterization test for the account-setup modal at its stable outer interface (account, onClose,
+// Characterisation test for the account-setup modal at its stable outer interface (account, onClose,
 // onSaved). It renders the real modal and drives each flow, asserting the DOM plus which api call fired with
 // what. The interface it pins does not move as the modal is decomposed in Phase 2 (the provider chooser, the
 // signature rich-text field with its link editor and the OAuth-vs-IMAP details form are lifted out beneath

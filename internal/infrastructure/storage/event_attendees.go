@@ -7,8 +7,8 @@ import (
 	"github.com/oernster/pigeonpost/internal/domain"
 )
 
-// organizerRow and attendeeRow are the JSON shapes an event's organizer and attendees are stored as, in
-// the event table's organizer and attendees columns. JSON keeps the structured attendee fields (role,
+// organizerRow and attendeeRow are the JSON shapes an event's organiser and attendees are stored as, in
+// the event table's organiser and attendees columns. JSON keeps the structured attendee fields (role,
 // status, rsvp) unambiguous where a delimited string would not.
 type organizerRow struct {
 	Address    string `json:"address"`
@@ -23,31 +23,31 @@ type attendeeRow struct {
 	RSVP       bool   `json:"rsvp"`
 }
 
-// encodeOrganizer serialises an event's organizer as JSON, or the empty string when it has none.
+// encodeOrganizer serialises an event's organiser as JSON, or the empty string when it has none.
 func encodeOrganizer(o domain.Organizer) (string, error) {
 	if o.IsZero() {
 		return "", nil
 	}
 	b, err := json.Marshal(organizerRow{Address: o.Address().Address(), CommonName: o.CommonName()})
 	if err != nil {
-		return "", fmt.Errorf("encode organizer: %w", err)
+		return "", fmt.Errorf("encode organiser: %w", err)
 	}
 	return string(b), nil
 }
 
-// decodeOrganizer parses a stored organizer JSON value back into a domain organizer. The empty string
-// decodes to the zero organizer.
+// decodeOrganizer parses a stored organiser JSON value back into a domain organiser. The empty string
+// decodes to the zero organiser.
 func decodeOrganizer(s string) (domain.Organizer, error) {
 	if s == "" {
 		return domain.Organizer{}, nil
 	}
 	var row organizerRow
 	if err := json.Unmarshal([]byte(s), &row); err != nil {
-		return domain.Organizer{}, fmt.Errorf("decode organizer: %w", err)
+		return domain.Organizer{}, fmt.Errorf("decode organiser: %w", err)
 	}
 	addr, err := domain.NewEmailAddress("", row.Address)
 	if err != nil {
-		return domain.Organizer{}, fmt.Errorf("decode organizer address: %w", err)
+		return domain.Organizer{}, fmt.Errorf("decode organiser address: %w", err)
 	}
 	return domain.NewOrganizer(addr, row.CommonName)
 }

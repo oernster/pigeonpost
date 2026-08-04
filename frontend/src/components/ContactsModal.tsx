@@ -41,7 +41,7 @@ interface GroupForm {
 
 // displayNameOf derives the vCard formatted name (FN), which is required for export and used as the list
 // title, from the parts the user fills. There is no separate full-name field: given and family name make
-// it, falling back to the organization, then the first email address.
+// it, falling back to the organisation, then the first email address.
 function displayNameOf(f: ContactForm): string {
     const person = [f.givenName, f.familyName].map((s) => s.trim()).filter(Boolean).join(' ')
     if (person) return person
@@ -344,7 +344,7 @@ export function ContactsModal({contacts, onChanged, onClose}: ContactsModalProps
                                    onChange={(e) => set('familyName', e.target.value)}/>
                         </div>
                         <div className="rule-form-row">
-                            <input className="tag-name-input" placeholder="Organization" value={form.organization}
+                            <input className="tag-name-input" placeholder="Organisation" value={form.organization}
                                    onChange={(e) => set('organization', e.target.value)}/>
                             <input className="tag-name-input" placeholder="Job title" value={form.title}
                                    onChange={(e) => set('title', e.target.value)}/>

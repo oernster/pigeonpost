@@ -1,4 +1,4 @@
-// Characterization test for the compose window at its stable outer interface (accountId, senders, initial,
+// Characterisation test for the compose window at its stable outer interface (accountId, senders, initial,
 // canSaveDraft, onClose). It renders the real modal and drives each flow, asserting the DOM plus which api
 // call fired with what. The interface it pins does not move as the modal is decomposed in Phase 2 (the link
 // editor moves to the shared useLinkEditor, the debounced draft autosave to useDraftAutosave and the

@@ -39,8 +39,8 @@ import {useBanners} from '../hooks/useBanners'
 
 interface CalendarModalProps {
     events: CalendarEvent[]
-    // accountId, accountEmail and accountName identify the active account that organizes meetings: the
-    // organizer written onto a meeting and the sender of its invitations. accountId is empty when no
+    // accountId, accountEmail and accountName identify the active account that organises meetings: the
+    // organiser written onto a meeting and the sender of its invitations. accountId is empty when no
     // account is selected, which disables sending.
     accountId: string
     accountEmail: string

@@ -66,7 +66,7 @@ const eventUpsertSQL = `INSERT INTO event (` + eventColumns + `) VALUES (?, ?, ?
 	     category = excluded.category;`
 
 // eventInsertArgs builds the ordered argument list for the eventColumns, shared by SaveEvent and (with the
-// href and etag appended) SaveSyncedEvent so the encoding of times, alarms, organizer and attendees lives in
+// href and etag appended) SaveSyncedEvent so the encoding of times, alarms, organiser and attendees lives in
 // one place.
 func eventInsertArgs(e domain.Event) ([]any, error) {
 	var endMs int64

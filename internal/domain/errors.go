@@ -53,7 +53,7 @@ var (
 	ErrEmptyEventStart      = errors.New("event start time is not set")
 	ErrEventEndsBeforeStart = errors.New("event end is before its start")
 
-	ErrEmptyOrganizerAddress      = errors.New("organizer address is empty")
+	ErrEmptyOrganizerAddress      = errors.New("organiser address is empty")
 	ErrEmptyAttendeeAddress       = errors.New("attendee address is empty")
 	ErrInvalidParticipationStatus = errors.New("participation status is not valid")
 	ErrInvalidRole                = errors.New("attendee role is not valid")

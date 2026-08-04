@@ -1,4 +1,4 @@
-// Characterization test for the calendar at its stable outer interface (events, accountId, accountEmail,
+// Characterisation test for the calendar at its stable outer interface (events, accountId, accountEmail,
 // accountName, initialEventId, onChanged, onClose). It renders the real modal with its real child dialogs
 // (the event form, the scope chooser, the confirm dialogs, the calendars manager, the recurrence editor and
 // the time grid) and drives each flow, asserting the DOM plus which api call fired. The interface it pins

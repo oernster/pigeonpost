@@ -36,8 +36,8 @@ type EventInput struct {
 	// properties PigeonPost does not model yet (categories, status, alarms and the rest). It is empty
 	// for an event created in the app and is round-tripped unchanged through storage and the UI.
 	Extra string
-	// Organizer is the party that owns the meeting and collects its replies (RFC 5545 ORGANIZER). It is
-	// the zero Organizer for an event that is not a scheduled meeting.
+	// Organiser is the party that owns the meeting and collects its replies (RFC 5545 ORGANIZER). It is
+	// the zero Organiser for an event that is not a scheduled meeting.
 	Organizer Organizer
 	// Attendees are the invited parties on the meeting (RFC 5545 ATTENDEE), each with a role, a reply
 	// status and an RSVP flag. It is empty for an event that is not a scheduled meeting.
@@ -218,11 +218,11 @@ func (e Event) Alarms() []Alarm { return append([]Alarm(nil), e.alarms...) }
 // for an event that did not come from an import.
 func (e Event) Extra() string { return e.extra }
 
-// Organizer returns the meeting organizer, or the zero Organizer when the event is not a scheduled
+// Organiser returns the meeting organiser, or the zero Organiser when the event is not a scheduled
 // meeting.
 func (e Event) Organizer() Organizer { return e.organizer }
 
-// HasOrganizer reports whether the event carries an organizer, so it is a scheduled meeting rather than
+// HasOrganizer reports whether the event carries an organiser, so it is a scheduled meeting rather than
 // a plain calendar entry.
 func (e Event) HasOrganizer() bool { return !e.organizer.IsZero() }
 
@@ -279,7 +279,7 @@ func (e Event) WithAlarms(alarms []Alarm) Event {
 	return e
 }
 
-// WithOrganizer returns a copy of the event with its organizer replaced. The event stays immutable: the
+// WithOrganizer returns a copy of the event with its organiser replaced. The event stays immutable: the
 // receiver is unchanged.
 func (e Event) WithOrganizer(organizer Organizer) Event {
 	e.organizer = organizer

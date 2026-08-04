@@ -129,7 +129,7 @@ func TestOutboxCalendarPartRoundTrip(t *testing.T) {
 	ctx := context.Background()
 
 	// A queued meeting REPLY must keep its text/calendar payload across a restart, or the replayed
-	// message degrades to a plain email the organizer's client cannot apply.
+	// message degrades to a plain email the organiser's client cannot apply.
 	payload := []byte("BEGIN:VCALENDAR\r\nMETHOD:REPLY\r\nEND:VCALENDAR\r\n")
 	part, err := domain.NewCalendarPart(domain.MethodReply, payload)
 	if err != nil {

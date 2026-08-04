@@ -15,8 +15,8 @@ const mailtoPrefix = "mailto:"
 // rsvpTrue is the ICS RSVP parameter value that requests a reply from an attendee.
 const rsvpTrue = "TRUE"
 
-// parseOrganizer reads the ORGANIZER property into a domain organizer, returning the zero organizer when
-// the property is absent or its address cannot be represented, so a malformed organizer cannot fail the
+// parseOrganizer reads the ORGANIZER property into a domain organiser, returning the zero organiser when
+// the property is absent or its address cannot be represented, so a malformed organiser cannot fail the
 // whole import.
 func parseOrganizer(props goical.Props) domain.Organizer {
 	prop := props.Get(goical.PropOrganizer)
@@ -81,14 +81,14 @@ func calAddress(value string) (domain.EmailAddress, bool) {
 	return addr, true
 }
 
-// parseRSVP reads the RSVP parameter, which is TRUE when the organizer wants a reply and absent or FALSE
+// parseRSVP reads the RSVP parameter, which is TRUE when the organiser wants a reply and absent or FALSE
 // otherwise.
 func parseRSVP(value string) bool {
 	return strings.EqualFold(strings.TrimSpace(value), rsvpTrue)
 }
 
-// setOrganizer overwrites the ORGANIZER property from the event's organizer, or removes it when the event
-// has none, so clearing the organizer in the app clears it in the exported component too.
+// setOrganizer overwrites the ORGANIZER property from the event's organiser, or removes it when the event
+// has none, so clearing the organiser in the app clears it in the exported component too.
 func setOrganizer(comp *goical.Component, organizer domain.Organizer) {
 	comp.Props.Del(goical.PropOrganizer)
 	if organizer.IsZero() {
