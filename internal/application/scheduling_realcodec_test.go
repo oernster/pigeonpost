@@ -18,7 +18,8 @@ func TestSendRequestWithRealCodecReachesTransport(t *testing.T) {
 	accounts := newFakeAccountStore()
 	accounts.accounts["a1"] = testAccount(t, "a1")
 	transport := &fakeMailTransport{}
-	svc := NewSchedulingService(ics.New(), &fakeCalendarStore{}, newFakeMailStore(), accounts, transport)
+	svc := NewSchedulingService(ics.New(), &fakeCalendarStore{}, newFakeMailStore(), accounts, transport,
+		&fakeSentSaver{}, &fakeOutboxStore{}, fakeClock{now: time.Unix(0, 0).UTC()}, func() string { return "sched-q1" })
 
 	meeting := schedMeeting(t, "uid-1", "user@example.com", time.Time{},
 		"guest1@example.com", "guest2@example.com")

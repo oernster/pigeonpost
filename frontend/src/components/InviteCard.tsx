@@ -107,6 +107,9 @@ export function InviteCard({messageId, onActed}: InviteCardProps) {
             .then(() => {
                 setMyStatus(status)
                 onActed?.()
+                // Refetch the invitation so the attendee list shows the recorded response (the backend
+                // overlays statuses from the stored meeting) rather than the email's frozen ICS.
+                return api.getInvitation(messageId).then(setInvite).catch(() => undefined)
             })
             .catch((e) => setError(String(e)))
             .finally(() => setBusy(false))

@@ -61,3 +61,19 @@ func folderByKind(ctx context.Context, store folderLister, accountID string, kin
 	}
 	return domain.Folder{}, false, nil
 }
+
+// saveCopyToSent appends a best-effort copy of a just-sent message to the account's Sent mailbox, so
+// the user keeps a record of what left. It is shared by the compose and scheduling send paths so an
+// invite reply leaves the same record an ordinary message does. Best-effort means: a provider that
+// saves sent mail itself is skipped, and a missing Sent folder or an append failure never turns a
+// delivered send into an error.
+func saveCopyToSent(ctx context.Context, folders folderLister, sent SentSaver, account domain.Account, msg domain.OutgoingMessage) {
+	if account.SavesSentServerSide() {
+		return
+	}
+	sentPath, found, err := folderPathByKind(ctx, folders, account.ID(), domain.FolderSent)
+	if err != nil || !found {
+		return
+	}
+	_ = sent.SaveSent(ctx, account, sentPath, msg)
+}

@@ -137,8 +137,10 @@ func run() error {
 	caldavService := application.NewCalDAVService(store, vault, davFactory, davFactory, ics.New(), store, newCalendarID)
 	// The scheduling service reads incoming meeting invites and replies (the ICS codec also implements
 	// the iTIP SchedulingCodec), saves accepted meetings to the calendar store and sends replies,
-	// requests and cancellations through the same SMTP transport as ordinary mail.
-	schedulingService := application.NewSchedulingService(ics.New(), store, store, store, transport)
+	// requests and cancellations through the same SMTP transport as ordinary mail. Its sends keep the
+	// same record as compose sends: a Sent copy via the IMAP appender and the offline outbox when the
+	// server is unreachable, stamped by the same clock and id generator.
+	schedulingService := application.NewSchedulingService(ics.New(), store, store, store, transport, imapSource, store, clock, newOutboxID)
 
 	// The taskbar overlay badge reflects the total unread count, and the flasher flashes the taskbar
 	// button when a reminder fires while the window is in the background. Both locate the main window by

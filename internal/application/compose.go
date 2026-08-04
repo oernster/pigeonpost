@@ -257,26 +257,8 @@ func (s *ComposeService) draftsPath(ctx context.Context, accountID string) (stri
 }
 
 // saveToSent appends a copy of a just-sent message to the account's Sent mailbox, so the user keeps a
-// record of what they sent. It is best-effort: the message has already been delivered, so a provider
-// that saves sent mail itself (skipped), a missing Sent folder or an append failure must never turn a
-// successful send into a failure.
+// record of what they sent. It delegates to the shared saveCopyToSent in resolve.go, which is
+// best-effort by design: the message has already been delivered, so nothing here may fail the send.
 func (s *ComposeService) saveToSent(ctx context.Context, account domain.Account, msg domain.OutgoingMessage) {
-	if account.SavesSentServerSide() {
-		return
-	}
-	sentPath := s.sentPath(ctx, account.ID())
-	if sentPath == "" {
-		return
-	}
-	_ = s.sent.SaveSent(ctx, account, sentPath, msg)
-}
-
-// sentPath returns the path of the account's Sent mailbox. It returns an empty string when the folder
-// list cannot be read or the account has no Sent folder (both meaning: skip the best-effort Sent copy).
-func (s *ComposeService) sentPath(ctx context.Context, accountID string) string {
-	path, _, err := folderPathByKind(ctx, s.store, accountID, domain.FolderSent)
-	if err != nil {
-		return ""
-	}
-	return path
+	saveCopyToSent(ctx, s.store, s.sent, account, msg)
 }

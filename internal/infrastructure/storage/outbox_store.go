@@ -44,16 +44,27 @@ func (s *Store) EnqueueOutbox(ctx context.Context, item domain.OutboxItem) error
 	if err != nil {
 		return fmt.Errorf("encode outbox attachments: %w", err)
 	}
+	calendarMethod, calendarICS := calendarColumns(msg.Calendar())
 	if _, err := s.db.ExecContext(ctx,
 		`INSERT INTO outbox (id, account_id, kind, from_display, from_address, to_json, cc_json,
-		        bcc_json, subject, body, html_body, attachments_json, created_ms, hold_until_ms)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+		        bcc_json, subject, body, html_body, attachments_json, created_ms, hold_until_ms,
+		        calendar_method, calendar_ics)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
 		item.ID(), item.AccountID(), int(item.Kind()), display, address, toJSON, ccJSON,
 		bccJSON, msg.Subject(), msg.Body(), msg.HTMLBody(), attachmentsJSON, item.CreatedAt().UnixMilli(),
-		holdUntilMillis(item.HoldUntil())); err != nil {
+		holdUntilMillis(item.HoldUntil()), calendarMethod, calendarICS); err != nil {
 		return fmt.Errorf("insert outbox item %q: %w", item.ID(), err)
 	}
 	return nil
+}
+
+// calendarColumns maps a message's iMIP calendar part to its stored form: the iTIP method and the raw
+// text/calendar payload, both empty for a message that carries none.
+func calendarColumns(part domain.CalendarPart) (string, string) {
+	if part.IsZero() {
+		return "", ""
+	}
+	return string(part.Method()), string(part.Content())
 }
 
 // holdUntilMillis maps a hold instant to its stored form: 0 for no hold, otherwise Unix milliseconds.
@@ -68,7 +79,8 @@ func holdUntilMillis(holdUntil time.Time) int64 {
 func (s *Store) ListOutbox(ctx context.Context) ([]domain.OutboxItem, error) {
 	return queryRows(ctx, s.db, "outbox",
 		`SELECT id, account_id, kind, from_display, from_address, to_json, cc_json,
-		        bcc_json, subject, body, html_body, attachments_json, created_ms, hold_until_ms, failure
+		        bcc_json, subject, body, html_body, attachments_json, created_ms, hold_until_ms, failure,
+		        calendar_method, calendar_ics
 		 FROM outbox ORDER BY created_ms ASC, id ASC;`, scanOutbox)
 }
 
@@ -124,17 +136,19 @@ func (s *Store) MarkOutboxFailed(ctx context.Context, id, reason string) error {
 
 func scanOutbox(row scanner) (domain.OutboxItem, error) {
 	var (
-		id, accountID            string
-		kind                     int
-		fromDisplay, fromAddress string
-		toJSON, ccJSON, bccJSON  string
-		subject, body, htmlBody  string
-		attachmentsJSON          string
-		createdMS, holdUntilMS   int64
-		failure                  string
+		id, accountID               string
+		kind                        int
+		fromDisplay, fromAddress    string
+		toJSON, ccJSON, bccJSON     string
+		subject, body, htmlBody     string
+		attachmentsJSON             string
+		createdMS, holdUntilMS      int64
+		failure                     string
+		calendarMethod, calendarICS string
 	)
 	if err := row.Scan(&id, &accountID, &kind, &fromDisplay, &fromAddress, &toJSON, &ccJSON,
-		&bccJSON, &subject, &body, &htmlBody, &attachmentsJSON, &createdMS, &holdUntilMS, &failure); err != nil {
+		&bccJSON, &subject, &body, &htmlBody, &attachmentsJSON, &createdMS, &holdUntilMS, &failure,
+		&calendarMethod, &calendarICS); err != nil {
 		return domain.OutboxItem{}, fmt.Errorf("scan outbox item: %w", err)
 	}
 
@@ -166,6 +180,13 @@ func scanOutbox(row scanner) (domain.OutboxItem, error) {
 	in := domain.OutgoingMessageInput{
 		From: from, To: to, Cc: cc, Bcc: bcc, Subject: subject, Body: body, HTMLBody: htmlBody,
 		Attachments: attachments,
+	}
+	if calendarMethod != "" {
+		part, err := domain.NewCalendarPart(domain.Method(calendarMethod), []byte(calendarICS))
+		if err != nil {
+			return domain.OutboxItem{}, fmt.Errorf("rebuild outbox calendar part for %q: %w", id, err)
+		}
+		in.Calendar = part
 	}
 	msg, err := buildOutboxMessage(domain.OutboxKind(kind), in)
 	if err != nil {

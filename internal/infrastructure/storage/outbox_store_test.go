@@ -124,6 +124,73 @@ func TestOutboxRoundTrip(t *testing.T) {
 	}
 }
 
+func TestOutboxCalendarPartRoundTrip(t *testing.T) {
+	store := openTestStore(t)
+	ctx := context.Background()
+
+	// A queued meeting REPLY must keep its text/calendar payload across a restart, or the replayed
+	// message degrades to a plain email the organizer's client cannot apply.
+	payload := []byte("BEGIN:VCALENDAR\r\nMETHOD:REPLY\r\nEND:VCALENDAR\r\n")
+	part, err := domain.NewCalendarPart(domain.MethodReply, payload)
+	if err != nil {
+		t.Fatalf("calendar part: %v", err)
+	}
+	from, err := domain.NewEmailAddress("", "me@example.com")
+	if err != nil {
+		t.Fatalf("from: %v", err)
+	}
+	to, err := domain.NewEmailAddress("", "chair@example.com")
+	if err != nil {
+		t.Fatalf("to: %v", err)
+	}
+	msg, err := domain.NewOutgoingMessage(domain.OutgoingMessageInput{
+		From: from, To: []domain.EmailAddress{to}, Subject: "Accepted: Sync", Body: "accepted", Calendar: part,
+	})
+	if err != nil {
+		t.Fatalf("message: %v", err)
+	}
+	item, err := domain.NewOutboxItem("q-cal", "a1", domain.OutboxSend, msg, time.UnixMilli(1000).UTC())
+	if err != nil {
+		t.Fatalf("item: %v", err)
+	}
+	if err := store.EnqueueOutbox(ctx, item); err != nil {
+		t.Fatalf("enqueue: %v", err)
+	}
+
+	items, err := store.ListOutbox(ctx)
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	if len(items) != 1 {
+		t.Fatalf("expected 1 item, got %d", len(items))
+	}
+	got := items[0].Message().Calendar()
+	if got.IsZero() {
+		t.Fatal("calendar part lost across the round trip")
+	}
+	if got.Method() != domain.MethodReply {
+		t.Errorf("calendar method = %q, want REPLY", got.Method())
+	}
+	if string(got.Content()) != string(payload) {
+		t.Errorf("calendar payload lost:\n%s", got.Content())
+	}
+
+	// An ordinary message still round-trips with no calendar part.
+	plain := outboxTestItem(t, "q-plain", domain.OutboxSend)
+	if err := store.EnqueueOutbox(ctx, plain); err != nil {
+		t.Fatalf("enqueue plain: %v", err)
+	}
+	items, err = store.ListOutbox(ctx)
+	if err != nil {
+		t.Fatalf("list again: %v", err)
+	}
+	for _, item := range items {
+		if item.ID() == "q-plain" && !item.Message().Calendar().IsZero() {
+			t.Error("a plain message must carry no calendar part")
+		}
+	}
+}
+
 func TestOutboxHoldRoundTripAndClear(t *testing.T) {
 	store := openTestStore(t)
 	ctx := context.Background()

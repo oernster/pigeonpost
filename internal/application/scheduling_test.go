@@ -105,10 +105,13 @@ type schedFixture struct {
 	messages  *fakeMailStore
 	accounts  *fakeAccountStore
 	transport *fakeMailTransport
+	sent      *fakeSentSaver
+	outbox    *fakeOutboxStore
 }
 
 // newSchedFixture wires the service with fakes and seeds message m1 in folder f1 owned by account a1
-// (address user@example.com), with a cached body carrying an invite the fake codec decodes to sched.
+// (address user@example.com) alongside a Sent folder, with a cached body carrying an invite the fake
+// codec decodes to sched.
 func newSchedFixture(t *testing.T, sched domain.SchedulingMessage) *schedFixture {
 	t.Helper()
 	codec := &fakeSchedulingCodec{
@@ -121,9 +124,11 @@ func newSchedFixture(t *testing.T, sched domain.SchedulingMessage) *schedFixture
 	messages := newFakeMailStore()
 	accounts := newFakeAccountStore()
 	transport := &fakeMailTransport{}
+	sent := &fakeSentSaver{}
+	outbox := &fakeOutboxStore{}
 
 	accounts.accounts["a1"] = testAccount(t, "a1")
-	messages.folders["a1"] = []domain.Folder{testFolder(t, "f1", "a1", "INBOX")}
+	messages.folders["a1"] = []domain.Folder{testFolder(t, "f1", "a1", "INBOX"), sentFolder(t, "a1", "Sent")}
 	messages.messages["f1"] = []domain.MessageSummary{testMessage(t, "m1", "f1")}
 	body, err := domain.NewMessageBody("m1", "", "")
 	if err != nil {
@@ -132,12 +137,15 @@ func newSchedFixture(t *testing.T, sched domain.SchedulingMessage) *schedFixture
 	messages.bodies["m1"] = body.WithInvite([]byte("BEGIN:VCALENDAR\r\nEND:VCALENDAR\r\n"))
 
 	return &schedFixture{
-		svc:       NewSchedulingService(codec, calendar, messages, accounts, transport),
+		svc: NewSchedulingService(codec, calendar, messages, accounts, transport, sent, outbox,
+			fakeClock{now: time.Unix(0, 0).UTC()}, func() string { return "sched-q1" }),
 		codec:     codec,
 		calendar:  calendar,
 		messages:  messages,
 		accounts:  accounts,
 		transport: transport,
+		sent:      sent,
+		outbox:    outbox,
 	}
 }
 
@@ -532,6 +540,179 @@ func TestSendRequestNoAttendeesIsRejected(t *testing.T) {
 	event := schedMeeting(t, "m1", "chair@example.com", time.Time{}) // no attendees to address
 	if err := f.svc.SendRequest(context.Background(), "a1", []domain.Event{event}); !errors.Is(err, domain.ErrNoRecipients) {
 		t.Errorf("error = %v, want ErrNoRecipients", err)
+	}
+}
+
+func TestRespondSavesSentCopy(t *testing.T) {
+	event := schedMeeting(t, "m1", "chair@example.com", time.Time{}, me)
+	f := newSchedFixture(t, schedMessage(t, domain.MethodRequest, event))
+
+	if err := f.svc.Respond(context.Background(), "m1", domain.PartStatAccepted); err != nil {
+		t.Fatalf("Respond: %v", err)
+	}
+	if len(f.sent.saved) != 1 {
+		t.Fatalf("saved %d Sent copies, want 1", len(f.sent.saved))
+	}
+	if f.sent.paths[0] != "Sent" {
+		t.Errorf("Sent copy path = %q, want Sent", f.sent.paths[0])
+	}
+	if f.sent.saved[0].Calendar().Method() != domain.MethodReply {
+		t.Errorf("Sent copy calendar method = %q, want REPLY", f.sent.saved[0].Calendar().Method())
+	}
+}
+
+func TestRespondSentCopyFailureDoesNotFailSend(t *testing.T) {
+	event := schedMeeting(t, "m1", "chair@example.com", time.Time{}, me)
+	f := newSchedFixture(t, schedMessage(t, domain.MethodRequest, event))
+	f.sent.saveErr = errBoom
+
+	if err := f.svc.Respond(context.Background(), "m1", domain.PartStatAccepted); err != nil {
+		t.Errorf("a failed Sent copy must not fail a delivered reply, got %v", err)
+	}
+}
+
+func TestRespondSkipsSentCopyWhenProviderSaves(t *testing.T) {
+	event := schedMeeting(t, "m1", "chair@example.com", time.Time{}, me)
+	f := newSchedFixture(t, schedMessage(t, domain.MethodRequest, event))
+	f.accounts.accounts["a1"] = gmailStyleAccount(t, "a1")
+
+	if err := f.svc.Respond(context.Background(), "m1", domain.PartStatAccepted); err != nil {
+		t.Fatalf("Respond: %v", err)
+	}
+	if len(f.sent.saved) != 0 {
+		t.Errorf("saved %d Sent copies, want none for a provider that saves server-side", len(f.sent.saved))
+	}
+}
+
+func TestRespondOfflineQueuesReply(t *testing.T) {
+	event := schedMeeting(t, "m1", "chair@example.com", time.Time{}, me)
+	f := newSchedFixture(t, schedMessage(t, domain.MethodRequest, event))
+	f.transport.sendErr = domain.ErrOffline
+
+	if err := f.svc.Respond(context.Background(), "m1", domain.PartStatAccepted); err != nil {
+		t.Fatalf("an offline reply must queue, not fail: %v", err)
+	}
+	if len(f.outbox.items) != 1 {
+		t.Fatalf("queued %d outbox items, want 1", len(f.outbox.items))
+	}
+	item := f.outbox.items[0]
+	if item.Kind() != domain.OutboxSend {
+		t.Errorf("queued kind = %v, want OutboxSend", item.Kind())
+	}
+	if item.Message().Calendar().Method() != domain.MethodReply {
+		t.Errorf("queued calendar method = %q, want REPLY", item.Message().Calendar().Method())
+	}
+	if len(f.sent.saved) != 0 {
+		t.Errorf("an undelivered reply must not get a Sent copy yet")
+	}
+	if len(f.calendar.savedEvt) != 1 {
+		t.Errorf("the meeting must still be saved with the response while offline")
+	}
+}
+
+func TestRespondOfflineEnqueueError(t *testing.T) {
+	event := schedMeeting(t, "m1", "chair@example.com", time.Time{}, me)
+	f := newSchedFixture(t, schedMessage(t, domain.MethodRequest, event))
+	f.transport.sendErr = domain.ErrOffline
+	f.outbox.enqueueErr = errBoom
+
+	if err := f.svc.Respond(context.Background(), "m1", domain.PartStatAccepted); !errors.Is(err, errBoom) {
+		t.Errorf("error = %v, want wrapped boom", err)
+	}
+}
+
+func TestSendRequestSavesSentCopy(t *testing.T) {
+	event := schedMeeting(t, "m1", "chair@example.com", time.Time{}, "guest@example.com")
+	f := newSchedFixture(t, domain.SchedulingMessage{})
+
+	if err := f.svc.SendRequest(context.Background(), "a1", []domain.Event{event}); err != nil {
+		t.Fatalf("SendRequest: %v", err)
+	}
+	if len(f.sent.saved) != 1 || f.sent.saved[0].Calendar().Method() != domain.MethodRequest {
+		t.Errorf("expected one REQUEST Sent copy, got %+v", f.sent.saved)
+	}
+}
+
+func TestSendCancelOfflineQueues(t *testing.T) {
+	event := schedMeeting(t, "m1", "chair@example.com", time.Time{}, "guest@example.com")
+	f := newSchedFixture(t, domain.SchedulingMessage{})
+	f.transport.sendErr = domain.ErrOffline
+
+	if err := f.svc.SendCancel(context.Background(), "a1", []domain.Event{event}); err != nil {
+		t.Fatalf("an offline CANCEL must queue, not fail: %v", err)
+	}
+	if len(f.outbox.items) != 1 || f.outbox.items[0].Message().Calendar().Method() != domain.MethodCancel {
+		t.Errorf("expected one queued CANCEL, got %+v", f.outbox.items)
+	}
+}
+
+// gmailStyleAccount builds an account whose outgoing host saves sent mail server-side, so the Sent-copy
+// skip path can be driven.
+func gmailStyleAccount(t *testing.T, id string) domain.Account {
+	t.Helper()
+	addr, err := domain.NewEmailAddress("", me)
+	if err != nil {
+		t.Fatalf("address: %v", err)
+	}
+	in, err := domain.NewServerConfig("imap.gmail.com", 993, domain.SecurityTLS)
+	if err != nil {
+		t.Fatalf("incoming: %v", err)
+	}
+	out, err := domain.NewServerConfig("smtp.gmail.com", 587, domain.SecurityStartTLS)
+	if err != nil {
+		t.Fatalf("outgoing: %v", err)
+	}
+	account, err := domain.NewAccount(id, "Gmail", addr, domain.ProtocolIMAP, in, out, domain.AuthPassword)
+	if err != nil {
+		t.Fatalf("account: %v", err)
+	}
+	return account
+}
+
+func TestInvitationOverlaysStoredStatuses(t *testing.T) {
+	// The invite arrived with everyone NEEDS-ACTION; the stored meeting has recorded the recipient's
+	// accept and another guest's decline, so the card must show those, not the email's frozen ICS.
+	invite := schedMeeting(t, "m1", "chair@example.com", time.Time{}, me, "other@example.com")
+	f := newSchedFixture(t, schedMessage(t, domain.MethodRequest, invite))
+	stored := withStatus(schedMeeting(t, "m1", "chair@example.com", time.Time{}, me, "other@example.com"),
+		schedAddr(t, me), domain.PartStatAccepted)
+	stored = withStatus(stored, schedAddr(t, "other@example.com"), domain.PartStatDeclined)
+	f.calendar.events = []domain.Event{stored}
+
+	inv, err := f.svc.Invitation(context.Background(), "m1")
+	if err != nil {
+		t.Fatalf("Invitation: %v", err)
+	}
+	if inv.MyStatus != domain.PartStatAccepted {
+		t.Errorf("MyStatus = %q, want ACCEPTED from the stored meeting", inv.MyStatus)
+	}
+	if got := statusOf(inv.Event, schedAddr(t, "other@example.com")); got != domain.PartStatDeclined {
+		t.Errorf("other attendee status = %q, want DECLINED from the stored meeting", got)
+	}
+}
+
+func TestInvitationOverlayIgnoresUnrelatedMeeting(t *testing.T) {
+	invite := schedMeeting(t, "m1", "chair@example.com", time.Time{}, me)
+	f := newSchedFixture(t, schedMessage(t, domain.MethodRequest, invite))
+	f.calendar.events = []domain.Event{withStatus(schedMeeting(t, "other", "chair@example.com", time.Time{}, me),
+		schedAddr(t, me), domain.PartStatAccepted)}
+
+	inv, err := f.svc.Invitation(context.Background(), "m1")
+	if err != nil {
+		t.Fatalf("Invitation: %v", err)
+	}
+	if inv.MyStatus != domain.PartStatNeedsAction {
+		t.Errorf("MyStatus = %q, want NEEDS-ACTION when only an unrelated meeting is stored", inv.MyStatus)
+	}
+}
+
+func TestInvitationOverlayListError(t *testing.T) {
+	invite := schedMeeting(t, "m1", "chair@example.com", time.Time{}, me)
+	f := newSchedFixture(t, schedMessage(t, domain.MethodRequest, invite))
+	f.calendar.listEvtErr = errBoom
+
+	if _, err := f.svc.Invitation(context.Background(), "m1"); !errors.Is(err, errBoom) {
+		t.Errorf("error = %v, want wrapped boom", err)
 	}
 }
 

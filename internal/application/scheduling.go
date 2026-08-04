@@ -22,29 +22,52 @@ type Invitation struct {
 // SchedulingService is the use-case boundary for iTIP meeting scheduling (RFC 5546). On the attendee
 // side it reads an incoming invite, replies to it with the recipient's answer and removes a cancelled
 // meeting; on the organizer side it sends invites and cancellations and applies incoming replies to the
-// stored meeting.
+// stored meeting. Its sends leave the same record an ordinary message does: a copy in the Sent mailbox
+// and, when the server is unreachable, a queued outbox item the dispatcher replays later.
 type SchedulingService struct {
 	codec     SchedulingCodec
 	calendar  CalendarStore
 	messages  MailStore
 	accounts  AccountStore
 	transport MailTransport
+	sent      SentSaver
+	outbox    OutboxStore
+	clock     domain.Clock
+	newID     IDGenerator
 }
 
 // NewSchedulingService constructs the service with its injected scheduling codec, calendar store, mail
-// store, account store and transport.
+// store, account store, transport, Sent-copy saver and offline outbox. The clock and id generator stamp
+// queued outbox items, exactly as in ComposeService.
 func NewSchedulingService(
 	codec SchedulingCodec,
 	calendar CalendarStore,
 	messages MailStore,
 	accounts AccountStore,
 	transport MailTransport,
+	sent SentSaver,
+	outbox OutboxStore,
+	clock domain.Clock,
+	newID IDGenerator,
 ) *SchedulingService {
-	return &SchedulingService{codec: codec, calendar: calendar, messages: messages, accounts: accounts, transport: transport}
+	return &SchedulingService{
+		codec:     codec,
+		calendar:  calendar,
+		messages:  messages,
+		accounts:  accounts,
+		transport: transport,
+		sent:      sent,
+		outbox:    outbox,
+		clock:     clock,
+		newID:     newID,
+	}
 }
 
 // Invitation resolves a message's scheduling payload for display, including the recipient's own current
-// response. It returns ErrNoInvite when the message carries no calendar part.
+// response. It returns ErrNoInvite when the message carries no calendar part. The email's ICS payload is
+// frozen at the moment it arrived, so the attendee statuses are overlaid from the stored calendar copy
+// of the meeting when one exists: that copy is where Respond records the recipient's answer and where
+// ApplyReply folds in other attendees' responses, so it is the current truth the card must show.
 func (s *SchedulingService) Invitation(ctx context.Context, messageID string) (Invitation, error) {
 	sched, err := s.decodeInvite(ctx, messageID)
 	if err != nil {
@@ -54,13 +77,47 @@ func (s *SchedulingService) Invitation(ctx context.Context, messageID string) (I
 	if err != nil {
 		return Invitation{}, err
 	}
-	primary := sched.PrimaryEvent()
+	primary, err := s.overlayStoredStatuses(ctx, sched.PrimaryEvent())
+	if err != nil {
+		return Invitation{}, err
+	}
 	return Invitation{
 		Method:   sched.Method(),
 		Event:    primary,
 		Me:       account.Address(),
 		MyStatus: statusOf(primary, account.Address()),
 	}, nil
+}
+
+// overlayStoredStatuses returns the invite event with each attendee's participation status replaced by
+// the one on the stored calendar copy of the same meeting, matched by UID and recurrence id. An
+// attendee the stored copy does not list, or a meeting not held locally, keeps the invite's own values.
+func (s *SchedulingService) overlayStoredStatuses(ctx context.Context, event domain.Event) (domain.Event, error) {
+	stored, err := s.calendar.ListEvents(ctx)
+	if err != nil {
+		return domain.Event{}, fmt.Errorf("scheduling: list meetings: %w", err)
+	}
+	for _, existing := range stored {
+		if matches(existing, event) {
+			return overlayAttendees(event, existing), nil
+		}
+	}
+	return event, nil
+}
+
+// overlayAttendees copies each attendee's status from the stored event onto the invite event's matching
+// attendee (by address, case-insensitively), leaving unmatched attendees untouched.
+func overlayAttendees(event, stored domain.Event) domain.Event {
+	attendees := event.Attendees()
+	storedAttendees := stored.Attendees()
+	for i, a := range attendees {
+		for _, sa := range storedAttendees {
+			if sameAddress(a.Address(), sa.Address()) {
+				attendees[i] = a.WithStatus(sa.Status())
+			}
+		}
+	}
+	return event.WithAttendees(attendees)
 }
 
 // Respond records the recipient's answer to a meeting request: it saves the meeting to the calendar with
@@ -203,41 +260,6 @@ func appliedReply(err error) (bool, error) {
 	}
 }
 
-// SendRequest emails a meeting REQUEST to the attendees of the given events (the series master plus any
-// overrides), inviting them.
-func (s *SchedulingService) SendRequest(ctx context.Context, accountID string, events []domain.Event) error {
-	return s.sendOrganizer(ctx, accountID, events, domain.MethodRequest)
-}
-
-// SendCancel emails a meeting CANCEL to the attendees of the given events, withdrawing the meeting.
-func (s *SchedulingService) SendCancel(ctx context.Context, accountID string, events []domain.Event) error {
-	return s.sendOrganizer(ctx, accountID, events, domain.MethodCancel)
-}
-
-// sendOrganizer builds the REQUEST or CANCEL payload for the events and emails it to the primary event's
-// attendees from the given account.
-func (s *SchedulingService) sendOrganizer(ctx context.Context, accountID string, events []domain.Event, method domain.Method) error {
-	account, err := s.accounts.GetAccount(ctx, accountID)
-	if err != nil {
-		return fmt.Errorf("scheduling: load account %q: %w", accountID, err)
-	}
-	if len(events) == 0 {
-		return domain.ErrNoSchedulingEvents
-	}
-	primary := events[0]
-	var payload []byte
-	if method == domain.MethodCancel {
-		payload, err = s.codec.EncodeCancel(events)
-	} else {
-		payload, err = s.codec.EncodeRequest(events)
-	}
-	if err != nil {
-		return fmt.Errorf("scheduling: build %s: %w", method, err)
-	}
-	return s.sendCalendar(ctx, account, attendeeAddresses(primary),
-		organizerSubject(primary, method), organizerBody(primary, method), method, payload)
-}
-
 // decodeInvite loads a message's cached body and decodes its scheduling payload. It returns ErrNoInvite
 // when the message carries no calendar part.
 func (s *SchedulingService) decodeInvite(ctx context.Context, messageID string) (domain.SchedulingMessage, error) {
@@ -264,24 +286,6 @@ func (s *SchedulingService) accountForMessage(ctx context.Context, messageID str
 	return account, nil
 }
 
-// sendCalendar wraps a scheduling payload as a text/calendar part on a new message and sends it.
-func (s *SchedulingService) sendCalendar(ctx context.Context, account domain.Account, to []domain.EmailAddress, subject, body string, method domain.Method, payload []byte) error {
-	part, err := domain.NewCalendarPart(method, payload)
-	if err != nil {
-		return fmt.Errorf("scheduling: build calendar part: %w", err)
-	}
-	msg, err := domain.NewOutgoingMessage(domain.OutgoingMessageInput{
-		From: account.Address(), To: to, Subject: subject, Body: body, Calendar: part,
-	})
-	if err != nil {
-		return fmt.Errorf("scheduling: build message: %w", err)
-	}
-	if err := s.transport.Send(ctx, account, msg); err != nil {
-		return fmt.Errorf("scheduling: send %s: %w", method, err)
-	}
-	return nil
-}
-
 // withStatus returns a copy of the event with the attendee matching who set to status. An event that
 // does not list that address is returned with its attendees unchanged.
 func withStatus(event domain.Event, who domain.EmailAddress, status domain.ParticipationStatus) domain.Event {
@@ -305,16 +309,6 @@ func statusOf(event domain.Event, who domain.EmailAddress) domain.ParticipationS
 	return domain.PartStatNeedsAction
 }
 
-// attendeeAddresses returns the addresses of an event's attendees, the recipients of an organizer send.
-func attendeeAddresses(event domain.Event) []domain.EmailAddress {
-	attendees := event.Attendees()
-	out := make([]domain.EmailAddress, 0, len(attendees))
-	for _, a := range attendees {
-		out = append(out, a.Address())
-	}
-	return out
-}
-
 // matches reports whether two events are the same meeting occurrence: the same non-empty UID and the
 // same recurrence id (both zero for a non-recurring meeting or a whole series).
 func matches(a, b domain.Event) bool {
@@ -325,34 +319,4 @@ func matches(a, b domain.Event) bool {
 // in practice.
 func sameAddress(a, b domain.EmailAddress) bool {
 	return strings.EqualFold(a.Address(), b.Address())
-}
-
-// responseWord is the human word for a participation status, used in a reply's subject and body.
-func responseWord(status domain.ParticipationStatus) string {
-	switch status {
-	case domain.PartStatAccepted:
-		return "Accepted"
-	case domain.PartStatDeclined:
-		return "Declined"
-	case domain.PartStatTentative:
-		return "Tentative"
-	default:
-		return "Responded"
-	}
-}
-
-// organizerSubject is the subject line for an organizer's REQUEST or CANCEL message.
-func organizerSubject(event domain.Event, method domain.Method) string {
-	if method == domain.MethodCancel {
-		return "Cancelled: " + event.Summary()
-	}
-	return "Invitation: " + event.Summary()
-}
-
-// organizerBody is the human-readable body for an organizer's REQUEST or CANCEL message.
-func organizerBody(event domain.Event, method domain.Method) string {
-	if method == domain.MethodCancel {
-		return "The meeting " + event.Summary() + " has been cancelled."
-	}
-	return "You are invited to " + event.Summary() + "."
 }

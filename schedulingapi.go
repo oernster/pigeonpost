@@ -49,13 +49,21 @@ func (a *App) GetInvitation(messageID string) (InvitationDTO, error) {
 
 // RespondToInvitation records the recipient's answer to a meeting request: it saves the meeting with the
 // chosen status and sends a REPLY to the organizer. The status is an ICS PARTSTAT value (ACCEPTED,
-// DECLINED or TENTATIVE).
+// DECLINED or TENTATIVE). A successful response also marks the invite message answered (best-effort),
+// so the message list shows the replied indicator exactly as it does for an ordinary reply.
 func (a *App) RespondToInvitation(messageID, status string) error {
+	runtime.LogInfof(a.ctx, "meeting invite: respond %q message=%q", status, messageID)
 	partStat, err := domain.ParseParticipationStatus(status)
 	if err != nil {
 		return err
 	}
-	return a.scheduling.Respond(a.ctx, messageID, partStat)
+	if err := a.scheduling.Respond(a.ctx, messageID, partStat); err != nil {
+		runtime.LogErrorf(a.ctx, "meeting invite: respond to %q failed: %v", messageID, err)
+		return err
+	}
+	_ = a.actions.MarkAnswered(a.ctx, messageID, true)
+	runtime.LogInfof(a.ctx, "meeting invite: REPLY for message %q sent", messageID)
+	return nil
 }
 
 // RemoveCancelledMeeting removes the meeting a CANCEL message withdraws from the calendar.

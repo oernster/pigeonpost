@@ -249,6 +249,15 @@ const schemaV47 = `
 DELETE FROM message_body;
 `
 
+// schemaV48 adds the iMIP calendar part to queued outbox items, so a meeting REPLY, REQUEST or CANCEL
+// queued while the server was unreachable is replayed with its text/calendar payload intact rather
+// than degrading to a plain email. The method column holds the iTIP METHOD (REPLY, REQUEST, CANCEL);
+// the ics column holds the raw text/calendar payload; both empty for an ordinary message.
+const schemaV48 = `
+ALTER TABLE outbox ADD COLUMN calendar_method TEXT NOT NULL DEFAULT '';
+ALTER TABLE outbox ADD COLUMN calendar_ics TEXT NOT NULL DEFAULT '';
+`
+
 // migrations is the ordered list of schema steps. Index i upgrades the database from version i to
 // version i+1, so a fresh database applies them all and an existing one applies only what it lacks.
-var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15, schemaV16, schemaV17, schemaV18, schemaV19, schemaV20, schemaV21, schemaV22, schemaV23, schemaV24, schemaV25, schemaV26, schemaV27, schemaV28, schemaV29, schemaV30, schemaV31, schemaV32, schemaV33, schemaV34, schemaV35, schemaV36, schemaV37, schemaV38, schemaV39, schemaV40, schemaV41, schemaV42, schemaV43, schemaV44, schemaV45, schemaV46, schemaV47}
+var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15, schemaV16, schemaV17, schemaV18, schemaV19, schemaV20, schemaV21, schemaV22, schemaV23, schemaV24, schemaV25, schemaV26, schemaV27, schemaV28, schemaV29, schemaV30, schemaV31, schemaV32, schemaV33, schemaV34, schemaV35, schemaV36, schemaV37, schemaV38, schemaV39, schemaV40, schemaV41, schemaV42, schemaV43, schemaV44, schemaV45, schemaV46, schemaV47, schemaV48}
