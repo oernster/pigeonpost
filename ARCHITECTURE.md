@@ -722,6 +722,19 @@ overlaying attendee statuses from the stored calendar copy of the meeting, which
 records the recipient's answer and `ApplyReply` lands everyone else's, so the card shows the current
 truth rather than the email's frozen ICS.
 
+Arriving scheduling mail is folded in automatically by `ApplyIncoming` (`scheduling_apply.go`), fed by
+the new-mail notifier for every fresh message. It distinguishes changed (the calendar moved, so the
+front end reloads it) from resolved (the message needed nothing from the user, so it is marked read):
+a REPLY and a CANCEL are both; an updated REQUEST for a meeting already held locally is changed but
+never resolved, because it may carry alterations the user must still look at. The update path folds
+only the organiser's attendee-status snapshot into the stored meeting (`applyRequestStatuses`), never
+the meeting's content: statuses of attendees other than the recipient, matched by address, with a
+NEEDS-ACTION snapshot value never downgrading a recorded response and the recipient's own row left to
+their local answer. This is deliberate iTIP shape: an attendee's reply travels only to the organiser,
+so the organiser's updated REQUEST is the sole channel through which one attendee learns another's
+response. The organiser themselves need not appear in the attendee list; their participation is
+implicit in the ORGANIZER property and no attendee row is invented for them.
+
 Mail carries the invites both ways. Incoming: the shared `mailparse` parser diverts a `text/calendar`
 part into a `ParsedBody.Invite`, and the cached `MessageBody` gains an `invite` column with
 `HasInvite` / `Invite`, so a message reading offline still shows its invitation. The `MailSource.FetchBody`

@@ -99,7 +99,8 @@ local-first. A calmer, more predictable alternative to Thunderbird.
   invites over iTIP/iMIP (accept, decline, cancel, reply) with clickable join links (Teams, Meet, Zoom,
   Webex). Answering an invitation leaves a proper trail: the reply is saved to Sent, the invitation
   message gains the replied arrow and the invite card shows everyone's current response, updated as
-  other attendees' replies arrive (queued through the outbox if you answer while offline). Clicking the
+  replies arrive on meetings you organise and as the organiser's updated invitations arrive on
+  meetings you attend (queued through the outbox if you answer while offline). Clicking the
   answer you already gave warns before resending it. Re-saving a meeting you organise emails the
   attendees an update only when something they can
   see changed; a reminder or calendar tweak saves locally without emailing anyone and the save button
