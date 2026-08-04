@@ -64,6 +64,42 @@ describe('InviteCard', () => {
         expect(screen.getByText('Your response: Accepted')).toBeTruthy()
     })
 
+    it('warns instead of resending when the same answer is clicked again', async () => {
+        apiSpies.getInvitation.mockResolvedValue(makeInvitation('ACCEPTED'))
+        render(<InviteCard messageId="m1"/>)
+
+        fireEvent.click(await screen.findByText('Accept'))
+
+        await screen.findByText(/sending it\s+again is unnecessary/)
+        expect(apiSpies.respondToInvitation).not.toHaveBeenCalled()
+
+        fireEvent.click(screen.getByText('Cancel'))
+        expect(screen.queryByText(/unnecessary/)).toBeNull()
+        expect(apiSpies.respondToInvitation).not.toHaveBeenCalled()
+    })
+
+    it('sends again once the warning is confirmed', async () => {
+        apiSpies.getInvitation.mockResolvedValue(makeInvitation('ACCEPTED'))
+        apiSpies.respondToInvitation.mockResolvedValue(undefined)
+        render(<InviteCard messageId="m1"/>)
+
+        fireEvent.click(await screen.findByText('Accept'))
+        fireEvent.click(await screen.findByText('Send again'))
+
+        await waitFor(() => expect(apiSpies.respondToInvitation).toHaveBeenCalledWith('m1', 'ACCEPTED'))
+    })
+
+    it('sends a changed answer immediately without warning', async () => {
+        apiSpies.getInvitation.mockResolvedValue(makeInvitation('ACCEPTED'))
+        apiSpies.respondToInvitation.mockResolvedValue(undefined)
+        render(<InviteCard messageId="m1"/>)
+
+        fireEvent.click(await screen.findByText('Decline'))
+
+        await waitFor(() => expect(apiSpies.respondToInvitation).toHaveBeenCalledWith('m1', 'DECLINED'))
+        expect(screen.queryByText(/unnecessary/)).toBeNull()
+    })
+
     it('still records the response when the refetch fails', async () => {
         apiSpies.getInvitation.mockResolvedValueOnce(makeInvitation('NEEDS-ACTION'))
         apiSpies.respondToInvitation.mockResolvedValue(undefined)

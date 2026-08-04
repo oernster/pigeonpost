@@ -97,7 +97,11 @@ local-first. A calmer, more predictable alternative to Thunderbird.
   with Outlook and Thunderbird. Every date field in the app (event times, repeat-until, a contact's
   birthday, send later, snooze) opens a themed calendar picker, with direct typing still first-class. Meeting
   invites over iTIP/iMIP (accept, decline, cancel, reply) with clickable join links (Teams, Meet, Zoom,
-  Webex). Re-saving a meeting you organise emails the attendees an update only when something they can
+  Webex). Answering an invitation leaves a proper trail: the reply is saved to Sent, the invitation
+  message gains the replied arrow and the invite card shows everyone's current response, updated as
+  other attendees' replies arrive (queued through the outbox if you answer while offline). Clicking the
+  answer you already gave warns before resending it. Re-saving a meeting you organise emails the
+  attendees an update only when something they can
   see changed; a reminder or calendar tweak saves locally without emailing anyone and the save button
   says which it will be. Early two-way CalDAV sync: a calendar-server account (app password) syncs events both ways,
   server-wins on conflict with the losing local edit kept as a copy.

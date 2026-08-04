@@ -425,6 +425,79 @@ func TestApplyReplyUpdatesAttendeeStatus(t *testing.T) {
 	}
 }
 
+func TestApplyReplyAddsUnlistedResponder(t *testing.T) {
+	// The reply comes from an address the stored meeting does not list (a delegate, or a guest answering
+	// from a different mailbox than the one invited). The response must land, not vanish.
+	reply := withStatus(schedMeeting(t, "m1", "chair@example.com", time.Time{}, "delegate@example.com"),
+		schedAddr(t, "delegate@example.com"), domain.PartStatAccepted)
+	f := newSchedFixture(t, schedMessage(t, domain.MethodReply, reply))
+	f.calendar.events = []domain.Event{schedMeeting(t, "m1", "chair@example.com", time.Time{}, "guest@example.com")}
+
+	if err := f.svc.ApplyReply(context.Background(), "m1"); err != nil {
+		t.Fatalf("ApplyReply: %v", err)
+	}
+	if len(f.calendar.savedEvt) != 1 {
+		t.Fatalf("saved %d events, want 1", len(f.calendar.savedEvt))
+	}
+	saved := f.calendar.savedEvt[0]
+	if len(saved.Attendees()) != 2 {
+		t.Fatalf("attendees = %d, want the original guest plus the appended responder", len(saved.Attendees()))
+	}
+	if statusOf(saved, schedAddr(t, "delegate@example.com")) != domain.PartStatAccepted {
+		t.Errorf("appended responder's status not recorded")
+	}
+	if statusOf(saved, schedAddr(t, "guest@example.com")) != domain.PartStatNeedsAction {
+		t.Errorf("the original guest's status must be untouched")
+	}
+}
+
+func TestApplyReplySeriesUpdatesMasterAndOverrides(t *testing.T) {
+	// A reply naming no occurrence covers the whole series, so the master and every stored override
+	// must record it, not just the first match.
+	occurrence := time.Date(2026, 7, 13, 9, 0, 0, 0, time.UTC)
+	reply := withStatus(schedMeeting(t, "m1", "chair@example.com", time.Time{}, "guest@example.com"),
+		schedAddr(t, "guest@example.com"), domain.PartStatAccepted)
+	f := newSchedFixture(t, schedMessage(t, domain.MethodReply, reply))
+	f.calendar.events = []domain.Event{
+		schedMeeting(t, "m1", "chair@example.com", time.Time{}, "guest@example.com"),
+		schedMeeting(t, "m1", "chair@example.com", occurrence, "guest@example.com"),
+	}
+
+	if err := f.svc.ApplyReply(context.Background(), "m1"); err != nil {
+		t.Fatalf("ApplyReply: %v", err)
+	}
+	if len(f.calendar.savedEvt) != 2 {
+		t.Fatalf("saved %d events, want the master and the override", len(f.calendar.savedEvt))
+	}
+	for i, saved := range f.calendar.savedEvt {
+		if statusOf(saved, schedAddr(t, "guest@example.com")) != domain.PartStatAccepted {
+			t.Errorf("saved event %d did not record the series-wide ACCEPTED", i)
+		}
+	}
+}
+
+func TestApplyReplyOccurrenceUpdatesOnlyThatOverride(t *testing.T) {
+	// A reply naming an occurrence must touch that override alone, leaving the master as it was.
+	occurrence := time.Date(2026, 7, 13, 9, 0, 0, 0, time.UTC)
+	reply := withStatus(schedMeeting(t, "m1", "chair@example.com", occurrence, "guest@example.com"),
+		schedAddr(t, "guest@example.com"), domain.PartStatDeclined)
+	f := newSchedFixture(t, schedMessage(t, domain.MethodReply, reply))
+	f.calendar.events = []domain.Event{
+		schedMeeting(t, "m1", "chair@example.com", time.Time{}, "guest@example.com"),
+		schedMeeting(t, "m1", "chair@example.com", occurrence, "guest@example.com"),
+	}
+
+	if err := f.svc.ApplyReply(context.Background(), "m1"); err != nil {
+		t.Fatalf("ApplyReply: %v", err)
+	}
+	if len(f.calendar.savedEvt) != 1 {
+		t.Fatalf("saved %d events, want only the named occurrence", len(f.calendar.savedEvt))
+	}
+	if !f.calendar.savedEvt[0].RecurrenceID().Equal(occurrence) {
+		t.Errorf("the saved event is not the named occurrence")
+	}
+}
+
 func TestApplyReplyRejectsNonReply(t *testing.T) {
 	f := newSchedFixture(t, schedMessage(t, domain.MethodRequest, schedMeeting(t, "m1", "chair@example.com", time.Time{}, me)))
 	if err := f.svc.ApplyReply(context.Background(), "m1"); !errors.Is(err, ErrNotReply) {

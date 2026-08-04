@@ -186,9 +186,13 @@ func (s *SchedulingService) ApplyCancellation(ctx context.Context, messageID str
 }
 
 // ApplyReply applies an incoming REPLY to the organizer's stored meeting, setting the responding
-// attendee's participation status on the matching event. It returns ErrNotReply when the message is not a
-// REPLY, ErrNoReplyAttendee when the reply names no attendee, and ErrMeetingNotFound when no stored
-// meeting matches.
+// attendee's participation status on every event the reply covers: the exact occurrence when the reply
+// names one (RECURRENCE-ID), or the series master plus every stored override when it does not, since a
+// whole-series reply is the attendee's latest word for all occurrences (RFC 5546). A responder the
+// stored meeting does not list (a delegate, or a guest answering from a different address than the one
+// invited) is added rather than dropped, so their response is never silently lost. It returns
+// ErrNotReply when the message is not a REPLY, ErrNoReplyAttendee when the reply names no attendee,
+// and ErrMeetingNotFound when no stored meeting matches.
 func (s *SchedulingService) ApplyReply(ctx context.Context, messageID string) error {
 	sched, err := s.decodeInvite(ctx, messageID)
 	if err != nil {
@@ -207,17 +211,47 @@ func (s *SchedulingService) ApplyReply(ctx context.Context, messageID string) er
 	if err != nil {
 		return fmt.Errorf("scheduling: list meetings: %w", err)
 	}
+	applied := false
 	for _, existing := range stored {
-		if !matches(existing, reply) {
+		if !replyCovers(existing, reply) {
 			continue
 		}
-		updated := withStatus(existing, responder.Address(), responder.Status())
-		if err := s.calendar.SaveEvent(ctx, updated); err != nil {
+		if err := s.calendar.SaveEvent(ctx, withResponder(existing, responder)); err != nil {
 			return fmt.Errorf("scheduling: update meeting %q: %w", existing.ID(), err)
 		}
-		return nil
+		applied = true
 	}
-	return ErrMeetingNotFound
+	if !applied {
+		return ErrMeetingNotFound
+	}
+	return nil
+}
+
+// replyCovers reports whether a stored event is within a reply's reach: the same non-empty UID, and
+// either the reply names that exact occurrence (matching RECURRENCE-ID) or it names none, in which
+// case it covers the whole series (the master and every override).
+func replyCovers(existing, reply domain.Event) bool {
+	if reply.UID() == "" || existing.UID() != reply.UID() {
+		return false
+	}
+	if reply.RecurrenceID().IsZero() {
+		return true
+	}
+	return existing.RecurrenceID().Equal(reply.RecurrenceID())
+}
+
+// withResponder records a responder's participation status on the event: a listed attendee (matched by
+// address, case-insensitively) has their status replaced; an unlisted one is appended as sent, so a
+// delegate's or re-addressed reply still lands on the meeting.
+func withResponder(event domain.Event, responder domain.Attendee) domain.Event {
+	attendees := event.Attendees()
+	for i, a := range attendees {
+		if sameAddress(a.Address(), responder.Address()) {
+			attendees[i] = a.WithStatus(responder.Status())
+			return event.WithAttendees(attendees)
+		}
+	}
+	return event.WithAttendees(append(attendees, responder))
 }
 
 // ApplyIncoming folds a message's meeting scheduling into the calendar automatically, so the user does

@@ -706,11 +706,21 @@ The codec seam gains a `SchedulingCodec` port (`DecodeScheduling` reads a VCALEN
 `EncodeRequest`, `EncodeReply` and `EncodeCancel` build the payloads), satisfied by the same `ics`
 adapter over go-ical. The `SchedulingService` use case (application layer, 100% gated) drives the flows:
 `Respond` saves an incoming REQUEST to the calendar with the chosen PARTSTAT and emails a REPLY to the
-organizer; `ApplyReply` folds an incoming REPLY into the organizer's stored meeting, updating the
-responding attendee's status; `ApplyCancellation` removes the meeting a CANCEL withdraws; and
-`SendRequest` / `SendCancel` email a REQUEST or CANCEL to a meeting's attendees from the organizing
-account. A recurring meeting is matched as its series master plus any overrides, keyed by UID and
-RECURRENCE-ID.
+organizer; `ApplyReply` folds an incoming REPLY into the organizer's stored meeting, recording the
+responder's status on every event the reply covers (the named occurrence, or the series master plus
+every override when it names none) and appending a responder the meeting does not list (a delegate, or
+a guest answering from a different address) rather than dropping the response; `ApplyCancellation`
+removes the meeting a CANCEL withdraws; and `SendRequest` / `SendCancel` email a REQUEST or CANCEL to a
+meeting's attendees from the organizing account. A recurring meeting is matched as its series master
+plus any overrides, keyed by UID and RECURRENCE-ID. Every scheduling send (`scheduling_send.go`) leaves
+the same record an ordinary composed message does: the shared `saveCopyToSent` helper appends a
+best-effort copy to the account's Sent mailbox (skipped for providers that save sent mail server-side),
+an unreachable server queues the message in the offline outbox for the compose dispatcher to replay
+(outbox rows persist the iMIP calendar part so the replayed message keeps its payload), and a
+successful response marks the invite message answered. `Invitation` resolves an invite for display by
+overlaying attendee statuses from the stored calendar copy of the meeting, which is where `Respond`
+records the recipient's answer and `ApplyReply` lands everyone else's, so the card shows the current
+truth rather than the email's frozen ICS.
 
 Mail carries the invites both ways. Incoming: the shared `mailparse` parser diverts a `text/calendar`
 part into a `ParsedBody.Invite`, and the cached `MessageBody` gains an `invite` column with
@@ -736,7 +746,9 @@ hint text state in advance whether the save will email the attendees. A
 join link an invite carries in its location or description (Microsoft Teams, Google Meet, Zoom or Webex,
 matched by host) surfaces as a Join button in the event editor, and any other link in the description is
 clickable; both open in the external browser through the existing `OpenExternal` facade method, so this
-adds no new port.
+adds no new port. The invite card also guards against pointless resends: clicking the answer already on
+record shows an inline confirmation naming the recorded response before an identical REPLY is sent
+again, while a changed answer sends immediately.
 
 **New-mail notifications and IMAP IDLE.** New mail is surfaced the moment it arrives. A
 `runMailNotifier` goroutine in the composition root owns the flow: it primes a baseline first (an existing

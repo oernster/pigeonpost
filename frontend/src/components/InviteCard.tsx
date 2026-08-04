@@ -43,6 +43,10 @@ export function InviteCard({messageId, onActed}: InviteCardProps) {
     const [error, setError] = useState('')
     const [status, setStatus] = useState('')
     const [busy, setBusy] = useState(false)
+    // confirmResend holds the response awaiting a "send it again anyway" confirmation: clicking the
+    // answer already on record resends an identical REPLY, which is unnecessary, so the card checks
+    // first. A different answer is a real change and sends without asking.
+    const [confirmResend, setConfirmResend] = useState<PartStat | null>(null)
     // autoAppliedFor records the message a reply has already been auto-applied for, so opening it does not
     // re-apply on every render.
     const autoAppliedFor = useRef('')
@@ -100,7 +104,8 @@ export function InviteCard({messageId, onActed}: InviteCardProps) {
         )
     }
 
-    const respond = (status: PartStat) => {
+    const sendResponse = (status: PartStat) => {
+        setConfirmResend(null)
         setBusy(true)
         setError('')
         api.respondToInvitation(messageId, status)
@@ -113,6 +118,14 @@ export function InviteCard({messageId, onActed}: InviteCardProps) {
             })
             .catch((e) => setError(String(e)))
             .finally(() => setBusy(false))
+    }
+
+    const respond = (status: PartStat) => {
+        if (status === myStatus) {
+            setConfirmResend(status)
+            return
+        }
+        sendResponse(status)
     }
 
     const runAction = (action: () => Promise<void>) => {
@@ -168,8 +181,20 @@ export function InviteCard({messageId, onActed}: InviteCardProps) {
                         <button className="btn" disabled={busy} onClick={() => respond('TENTATIVE')}>Tentative</button>
                         <button className="btn danger-outline" disabled={busy} onClick={() => respond('DECLINED')}>Decline</button>
                     </div>
-                    {myStatus && myStatus !== 'NEEDS-ACTION' && (
+                    {myStatus && myStatus !== 'NEEDS-ACTION' && !confirmResend && (
                         <p className="invite-card-note">Your response: {statusLabel(myStatus)}</p>
+                    )}
+                    {confirmResend && (
+                        <>
+                            <p className="invite-card-note">
+                                The organizer already has your response ({statusLabel(confirmResend)}), so sending it
+                                again is unnecessary unless something changed. Send it anyway?
+                            </p>
+                            <div className="invite-card-actions">
+                                <button className="btn" disabled={busy} autoFocus onClick={() => setConfirmResend(null)}>Cancel</button>
+                                <button className="btn primary" disabled={busy} onClick={() => sendResponse(confirmResend)}>Send again</button>
+                            </div>
+                        </>
                     )}
                 </>
             )}
