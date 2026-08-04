@@ -20,10 +20,13 @@ var payload []byte
 // appVersion is overridden at build time via -ldflags "-X main.appVersion=x.y.z".
 var appVersion = "dev"
 
+// windowH allows for the install screen's full option list (launch on sign-in, default email app,
+// launch when setup finishes) without clipping, since the window is fixed-size and the body hides
+// overflow.
 const (
 	windowTitle = "PigeonPost Setup"
 	windowW     = 640
-	windowH     = 480
+	windowH     = 560
 )
 
 func main() {

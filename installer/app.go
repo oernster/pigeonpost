@@ -149,6 +149,13 @@ func (a *App) installInto(launchOnBoot bool) error {
 	return nil
 }
 
+// LaunchApp starts the installed PigeonPost, backing the front end's "Launch PigeonPost when setup
+// finishes" option after an install or update. The app is started detached, so it keeps running when
+// the setup program closes.
+func (a *App) LaunchApp() error {
+	return installer.LaunchApp()
+}
+
 // SetLaunchOnBoot toggles the login start entry from the manage screen.
 func (a *App) SetLaunchOnBoot(enabled bool) error {
 	dir, err := installer.InstallDir()

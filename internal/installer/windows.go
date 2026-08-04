@@ -104,6 +104,23 @@ func CloseRunningApp() error {
 	return nil
 }
 
+// LaunchApp starts the installed PigeonPost, backing the setup program's "Launch PigeonPost when setup
+// finishes" option. The process is started detached with the install directory as its working
+// directory, so it outlives the setup program rather than ending with it.
+func LaunchApp() error {
+	dir, err := InstallDir()
+	if err != nil {
+		return err
+	}
+	cmd := exec.Command(filepath.Join(dir, ExeName))
+	cmd.Dir = dir
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("launch %s: %w", AppName, err)
+	}
+	// Release the child so setup holds no handle on it; the app runs on after setup closes.
+	return cmd.Process.Release()
+}
+
 // terminateProcess forcibly ends the process with the given id. Any failure to open or terminate it is
 // ignored: a process that has already exited, or that this user cannot open, needs no further action.
 func terminateProcess(pid uint32) {

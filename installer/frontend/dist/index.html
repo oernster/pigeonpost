@@ -246,6 +246,14 @@
                     <span class="hint">Opens Windows Settings so you can pick PigeonPost for mailto links. Nothing changes unless you choose it there.</span>
                 </span>
             </label>
+            <label class="option">
+                <input type="checkbox" id="launch-install"/>
+                <span class="check"></span>
+                <span>
+                    <span class="label">Launch PigeonPost when setup finishes</span><br/>
+                    <span class="hint">Opens the app as soon as the install completes.</span>
+                </span>
+            </label>
         </section>
 
         <!-- Manage (installed) -->
@@ -268,6 +276,14 @@
                 <span class="arrow">&rarr;</span>
                 <span class="new" id="upgrade-new"></span>
             </div>
+            <label class="option">
+                <input type="checkbox" id="launch-upgrade"/>
+                <span class="check"></span>
+                <span>
+                    <span class="label">Launch PigeonPost when the update finishes</span><br/>
+                    <span class="hint">Reopens the app once the new version is in place.</span>
+                </span>
+            </label>
         </section>
 
         <!-- Uninstall -->
@@ -400,20 +416,22 @@
         // Checked by default so every install presents the Windows default-email choice; the user
         // decides on the Settings page itself (or unticks this to skip the prompt entirely).
         $('mail-default-install').checked = true
+        // Checked by default: most people install in order to use the app right away.
+        $('launch-install').checked = true
         showScreen('install')
         setFooter([
             {label: 'Cancel', onClick: () => backend().Quit()},
             {
                 label: 'Install', kind: 'primary', onClick: () => {
                     const chooseDefault = $('mail-default-install').checked
+                    const launchAfter = $('launch-install').checked
                     return withAppClosed(() => run(
                         () => backend().Install($('boot-install').checked).then(() => {
                             if (chooseDefault) backend().ShowDefaultAppSettings()
+                            if (launchAfter) return backend().LaunchApp()
                         }),
                         'Installing PigeonPost', 'PigeonPost installed',
-                        chooseDefault
-                            ? 'Windows Settings is open: pick PigeonPost as your default email app, or just close it. You can launch PigeonPost from the Start Menu.'
-                            : 'You can launch it from the Start Menu.',
+                        doneMessage(launchAfter, chooseDefault),
                         [
                             {label: 'Choose default email app', onClick: () => backend().ShowDefaultAppSettings()},
                             {label: 'Close', kind: 'primary', onClick: () => backend().Quit()},
@@ -423,17 +441,37 @@
         ])
     }
 
+    // doneMessage says what happens next after an install, reflecting the launch and default-app choices.
+    function doneMessage(launched, chooseDefault) {
+        const launchLine = launched
+            ? 'PigeonPost is starting.'
+            : 'You can launch PigeonPost from the Start Menu.'
+        if (chooseDefault) {
+            return 'Windows Settings is open: pick PigeonPost as your default email app, or just close it. ' + launchLine
+        }
+        return launchLine
+    }
+
     function routeUpgrade(state) {
         $('upgrade-old').textContent = 'v' + state.installedVersion
         $('upgrade-new').textContent = 'v' + state.thisVersion
+        // Checked by default: updating usually closes a running PigeonPost, so reopening it afterwards
+        // returns the user to where they were.
+        $('launch-upgrade').checked = true
         showScreen('upgrade')
         setFooter([
             {label: 'Uninstall', kind: 'danger', onClick: () => routeUninstall(state)},
             {label: 'Later', onClick: () => backend().Quit()},
             {
-                label: 'Update', kind: 'primary', onClick: () => withAppClosed(() => run(
-                    () => backend().Install(state.launchOnBoot),
-                    'Updating PigeonPost', 'PigeonPost updated', 'You are now on v' + state.thisVersion + '.'))
+                label: 'Update', kind: 'primary', onClick: () => {
+                    const launchAfter = $('launch-upgrade').checked
+                    return withAppClosed(() => run(
+                        () => backend().Install(state.launchOnBoot).then(() => {
+                            if (launchAfter) return backend().LaunchApp()
+                        }),
+                        'Updating PigeonPost', 'PigeonPost updated',
+                        'You are now on v' + state.thisVersion + '.' + (launchAfter ? ' PigeonPost is starting.' : '')))
+                }
             },
         ])
     }
