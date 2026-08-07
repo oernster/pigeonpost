@@ -411,9 +411,12 @@ frame loop keyed off the last pointer position, so resting in the band keeps scr
 is the self-reading cycle for long help content, at the pace the desktop apps use: hold still on open,
 read down a pixel every second tick, hold at the tail, rewind fast, repeat. `useAutoScroll` adds what is
 a property of the page rather than the cycle: any manual reading input suspends it for a stillness
-window and it resumes from wherever the reader left it (never switches off), a surface underneath
-another modal is frozen rather than suspended so its phase and position survive the modal above, and a
-reader who has asked for reduced motion gets no cycle at all. It is worn by the About and Licence
+window and it resumes from wherever the reader left it (never switches off), and a surface underneath
+another modal is frozen rather than suspended so its phase and position survive the modal above.
+Neither this nor the drop flash is gated on `prefers-reduced-motion`: on Windows that query follows the
+general "Animation effects" switch, which people turn off for performance rather than motion
+sensitivity, so gating on it silently removed both features on a machine that had it off. Stopping the
+cycle is what touching the pane is for. It is worn by the About and Licence
 panes only; every other scrollable surface in the app is a work or decision surface, where content that
 moves on its own would fight the user.
 

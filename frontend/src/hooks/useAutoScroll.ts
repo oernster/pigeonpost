@@ -16,17 +16,20 @@ const MANUAL_EVENTS = ['wheel', 'mousedown', 'touchstart', 'keydown', 'focusin']
 // callback to put on the element that actually scrolls, so a surface that is mounted and unmounted with its
 // dialog starts a fresh cycle each time it opens.
 //
-// Three things are handled here rather than in the state machine, because they are properties of the page:
-// a reader who has asked for reduced motion gets no cycle at all, a surface underneath another modal is
-// FROZEN rather than suspended (the tick is skipped entirely, so phase, position and the remaining hold are
-// all still there when the modal above closes), and the movement the cycle applies is not mistaken for the
-// reader moving it.
+// The one thing handled here rather than in the state machine is a property of the page, not of the cycle:
+// a surface underneath another modal is FROZEN rather than suspended, the tick skipped entirely, so phase,
+// position and the remaining hold are all still there when the modal above closes.
+//
+// The cycle is NOT gated on prefers-reduced-motion. On Windows that query follows the general "Animation
+// effects" switch, which people turn off for performance rather than motion sensitivity, so gating on it
+// silently removes a feature the user asked for. Anyone who does not want the pane to read itself stops it
+// by touching it, which is what the manual suspension is for.
 export function useAutoScroll(): (node: HTMLElement | null) => void {
     const [node, setNode] = useState<HTMLElement | null>(null)
     const state = useRef<AutoScrollState>(initialAutoScrollState())
 
     useEffect(() => {
-        if (!node || prefersReducedMotion()) {
+        if (!node) {
             return
         }
         state.current = initialAutoScrollState()
@@ -59,12 +62,6 @@ export function useAutoScroll(): (node: HTMLElement | null) => void {
     }, [node])
 
     return useCallback((next: HTMLElement | null) => setNode(next), [])
-}
-
-// prefersReducedMotion reports whether the reader has asked the system not to animate, in which case the
-// content simply sits still and is theirs to scroll.
-function prefersReducedMotion(): boolean {
-    return window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true
 }
 
 // isTopmostModalSurface reports whether the surface is the one the reader is actually looking at. Two

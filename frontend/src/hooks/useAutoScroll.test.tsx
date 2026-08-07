@@ -1,5 +1,5 @@
-// The page-level half of the self-reading cycle: what suspends it, what freezes it and when it does not
-// run at all. The cycle's own pacing is covered in autoScroll.test.ts. jsdom has no layout, so the
+// The page-level half of the self-reading cycle: what suspends it and what freezes it. The cycle's own
+// pacing is covered in autoScroll.test.ts. jsdom has no layout, so the
 // surface's scroll metrics and scrollTop are stubbed, and the tick timer is driven by fake timers.
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 import {cleanup, render} from '@testing-library/react'
@@ -60,11 +60,13 @@ describe('useAutoScroll', () => {
         expect(surface.scrollTop).toBeGreaterThan(0)
     })
 
-    it('does not run at all for a reader who has asked for reduced motion', () => {
+    it('still reads for someone whose system has animation effects switched off', () => {
+        // Windows drives prefers-reduced-motion from a general animation switch, so the cycle must not be
+        // gated on it: doing so removed the feature outright on a machine that had it turned off.
         vi.stubGlobal('matchMedia', (query: string) => ({matches: true, media: query}))
         const {surface} = renderSurface()
         readPast()
-        expect(surface.scrollTop).toBe(0)
+        expect(surface.scrollTop).toBeGreaterThan(0)
     })
 
     it.each(['wheel', 'mousedown', 'touchstart', 'keydown', 'focusin'])(

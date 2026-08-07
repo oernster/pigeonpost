@@ -194,36 +194,39 @@
     pointer-events: none;
 }
 
-/* A completed drop flashes the folder it landed in: two slow pulses of the same teal cue the drag used,
-   fading back to the row's normal colour. The drop cue itself vanishes the instant the pointer is
-   released, so without this there is nothing left on screen saying which folder took the message, and a
-   drop into the wrong neighbour reads exactly like a drop into the right one. Slow on purpose: a quick
-   blink is easy to miss and easy to mistake for a rendering artefact.
+/* A completed drop flashes the folder it landed in: two slow pulses up to a bright fill and back to the
+   row's normal colour. The drop cue itself vanishes the instant the pointer is released, so without this
+   there is nothing left on screen saying which folder took the message, and a drop into the wrong
+   neighbour reads exactly like a drop into the right one. Slow on purpose: a quick blink is easy to miss
+   and easy to mistake for a rendering artefact.
 
-   The animation is on the row's own background and inset shadow, so it does not disturb the selected or
-   hovered styling underneath and needs no extra element. */
+   The peak is deliberately NOT the drag cue's colours. The drag cue (--bg-elev-2 plus a teal ring) was on
+   this very row a moment ago, so reusing it makes the confirmation read as the hover simply lingering.
+   The flash goes to the teal itself with dark ink on it, which nothing else in the sidebar does.
+
+   Both the fill and the text colour animate, so the pulse is unmistakable at a glance rather than a
+   subtle change of panel shade. It runs on the row's own properties, disturbing no selected or hovered
+   styling underneath and needing no extra element.
+
+   NOT gated on prefers-reduced-motion. On Windows that query is driven by the general "Animation effects"
+   switch, which people turn off for reasons that have nothing to do with motion sensitivity, and it would
+   silently disable a confirmation the user asked for. */
 @keyframes folder-drop-flash {
     0%, 100% {
         background-color: transparent;
+        color: inherit;
         box-shadow: inset 0 0 0 2px transparent;
     }
-    25%, 75% {
-        background-color: var(--bg-elev-2);
+    30%, 70% {
+        background-color: var(--ring);
+        color: var(--accent-ink);
         box-shadow: inset 0 0 0 2px var(--ring);
     }
 }
 
-.list-item.folder.drop-landed {
+.list-item.folder.drop-landed,
+.list-item.folder.drop-landed .folder-name {
     animation: folder-drop-flash 900ms ease-in-out 2;
-}
-
-/* Anyone who has asked the system not to animate gets a plain hold of the same cue instead of pulses. */
-@media (prefers-reduced-motion: reduce) {
-    .list-item.folder.drop-landed {
-        animation: none;
-        background-color: var(--bg-elev-2);
-        box-shadow: inset 0 0 0 2px var(--ring);
-    }
 }
 
 .list-item.folder.drag-before::before {
