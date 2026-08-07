@@ -382,6 +382,28 @@ describe('App: multi-selection gestures', () => {
         fireEvent.click(screen.getByText('Third'), {shiftKey: true})
         expect(await screen.findByText('3 messages selected')).toBeInTheDocument()
     })
+
+    it('leaves a Shift-click mousedown default intact so the range can still be dragged', async () => {
+        apiSpies.listAccounts.mockResolvedValue([makeAccount()])
+        apiSpies.listFolders.mockResolvedValue([makeFolder('inbox', 'Inbox', 'inbox')])
+        apiSpies.listMessages.mockResolvedValue([
+            makeMessage({id: 'm1', subject: 'First', date: '2026-07-11T10:03:00.000Z'}),
+            makeMessage({id: 'm2', subject: 'Second', date: '2026-07-11T10:02:00.000Z'}),
+        ])
+        const {container} = render(<App/>)
+        fireEvent.click(await screen.findByText('First'))
+        const row = container.querySelector('[data-mid="m2"]')!
+        // The browser starts a native drag from the mousedown that begins the gesture. Cancelling that
+        // default cancels the drag with it, so a Shift-click must leave it alone (the text smear it would
+        // otherwise cause is handled by user-select: none in CSS).
+        const down = new MouseEvent('mousedown', {bubbles: true, cancelable: true, shiftKey: true})
+        fireEvent(row, down)
+        expect(down.defaultPrevented).toBe(false)
+        // The range gesture itself still works, and the dragged row carries its id to the folder tree.
+        fireEvent.click(screen.getByText('Second'), {shiftKey: true})
+        expect(await screen.findByText('2 messages selected')).toBeInTheDocument()
+        expect(row).toHaveAttribute('draggable', 'true')
+    })
 })
 
 // The single-message actions that Phase 3.3 moves into useMessageActions. Delete and read are already

@@ -74,6 +74,14 @@
    absolutely positioned by the virtualizer, so a folder of tens of thousands of messages opens without
    freezing. The rows therefore no longer carry content-visibility (that would fight the virtualizer's own
    height measurement of each rendered row). */
+/* A row is a selection target, not a text surface: without this a Shift-click extends the document text
+   selection across every row it spans, and the browser then drags that text instead of the messages. Doing
+   it in CSS keeps the row's mousedown default intact, which is what the native drag start depends on. */
+.message-row,
+.conversation-header {
+    user-select: none;
+}
+
 .message-row {
     padding: 10px 14px;
     cursor: pointer;

@@ -412,6 +412,17 @@ repeat drop of a message already in flight is dropped rather than issued twice, 
 it took the drop at all, which is what the sidebar's landing flash is gated on (a drop skipped for being
 same-folder, cross-account or in flight must not be confirmed on screen).
 
+A dragged row that belongs to the selection carries the whole selection, whichever gesture built it: the
+drop handler takes the marked ids when the dropped id is one of them and that one id otherwise, so a
+Ctrl-built and a Shift-built selection are the same thing by the time they reach it. What differed was
+upstream, at the drag start. A Shift-click extends the document text selection across every row it spans,
+and the browser then drags that text rather than the messages, so the row used to cancel the mousedown
+default when Shift was held. Cancelling that default cancels the native drag the browser would have begun
+from the same mousedown, which left a Shift-built range selectable but undraggable. The rows are marked
+`user-select: none` in CSS instead: nothing to smear, and the mousedown reaches the browser intact. A row
+is a selection target rather than a text surface, so the suppression belongs on the surface as a standing
+property, not on the event as a special case.
+
 Two drag ergonomics live in the sidebar, both as a pure geometry module plus a hook holding the event
 and frame plumbing. `dragScroll.ts` sizes the edge hot zone that auto-scrolls the folder pane during a
 drag: the browser's own is a couple of pixels deep at the pane's edge and runs only while the pointer

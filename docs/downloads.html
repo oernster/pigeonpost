@@ -216,7 +216,7 @@
     // The download buttons never go stale: each points at GitHub's releases/latest/download
     // redirect, which always serves the newest release's asset (the asset names are version-free
     // by design). This script only decorates the page with live details: the version chip, the
-    // release date and each installer's size, fetched from the GitHub API. If the call fails
+    // link to what changed and each installer's size, fetched from the GitHub API. If the call fails
     // (offline, rate-limited), the static text above stands on its own.
     (function () {
         var api = 'https://api.github.com/repos/oernster/pigeonpost/releases/latest';

@@ -289,13 +289,10 @@ export function MessageList(props: MessageListProps) {
                 tabIndex={tabStopId === message.id ? 0 : -1}
                 aria-selected={selectedIds.has(message.id)}
                 style={style}
-                // Shift-click would otherwise select the page text across the rows it spans; suppress
-                // that here so a range selection stays a message selection.
-                onMouseDown={(e) => {
-                    if (e.shiftKey) {
-                        e.preventDefault()
-                    }
-                }}
+                // Shift-click would otherwise smear a page text selection across the rows it spans. That is
+                // suppressed by user-select: none on the row in CSS, never by preventDefault on mousedown:
+                // cancelling the mousedown default also cancels the native drag the browser would start from
+                // it, so a Shift-selected range could be built but not dragged to a folder.
                 onClick={(e) => props.onActivate(message, {ctrl: e.ctrlKey || e.metaKey, shift: e.shiftKey})}
                 onDoubleClick={() => props.onPopout(message)}
                 draggable
