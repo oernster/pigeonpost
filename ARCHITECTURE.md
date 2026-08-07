@@ -92,7 +92,12 @@ Sync and read:
    computed from the cached messages, so the per-folder, per-account and total badges are populated
    without a separate server STATUS pass. On the front end, every message action that can change an
    unread count (mark read/unread, delete, junk, move, the bulk forms) refreshes the account badges and
-   the folder tree together through one shared refresher, so no badge surface can go stale alone.
+   the folder tree together through one shared refresher, so no badge surface can go stale alone. Mail
+   arriving refreshes both surfaces too, whether it is announced by the poller (`mail:new`) or brought
+   in by the background folder poll: the counts and the folder list are separate reads, so refreshing
+   only the counts badges the titlebar and the account picker while leaving the folder row bare. Every
+   folder-list write is claimed by the account it was fetched for, so a fetch that outlives an account
+   switch is discarded rather than putting the previous account's folders under the new selection.
 
 Add account:
 

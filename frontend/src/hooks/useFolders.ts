@@ -25,6 +25,14 @@ export interface Folders {
     // selectedFolderRef mirrors selectedFolder for the async loaders, so a background refresh only replaces
     // the list when the user is still on the folder it was started for.
     selectedFolderRef: MutableRefObject<string>
+    // selectedAccountRef mirrors the account whose folders are on screen, for the same reason
+    // selectedFolderRef mirrors the open folder: every folder-list fetch is asynchronous, so a slow one
+    // started for the previous account could otherwise land after the switch and replace the new account's
+    // folders with the old account's. A caller that changes account sets this synchronously before its fetch.
+    selectedAccountRef: MutableRefObject<string>
+    // applyFolders records a fetched folder list against the account it was fetched for, discarding it if the
+    // user has since moved to another account. Every folder-list write goes through it.
+    applyFolders: (accountId: string, fetched: Folder[]) => void
     folderPrompt: FolderPrompt | null
     setFolderPrompt: Dispatch<SetStateAction<FolderPrompt | null>>
     folderToDelete: Folder | null
@@ -52,16 +60,29 @@ export function useFolders(deps: FoldersDeps): Folders {
     // Tracks the folder currently on screen, so a background refresh only replaces the list when the
     // user has not navigated away since it started.
     const selectedFolderRef = useRef<string>('')
+    // Tracks the account whose folders are on screen, so a folder-list fetch that outlives an account
+    // switch is discarded rather than replacing the new account's folders with the previous account's.
+    const selectedAccountRef = useRef<string>('')
 
     useEffect(() => {
         selectedFolderRef.current = selectedFolder
     }, [selectedFolder])
 
+    useEffect(() => {
+        selectedAccountRef.current = selectedAccount
+    }, [selectedAccount])
+
+    const applyFolders = useCallback((accountId: string, fetched: Folder[]) => {
+        if (selectedAccountRef.current === accountId) {
+            setFolders(fetched)
+        }
+    }, [])
+
     const refreshFolders = useCallback(async () => {
         if (selectedAccount) {
-            setFolders(await api.listFolders(selectedAccount))
+            applyFolders(selectedAccount, await api.listFolders(selectedAccount))
         }
-    }, [selectedAccount])
+    }, [selectedAccount, applyFolders])
 
     // submitFolderPrompt handles both create and rename from the shared PromptDialog.
     const submitFolderPrompt = useCallback(async (value: string) => {
@@ -126,6 +147,7 @@ export function useFolders(deps: FoldersDeps): Folders {
 
     return {
         folders, setFolders, selectedFolder, setSelectedFolder, selectedFolderRef,
+        selectedAccountRef, applyFolders,
         folderPrompt, setFolderPrompt, folderToDelete, setFolderToDelete, folderBusy,
         refreshFolders, submitFolderPrompt, confirmDeleteFolder, reparentFolder,
     }

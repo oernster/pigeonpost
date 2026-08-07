@@ -95,6 +95,7 @@ function App() {
     // coordinate folder navigation with the outbox view, and selectFolder's Outbox branch reads the queue.
     const {
         folders, setFolders, selectedFolder, setSelectedFolder, selectedFolderRef,
+        selectedAccountRef, applyFolders,
         folderPrompt, setFolderPrompt, folderToDelete, setFolderToDelete, folderBusy,
         refreshFolders, submitFolderPrompt, confirmDeleteFolder, reparentFolder,
     } = useFolders({selectedAccount, store, setError})
@@ -603,6 +604,11 @@ function App() {
 
     const selectAccount = useCallback(async (id: string) => {
         setSelectedAccount(id)
+        // Claim the folder list for this account before the fetch, so a slower fetch still running for the
+        // account being left cannot land afterwards and put its folders back under the new account's
+        // selection. That mismatch leaves the sidebar showing the previous account's folders, with no row
+        // matching the newly opened Inbox and so no highlight and none of its unread badges.
+        selectedAccountRef.current = id
         localStorage.setItem(SELECTED_ACCOUNT_KEY, id)
         setSelectedMessage(null)
         setMarkedIds(new Set())
@@ -610,7 +616,10 @@ function App() {
         setReadingFull(false)
         try {
             const fetched = await api.listFolders(id)
-            setFolders(fetched)
+            if (selectedAccountRef.current !== id) {
+                return
+            }
+            applyFolders(id, fetched)
             // Open the account's Inbox straight away (falling back to its first folder) so its messages
             // are visible without a manual click.
             const inbox = fetched.find((f) => f.kind === 'inbox') ?? fetched[0]
@@ -626,7 +635,7 @@ function App() {
         } catch (e) {
             setError(String(e))
         }
-    }, [loadFolderMessages])
+    }, [loadFolderMessages, applyFolders, selectedAccountRef])
 
     const selectFolder = useCallback(async (id: string) => {
         selectedFolderRef.current = id
@@ -744,9 +753,9 @@ function App() {
     // The mailbox sync (a manual full-account sync and the periodic light refresh of the open folder) and
     // the per-account "is syncing" state live in useSync.
     const {syncingAccounts, sync, accountSyncing} = useSync({
-        selectedAccount, selectedFolder, selectedFolderRef, setFolders,
+        selectedAccount, selectedFolder, selectedFolderRef, applyFolders,
         reloadFolder: loadFolderMessages,
-        refreshOutbox, loadUnread, setError,
+        refreshFolders, refreshOutbox, loadUnread, setError,
     })
 
     // syncAfterSave holds the id of an account just saved, so the effect below can sync it once the
@@ -898,7 +907,7 @@ function App() {
         closeChoice, setCloseChoice,
     } = useAppEvents({
         showAbout, showLicence, checkUpdates,
-        selectedFolder, reloadFolder: loadFolderMessages,
+        selectedFolder, reloadFolder: loadFolderMessages, refreshFolders,
         loadUnread, loadEvents, setError,
     })
 

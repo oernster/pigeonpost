@@ -5,7 +5,8 @@ import {Environment, EventsOn} from '../../wailsjs/runtime'
 // AppEventsDeps is what the backend-event wiring needs from the rest of App: the Help-dialog openers the tray
 // menu mirrors (showAbout, showLicence, checkUpdates), the open folder and the folder reloader (mail:new
 // reloads the folder on screen, resetting the flat view's pagination rather than pulling every row), the
-// unread-count and events loaders the poll events refresh plus the error sink.
+// folder-list refresher (mail:new rebadges the sidebar), the unread-count and events loaders the poll events
+// refresh plus the error sink.
 export interface AppEventsDeps {
     showAbout: () => Promise<void>
     showLicence: () => Promise<void>
@@ -14,6 +15,9 @@ export interface AppEventsDeps {
     // reloadFolder resets pagination and reloads the folder view; skipSync loads once without re-syncing,
     // because the arrival was already fetched by the backend poller that raised mail:new.
     reloadFolder: (id: string, opts?: {skipSync?: boolean}) => Promise<void>
+    // refreshFolders reloads the selected account's folder list. The per-folder unread badge rides on that
+    // list, so an arrival is only badged once the list is refetched.
+    refreshFolders: () => Promise<void>
     loadUnread: () => Promise<void>
     loadEvents: () => Promise<void>
     setError: (message: string) => void
@@ -30,12 +34,15 @@ export interface AppEvents {
 }
 
 // useAppEvents owns the backend-event wiring: the Windows tray menu and the close-request, an OS-handed .eml
-// (eml:open), and the poll events that refresh the unread counts and the open folder (mail:new) or the
-// calendar (calendar:changed). It also detects Windows once on mount. The launchedEmail, isWindows and
+// (eml:open), and the poll events that refresh the unread counts, the folder list and the open folder
+// (mail:new) or the calendar (calendar:changed). It also detects Windows once on mount. The launchedEmail, isWindows and
 // closeChoice state live here; App's render consumes them (the EmailViewer, the Mail menu and the CloseChoice
 // dialog), so they are returned.
 export function useAppEvents(deps: AppEventsDeps): AppEvents {
-    const {showAbout, showLicence, checkUpdates, selectedFolder, reloadFolder, loadUnread, loadEvents, setError} = deps
+    const {
+        showAbout, showLicence, checkUpdates, selectedFolder, reloadFolder, refreshFolders,
+        loadUnread, loadEvents, setError,
+    } = deps
 
     // launchedEmail holds a .eml the OS handed to PigeonPost (a double-click on the file) while the in-app
     // viewer shows it; isWindows gates the Windows-only "Set as default for .eml" menu item.
@@ -74,17 +81,21 @@ export function useAppEvents(deps: AppEventsDeps): AppEvents {
     }, [])
 
     // The background mail poller emits mail:new when it brings in newly arrived messages (the same event
-    // that raises the desktop notification), so refresh the unread counts and the folder on screen to show
-    // the arrivals without waiting for the next on-screen sync.
+    // that raises the desktop notification), so refresh the unread counts, the sidebar's folder list and the
+    // folder on screen to show the arrivals without waiting for the next on-screen sync. The folder list is
+    // refreshed as well as the counts because the two carry different badges from separate reads: the counts
+    // badge the titlebar and the account picker, while the per-folder badge rides on the folder list. Without
+    // this an arrival badged the account but left its Inbox row bare until the next sync or account switch.
     useEffect(() => {
         const off = EventsOn('mail:new', () => {
             void loadUnread()
+            void refreshFolders()
             if (selectedFolder) {
                 void reloadFolder(selectedFolder, {skipSync: true})
             }
         })
         return () => off()
-    }, [selectedFolder, reloadFolder, loadUnread])
+    }, [selectedFolder, reloadFolder, refreshFolders, loadUnread])
 
     // The poller emits calendar:changed after auto-applying an incoming meeting reply or cancellation, so
     // reload the events for the calendar view to reflect the updated attendee status or removed meeting.

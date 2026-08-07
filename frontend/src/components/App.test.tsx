@@ -592,6 +592,47 @@ describe('App: syncing', () => {
         fireEvent.click(screen.getByRole('button', {name: 'Sync'}))
         await waitFor(() => expect(apiSpies.syncAccount).toHaveBeenCalledWith('acc1'))
     })
+
+    // A sync talks to the mail server, so it easily outlives an account switch. Its folder list is claimed
+    // by the account it was fetched for: landing it under the account since selected left the sidebar showing
+    // the previous account's folders, so no row matched the newly opened Inbox and neither its highlight nor
+    // its unread badges appeared.
+    it('discards a folder list that lands after the account has been switched (useSync)', async () => {
+        apiSpies.listAccounts.mockResolvedValue([
+            makeAccount(),
+            makeAccount({id: 'acc2', email: 'other@example.com', displayName: 'Other'}),
+        ])
+        apiSpies.listFolders.mockImplementation((accountId: string) =>
+            Promise.resolve(accountId === 'acc2'
+                ? [{...makeFolder('inbox2', 'Inbox', 'inbox', {unread: 2}), accountId: 'acc2'}]
+                : [makeFolder('inbox', 'Inbox', 'inbox')]))
+        apiSpies.listMessages.mockImplementation((id: string) =>
+            Promise.resolve(id === 'inbox2'
+                ? [makeMessage({id: 'm2', folderId: 'inbox2', subject: 'New arrival'})]
+                : [makeMessage({subject: 'Weekly report'})]))
+        // The first account's sync is held open, so it finishes only after the switch to the second.
+        let finishSync = () => undefined as void
+        apiSpies.syncAccount.mockImplementation(() => new Promise<void>((resolve) => {
+            finishSync = () => resolve()
+        }))
+        const {container} = render(<App/>)
+        expect(await screen.findByText('Weekly report')).toBeInTheDocument()
+        fireEvent.click(screen.getByRole('button', {name: 'Sync'}))
+        await waitFor(() => expect(apiSpies.syncAccount).toHaveBeenCalledWith('acc1'))
+        fireEvent.change(screen.getByLabelText('Active account'), {target: {value: 'acc2'}})
+        expect(await screen.findByText('New arrival')).toBeInTheDocument()
+        await act(async () => {
+            finishSync()
+        })
+        const row = await waitFor(() => {
+            const found = container.querySelector('[data-folder-id="inbox2"]')
+            expect(found).not.toBeNull()
+            return found as HTMLElement
+        })
+        expect(container.querySelector('[data-folder-id="inbox"]')).toBeNull()
+        expect(row.className).toContain('selected')
+        expect(within(row).getByText('2')).toBeInTheDocument()
+    })
 })
 
 // The colour-tagging that Phase 3.10 moves into useTags. The load of a message's tags is already covered by
@@ -731,6 +772,25 @@ describe('App: backend events', () => {
         act(() => handlers['mail:new'](undefined))
         await waitFor(() => expect(apiSpies.listMessages).toHaveBeenCalledWith('inbox'))
         expect(apiSpies.unreadCounts).toHaveBeenCalled()
+    })
+
+    // The per-folder unread badge rides on the folder list, not on the unread counts, so an arrival that
+    // refreshed only the counts badged the account and the titlebar while leaving the Inbox row bare until
+    // the next sync or account switch. mail:new refetches the folder list for that badge.
+    it('badges the folder an arrival landed in on mail:new (useAppEvents)', async () => {
+        const handlers = captureEvents()
+        apiSpies.listAccounts.mockResolvedValue([makeAccount()])
+        apiSpies.listFolders.mockResolvedValue([makeFolder('inbox', 'Inbox', 'inbox')])
+        apiSpies.listMessages.mockResolvedValue([makeMessage({subject: 'Weekly report'})])
+        const {container} = render(<App/>)
+        expect(await screen.findByText('Weekly report')).toBeInTheDocument()
+        const row = () => container.querySelector('[data-folder-id="inbox"]') as HTMLElement
+        expect(within(row()).queryByText('2')).toBeNull()
+        // The arrival is already in the local cache by the time the poller announces it, so the refetched
+        // folder list is what carries the new count.
+        apiSpies.listFolders.mockResolvedValue([makeFolder('inbox', 'Inbox', 'inbox', {unread: 2})])
+        act(() => handlers['mail:new'](undefined))
+        await waitFor(() => expect(within(row()).getByText('2')).toBeInTheDocument())
     })
 })
 
