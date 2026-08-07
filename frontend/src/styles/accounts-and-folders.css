@@ -37,21 +37,111 @@
     padding: 0 8px 6px 14px;
 }
 
-.account-select {
+/* The picker is a listbox of its own rather than a native select, so that re-picking the account already
+   showing still reports the choice and reopens its inbox. The popup is absolutely positioned against this
+   container. */
+.account-picker {
+    position: relative;
+}
+
+.account-trigger {
     flex: 1;
     min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    text-align: left;
     background-color: var(--bg-elev-2);
     color: var(--text);
     border: 1px solid var(--border);
     border-radius: 6px;
     padding: 6px 8px;
     font-size: 13px;
+    font-family: inherit;
     cursor: pointer;
 }
 
-.account-select:focus {
+/* Hover and focus are gated on :enabled, so a disabled trigger neither lights up under the mouse nor
+   reads as a focus target. */
+.account-trigger:enabled:hover {
+    border-color: var(--text-dim);
+}
+
+.account-trigger:enabled:focus {
     outline: none;
     border-color: var(--accent);
+}
+
+.account-trigger-caret {
+    flex-shrink: 0;
+    font-size: 10px;
+    color: var(--text-dim);
+}
+
+/* One account's content, shared by the trigger and the options: the name truncating rather than wrapping,
+   with the unread badge held clear of it at the end of the row. */
+.account-row {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.account-row-text {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.account-row-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.account-row-sub {
+    font-size: 11px;
+    color: var(--ring);
+}
+
+/* The open list floats over the folder tree rather than displacing it, so opening the picker never shifts
+   the folders under the pointer. It is capped and scrolls on its own, so a long account list cannot run
+   past the bottom of the pane. */
+.account-list {
+    position: absolute;
+    left: 14px;
+    right: 8px;
+    z-index: 3;
+    margin: 0;
+    padding: 4px 0;
+    list-style: none;
+    max-height: 320px;
+    overflow-y: auto;
+    background-color: var(--bg-elev-2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
+}
+
+.account-option {
+    display: flex;
+    align-items: center;
+    padding: 6px 10px;
+    font-size: 13px;
+    cursor: pointer;
+}
+
+/* The keyboard cursor and the pointer share one highlight, since the pointer moves the cursor: whichever
+   option is about to be chosen is the one lit. The account currently open is marked separately, by the
+   same left accent bar the selected list rows carry. */
+.account-option.cursor {
+    background-color: var(--bg-elev);
+}
+
+.account-option.selected {
+    box-shadow: inset 2px 0 0 var(--accent);
 }
 
 .account-picker-actions {

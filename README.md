@@ -30,7 +30,8 @@ local-first. A calmer, more predictable alternative to Thunderbird.
   via one-click OAuth. Each account keeps its own inbox, with an optional unified mailbox (a View tick)
   that merges every inbox into one list, each row dotted with its account's colour; replies from it send
   from the row's own account. Send-as addresses. The accounts section is a dropdown holding the account
-  you are in, and it reopens on the account you left. POP3 downloads into one local mailbox with read
+  you are in, badged with its unread count; picking an account opens its inbox, including the account you
+  are already in, and the app reopens on the account you left. POP3 downloads into one local mailbox with read
   and star marks kept locally.
 - **Mail**: folders and summaries cached to local SQLite and read offline; bodies fetched on open and
   cached. HTML renders faithfully in a sandboxed frame that keeps the sender's own styles while running

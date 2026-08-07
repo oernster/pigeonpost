@@ -88,6 +88,14 @@ function makeMessage(overrides: Partial<Message> = {}): Message {
     } as Message
 }
 
+// pickAccount drives the sidebar's account picker the way a user does: open the listbox, then press the
+// option for the account wanted. The picker is a listbox rather than a native select precisely so that a
+// pick always reports, including a pick of the account already showing.
+function pickAccount(accountId: string) {
+    fireEvent.click(screen.getByLabelText('Active account'))
+    fireEvent.mouseDown(document.getElementById(`account-option-${accountId}`)!)
+}
+
 function makeOutboxItem(overrides: Partial<OutboxItem> = {}): OutboxItem {
     return {
         id: 'ob1', accountId: 'acc1', to: ['bob@example.com'], subject: 'Queued note',
@@ -205,6 +213,30 @@ describe('App: account and folder cascade', () => {
         expect(await screen.findByText('Weekly report')).toBeInTheDocument()
         expect(apiSpies.listMessages).toHaveBeenCalledWith('inbox')
         expect(apiSpies.syncFolder).toHaveBeenCalledWith('inbox')
+    })
+
+    // Picking the account already showing takes you back to its inbox: it reloads the folder list and
+    // reopens the Inbox, so a picker used to check where mail landed lands you in it. A native select was
+    // silent on a re-pick, which is why the picker is a listbox of the app's own.
+    it('reopens the inbox when the account already showing is picked again', async () => {
+        apiSpies.listAccounts.mockResolvedValue([makeAccount()])
+        apiSpies.listFolders.mockResolvedValue([
+            makeFolder('inbox', 'Inbox', 'inbox'),
+            makeFolder('archive', 'Archive', 'custom'),
+        ])
+        apiSpies.listMessages.mockImplementation((id: string) =>
+            Promise.resolve(id === 'archive'
+                ? [makeMessage({id: 'a1', folderId: 'archive', subject: 'Archived item'})]
+                : [makeMessage({subject: 'Weekly report'})]))
+        const {container} = render(<App/>)
+        expect(await screen.findByText('Weekly report')).toBeInTheDocument()
+        // Move off the inbox, so the re-pick has somewhere to bring the view back from.
+        fireEvent.click(container.querySelector('[data-folder-id="archive"]')!)
+        expect(await screen.findByText('Archived item')).toBeInTheDocument()
+        pickAccount('acc1')
+        expect(await screen.findByText('Weekly report')).toBeInTheDocument()
+        const inbox = container.querySelector('[data-folder-id="inbox"]')!
+        expect(inbox.className).toContain('selected')
     })
 
     it('loads a folder\'s messages when a different folder is selected', async () => {
@@ -619,7 +651,7 @@ describe('App: syncing', () => {
         expect(await screen.findByText('Weekly report')).toBeInTheDocument()
         fireEvent.click(screen.getByRole('button', {name: 'Sync'}))
         await waitFor(() => expect(apiSpies.syncAccount).toHaveBeenCalledWith('acc1'))
-        fireEvent.change(screen.getByLabelText('Active account'), {target: {value: 'acc2'}})
+        pickAccount('acc2')
         expect(await screen.findByText('New arrival')).toBeInTheDocument()
         await act(async () => {
             finishSync()

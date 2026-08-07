@@ -585,6 +585,14 @@ scroll beneath them. The accounts section is one dropdown rather than a list pre
 that space. A new sidebar section belongs in `.sidebar-header` unless it is meant to scroll with the
 folders. `Sidebar.test.tsx` pins this structure.
 
+That dropdown is a listbox built in `AccountPicker.tsx`, not a native `select`, for one behavioural
+reason: a native select is silent when the option already showing is re-picked, so choosing the account
+you are already in did nothing, when it should take you back to that account's inbox. Every pick reports
+its account and App opens that account's inbox from there, current one included. It remains a single
+focus-ring stop as the select was: focus rests on the trigger and never enters the popup, with Up and Down
+walking the options through `aria-activedescendant`, Enter picking, Escape dismissing, and Tab or the
+horizontal arrows closing it as the ring steps away.
+
 ## Calendar and contacts
 
 This section records the shape of the address book and calendar; each piece is held to

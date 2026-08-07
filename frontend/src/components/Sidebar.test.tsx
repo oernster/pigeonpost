@@ -86,9 +86,14 @@ function renderSidebar(overrides: Partial<SidebarProps> = {}) {
         ...overrides,
     }
     const view = render(<Sidebar {...props}/>)
-    const accountSelect = () => view.container.querySelector<HTMLSelectElement>('.account-select')!
+    // The picker is a listbox: the trigger shows the active account and opens the list, whose options are
+    // read back by their accessible name (the badge and the syncing caption do not read on their own, so
+    // each option spells them out in an aria-label).
+    const accountTrigger = () => view.container.querySelector<HTMLButtonElement>('.account-trigger')!
+    const accountOptions = () => Array.from(view.container.querySelectorAll<HTMLElement>('.account-option'))
+    const accountOptionLabels = () => accountOptions().map((o) => o.getAttribute('aria-label'))
     const folderRow = (id: string) => view.container.querySelector<HTMLElement>(`[data-folder-id="${id}"]`)
-    return {...view, ...handlers, accountSelect, folderRow}
+    return {...view, ...handlers, accountTrigger, accountOptions, accountOptionLabels, folderRow}
 }
 
 beforeEach(() => localStorage.clear())
@@ -102,50 +107,145 @@ describe('Sidebar: shell', () => {
     })
 
     it('lists every account in one dropdown, showing the name and the address', () => {
-        const {accountSelect} = renderSidebar()
-        const options = Array.from(accountSelect().options).map((o) => o.text)
-        expect(options).toEqual(['Alice (alice@x.com)', 'Bob (bob@x.com)'])
+        const {accountTrigger, accountOptionLabels} = renderSidebar()
+        fireEvent.click(accountTrigger())
+        expect(accountOptionLabels()).toEqual(['Alice (alice@x.com)', 'Bob (bob@x.com)'])
     })
 
     it('scrolls the folders alone, with the brand, the picker and the Folders header pinned', () => {
-        const {container, accountSelect, folderRow} = renderSidebar({
+        const {container, accountTrigger, folderRow} = renderSidebar({
             folders: [makeFolder('inbox', 'Inbox', 'inbox')],
         })
         const brand = container.querySelector('.sidebar-brand')!
         expect(brand.parentElement!.classList.contains('sidebar')).toBe(true)
         expect(brand.closest('.sidebar-scroll')).toBeNull()
-        expect(accountSelect().closest('.sidebar-scroll')).toBeNull()
+        expect(accountTrigger().closest('.sidebar-scroll')).toBeNull()
         expect(container.querySelector('.section-header')!.closest('.sidebar-scroll')).toBeNull()
         expect(folderRow('inbox')!.closest('.sidebar-scroll')).not.toBeNull()
     })
 })
 
 describe('Sidebar: account picker', () => {
-    it('shows the selected account and switches on a change', () => {
-        const {accountSelect, onSelectAccount} = renderSidebar()
-        expect(accountSelect().value).toBe('a1')
-        fireEvent.change(accountSelect(), {target: {value: 'a2'}})
+    it('shows the selected account and switches on a pick', () => {
+        const {accountTrigger, accountOptions, onSelectAccount} = renderSidebar()
+        expect(accountTrigger().textContent).toContain('Alice (alice@x.com)')
+        fireEvent.click(accountTrigger())
+        fireEvent.mouseDown(accountOptions()[1])
         expect(onSelectAccount).toHaveBeenCalledWith('a2')
     })
 
-    it('falls back to the first account before a selection settles', () => {
-        const {accountSelect} = renderSidebar({selectedAccount: ''})
-        expect(accountSelect().value).toBe('a1')
+    // The reason the picker is not a native select: a select is silent when you re-pick the option already
+    // showing, so choosing the account you are already on did nothing at all, when it should take you back
+    // to that account's inbox.
+    it('reports the account already showing when it is picked again', () => {
+        const {accountTrigger, accountOptions, onSelectAccount} = renderSidebar()
+        fireEvent.click(accountTrigger())
+        fireEvent.mouseDown(accountOptions()[0])
+        expect(onSelectAccount).toHaveBeenCalledWith('a1')
     })
 
-    it('carries the unread count and the syncing cue in the option text', () => {
-        const {accountSelect} = renderSidebar({
+    it('closes the list once an account has been picked', () => {
+        const {accountTrigger, accountOptions} = renderSidebar()
+        fireEvent.click(accountTrigger())
+        expect(accountOptions()).toHaveLength(2)
+        fireEvent.mouseDown(accountOptions()[0])
+        expect(accountOptions()).toHaveLength(0)
+    })
+
+    it('falls back to the first account before a selection settles', () => {
+        const {accountTrigger} = renderSidebar({selectedAccount: ''})
+        expect(accountTrigger().textContent).toContain('Alice (alice@x.com)')
+    })
+
+    it('carries the unread count and the syncing cue in the option label', () => {
+        const {accountTrigger, accountOptionLabels} = renderSidebar({
             unreadByAccount: {a1: 5}, syncingAccountIds: new Set(['a2']),
         })
-        const options = Array.from(accountSelect().options).map((o) => o.text)
-        expect(options[0]).toBe('Alice (alice@x.com) - 5 unread')
-        expect(options[1]).toBe('Bob (bob@x.com) - synchronising')
+        fireEvent.click(accountTrigger())
+        expect(accountOptionLabels()[0]).toBe('Alice (alice@x.com) - 5 unread')
+        expect(accountOptionLabels()[1]).toBe('Bob (bob@x.com) - synchronising')
+    })
+
+    // The unread count is the same yellow badge the folder rows carry, not words in the row, so the two
+    // read as the same thing. The words stay in the accessible label above.
+    it('badges the unread count on the trigger and in the list', () => {
+        const {accountTrigger, accountOptions} = renderSidebar({unreadByAccount: {a1: 5}})
+        expect(within(accountTrigger()).getByText('5').classList.contains('badge')).toBe(true)
+        fireEvent.click(accountTrigger())
+        expect(within(accountOptions()[0]).getByText('5')).toBeInTheDocument()
     })
 
     it('names an account by its address alone when the display name adds nothing', () => {
         const same = makeAccount('a3', 'sam@x.com', 'sam@x.com')
-        const {accountSelect} = renderSidebar({accounts: [same], selectedAccount: 'a3'})
-        expect(accountSelect().options[0].text).toBe('sam@x.com')
+        const {accountTrigger} = renderSidebar({accounts: [same], selectedAccount: 'a3'})
+        expect(accountTrigger().textContent).toContain('sam@x.com')
+    })
+
+    // The picker stays one focus-ring stop: focus rests on the trigger and Up/Down walk the options from
+    // there, wrapping at the ends, with Enter picking and Escape dismissing.
+    it('walks the options with Up and Down and picks with Enter', () => {
+        const {accountTrigger, onSelectAccount} = renderSidebar()
+        fireEvent.keyDown(accountTrigger(), {key: 'ArrowDown'})
+        fireEvent.keyDown(accountTrigger(), {key: 'ArrowDown'})
+        fireEvent.keyDown(accountTrigger(), {key: 'Enter'})
+        expect(onSelectAccount).toHaveBeenCalledWith('a2')
+    })
+
+    it('wraps the cursor past the last account', () => {
+        const {accountTrigger, onSelectAccount} = renderSidebar({selectedAccount: 'a2'})
+        fireEvent.keyDown(accountTrigger(), {key: 'ArrowDown'})
+        fireEvent.keyDown(accountTrigger(), {key: 'ArrowDown'})
+        fireEvent.keyDown(accountTrigger(), {key: 'Enter'})
+        expect(onSelectAccount).toHaveBeenCalledWith('a1')
+    })
+
+    it('dismisses the list on Escape without picking', () => {
+        const {accountTrigger, accountOptions, onSelectAccount} = renderSidebar()
+        fireEvent.keyDown(accountTrigger(), {key: 'ArrowDown'})
+        expect(accountOptions()).toHaveLength(2)
+        fireEvent.keyDown(accountTrigger(), {key: 'Escape'})
+        expect(accountOptions()).toHaveLength(0)
+        expect(onSelectAccount).not.toHaveBeenCalled()
+    })
+
+    // Left and Right step the focus ring out of the picker, so the list must not be left open behind it.
+    it('dismisses the list when the ring steps away with Left or Right', () => {
+        const {accountTrigger, accountOptions} = renderSidebar()
+        fireEvent.keyDown(accountTrigger(), {key: 'ArrowDown'})
+        expect(accountOptions()).toHaveLength(2)
+        fireEvent.keyDown(accountTrigger(), {key: 'ArrowRight'})
+        expect(accountOptions()).toHaveLength(0)
+    })
+
+    it('dismisses the list when Tab leaves the picker', () => {
+        const {accountTrigger, accountOptions} = renderSidebar()
+        fireEvent.keyDown(accountTrigger(), {key: 'ArrowDown'})
+        fireEvent.keyDown(accountTrigger(), {key: 'Tab'})
+        expect(accountOptions()).toHaveLength(0)
+    })
+
+    it('jumps the cursor to the ends with Home and End', () => {
+        const {accountTrigger, onSelectAccount} = renderSidebar()
+        fireEvent.keyDown(accountTrigger(), {key: 'ArrowDown'})
+        fireEvent.keyDown(accountTrigger(), {key: 'End'})
+        fireEvent.keyDown(accountTrigger(), {key: ' '})
+        expect(onSelectAccount).toHaveBeenCalledWith('a2')
+    })
+
+    it('closes the open list when the trigger is pressed again', () => {
+        const {accountTrigger, accountOptions} = renderSidebar()
+        fireEvent.click(accountTrigger())
+        expect(accountOptions()).toHaveLength(2)
+        fireEvent.click(accountTrigger())
+        expect(accountOptions()).toHaveLength(0)
+    })
+
+    it('dismisses the list on a press outside it', () => {
+        const {accountTrigger, accountOptions} = renderSidebar()
+        fireEvent.click(accountTrigger())
+        expect(accountOptions()).toHaveLength(2)
+        fireEvent.mouseDown(document.body)
+        expect(accountOptions()).toHaveLength(0)
     })
 
     it('edits and removes the account showing in the picker', () => {
