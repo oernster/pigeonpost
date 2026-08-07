@@ -4,7 +4,13 @@ A standing reference to the project's outstanding technical debt. It records wha
 
 ---
 
-## 1. Looks like debt, not worth touching
+## 1. Most modal dialogs still scroll their action row out of sight
+
+The base `.modal` rule is `max-height: calc(100vh - 60px)` with `overflow-y: auto`, so any dialog taller than the window scrolls as one block and takes its buttons with it. The reader's About and Licence dialogs now use the `.modal.pinned-actions` layout instead (a flex column whose inner body is the scroller, the action row pinned beneath it), which is the shape the rest should converge on. Eighteen dialogs still do not: the account details form, the CalDAV and calendars managers, the calendar and event-form modals, the close-choice, confirm, prompt, date-picker, draft-recovery, message-picker, provider-chooser and scope-chooser dialogs, compose, contacts, the rule and template managers and the schedule dialog.
+
+It is left open rather than swept in one pass because the change is not purely mechanical: each dialog has to decide what belongs above the fold and what scrolls, and several are short enough that the question never arises in practice. The cost of leaving it is an inconsistency the user meets only on a small screen, and the fix per dialog is adding the class and wrapping the body.
+
+## 2. Looks like debt, not worth touching
 
 - The `application.MailSource.FetchBody` four-value return `(plain, html, invite, attachments, err)` could be reshaped into a body struct to save the destructure-and-re-thread; a four-value return is idiomatic Go and the port shape is fine as it stands, so it is left.
 - The three enum parsers (`ParseRole`, `ParseParticipationStatus`, `ParseMethod`) look triplicated but differ in empty-handling (only `ParseMethod` treats an empty string as invalid), so a generic helper would need special-casing that trades three clear functions for a fiddlier abstraction.
@@ -12,7 +18,7 @@ A standing reference to the project's outstanding technical debt. It records wha
 - The domain `calendar_passthrough` trim guard would change validation for whitespace-only input, so it is a behaviour decision rather than a refactor; it stays unless that behaviour change is intended.
 - The remaining discretionary nits: the domain slice-copy idioms and the `close` builtin shadow; the `MailStore` 17-method interface (a cohesive local-cache abstraction worth revisiting only if it grows); the codec-level clones (`generatedID` and `locationOf` across `ics`, `vcard`, `csv` and `recurrence`, whose dedup would couple otherwise-independent packages); the `csv` `[3]` phone-slot literal; the `schema`/`migrations` split; and the installer and genicons cosmetic nits.
 
-## 2. Intentionally left: groupByFolder for DeleteMany / MoveMany
+## 3. Intentionally left: groupByFolder for DeleteMany / MoveMany
 
 `DeleteMany` and `MoveMany` share batch-by-folder scaffolding. A shared helper looks tempting but is ruled out: collapsing them would change error aggregation from one-per-folder to one overall, an observable behaviour change.
 

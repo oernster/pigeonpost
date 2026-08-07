@@ -12,7 +12,8 @@ import type {AboutInfo} from '../api'
 const ABOUT: AboutInfo = {
     name: 'PigeonPost',
     tagline: 'A calm mail client',
-    version: '1.10.0',
+    // Deliberately not a real version: the fixture pins the dialog's layout, not what VERSION happens to say.
+    version: '0.0.0-test',
     author: 'Oliver Ernster',
     licence: 'GPL-3.0',
     copyright: '(c) Oliver Ernster',
