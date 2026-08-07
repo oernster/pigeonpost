@@ -305,6 +305,37 @@ describe('Reader: tag colour menu', () => {
     })
 })
 
+describe('Reader: the pinned base', () => {
+    const withAttachments = (...attachments: MessageBody['attachments']) =>
+        renderReader({body: makeBody({attachments})})
+
+    // The layout is what keeps a message's foot reachable: the email scrolls inside .reader-scroll and
+    // anything the message offers at its base sits in .reader-footer, a sibling of it. jsdom lays nothing
+    // out, so what is pinned cannot be measured here; what CAN be pinned by construction is that the foot
+    // is not inside the scroller, which is the invariant that must never regress.
+    it('keeps the attachments block out of the scrolling region', () => {
+        const {container} = withAttachments(
+            {index: 0, filename: 'report.pdf', contentType: 'application/pdf', size: 2048},
+        )
+        const attachments = container.querySelector('.reader-attachments')!
+        expect(attachments.closest('.reader-footer')).not.toBeNull()
+        expect(attachments.closest('.reader-scroll')).toBeNull()
+    })
+
+    it('scrolls the message itself, header and body together', () => {
+        const {container} = withAttachments(
+            {index: 0, filename: 'report.pdf', contentType: 'application/pdf', size: 2048},
+        )
+        expect(container.querySelector('.reader-body')!.closest('.reader-scroll')).not.toBeNull()
+        expect(container.querySelector('.reader-header')!.closest('.reader-scroll')).not.toBeNull()
+    })
+
+    it('renders no base at all for a message with nothing to put in it', () => {
+        const {container} = renderReader()
+        expect(container.querySelector('.reader-footer')).toBeNull()
+    })
+})
+
 describe('Reader: attachments', () => {
     const withAttachments = (...attachments: MessageBody['attachments']) =>
         renderReader({body: makeBody({attachments})})

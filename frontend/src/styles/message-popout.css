@@ -13,9 +13,12 @@
     overflow: hidden;
 }
 
+/* The popout hosts the ordinary reader, which now owns its own scrolling middle and pinned base, so the
+   dialog must NOT scroll it as one block: doing so would put the message's foot below the fold again,
+   which is exactly what the reader's layout exists to prevent. */
 .message-popout .reader {
     flex: 1;
     min-height: 0;
-    overflow-y: auto;
+    overflow: hidden;
     border-right: none;
 }

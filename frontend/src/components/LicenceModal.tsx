@@ -10,14 +10,15 @@ interface LicenceModalProps {
 export function LicenceModal({text, onClose}: LicenceModalProps) {
     const dismiss = useBackdropDismiss(onClose)
     // A full licence is far longer than the pane, so it reads itself down rather than asking anyone who
-    // wants to check a clause to drag a scrollbar through it.
+    // wants to check a clause to drag a scrollbar through it. The text is the scroller and Close is pinned
+    // below it, so the way out never scrolls away mid-licence.
     const autoScroll = useAutoScroll()
     if (text === null) {
         return null
     }
     return (
         <div className="modal-backdrop" {...dismiss}>
-            <div className="modal licence" role="dialog" aria-label="Licence" onClick={(e) => e.stopPropagation()}>
+            <div className="modal licence pinned-actions" role="dialog" aria-label="Licence" onClick={(e) => e.stopPropagation()}>
                 <ModalClose onClose={onClose}/>
                 <h2 className="modal-title">Licence</h2>
                 <pre className="licence-text" ref={autoScroll}>{text}</pre>

@@ -101,6 +101,10 @@ export function Reader({message, onToggleRead, onReply, onReplyAll, onForward, o
         ? `${message.fromName} <${message.fromAddress}>`
         : message.fromAddress || '(unknown sender)'
     const recipients = message.to.map((a) => a.address).filter(Boolean).join(', ')
+    // hasFooter decides whether the pinned base is rendered at all: a message with nothing to offer there
+    // gets no empty strip and no border. Extend the condition, not the layout, when a new foot control
+    // arrives.
+    const hasFooter = !bodyLoading && !!body && !!body.attachments && body.attachments.length > 0
 
     return (
         <section className={'pane reader' + (onBack ? ' reader-scoped' : '')}>
@@ -120,6 +124,9 @@ export function Reader({message, onToggleRead, onReply, onReplyAll, onForward, o
                     }}
                 />
             )}
+            {/* Everything that reads as the message scrolls together inside this region; the pinned base
+                below it stays put. */}
+            <div className="reader-scroll">
             {tabStrip}
             <div className="reader-header">
                 <ReaderToolbar
@@ -188,7 +195,7 @@ export function Reader({message, onToggleRead, onReply, onReplyAll, onForward, o
                     // The reader body is a scrollable stop: the arrow keys plus Page/Home/End scroll the
                     // reader pane so a long email is read from the keyboard, stopped from reaching the window
                     // ring handler. Tab and Shift+Tab are left alone, so they step the ring out of the body.
-                    const scroller = e.currentTarget.closest<HTMLElement>('.pane')
+                    const scroller = e.currentTarget.closest<HTMLElement>('.reader-scroll')
                     if (!scroller) {
                         return
                     }
@@ -257,12 +264,22 @@ export function Reader({message, onToggleRead, onReply, onReplyAll, onForward, o
                     <p className="empty-body">This message has no text content.</p>
                 )}
             </div>
-            {!bodyLoading && body && body.attachments && body.attachments.length > 0 && (
-                <ReaderAttachments
-                    message={message}
-                    attachments={body.attachments}
-                    onViewEmail={setViewedEmail}
-                />
+            </div>
+            {/* The pinned base of the message. Anything the message offers as an action at its foot belongs
+                here rather than at the end of the body: dropped in the flow it sits below however much
+                quoted history the thread has accumulated, so on a long reply chain the attachment's Save
+                button could only be reached by scrolling past the lot. Today that is the attachments
+                block; any later bottom-of-message control joins it here and is pinned by construction. */}
+            {hasFooter && (
+                <div className="reader-footer">
+                    {!bodyLoading && body && body.attachments && body.attachments.length > 0 && (
+                        <ReaderAttachments
+                            message={message}
+                            attachments={body.attachments}
+                            onViewEmail={setViewedEmail}
+                        />
+                    )}
+                </div>
             )}
             {viewedEmail && (
                 <EmailViewerModal email={viewedEmail} autoLoadImages={autoLoadImages} dark={dark} onClose={() => setViewedEmail(null)}/>

@@ -80,7 +80,9 @@ local-first. A calmer, more predictable alternative to Thunderbird.
   tree by dragging a folder to nest it, move it out or reorder its siblings.
   One folder each holds Inbox, Sent, Drafts, Trash, Junk and Archive, leading a collapsible tree with
   unread badges per folder, account and total. On-arrival rules mark or flag by From, To, Cc or Subject.
-- **Read**: an optional reading pane (mark-on-view, F8 toggle) with draggable pane dividers
+- **Read**: an optional reading pane (mark-on-view, F8 toggle) whose attachments stay pinned at the
+  foot of the message, so Open and Save are one click away however long the thread is rather than below
+  every quoted round, with draggable pane dividers
   (widths remembered, double-click to reset), a right-click context menu, in-app
   reader tabs, a double-click (or Enter) that pops the message out into its own dialog, mouse and
   keyboard multi-select with bulk actions, plus full keyboard control through an explicit focus ring. The list stays fluid in folders of tens of thousands of messages. A Date sort and

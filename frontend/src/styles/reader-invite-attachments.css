@@ -183,6 +183,34 @@
     color: var(--text-dim);
 }
 
+/* A modal whose body can outgrow the window pins its action row to the foot and scrolls only the content
+   above it, so Close is always where the reader expects it instead of below whatever the dialog holds.
+   The dialog itself then stops scrolling: the inner body is the scroller, which is also the surface the
+   self-reading cycle drives, so the buttons never drift as it reads. */
+.modal.pinned-actions {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.modal.pinned-actions .modal-body {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+}
+
+.modal.pinned-actions .modal-actions {
+    flex: none;
+}
+
+/* The licence text is its own scroller (it carries a max-height so a licence does not force a full-height
+   dialog). Inside the pinned layout it must also be free to SHRINK, or on a short window the dialog would
+   clip its own action row rather than giving the text less room. */
+.modal.pinned-actions .licence-text {
+    flex: 1;
+    min-height: 0;
+}
+
 .modal-actions {
     margin-top: 18px;
     display: flex;

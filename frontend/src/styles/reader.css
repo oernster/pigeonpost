@@ -1,3 +1,29 @@
+/* The reader is a fixed frame with a scrolling middle rather than one long scrolling column. Whatever the
+   message offers at its foot (the attachments block today) then stays on screen while the email scrolls
+   behind it. As one column the foot sat after the body, so on a long reply chain the Save button was
+   thousands of pixels below the fold and the only way to it was scrolling past every quoted round. */
+.pane.reader {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.reader-scroll {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+}
+
+/* The pinned base takes no more than its share of the pane: past that its own contents scroll, so a
+   message carrying twenty attachments cannot squeeze the email itself off the screen. It sits on the
+   pane background rather than floating, and each block inside it keeps its own top border. */
+.reader-footer {
+    flex: none;
+    max-height: 40%;
+    overflow-y: auto;
+    background-color: var(--bg);
+}
+
 /* The reader body is a keyboard scroll stop, so it takes focus; show a teal ring when it does (keyboard
    focus only), the way the list rows do. */
 .reader-body:focus-visible {

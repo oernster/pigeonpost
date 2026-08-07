@@ -390,6 +390,16 @@ carries in its destination (`domain.MessageIDFor`, the single spelling of the fo
 identity). The facade returns it in `MoveResultDTO`/`BulkResultDTO`; a server without UIDPLUS
 reports nothing and the id is empty rather than guessed.
 
+The reader is a fixed frame with a scrolling middle, not one long scrolling column. `.reader-scroll`
+carries the header and the body; `.reader-footer` is its sibling and holds whatever the message offers at
+its base, so that stays on screen while the email scrolls behind it. As one column the foot came after the
+body, so on a long reply chain the attachment's Save button sat below every quoted round and could only be
+reached by scrolling past the lot. The base is capped at a share of the pane and scrolls internally past
+that, so a message with twenty attachments cannot squeeze the email off the screen, and it is not rendered
+at all when the message has nothing to put in it. The message popout hosts the same reader and therefore
+stops scrolling it as one block, or the foot would be below the fold again. Adding a new bottom-of-message
+control means extending the footer's condition, not the layout.
+
 Dragging a message onto a folder is optimistic, and says so. An IMAP move is a live server round trip
 that can take seconds, so `useBulkActions` takes the dropped rows out of every on-screen list at the
 moment of the drop rather than when the server answers: a list that does not visibly change reads as a
@@ -412,7 +422,9 @@ is the self-reading cycle for long help content, at the pace the desktop apps us
 read down a pixel every second tick, hold at the tail, rewind fast, repeat. `useAutoScroll` adds what is
 a property of the page rather than the cycle: any manual reading input suspends it for a stillness
 window and it resumes from wherever the reader left it (never switches off), and a surface underneath
-another modal is frozen rather than suspended so its phase and position survive the modal above.
+another modal is frozen rather than suspended so its phase and position survive the modal above. Both
+panes put the cycle on their inner body and pin their action row beneath it (`.modal.pinned-actions`, a
+flex column whose body is the scroller), so Close never drifts off as the content reads itself.
 Neither this nor the drop flash is gated on `prefers-reduced-motion`: on Windows that query follows the
 general "Animation effects" switch, which people turn off for performance rather than motion
 sensitivity, so gating on it silently removed both features on a machine that had it off. Stopping the
