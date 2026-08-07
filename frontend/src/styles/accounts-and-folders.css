@@ -194,6 +194,38 @@
     pointer-events: none;
 }
 
+/* A completed drop flashes the folder it landed in: two slow pulses of the same teal cue the drag used,
+   fading back to the row's normal colour. The drop cue itself vanishes the instant the pointer is
+   released, so without this there is nothing left on screen saying which folder took the message, and a
+   drop into the wrong neighbour reads exactly like a drop into the right one. Slow on purpose: a quick
+   blink is easy to miss and easy to mistake for a rendering artefact.
+
+   The animation is on the row's own background and inset shadow, so it does not disturb the selected or
+   hovered styling underneath and needs no extra element. */
+@keyframes folder-drop-flash {
+    0%, 100% {
+        background-color: transparent;
+        box-shadow: inset 0 0 0 2px transparent;
+    }
+    25%, 75% {
+        background-color: var(--bg-elev-2);
+        box-shadow: inset 0 0 0 2px var(--ring);
+    }
+}
+
+.list-item.folder.drop-landed {
+    animation: folder-drop-flash 900ms ease-in-out 2;
+}
+
+/* Anyone who has asked the system not to animate gets a plain hold of the same cue instead of pulses. */
+@media (prefers-reduced-motion: reduce) {
+    .list-item.folder.drop-landed {
+        animation: none;
+        background-color: var(--bg-elev-2);
+        box-shadow: inset 0 0 0 2px var(--ring);
+    }
+}
+
 .list-item.folder.drag-before::before {
     top: -1px;
 }

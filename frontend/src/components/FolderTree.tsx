@@ -21,7 +21,8 @@ interface FolderTreeProps {
     onRenameFolder: (folder: Folder) => void
     onReparentFolder: (folderId: string, newParentId: string) => void
     onDeleteFolder: (folder: Folder) => void
-    onDropMessage: (messageId: string, folderId: string) => void
+    // onDropMessage moves a dragged message into the folder and reports whether the drop was taken.
+    onDropMessage: (messageId: string, folderId: string) => boolean
     // onFolderContextMenu opens the folder right-click menu (Paste and friends) at the cursor.
     onFolderContextMenu: (folder: Folder, x: number, y: number) => void
 }
@@ -45,6 +46,12 @@ const FOLDER_INDENT_STEP_PX = 14
 // (spring-loaded folders): long enough not to fire on a quick pass-over, short enough to feel responsive.
 const SPRING_DELAY_MS = 700
 
+// A completed drop flashes the folder that took the message, so it is obvious which folder it landed in
+// rather than which one the pointer happened to be near. These must match the folder-drop-flash animation
+// in accounts-and-folders.css: the class is removed once the pulses have run.
+const DROP_FLASH_PULSE_MS = 900
+const DROP_FLASH_PULSES = 2
+
 // FolderTree renders the folders as a nested, collapsible tree derived from their paths. A collapsed parent
 // rolls the unread hidden in its subtree up onto its own badge (outlined, so a rolled-up count reads
 // differently from a folder's own unread) and the badge reverts to the folder's own count on expand.
@@ -66,13 +73,37 @@ export function FolderTree(props: FolderTreeProps) {
     // springTimer holds the pending auto-expand for the collapsed parent a message is hovering (see
     // scheduleSpring). It is a ref, not state, because it must not trigger a re-render on every dragover.
     const springTimer = useRef<{folderId: string; timer: number} | null>(null)
+    // droppedId marks the folder a message has just landed in, for the confirmation flash. flashTimer holds
+    // the pending clear, so a second drop while the first is still pulsing restarts the flash rather than
+    // having the older timer cut the newer one short.
+    const [droppedId, setDroppedId] = useState<string>('')
+    const flashTimer = useRef<number | null>(null)
     useEffect(() => {
         return () => {
             if (springTimer.current) {
                 clearTimeout(springTimer.current.timer)
             }
+            if (flashTimer.current !== null) {
+                clearTimeout(flashTimer.current)
+            }
         }
     }, [])
+
+    // flashDrop lights the folder that took the drop for the length of the animation, then clears it so the
+    // row goes back to its ordinary styling and the class is free to re-apply on the next drop.
+    const flashDrop = (folderId: string) => {
+        if (flashTimer.current !== null) {
+            clearTimeout(flashTimer.current)
+        }
+        setDroppedId('')
+        // A frame with the class off, so re-dropping into the same folder restarts the animation rather
+        // than leaving the class in place and playing nothing.
+        requestAnimationFrame(() => setDroppedId(folderId))
+        flashTimer.current = window.setTimeout(() => {
+            flashTimer.current = null
+            setDroppedId('')
+        }, DROP_FLASH_PULSE_MS * DROP_FLASH_PULSES)
+    }
 
     const paths = folders.map((f) => f.path)
     const sep = detectSeparator(paths)
@@ -214,7 +245,12 @@ export function FolderTree(props: FolderTreeProps) {
         setFolderDrop(null)
         const messageId = e.dataTransfer.getData(messageDragType)
         if (messageId) {
-            props.onDropMessage(messageId, folder.id)
+            // Only a drop that is actually moving something is confirmed on screen. A drop the app skips
+            // (already in this folder, across accounts, a repeat of one still in flight) must not flash, or
+            // the cue would be reassuring about a move that is not happening.
+            if (props.onDropMessage(messageId, folder.id)) {
+                flashDrop(folder.id)
+            }
             return
         }
         handleFolderDrop(e, folder)
@@ -246,6 +282,7 @@ export function FolderTree(props: FolderTreeProps) {
                             (folder.id === selectedFolder ? ' selected' : '') +
                             (folder.id === dragOverId ? ' drag-over' : '') +
                             (folder.id === draggingFolderId ? ' dragging' : '') +
+                            (folder.id === droppedId ? ' drop-landed' : '') +
                             (folderDrop && folderDrop.folderId === folder.id ? ' drag-' + folderDrop.zone : '')
                         }
                         draggable={folder.kind === 'custom'}

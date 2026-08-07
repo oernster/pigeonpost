@@ -68,8 +68,10 @@ local-first. A calmer, more predictable alternative to Thunderbird.
   operators (from:, to:, has:attachment, dates and more) and colour tags
   that sync across devices as IMAP keywords. Snooze hides a message until a chosen time then returns it
   untouched with a desktop notification (while the app is running, or at the next launch); hidden
-  messages wait in a Snoozed view with their due times and an Unsnooze. Move or copy messages by menu or by dragging onto a folder
-  (dragging onto a collapsed folder springs it open). Undo and redo (Ctrl+Z, Ctrl+Y) unwind the mail
+  messages wait in a Snoozed view with their due times and an Unsnooze. Move or copy messages by menu or by dragging onto a folder:
+  a dragged message leaves the list the moment you drop it rather than when the server has finished, the
+  folder that took it flashes twice so you can see where it went, dragging onto a collapsed folder springs
+  it open and holding a drag near the top or bottom of the folder pane scrolls it. Undo and redo (Ctrl+Z, Ctrl+Y) unwind the mail
   actions: delete, move, junk and its rescue, their bulk forms and the read, star and tag toggles,
   with each menu entry naming what it will unwind. Cut, copy and paste messages file-manager style
   (Ctrl+X/C/V, the Edit menu or a right-click): cut or copy a selection, then paste it into the

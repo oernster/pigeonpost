@@ -390,6 +390,33 @@ carries in its destination (`domain.MessageIDFor`, the single spelling of the fo
 identity). The facade returns it in `MoveResultDTO`/`BulkResultDTO`; a server without UIDPLUS
 reports nothing and the id is empty rather than guessed.
 
+Dragging a message onto a folder is optimistic, and says so. An IMAP move is a live server round trip
+that can take seconds, so `useBulkActions` takes the dropped rows out of every on-screen list at the
+moment of the drop rather than when the server answers: a list that does not visibly change reads as a
+drop that missed, and the reflex is to drag again. The rollback is what makes the optimism safe.
+`optimisticList.ts` (a gated pure module) lifts each row with the id of the nearest row before it that
+STAYED in the list, and a refused or partial move splices the untouched rows back into those gaps. The
+anchor is an id and not an index on purpose: a partial move leaves some of the batch gone for good,
+which shifts every index after them. The same handler holds the ids whose move is still open, so a
+repeat drop of a message already in flight is dropped rather than issued twice, and it reports whether
+it took the drop at all, which is what the sidebar's landing flash is gated on (a drop skipped for being
+same-folder, cross-account or in flight must not be confirmed on screen).
+
+Two drag ergonomics live in the sidebar, both as a pure geometry module plus a hook holding the event
+and frame plumbing. `dragScroll.ts` sizes the edge hot zone that auto-scrolls the folder pane during a
+drag: the browser's own is a couple of pixels deep at the pane's edge and runs only while the pointer
+moves, so `useDragAutoScroll` widens it to a band (capped at a quarter of the pane's height, so a short
+pane keeps a neutral middle), ramps the speed with depth into the band and drives it from an animation
+frame loop keyed off the last pointer position, so resting in the band keeps scrolling. `autoScroll.ts`
+is the self-reading cycle for long help content, at the pace the desktop apps use: hold still on open,
+read down a pixel every second tick, hold at the tail, rewind fast, repeat. `useAutoScroll` adds what is
+a property of the page rather than the cycle: any manual reading input suspends it for a stillness
+window and it resumes from wherever the reader left it (never switches off), a surface underneath
+another modal is frozen rather than suspended so its phase and position survive the modal above, and a
+reader who has asked for reduced motion gets no cycle at all. It is worn by the About and Licence
+panes only; every other scrollable surface in the app is a work or decision surface, where content that
+moves on its own would fight the user.
+
 Undo, redo and the message clipboard (front end): the reported destination ids are what make undo
 possible. `undoStack.ts` (a gated pure module) models the undo and redo stacks: entries for the
 move-shaped actions plus the read, star and tag toggles, capped at a fixed depth, each labelled with
@@ -834,7 +861,7 @@ GPL-3.0 compatible.
 | Credentials | zalando/go-keyring | OS keychain; never in the DB. |
 | Front end | React 18 + TypeScript (Vite) | Existing React/TS + Wails lineage. |
 | List virtualisation | @tanstack/react-virtual | 100k-message folders scroll smoothly. |
-| Drag/drop | native HTML5 drag-and-drop | Message-to-folder, account reorder, folder reparent and reorder. |
+| Drag/drop | native HTML5 drag-and-drop | Message-to-folder, account reorder, folder reparent and reorder. The pane's edge auto-scroll and the drop confirmation are the app's own; the engine's are unusable or absent. |
 | Rich-text compose | TipTap (ProseMirror) | Clean, sanitisable, email-safe HTML. |
 | HTML mail render | sandboxed iframe + sanitiser | Untrusted HTML is the top security surface. |
 

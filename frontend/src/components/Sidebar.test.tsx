@@ -6,7 +6,7 @@
 // the proof each extraction preserved behaviour. The sidebar makes no api calls, so nothing is mocked; the
 // drag math is exercised through the real sidebarDnd and folderPaths modules.
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
-import {act, cleanup, fireEvent, render, within} from '@testing-library/react'
+import {act, cleanup, fireEvent, render, waitFor, within} from '@testing-library/react'
 import type {ComponentProps} from 'react'
 import {Sidebar} from './Sidebar'
 import type {Account, Folder} from '../api'
@@ -65,7 +65,9 @@ function renderSidebar(overrides: Partial<SidebarProps> = {}) {
         onRenameFolder: vi.fn(),
         onReparentFolder: vi.fn(),
         onDeleteFolder: vi.fn(),
-        onDropMessage: vi.fn(),
+        // The default drop is accepted, matching a real move being issued; a test wanting the rejected
+        // path overrides it.
+        onDropMessage: vi.fn().mockReturnValue(true),
         onFolderContextMenu: vi.fn(),
     }
     const props: SidebarProps = {
@@ -376,6 +378,22 @@ describe('Sidebar: folder drag and drop', () => {
         dropOn(folderRow('work')!, makeDataTransfer({[messageDragType]: 'm1'}), 0)
         expect(onDropMessage).toHaveBeenCalledWith('m1', 'work')
         expect(onReparentFolder).not.toHaveBeenCalled()
+    })
+
+    it('flashes the folder a message landed in, so the right folder is obvious', async () => {
+        const {folderRow} = renderSidebar({folders: siblings})
+        dropOn(folderRow('work')!, makeDataTransfer({[messageDragType]: 'm1'}), 0)
+        // The class is applied on the next frame, so the animation restarts on a repeat drop.
+        await waitFor(() => expect(folderRow('work')!.classList.contains('drop-landed')).toBe(true))
+        expect(folderRow('personal')!.classList.contains('drop-landed')).toBe(false)
+    })
+
+    it('does not flash a drop the app skipped', async () => {
+        const onDropMessage = vi.fn().mockReturnValue(false)
+        const {folderRow} = renderSidebar({folders: siblings, onDropMessage})
+        dropOn(folderRow('work')!, makeDataTransfer({[messageDragType]: 'm1'}), 0)
+        await waitFor(() => expect(onDropMessage).toHaveBeenCalled())
+        expect(folderRow('work')!.classList.contains('drop-landed')).toBe(false)
     })
 
     it('reparents a folder dropped into another', () => {

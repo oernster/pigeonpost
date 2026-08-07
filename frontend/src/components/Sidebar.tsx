@@ -1,7 +1,9 @@
+import {useRef} from 'react'
 import icon from '../assets/pigeonpost.png'
 import {Account, Folder} from '../api'
 import {AccountList} from './AccountList'
 import {FolderTree} from './FolderTree'
+import {useDragAutoScroll} from '../hooks/useDragAutoScroll'
 
 interface SidebarProps {
     accounts: Account[]
@@ -39,7 +41,9 @@ interface SidebarProps {
     // calls this.
     onReparentFolder: (folderId: string, newParentId: string) => void
     onDeleteFolder: (folder: Folder) => void
-    onDropMessage: (messageId: string, folderId: string) => void
+    // onDropMessage moves a dragged message into the folder and reports whether the drop was taken, so
+    // the row confirms only a move that is actually happening.
+    onDropMessage: (messageId: string, folderId: string) => boolean
     // onFolderContextMenu opens the folder right-click menu (Paste and friends) at the cursor.
     onFolderContextMenu: (folder: Folder, x: number, y: number) => void
     // canManageFolders is false for POP3 accounts, which have no server-side folders to create.
@@ -47,11 +51,15 @@ interface SidebarProps {
 }
 
 export function Sidebar(props: SidebarProps) {
+    // The scroll region auto-scrolls while a message or a folder is dragged near its top or bottom edge, so
+    // a folder below the fold is reachable without letting go of the drag.
+    const scrollRef = useRef<HTMLDivElement | null>(null)
+    useDragAutoScroll(scrollRef)
     return (
         <aside className="pane sidebar">
             <img className="sidebar-brand" src={icon} alt="" aria-hidden="true"/>
             {/* The brand icon stays pinned above; only this region scrolls. */}
-            <div className="sidebar-scroll">
+            <div className="sidebar-scroll" ref={scrollRef}>
                 {props.accounts.length === 0 ? (
                     <div className="empty-state">
                         <div className="empty-title">No accounts yet</div>

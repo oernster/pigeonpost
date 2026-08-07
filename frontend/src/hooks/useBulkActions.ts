@@ -1,6 +1,7 @@
-import {Dispatch, SetStateAction, useCallback, useState} from 'react'
+import {Dispatch, SetStateAction, useCallback, useRef, useState} from 'react'
 import {api, Folder, Message} from '../api'
 import {OUTBOX_FOLDER_ID, isOutboxMessage} from '../outbox'
+import {putBack, takeOut, type Lifted} from '../optimisticList'
 import type {MoveItem} from '../undoStack'
 import type {MessageStore} from './useMessageStore'
 import type {Selection} from './useSelection'
@@ -31,7 +32,18 @@ export interface BulkActions {
     bulkSetRead: (targets: Message[], read: boolean) => Promise<void>
     bulkSetFlag: (targets: Message[], flagged: boolean) => Promise<void>
     bulkMove: (targets: Message[], destFolderId: string) => void
-    dropMessageOnFolder: (messageId: string, folderId: string) => void
+    // dropMessageOnFolder reports whether the drop was taken, so the folder row only shows its landed
+    // confirmation for a move that is actually happening.
+    dropMessageOnFolder: (messageId: string, folderId: string) => boolean
+}
+
+// MoveSnapshot is what an optimistic removal took out of each on-screen list, kept only until the server
+// answers so a refused or partial move can put the untouched rows back where they were.
+interface MoveSnapshot {
+    messages: Lifted[]
+    searchResults: Lifted[]
+    tabs: Lifted[]
+    selected: Message | null
 }
 
 // useBulkActions owns the actions over a multi-selection (bulk delete, permanent delete, move, read, flag)
@@ -41,7 +53,8 @@ export interface BulkActions {
 export function useBulkActions(deps: BulkActionsDeps): BulkActions {
     const {store, selection, folders, loadUnread, refreshFolders, setError, undo} = deps
     const {
-        messages, searchResults, setMessages, setSearchResults, setSelectedMessage,
+        messages, searchResults, tabs, selectedMessage,
+        setMessages, setSearchResults, setTabs, setSelectedMessage,
         applyToAllLists, removeFromAllLists,
     } = store
     const {markedIds, setMarkedIds, setAnchorId} = selection
@@ -51,6 +64,11 @@ export function useBulkActions(deps: BulkActionsDeps): BulkActions {
     const [bulkToPurge, setBulkToPurge] = useState<Message[] | null>(null)
     const [bulkPurging, setBulkPurging] = useState<boolean>(false)
 
+    // inFlightIds holds the messages whose move the server has not answered yet, so a second drop of the
+    // same message is ignored rather than issued twice. A ref, not state: the guard is read and written
+    // inside one drop handler and must not wait for a re-render to take effect.
+    const inFlightIds = useRef<Set<string>>(new Set())
+
     // removeIdsFromLists drops a set of message ids from every on-screen list and the selection after a
     // bulk delete or move, and clears the active message if it was among them. All the setters are stable,
     // so it needs no dependencies.
@@ -59,6 +77,43 @@ export function useBulkActions(deps: BulkActionsDeps): BulkActions {
         setMarkedIds(new Set())
         setAnchorId(null)
     }, [removeFromAllLists])
+
+    // liftFromLists removes the ids from every on-screen list at once and returns what it took. It is what
+    // makes a drop visible immediately: an IMAP move can take seconds on a slow provider, and a list that
+    // does not change reads as a drop that missed, so the user drags again and again. The rows leave now and
+    // come back only if the server refuses.
+    const liftFromLists = useCallback((ids: Set<string>): MoveSnapshot => {
+        const snapshot: MoveSnapshot = {
+            messages: takeOut(messages, ids).lifted,
+            searchResults: takeOut(searchResults, ids).lifted,
+            tabs: takeOut(tabs, ids).lifted,
+            selected: selectedMessage && ids.has(selectedMessage.id) ? selectedMessage : null,
+        }
+        removeIdsFromLists(ids)
+        return snapshot
+    }, [messages, searchResults, tabs, selectedMessage, removeIdsFromLists])
+
+    // restoreToLists puts back the lifted rows whose ids keep says the server did not move, each at the
+    // index it held. A row the server did move stays gone.
+    const restoreToLists = useCallback((snapshot: MoveSnapshot, keep: (id: string) => boolean) => {
+        const kept = (lifted: Lifted[]) => lifted.filter((entry) => keep(entry.message.id))
+        const forMessages = kept(snapshot.messages)
+        const forSearch = kept(snapshot.searchResults)
+        const forTabs = kept(snapshot.tabs)
+        if (forMessages.length > 0) {
+            setMessages((prev) => putBack(prev, forMessages))
+        }
+        if (forSearch.length > 0) {
+            setSearchResults((prev) => putBack(prev, forSearch))
+        }
+        if (forTabs.length > 0) {
+            setTabs((prev) => putBack(prev, forTabs))
+        }
+        const selected = snapshot.selected
+        if (selected && keep(selected.id)) {
+            setSelectedMessage((prev) => prev ?? selected)
+        }
+    }, [])
 
     // sourceFolderOf resolves the folder a message sits in before a bulk action, from whichever
     // on-screen list carries it, so the undo entry knows where to return it.
@@ -98,9 +153,16 @@ export function useBulkActions(deps: BulkActionsDeps): BulkActions {
         setError('')
         // The source folders are read before the move: afterwards the rows are gone from the lists.
         const sources = new Map(ids.map((id) => [id, sourceFolderOf(id)]))
+        // The rows leave the lists now, not when the server answers, and the ids are marked in flight so a
+        // repeat drop of the same message while the first is still open is not issued twice.
+        for (const id of ids) {
+            inFlightIds.current.add(id)
+        }
+        const snapshot = liftFromLists(new Set(ids))
         try {
             const result = await api.moveMessages(ids, destFolderId)
-            removeIdsFromLists(new Set(result.ids))
+            const moved = new Set(result.ids)
+            restoreToLists(snapshot, (id) => !moved.has(id))
             recordBulkMove('move', result.ids, result.newIds, sources, destFolderId)
             if (result.error) {
                 setError(result.offline
@@ -118,24 +180,34 @@ export function useBulkActions(deps: BulkActionsDeps): BulkActions {
                 }
             }
         } catch (e) {
+            // Nothing moved, so every lifted row goes back where it was rather than vanishing.
+            restoreToLists(snapshot, () => true)
             setError(`Move failed: ${String(e)}`)
+        } finally {
+            for (const id of ids) {
+                inFlightIds.current.delete(id)
+            }
         }
         await loadUnread()
         await refreshFolders()
-    }, [removeIdsFromLists, sourceFolderOf, recordBulkMove, loadUnread, refreshFolders])
+    }, [liftFromLists, restoreToLists, sourceFolderOf, recordBulkMove, loadUnread, refreshFolders])
 
     // dropMessageOnFolder is the drag-and-drop target handler. Dropping a row that is part of the
     // multi-selection moves the whole selection; dropping any other row moves just that one. Messages
     // already in the target folder, synthetic outbox items and rows belonging to a different account
     // than the target folder (a unified-list row cannot move across accounts) are skipped. The move is
-    // batched, so a large drop stays under Gmail's connection cap.
-    const dropMessageOnFolder = useCallback((messageId: string, folderId: string) => {
+    // batched, so a large drop stays under Gmail's connection cap. It reports whether anything is moving,
+    // so a drop it skipped entirely is not confirmed on screen as one that landed.
+    const dropMessageOnFolder = useCallback((messageId: string, folderId: string): boolean => {
         if (folderId === OUTBOX_FOLDER_ID) {
-            return
+            return false
         }
         const targetAccount = folders.find((f) => f.id === folderId)?.accountId ?? ''
         const ids = markedIds.has(messageId) && markedIds.size > 1 ? [...markedIds] : [messageId]
         const movable = ids.filter((id) => {
+            if (inFlightIds.current.has(id)) {
+                return false
+            }
             const source = messages.find((m) => m.id === id) ?? searchResults.find((m) => m.id === id)
             return source !== undefined && source.folderId !== folderId && !isOutboxMessage(source)
                 && (!source.accountId || source.accountId === targetAccount)
@@ -143,6 +215,7 @@ export function useBulkActions(deps: BulkActionsDeps): BulkActions {
         setMarkedIds(new Set())
         setAnchorId(null)
         void bulkMoveIds(movable, folderId)
+        return movable.length > 0
     }, [markedIds, messages, searchResults, folders, bulkMoveIds])
 
     // runBulkDelete carries out a confirmed bulk delete or permanent delete over the selected messages in

@@ -162,7 +162,7 @@ npx vitest run --coverage   # enforce the pure-module coverage gate
   `readerFormat`, `composeAddresses`, `composeAttachment`, `composeIntake`, `recipientSuggest`,
   `autoCollect`, `datePicker`, `accountProviders`, `sidebarDnd`, `calendarModel`, `replyDraft`,
   `caldavAccount`, `unified`, `schedule`, `snooze`, `toolbarNav`, `undoStack`, `editClipboard`,
-  `paneLayout`, `emailColors`)
+  `paneLayout`, `emailColors`, `dragScroll`, `optimisticList`, `autoScroll`)
   carry a v8 coverage gate at 100% lines, functions, statements and branches, listed in `vite.config.ts`
   under `coverage.include`. Hooks and components are tested but not gated: a React hook fuses logic with
   framework plumbing, so a blanket 100% there buys brittle tests, not correctness.
@@ -175,6 +175,13 @@ npx vitest run --coverage   # enforce the pure-module coverage gate
   `components/emailDarkMode.ts` and its per-region decisions go through the rendered frame in
   `EmailHtmlFrame.test.tsx`, which reads the resulting element styles rather than a stylesheet string
   because the decision depends on each element's own background.
+- **Time and frames are driven, never waited on.** The drag auto-scroll and the self-reading help panes
+  both run on a clock, so their tests replace it: `useDragAutoScroll.test.tsx` stubs
+  `requestAnimationFrame` with a queue it steps one frame at a time, and `useAutoScroll.test.tsx` uses
+  fake timers. jsdom lays nothing out, so both stub the element's bounds, `scrollTop` and scroll metrics,
+  and both dispatch drag events by hand: jsdom drops `clientY` and `relatedTarget` from a drag event's
+  init, so the fields are set as own properties on a plain `Event` (the same workaround the sidebar drop
+  tests use). No test sleeps.
 - **Characterisation-first.** The `App.tsx` and component decomposition was done test-first: each
   extraction was preceded by a characterisation test pinning the behaviour on the un-extracted code, so
   every move was behaviour-preserving by construction. `App.test.tsx` characterises App at its outer
