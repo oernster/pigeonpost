@@ -63,6 +63,10 @@ import {useMessageClipboard} from './hooks/useMessageClipboard'
 import {canCopy, canCut, canPaste, copySelection, cutSelection, pasteText} from './editClipboard'
 import {ScheduleDialog} from './components/ScheduleDialog'
 
+// SELECTED_ACCOUNT_KEY holds the id of the account that was open when the app last closed, so a restart
+// reopens it rather than always falling back to the first account.
+const SELECTED_ACCOUNT_KEY = 'selectedAccount'
+
 function App() {
     const [selectedAccount, setSelectedAccount] = useState<string>('')
     const [unreadCounts, setUnreadCounts] = useState<UnreadCountsResult>({total: 0, byAccount: {}})
@@ -101,13 +105,13 @@ function App() {
         outbox, outboxForAccount, refreshOutbox, sidebarFolders,
         messageToCancelSend, setMessageToCancelSend, cancellingSend, cancelSend,
     } = useOutbox({selectedAccount, folders, setError})
-    // The account list, the add/edit/remove dialog state and the load/reorder/remove operations live in
+    // The account list, the add/edit/remove dialog state and the load/remove operations live in
     // useAccounts. selectAccount and the auto-select effect stay in App (below): account selection cascades
     // into the folders, the store, the selection and the reader, and it needs loadFolderMessages.
     const {
         accounts, settingUp, setSettingUp, accountToEdit, setAccountToEdit,
         accountToDelete, setAccountToDelete, deleting,
-        loadAccounts, reorderAccounts, removeAccount,
+        loadAccounts, removeAccount,
     } = useAccounts({selectedAccount, setSelectedAccount, store, setFolders, setSelectedFolder, setError})
     const [theme, setTheme] = useState<Theme>(loadTheme())
     const [about, setAbout] = useState<AboutInfo | null>(null)
@@ -599,6 +603,7 @@ function App() {
 
     const selectAccount = useCallback(async (id: string) => {
         setSelectedAccount(id)
+        localStorage.setItem(SELECTED_ACCOUNT_KEY, id)
         setSelectedMessage(null)
         setMarkedIds(new Set())
         setAnchorId(null)
@@ -667,11 +672,14 @@ function App() {
         }
     }, [unifiedMailbox, selectedFolder, folders, selectFolder])
 
-    // On first load (or after the account list changes) open the default account automatically, so the
-    // app lands on a populated inbox rather than an empty pane.
+    // On first load (or after the account list changes) open an account automatically, so the app lands
+    // on a populated inbox rather than an empty pane. The account open at the last close is reopened;
+    // one that has since been removed (or a first ever run) falls back to the first account.
     useEffect(() => {
         if (!selectedAccount && accounts.length > 0) {
-            void selectAccount(accounts[0].id)
+            const remembered = localStorage.getItem(SELECTED_ACCOUNT_KEY) ?? ''
+            const restored = accounts.find((a) => a.id === remembered) ?? accounts[0]
+            void selectAccount(restored.id)
         }
     }, [accounts, selectedAccount, selectAccount])
 
@@ -1232,7 +1240,6 @@ function App() {
                     onSelectFolder={(id) => void selectFolder(id)}
                     onEditAccount={(account) => setAccountToEdit(account)}
                     onDeleteAccount={(account) => setAccountToDelete(account)}
-                    onReorderAccounts={(ids) => void reorderAccounts(ids)}
                     onNewFolder={() => setFolderPrompt({mode: 'create'})}
                     onRenameFolder={(folder) => setFolderPrompt({mode: 'rename', folder})}
                     onReparentFolder={(folderId, newParentId) => void reparentFolder(folderId, newParentId)}

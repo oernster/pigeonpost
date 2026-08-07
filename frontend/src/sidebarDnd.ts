@@ -4,10 +4,6 @@
 import {Folder} from './api'
 import {folderRank, nearestParentPath} from './folderPaths'
 
-// accountDragType identifies an account row being dragged to reorder. It is distinct from the message
-// drag type so a message dropped on an account row is ignored and vice versa.
-export const accountDragType = 'application/x-pigeonpost-account'
-
 // folderDragType identifies a custom folder row being dragged to reparent or reorder it. It is distinct
 // from the account and message drag types so each drop target accepts only what it understands.
 export const folderDragType = 'application/x-pigeonpost-folder'
@@ -80,26 +76,4 @@ export function resolveFolderDrop(
     }
     const parentId = targetParent ? byPath.get(targetParent) ?? '' : ''
     return {kind: 'reparent', parentId, parentPath: targetParent, anchorPath: target.path, after}
-}
-
-// moveId returns a copy of ids with fromId moved to the index toId currently sits at (a splice move),
-// which is the drag-and-drop reordering. The input is not mutated.
-export function moveId(ids: string[], fromId: string, toId: string): string[] {
-    const from = ids.indexOf(fromId)
-    const to = ids.indexOf(toId)
-    if (from < 0 || to < 0 || from === to) {
-        return ids
-    }
-    const next = [...ids]
-    next.splice(from, 1)
-    next.splice(to, 0, fromId)
-    return next
-}
-
-// swapId returns a copy of ids with the entries at i and j exchanged, which is one step of an up or down
-// move. The input is not mutated.
-export function swapId(ids: string[], i: number, j: number): string[] {
-    const next = [...ids]
-    ;[next[i], next[j]] = [next[j], next[i]]
-    return next
 }

@@ -1,8 +1,8 @@
 // Characterisation test for the sidebar at its stable outer interface: its props and its observable
 // behaviour. It renders the real Sidebar and drives each interaction, asserting the DOM plus which callback
 // fired and what was written to localStorage. The interface it pins does not move as the sidebar is
-// decomposed in Phase 2 (the persisted collapsed and order state, the account list with its reorder drag
-// and the folder-tree drop split are lifted out beneath these same props), so this suite staying green is
+// decomposed in Phase 2 (the persisted collapsed and order state, the account picker and the folder-tree
+// drop split are lifted out beneath these same props), so this suite staying green is
 // the proof each extraction preserved behaviour. The sidebar makes no api calls, so nothing is mocked; the
 // drag math is exercised through the real sidebarDnd and folderPaths modules.
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
@@ -10,7 +10,7 @@ import {act, cleanup, fireEvent, render, waitFor, within} from '@testing-library
 import type {ComponentProps} from 'react'
 import {Sidebar} from './Sidebar'
 import type {Account, Folder} from '../api'
-import {accountDragType, folderDragType} from '../sidebarDnd'
+import {folderDragType} from '../sidebarDnd'
 import {messageDragType} from './MessageList'
 
 type SidebarProps = ComponentProps<typeof Sidebar>
@@ -60,7 +60,6 @@ function renderSidebar(overrides: Partial<SidebarProps> = {}) {
         onSelectFolder: vi.fn(),
         onEditAccount: vi.fn(),
         onDeleteAccount: vi.fn(),
-        onReorderAccounts: vi.fn(),
         onNewFolder: vi.fn(),
         onRenameFolder: vi.fn(),
         onReparentFolder: vi.fn(),
@@ -87,9 +86,9 @@ function renderSidebar(overrides: Partial<SidebarProps> = {}) {
         ...overrides,
     }
     const view = render(<Sidebar {...props}/>)
-    const accountRow = (id: string) => view.container.querySelector<HTMLElement>(`[data-account-id="${id}"]`)
+    const accountSelect = () => view.container.querySelector<HTMLSelectElement>('.account-select')!
     const folderRow = (id: string) => view.container.querySelector<HTMLElement>(`[data-folder-id="${id}"]`)
-    return {...view, ...handlers, accountRow, folderRow}
+    return {...view, ...handlers, accountSelect, folderRow}
 }
 
 beforeEach(() => localStorage.clear())
@@ -98,98 +97,63 @@ afterEach(() => cleanup())
 describe('Sidebar: shell', () => {
     it('shows the empty state when there are no accounts', () => {
         const {container} = renderSidebar({accounts: []})
-        expect(container.querySelector('[data-account-list]')).toBeNull()
+        expect(container.querySelector('[data-account-picker]')).toBeNull()
         expect(container.textContent).toContain('No accounts yet')
     })
 
-    it('renders a row per account with its name and address', () => {
-        const {accountRow} = renderSidebar()
-        expect(accountRow('a1')).toHaveTextContent('Alice')
-        expect(accountRow('a1')).toHaveTextContent('alice@x.com')
-        expect(accountRow('a2')).toHaveTextContent('bob@x.com')
+    it('lists every account in one dropdown, showing the name and the address', () => {
+        const {accountSelect} = renderSidebar()
+        const options = Array.from(accountSelect().options).map((o) => o.text)
+        expect(options).toEqual(['Alice (alice@x.com)', 'Bob (bob@x.com)'])
     })
 
-    it('keeps the brand icon outside the scroll region so only accounts and folders scroll', () => {
-        const {container, accountRow} = renderSidebar()
+    it('scrolls the folders alone, with the brand, the picker and the Folders header pinned', () => {
+        const {container, accountSelect, folderRow} = renderSidebar({
+            folders: [makeFolder('inbox', 'Inbox', 'inbox')],
+        })
         const brand = container.querySelector('.sidebar-brand')!
         expect(brand.parentElement!.classList.contains('sidebar')).toBe(true)
         expect(brand.closest('.sidebar-scroll')).toBeNull()
-        expect(accountRow('a1')!.closest('.sidebar-scroll')).not.toBeNull()
-    })
-
-    it('places the empty state inside the scroll region too', () => {
-        const {container} = renderSidebar({accounts: []})
-        const empty = container.querySelector('.empty-state')!
-        expect(empty.closest('.sidebar-scroll')).not.toBeNull()
+        expect(accountSelect().closest('.sidebar-scroll')).toBeNull()
+        expect(container.querySelector('.section-header')!.closest('.sidebar-scroll')).toBeNull()
+        expect(folderRow('inbox')!.closest('.sidebar-scroll')).not.toBeNull()
     })
 })
 
-describe('Sidebar: account selection', () => {
-    it('selects an account on click', () => {
-        const {accountRow, onSelectAccount} = renderSidebar()
-        fireEvent.click(accountRow('a2')!)
+describe('Sidebar: account picker', () => {
+    it('shows the selected account and switches on a change', () => {
+        const {accountSelect, onSelectAccount} = renderSidebar()
+        expect(accountSelect().value).toBe('a1')
+        fireEvent.change(accountSelect(), {target: {value: 'a2'}})
         expect(onSelectAccount).toHaveBeenCalledWith('a2')
     })
 
-    it('moves between accounts with the arrow keys, selecting as it goes', () => {
-        const {accountRow, onSelectAccount} = renderSidebar()
-        fireEvent.keyDown(accountRow('a1')!, {key: 'ArrowDown'})
-        expect(onSelectAccount).toHaveBeenCalledWith('a2')
-        expect(accountRow('a2')).toHaveFocus()
+    it('falls back to the first account before a selection settles', () => {
+        const {accountSelect} = renderSidebar({selectedAccount: ''})
+        expect(accountSelect().value).toBe('a1')
     })
 
-    it('wraps from the first account to the last on ArrowUp', () => {
-        const {accountRow, onSelectAccount} = renderSidebar()
-        fireEvent.keyDown(accountRow('a1')!, {key: 'ArrowUp'})
-        expect(onSelectAccount).toHaveBeenCalledWith('a2')
+    it('carries the unread count and the syncing cue in the option text', () => {
+        const {accountSelect} = renderSidebar({
+            unreadByAccount: {a1: 5}, syncingAccountIds: new Set(['a2']),
+        })
+        const options = Array.from(accountSelect().options).map((o) => o.text)
+        expect(options[0]).toBe('Alice (alice@x.com) - 5 unread')
+        expect(options[1]).toBe('Bob (bob@x.com) - synchronising')
     })
 
-    it('selects on Enter', () => {
-        const {accountRow, onSelectAccount} = renderSidebar()
-        fireEvent.keyDown(accountRow('a2')!, {key: 'Enter'})
-        expect(onSelectAccount).toHaveBeenCalledWith('a2')
-    })
-})
-
-describe('Sidebar: account management', () => {
-    it('reorders with the up and down buttons', () => {
-        const {getByLabelText, onReorderAccounts} = renderSidebar()
-        fireEvent.click(getByLabelText('Move bob@x.com up'))
-        expect(onReorderAccounts).toHaveBeenCalledWith(['a2', 'a1'])
-        fireEvent.click(getByLabelText('Move alice@x.com down'))
-        expect(onReorderAccounts).toHaveBeenCalledWith(['a2', 'a1'])
+    it('names an account by its address alone when the display name adds nothing', () => {
+        const same = makeAccount('a3', 'sam@x.com', 'sam@x.com')
+        const {accountSelect} = renderSidebar({accounts: [same], selectedAccount: 'a3'})
+        expect(accountSelect().options[0].text).toBe('sam@x.com')
     })
 
-    it('disables up on the first account and down on the last', () => {
-        const {getByLabelText} = renderSidebar()
-        expect(getByLabelText('Move alice@x.com up')).toBeDisabled()
-        expect(getByLabelText('Move bob@x.com down')).toBeDisabled()
-    })
-
-    it('edits and removes an account', () => {
-        const {getByLabelText, onEditAccount, onDeleteAccount} = renderSidebar()
+    it('edits and removes the account showing in the picker', () => {
+        const {getByLabelText, onEditAccount, onDeleteAccount} = renderSidebar({selectedAccount: 'a2'})
         fireEvent.click(getByLabelText('Edit bob@x.com'))
         expect(onEditAccount).toHaveBeenCalledWith(ACCOUNTS[1])
         fireEvent.click(getByLabelText('Remove bob@x.com'))
         expect(onDeleteAccount).toHaveBeenCalledWith(ACCOUNTS[1])
-    })
-
-    it('shows an unread badge and a syncing cue per account', () => {
-        const {accountRow} = renderSidebar({unreadByAccount: {a1: 5}, syncingAccountIds: new Set(['a2'])})
-        expect(accountRow('a1')).toHaveTextContent('5')
-        expect(accountRow('a2')).toHaveTextContent('Synchronising')
-    })
-
-    it('offers no reordering with a single account', () => {
-        const {queryByLabelText, accountRow} = renderSidebar({accounts: [ACCOUNTS[0]], selectedAccount: 'a1'})
-        expect(queryByLabelText('Move alice@x.com up')).toBeNull()
-        expect(accountRow('a1')).not.toHaveAttribute('draggable', 'true')
-    })
-
-    it('reorders on a drag drop', () => {
-        const {accountRow, onReorderAccounts} = renderSidebar()
-        fireEvent.drop(accountRow('a1')!, {dataTransfer: makeDataTransfer({[accountDragType]: 'a2'})})
-        expect(onReorderAccounts).toHaveBeenCalledWith(['a2', 'a1'])
     })
 })
 

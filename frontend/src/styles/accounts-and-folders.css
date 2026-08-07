@@ -27,47 +27,46 @@
     line-height: 1.6;
 }
 
-.list-item.account {
-    position: relative;
-    flex-direction: row;
-    align-items: center;
-    gap: 8px;
-}
-
-/* The account row lays out as [unread badge] [name and email] [row actions]. The badge sits in a
-   fixed-min gutter on the left so every account's name and email line up whether or not the account has
-   unread mail (an account with none has an empty gutter); the text column takes the rest of the
-   width, keeping the badge clear of the name's truncation. */
-.account-badge-slot {
-    flex-shrink: 0;
-    min-width: 28px;
+/* The accounts section is a single dropdown holding the active account, with the edit and remove
+   actions beside it. One row of height whatever the number of accounts, so the folder tree below keeps
+   the rest of the pane and neither the picker nor its scrollbar competes with the folders. */
+.account-picker-row {
     display: flex;
     align-items: center;
-    justify-content: center;
+    gap: 4px;
+    padding: 0 8px 6px 14px;
 }
 
-.list-item.account .item-text {
+.account-select {
     flex: 1;
-}
-
-.item-text {
-    display: flex;
-    flex-direction: column;
     min-width: 0;
+    background-color: var(--bg-elev-2);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 8px;
+    font-size: 13px;
+    cursor: pointer;
 }
 
-.item-text .item-title,
-.item-text .item-sub {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+.account-select:focus {
+    outline: none;
+    border-color: var(--accent);
 }
 
-/* The row actions appear as a small toolbar directly below the account on hover or keyboard focus, so it
-   is unambiguous which account they act on. They sit out of the flex flow (absolute) so the name and
-   email keep the full row width. Opacity (not visibility) keeps the buttons in the tab order for the
-   keyboard reorder. Pointer-events are off while hidden so the invisible toolbar cannot block the
-   row beneath it. */
+.account-picker-actions {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    flex-shrink: 0;
+}
+
+/* Custom folder rows carry a small floating action toolbar (rename, delete), revealed on hover or
+   keyboard focus within the row. It sits out of the flex flow (absolute) so the folder name keeps the
+   full row width; the row is position:relative so the toolbar anchors to it and lifts above its
+   neighbour, so it paints over the row below instead of behind it. Opacity (not visibility) keeps the
+   buttons in the tab order; pointer-events are off while hidden so the invisible toolbar cannot block
+   the row beneath it. */
 .account-actions {
     position: absolute;
     top: 100%;
@@ -85,23 +84,6 @@
     pointer-events: none;
 }
 
-.list-item.account:hover .account-actions,
-.list-item.account:focus-within .account-actions {
-    opacity: 1;
-    pointer-events: auto;
-}
-
-/* Lift the hovered or focused account above its neighbours so its toolbar paints over the next row
-   instead of behind it. */
-.list-item.account:hover,
-.list-item.account:focus-within {
-    z-index: 1;
-}
-
-/* Custom folder rows carry the same floating action toolbar (rename, delete) as accounts via the shared
-   .account-actions styling, revealed on hover or keyboard focus within the row. The row is
-   position:relative so the absolute toolbar anchors to it; it lifts above its neighbour so the toolbar
-   paints over the row below. */
 .list-item.folder:hover .account-actions,
 .list-item.folder:focus-within .account-actions {
     opacity: 1;
@@ -147,23 +129,6 @@
 .account-action:disabled {
     opacity: 0.35;
     cursor: default;
-}
-
-.account-syncing {
-    margin-top: 2px;
-    font-size: 11px;
-    color: var(--ring);
-}
-
-/* An account row being dragged is dimmed; the row it is dropped onto shows an accent line at its top
-   edge (inset box-shadow, so no layout shift) plus a raised background. */
-.list-item.account.dragging {
-    opacity: 0.5;
-}
-
-.list-item.account.drag-over {
-    background-color: var(--bg-elev-2);
-    box-shadow: inset 0 2px 0 var(--accent);
 }
 
 /* Folder drag-and-drop cues, in teal (--ring) to read as a move rather than the blue --accent selection.

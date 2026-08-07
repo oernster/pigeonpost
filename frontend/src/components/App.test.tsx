@@ -17,7 +17,7 @@ import {SEARCH_MATCH_END, SEARCH_MATCH_START} from '../api'
 
 const apiSpies = vi.hoisted(() => ({
     version: vi.fn(), author: vi.fn(),
-    listAccounts: vi.fn(), reorderAccounts: vi.fn(),
+    listAccounts: vi.fn(),
     draftRecovery: vi.fn(), clearDraftRecovery: vi.fn(),
     listRules: vi.fn(), listContacts: vi.fn(), listEvents: vi.fn(),
     unreadCounts: vi.fn(), listTags: vi.fn(), saveTag: vi.fn(),
@@ -104,7 +104,6 @@ beforeEach(() => {
     apiSpies.version.mockReset().mockResolvedValue('1.0.0')
     apiSpies.author.mockReset().mockResolvedValue('Oliver')
     apiSpies.listAccounts.mockReset().mockResolvedValue([])
-    apiSpies.reorderAccounts.mockReset().mockResolvedValue(undefined)
     apiSpies.draftRecovery.mockReset().mockResolvedValue({
         present: false, accountId: '', to: '', cc: '', bcc: '', subject: '', bodyHtml: '', savedMs: 0,
     })
@@ -567,14 +566,14 @@ describe('App: folder management', () => {
     })
 })
 
-// The account list and the load/reorder/remove operations that Phase 3.8 moves into useAccounts. An account
-// row carries a Remove button; confirming it calls the remove api.
+// The account list and the load/remove operations that Phase 3.8 moves into useAccounts. The account
+// picker carries a Remove button; confirming it calls the remove api.
 describe('App: account management', () => {
     it('removes an account through the confirm dialog (useAccounts)', async () => {
         apiSpies.listAccounts.mockResolvedValue([makeAccount()])
         apiSpies.listFolders.mockResolvedValue([makeFolder('inbox', 'Inbox', 'inbox')])
         render(<App/>)
-        // The account row carries a Remove <email> button; it asks for confirmation before removing.
+        // The picker carries a Remove <email> button for the account showing; it asks first.
         fireEvent.click(await screen.findByRole('button', {name: 'Remove me@example.com'}))
         const dialog = await screen.findByRole('alertdialog', {name: 'Remove account'})
         fireEvent.click(within(dialog).getByRole('button', {name: 'Remove account'}))

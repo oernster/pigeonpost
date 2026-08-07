@@ -390,12 +390,17 @@ body.pane-resizing iframe {
     border-right: none;
 }
 
-/* The sidebar pins the brand icon at the top and scrolls only the accounts and folders below it,
-   so the pane's own overflow is disabled in favour of the inner scroll region. */
+/* The sidebar pins the brand icon, the cross-account entries and the account picker at the top and
+   scrolls only the folder tree below them, so the pane's own overflow is disabled in favour of the inner
+   scroll region and the scrollbar spans the folders alone. */
 .pane.sidebar {
     display: flex;
     flex-direction: column;
     overflow: hidden;
+}
+
+.sidebar-header {
+    flex-shrink: 0;
 }
 
 .sidebar-scroll {

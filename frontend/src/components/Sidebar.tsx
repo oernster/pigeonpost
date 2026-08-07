@@ -1,7 +1,7 @@
 import {useRef} from 'react'
 import icon from '../assets/pigeonpost.png'
 import {Account, Folder} from '../api'
-import {AccountList} from './AccountList'
+import {AccountPicker} from './AccountPicker'
 import {FolderTree} from './FolderTree'
 import {useDragAutoScroll} from '../hooks/useDragAutoScroll'
 
@@ -19,8 +19,8 @@ interface SidebarProps {
     snoozedCount: number
     snoozedSelected: boolean
     onSelectSnoozed: () => void
-    // syncingAccountIds holds the ids of accounts whose mailbox sync is in progress, so each row can show a
-    // small syncing cue and stays independent of the others.
+    // syncingAccountIds holds the ids of accounts whose mailbox sync is in progress, so the picker can
+    // show a syncing cue against each one independently.
     syncingAccountIds: ReadonlySet<string>
     // unreadByAccount maps an account id to its unread message count. An account with no unread mail is
     // absent from the map.
@@ -31,9 +31,6 @@ interface SidebarProps {
     onSelectFolder: (id: string) => void
     onEditAccount: (account: Account) => void
     onDeleteAccount: (account: Account) => void
-    // onReorderAccounts persists a new account order (the full list of account ids, top to bottom) after
-    // a drag or an up/down move.
-    onReorderAccounts: (orderedIds: string[]) => void
     onNewFolder: () => void
     onRenameFolder: (folder: Folder) => void
     // onReparentFolder moves the folder with folderId under newParentId (empty for the top level) on the
@@ -51,34 +48,39 @@ interface SidebarProps {
 }
 
 export function Sidebar(props: SidebarProps) {
-    // The scroll region auto-scrolls while a message or a folder is dragged near its top or bottom edge, so
-    // a folder below the fold is reachable without letting go of the drag.
+    // Only the folder tree scrolls. The brand icon, the cross-account entries, the account picker and the
+    // Folders header all stay pinned above it, so the folders get the whole of the space below them and
+    // the scrollbar spans the folders alone. The tree auto-scrolls while a message or a folder is dragged
+    // near its top or bottom edge, so a folder below the fold is reachable without letting go of the drag.
     const scrollRef = useRef<HTMLDivElement | null>(null)
     useDragAutoScroll(scrollRef)
     return (
         <aside className="pane sidebar">
             <img className="sidebar-brand" src={icon} alt="" aria-hidden="true"/>
-            {/* The brand icon stays pinned above; only this region scrolls. */}
-            <div className="sidebar-scroll" ref={scrollRef}>
-                {props.accounts.length === 0 ? (
-                    <div className="empty-state">
-                        <div className="empty-title">No accounts yet</div>
-                        <p className="empty-body">
-                            Use "Add account" to configure a mail account.
-                        </p>
+            {props.accounts.length === 0 ? (
+                <div className="empty-state">
+                    <div className="empty-title">No accounts yet</div>
+                    <p className="empty-body">
+                        Use "Add account" to configure a mail account.
+                    </p>
+                </div>
+            ) : (
+                <>
+                    <SidebarHeader {...props}/>
+                    <div className="sidebar-scroll" ref={scrollRef}>
+                        {props.selectedAccount && <SidebarFolders {...props}/>}
                     </div>
-                ) : (
-                    <SidebarContent {...props}/>
-                )}
-            </div>
+                </>
+            )}
         </aside>
     )
 }
 
-function SidebarContent(props: SidebarProps) {
-    const {selectedAccount, folders, selectedFolder} = props
+// SidebarHeader is the pinned part: the cross-account entries, the account picker and the Folders section
+// header. None of it scrolls, so the folder tree below keeps the rest of the pane.
+function SidebarHeader(props: SidebarProps) {
     return (
-        <>
+        <div className="sidebar-header">
             {props.unifiedEnabled && (
                 <ul className="list" data-unified-entry="">
                     <li
@@ -121,49 +123,52 @@ function SidebarContent(props: SidebarProps) {
                     </li>
                 </ul>
             )}
-            <AccountList
+            <AccountPicker
                 accounts={props.accounts}
-                selectedAccount={selectedAccount}
+                selectedAccount={props.selectedAccount}
                 syncingAccountIds={props.syncingAccountIds}
                 unreadByAccount={props.unreadByAccount}
                 onSelectAccount={props.onSelectAccount}
                 onEditAccount={props.onEditAccount}
                 onDeleteAccount={props.onDeleteAccount}
-                onReorderAccounts={props.onReorderAccounts}
             />
-
-            {selectedAccount && (
-                <>
-                    <div className="section-header">
-                        <span className="section-label">Folders</span>
-                        {props.canManageFolders && (
-                            <button
-                                className="section-action"
-                                title="New folder"
-                                aria-label="New folder"
-                                onClick={props.onNewFolder}
-                            >
-                                &#43;
-                            </button>
-                        )}
-                    </div>
-                    {folders.length === 0 ? (
-                        <p className="empty-body indented">No folders cached. Press Sync to fetch them.</p>
-                    ) : (
-                        <FolderTree
-                            folders={folders}
-                            selectedFolder={selectedFolder}
-                            selectedAccount={selectedAccount}
-                            onSelectFolder={props.onSelectFolder}
-                            onRenameFolder={props.onRenameFolder}
-                            onReparentFolder={props.onReparentFolder}
-                            onDeleteFolder={props.onDeleteFolder}
-                            onDropMessage={props.onDropMessage}
-                            onFolderContextMenu={props.onFolderContextMenu}
-                        />
+            {props.selectedAccount && (
+                <div className="section-header">
+                    <span className="section-label">Folders</span>
+                    {props.canManageFolders && (
+                        <button
+                            className="section-action"
+                            title="New folder"
+                            aria-label="New folder"
+                            onClick={props.onNewFolder}
+                        >
+                            &#43;
+                        </button>
                     )}
-                </>
+                </div>
             )}
-        </>
+        </div>
+    )
+}
+
+// SidebarFolders is the one scrolling region: the folder tree of the selected account, or the prompt to
+// sync when nothing is cached yet.
+function SidebarFolders(props: SidebarProps) {
+    const {selectedAccount, folders, selectedFolder} = props
+    if (folders.length === 0) {
+        return <p className="empty-body indented">No folders cached. Press Sync to fetch them.</p>
+    }
+    return (
+        <FolderTree
+            folders={folders}
+            selectedFolder={selectedFolder}
+            selectedAccount={selectedAccount}
+            onSelectFolder={props.onSelectFolder}
+            onRenameFolder={props.onRenameFolder}
+            onReparentFolder={props.onReparentFolder}
+            onDeleteFolder={props.onDeleteFolder}
+            onDropMessage={props.onDropMessage}
+            onFolderContextMenu={props.onFolderContextMenu}
+        />
     )
 }

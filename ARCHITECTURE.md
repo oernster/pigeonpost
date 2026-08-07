@@ -574,9 +574,11 @@ per-component file own a shared global. Split a concern file over ~500 lines aga
 boundary, keeping the import order intact.
 
 One sidebar layout rule: `.pane.sidebar` disables the pane's own overflow and scrolls an inner
-`.sidebar-scroll` region instead, so the brand icon (a direct child of the aside) stays pinned while the
-accounts and folders scroll beneath it. A new sidebar section belongs inside `.sidebar-scroll`; anything
-added as a direct child of the aside is pinned. `Sidebar.test.tsx` pins this structure.
+`.sidebar-scroll` region holding the folder tree alone, so the brand icon, the cross-account entries, the
+account picker and the Folders header (all inside the pinned `.sidebar-header`) stay put while the folders
+scroll beneath them. The accounts section is one dropdown rather than a list precisely so the folders keep
+that space. A new sidebar section belongs in `.sidebar-header` unless it is meant to scroll with the
+folders. `Sidebar.test.tsx` pins this structure.
 
 ## Calendar and contacts
 
@@ -887,7 +889,7 @@ GPL-3.0 compatible.
 | Credentials | zalando/go-keyring | OS keychain; never in the DB. |
 | Front end | React 18 + TypeScript (Vite) | Existing React/TS + Wails lineage. |
 | List virtualisation | @tanstack/react-virtual | 100k-message folders scroll smoothly. |
-| Drag/drop | native HTML5 drag-and-drop | Message-to-folder, account reorder, folder reparent and reorder. The pane's edge auto-scroll and the drop confirmation are the app's own; the engine's are unusable or absent. |
+| Drag/drop | native HTML5 drag-and-drop | Message-to-folder, folder reparent and reorder. The pane's edge auto-scroll and the drop confirmation are the app's own; the engine's are unusable or absent. |
 | Rich-text compose | TipTap (ProseMirror) | Clean, sanitisable, email-safe HTML. |
 | HTML mail render | sandboxed iframe + sanitiser | Untrusted HTML is the top security surface. |
 

@@ -207,9 +207,9 @@ export function useMessageListKeyboard(deps: MessageListKeyboardDeps): void {
                 return
             }
             if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-                // The folder and account lists own their own Up/Down (they navigate folders and accounts);
-                // do not also move the message selection when focus is within either of them.
-                if (target && target.closest('[data-folder-list], [data-account-list]')) {
+                // The folder list and the account picker own their own Up/Down (they navigate folders and
+                // accounts); do not also move the message selection when focus is within either of them.
+                if (target && target.closest('[data-folder-list], [data-account-picker]')) {
                     return
                 }
                 if (list.length === 0) {

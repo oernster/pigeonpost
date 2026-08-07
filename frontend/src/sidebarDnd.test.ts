@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'vitest'
 import {Folder} from './api'
-import {dropZoneFor, moveId, resolveFolderDrop, swapId} from './sidebarDnd'
+import {dropZoneFor, resolveFolderDrop} from './sidebarDnd'
 
 const f = (id: string, path: string, kind = 'custom'): Folder => ({id, path, kind} as Folder)
 
@@ -17,27 +17,6 @@ describe('dropZoneFor', () => {
 
     it('targets after in the bottom edge band', () => {
         expect(dropZoneFor(90, rect(0, 100))).toBe('after')
-    })
-})
-
-describe('moveId', () => {
-    it('leaves the list unchanged when an id is missing', () => {
-        expect(moveId(['a', 'b', 'c'], 'x', 'b')).toEqual(['a', 'b', 'c'])
-        expect(moveId(['a', 'b', 'c'], 'a', 'x')).toEqual(['a', 'b', 'c'])
-    })
-
-    it('leaves the list unchanged when moving onto itself', () => {
-        expect(moveId(['a', 'b', 'c'], 'b', 'b')).toEqual(['a', 'b', 'c'])
-    })
-
-    it('moves an id to the target index', () => {
-        expect(moveId(['a', 'b', 'c'], 'a', 'c')).toEqual(['b', 'c', 'a'])
-    })
-})
-
-describe('swapId', () => {
-    it('exchanges two entries', () => {
-        expect(swapId(['a', 'b', 'c'], 0, 2)).toEqual(['c', 'b', 'a'])
     })
 })
 
