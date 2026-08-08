@@ -332,7 +332,8 @@ while the app runs, or at the next launch after the chosen time.
 Snooze: a message can be hidden until a chosen moment (context-menu or Mail-menu presets, or a
 pick-a-time dialog). Snooze is local-only state, one row per message in `message_snooze`:
 nothing reaches the server and read/flag state is untouched. The visible listings
-(`MailStore.ListMessagesVisible`, `ListMessagesPageVisible` and the snooze-aware `UnreadByAccount`)
+(`MailStore.ListMessagesVisible`, `ListMessagesPageVisible` and the snooze-aware `UnreadByAccount`
+and `NewestUnreadByAccount`)
 exclude a hidden message until its instant passes, while the plain listings the sync and the new-mail
 notifier read see everything, so known-message sets and POP3 flag carry-over are unaffected; search also
 still finds hidden messages. The Snoozed view is the synthetic folder `__snoozed__` (the Outbox
@@ -486,7 +487,11 @@ mirrors server state back and preserves it rather than overwriting a local-only 
 (bold) state and the star follow the cached flags. `UnreadCounts` is the single derived-total choke
 point: it reflects the cross-account total onto both the taskbar overlay badge and the tray icon (the
 tray icon composites the app icon with the same red count badge, so the count stays visible even when
-the window is hidden to the tray).
+the window is hidden to the tray). Beside the counts it carries each account's newest unread message
+date (`NewestUnreadByAccount`, the same snooze-aware visible set); the front end compares those dates
+to per-account "last looked" watermarks it keeps in localStorage (`newMail.ts`, stamped on every
+account switch) to light the account picker's elsewhere badge only for mail that arrived after you
+last had that account open, so a standing unread backlog never lights a permanent cue.
 
 Search: local, offline, operator-grammar full-text search over the cached mail. The grammar is a
 domain concept: `domain.ParseSearchQuery` turns raw input into a modelled `SearchQuery` (bare prefix
@@ -591,7 +596,10 @@ you are already in did nothing, when it should take you back to that account's i
 its account and App opens that account's inbox from there, current one included. It remains a single
 focus-ring stop as the select was: focus rests on the trigger and never enters the popup, with Up and Down
 walking the options through `aria-activedescendant`, Enter picking, Escape dismissing, and Tab or the
-horizontal arrows closing it as the ring steps away.
+horizontal arrows closing it as the ring steps away. The closed trigger also carries the elsewhere
+badge (outlined, matching the folder tree's rolled-up badge: an outline means "not here") summing the
+unread on accounts with mail newer than their watermarks, with the per-account breakdown one click
+away in the open list.
 
 ## Calendar and contacts
 

@@ -509,6 +509,7 @@ func TestMailboxServiceSearchError(t *testing.T) {
 func TestMailboxServiceUnreadCounts(t *testing.T) {
 	store := newFakeMailStore()
 	store.unreadByAccount = map[string]int{"a1": 2, "a2": 1}
+	store.newestByAccount = map[string]int64{"a1": 1700, "a2": 1600}
 	svc := NewMailboxService(store, time.UTC, fakeClock{now: time.Unix(0, 0).UTC()})
 
 	totals, err := svc.UnreadCounts(context.Background())
@@ -521,6 +522,15 @@ func TestMailboxServiceUnreadCounts(t *testing.T) {
 	if totals.ByAccount["a1"] != 2 || totals.ByAccount["a2"] != 1 {
 		t.Errorf("ByAccount = %+v, want a1:2 a2:1", totals.ByAccount)
 	}
+	if totals.NewestByAccount["a1"] != 1700 || totals.NewestByAccount["a2"] != 1600 {
+		t.Errorf("NewestByAccount = %+v, want a1:1700 a2:1600", totals.NewestByAccount)
+	}
+
+	store.newestErr = errBoom
+	if _, err := svc.UnreadCounts(context.Background()); !errors.Is(err, errBoom) {
+		t.Errorf("UnreadCounts newest error = %v, want wrapped boom", err)
+	}
+	store.newestErr = nil
 
 	store.unreadErr = errBoom
 	if _, err := svc.UnreadCounts(context.Background()); !errors.Is(err, errBoom) {

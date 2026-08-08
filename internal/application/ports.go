@@ -65,6 +65,10 @@ type MailStore interface {
 	// UnreadByAccount counts only messages visible at the given instant, so a snoozed unread message
 	// does not badge the folder it is hidden from until it resurfaces.
 	UnreadByAccount(ctx context.Context, visibleAt time.Time) (map[string]int, error)
+	// NewestUnreadByAccount reports each account's newest unread message date in Unix milliseconds,
+	// over the same visible set as UnreadByAccount. The front end compares it to a per-account
+	// "last looked" watermark to cue mail arriving on accounts other than the selected one.
+	NewestUnreadByAccount(ctx context.Context, visibleAt time.Time) (map[string]int64, error)
 	GetMessageBody(ctx context.Context, messageID string) (domain.MessageBody, error)
 	SaveMessageBody(ctx context.Context, body domain.MessageBody) error
 	// SearchMessages returns the cached messages matching the modelled query, most relevant first,

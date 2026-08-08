@@ -78,6 +78,17 @@
     color: var(--text-dim);
 }
 
+/* The closed trigger's cue for mail newly arrived on the accounts the picker hides. Outlined rather
+   than filled, matching the folder tree's rolled-up badge: an outline means "not here". The padding
+   drops by the border width to keep the pill the same size as a filled badge. */
+.badge-elsewhere {
+    flex-shrink: 0;
+    background-color: transparent;
+    color: var(--primary);
+    border: 1px solid var(--primary);
+    padding: 0 6px;
+}
+
 /* One account's content, shared by the trigger and the options: the name truncating rather than wrapping,
    with the unread badge held clear of it at the end of the row. */
 .account-row {

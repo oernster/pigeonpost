@@ -79,6 +79,7 @@ function renderSidebar(overrides: Partial<SidebarProps> = {}) {
         snoozedSelected: false,
         syncingAccountIds: new Set<string>(),
         unreadByAccount: {},
+        elsewhereCue: {unread: 0, accounts: 0},
         folders: [],
         selectedFolder: '',
         canManageFolders: true,
@@ -173,6 +174,26 @@ describe('Sidebar: account picker', () => {
         expect(within(accountTrigger()).getByText('5').classList.contains('badge')).toBe(true)
         fireEvent.click(accountTrigger())
         expect(within(accountOptions()[0]).getByText('5')).toBeInTheDocument()
+    })
+
+    // The elsewhere badge cues mail newly arrived on the accounts the closed picker hides. Outlined
+    // (badge-elsewhere) so it reads as "not here", with the words in the tooltip and the trigger's
+    // accessible name; the per-account breakdown is the open list's own badges.
+    it('badges newly arrived mail on other accounts against the closed trigger', () => {
+        const {accountTrigger} = renderSidebar({
+            unreadByAccount: {a2: 4}, elsewhereCue: {unread: 4, accounts: 1},
+        })
+        const badge = within(accountTrigger()).getByText('4')
+        expect(badge.classList.contains('badge-elsewhere')).toBe(true)
+        expect(badge.getAttribute('title')).toBe('4 unread on 1 other account')
+        expect(accountTrigger().getAttribute('aria-label'))
+            .toBe('Active account, 4 unread on 1 other account')
+    })
+
+    it('shows no elsewhere badge when nothing new arrived on other accounts', () => {
+        const {accountTrigger} = renderSidebar({unreadByAccount: {a2: 4}})
+        expect(accountTrigger().querySelector('.badge-elsewhere')).toBeNull()
+        expect(accountTrigger().getAttribute('aria-label')).toBe('Active account')
     })
 
     it('names an account by its address alone when the display name adds nothing', () => {

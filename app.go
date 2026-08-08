@@ -290,6 +290,10 @@ func (a *App) UnreadCounts() (UnreadCountsDTO, error) {
 	if byAccount == nil {
 		byAccount = map[string]int{}
 	}
+	newestByAccount := totals.NewestByAccount
+	if newestByAccount == nil {
+		newestByAccount = map[string]int64{}
+	}
 	// This is the single derived-total choke point the front end refreshes after every read-state
 	// change, so reflecting the total onto the taskbar badge and the tray icon here keeps both correct
 	// without a separate trigger at each call site. The taskbar badge shows on the window's taskbar
@@ -300,7 +304,7 @@ func (a *App) UnreadCounts() (UnreadCountsDTO, error) {
 	if a.tray != nil {
 		a.tray.SetUnread(totals.Total)
 	}
-	return UnreadCountsDTO{Total: totals.Total, ByAccount: byAccount}, nil
+	return UnreadCountsDTO{Total: totals.Total, ByAccount: byAccount, NewestByAccount: newestByAccount}, nil
 }
 
 // GetMessageBody returns a message's full body, fetching and caching it on the first open.

@@ -65,25 +65,33 @@ func (s *MailboxService) Threads(ctx context.Context, folderID string) ([]domain
 	return domain.GroupThreads(messages), nil
 }
 
-// UnreadTotals carries the per-account unread message counts and their sum across all accounts.
+// UnreadTotals carries the per-account unread message counts, their sum across all accounts and each
+// account's newest unread message date in Unix milliseconds (absent, like the count, when an account
+// has no unread mail).
 type UnreadTotals struct {
-	Total     int
-	ByAccount map[string]int
+	Total           int
+	ByAccount       map[string]int
+	NewestByAccount map[string]int64
 }
 
-// UnreadCounts returns the unread message count for each account and the total across all accounts,
-// computed from the local cache. The per-account map never contains a nil value; an account with no
-// unread messages is simply absent.
+// UnreadCounts returns the unread message count for each account, the total across all accounts and
+// the newest unread date per account, computed from the local cache. The per-account maps never
+// contain a nil value; an account with no unread messages is simply absent.
 func (s *MailboxService) UnreadCounts(ctx context.Context) (UnreadTotals, error) {
-	byAccount, err := s.mail.UnreadByAccount(ctx, s.clock.Now())
+	now := s.clock.Now()
+	byAccount, err := s.mail.UnreadByAccount(ctx, now)
 	if err != nil {
 		return UnreadTotals{}, fmt.Errorf("unread counts: %w", err)
+	}
+	newest, err := s.mail.NewestUnreadByAccount(ctx, now)
+	if err != nil {
+		return UnreadTotals{}, fmt.Errorf("newest unread: %w", err)
 	}
 	total := 0
 	for _, n := range byAccount {
 		total += n
 	}
-	return UnreadTotals{Total: total, ByAccount: byAccount}, nil
+	return UnreadTotals{Total: total, ByAccount: byAccount, NewestByAccount: newest}, nil
 }
 
 // searchResultLimit caps how many hits one search returns, so a two-letter query over a huge cache

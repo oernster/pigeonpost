@@ -335,6 +335,95 @@ func TestUnreadByAccount(t *testing.T) {
 	}
 }
 
+func TestNewestUnreadByAccount(t *testing.T) {
+	store := openTestStore(t)
+	ctx := context.Background()
+
+	// Two accounts with unread mail at known dates and a third with everything read (so it is absent
+	// from the returned map). a1's newest unread is snoozed, so while the snooze is live its newest
+	// falls back to the older unread message.
+	a1inbox, _ := domain.NewFolder("f1", "a1", "INBOX", domain.FolderInbox, 0, 0)
+	a2inbox, _ := domain.NewFolder("f2", "a2", "INBOX", domain.FolderInbox, 0, 0)
+	a3inbox, _ := domain.NewFolder("f3", "a3", "INBOX", domain.FolderInbox, 0, 0)
+	for accountID, folders := range map[string][]domain.Folder{
+		"a1": {a1inbox}, "a2": {a2inbox}, "a3": {a3inbox},
+	} {
+		if err := store.SaveFolders(ctx, accountID, folders); err != nil {
+			t.Fatalf("save %s folders: %v", accountID, err)
+		}
+	}
+	buildAt := func(id, folderID string, when time.Time, read bool) domain.MessageSummary {
+		t.Helper()
+		flags := domain.NewFlags(0)
+		if read {
+			flags = domain.NewFlags(domain.FlagSeen)
+		}
+		msg, err := domain.NewMessageSummary(domain.MessageSummaryInput{
+			ID: id, FolderID: folderID, UID: id, MessageID: "<" + id + "@x>",
+			Subject: "Subject " + id, Date: when, Size: 1024, Flags: flags, Snippet: "snippet " + id,
+		})
+		if err != nil {
+			t.Fatalf("message: %v", err)
+		}
+		return msg
+	}
+	older := time.Date(2026, time.July, 1, 8, 0, 0, 0, time.UTC)
+	newer := time.Date(2026, time.July, 3, 8, 0, 0, 0, time.UTC)
+	if err := store.SaveMessages(ctx, "f1", []domain.MessageSummary{
+		buildAt("m1", "f1", older, false),
+		buildAt("m2", "f1", newer, false),
+	}); err != nil {
+		t.Fatalf("save f1 messages: %v", err)
+	}
+	if err := store.SaveMessages(ctx, "f2", []domain.MessageSummary{
+		buildAt("m3", "f2", older, false),
+		buildAt("m4", "f2", newer, true),
+	}); err != nil {
+		t.Fatalf("save f2 messages: %v", err)
+	}
+	if err := store.SaveMessages(ctx, "f3", []domain.MessageSummary{
+		buildAt("m5", "f3", newer, true),
+	}); err != nil {
+		t.Fatalf("save f3 messages: %v", err)
+	}
+
+	now := time.Date(2026, time.July, 4, 8, 0, 0, 0, time.UTC)
+	newest, err := store.NewestUnreadByAccount(ctx, now)
+	if err != nil {
+		t.Fatalf("newest unread by account: %v", err)
+	}
+	if newest["a1"] != newer.UnixMilli() {
+		t.Errorf("a1 newest = %d, want %d", newest["a1"], newer.UnixMilli())
+	}
+	// a2's newer message is read, so its newest unread is the older one.
+	if newest["a2"] != older.UnixMilli() {
+		t.Errorf("a2 newest = %d, want %d", newest["a2"], older.UnixMilli())
+	}
+	if _, ok := newest["a3"]; ok {
+		t.Errorf("a3 should be absent from the map, got %d", newest["a3"])
+	}
+
+	// Snoozing a1's newest unread hides it from the cue until the snooze expires.
+	until := now.Add(2 * time.Hour)
+	if err := store.SetSnooze(ctx, "m2", until); err != nil {
+		t.Fatalf("snooze m2: %v", err)
+	}
+	newest, err = store.NewestUnreadByAccount(ctx, now)
+	if err != nil {
+		t.Fatalf("newest unread with snooze: %v", err)
+	}
+	if newest["a1"] != older.UnixMilli() {
+		t.Errorf("a1 newest during snooze = %d, want %d", newest["a1"], older.UnixMilli())
+	}
+	newest, err = store.NewestUnreadByAccount(ctx, until.Add(time.Minute))
+	if err != nil {
+		t.Fatalf("newest unread after snooze: %v", err)
+	}
+	if newest["a1"] != newer.UnixMilli() {
+		t.Errorf("a1 newest after snooze = %d, want %d", newest["a1"], newer.UnixMilli())
+	}
+}
+
 func buildMessage(t *testing.T, id string, when time.Time, withSender bool) domain.MessageSummary {
 	t.Helper()
 	var from domain.EmailAddress

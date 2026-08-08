@@ -4,6 +4,7 @@ import {Account, Folder} from '../api'
 import {AccountPicker} from './AccountPicker'
 import {FolderTree} from './FolderTree'
 import {useDragAutoScroll} from '../hooks/useDragAutoScroll'
+import type {ElsewhereCue} from '../newMail'
 
 interface SidebarProps {
     accounts: Account[]
@@ -25,6 +26,9 @@ interface SidebarProps {
     // unreadByAccount maps an account id to its unread message count. An account with no unread mail is
     // absent from the map.
     unreadByAccount: {[accountId: string]: number}
+    // elsewhereCue summarises mail newly arrived on accounts other than the selected one, for the
+    // closed picker's trigger badge.
+    elsewhereCue: ElsewhereCue
     folders: Folder[]
     selectedFolder: string
     onSelectAccount: (id: string) => void
@@ -128,6 +132,7 @@ function SidebarHeader(props: SidebarProps) {
                 selectedAccount={props.selectedAccount}
                 syncingAccountIds={props.syncingAccountIds}
                 unreadByAccount={props.unreadByAccount}
+                elsewhere={props.elsewhereCue}
                 onSelectAccount={props.onSelectAccount}
                 onEditAccount={props.onEditAccount}
                 onDeleteAccount={props.onDeleteAccount}

@@ -165,6 +165,8 @@ type fakeMailStore struct {
 	deleteMessageErr    error
 	unreadByAccount     map[string]int
 	unreadErr           error
+	newestByAccount     map[string]int64
+	newestErr           error
 	bodies              map[string]domain.MessageBody
 	searchResults       []SearchHit
 	searchQuery         domain.SearchQuery
@@ -264,6 +266,13 @@ func (f *fakeMailStore) UnreadByAccount(_ context.Context, _ time.Time) (map[str
 		return nil, f.unreadErr
 	}
 	return f.unreadByAccount, nil
+}
+
+func (f *fakeMailStore) NewestUnreadByAccount(_ context.Context, _ time.Time) (map[string]int64, error) {
+	if f.newestErr != nil {
+		return nil, f.newestErr
+	}
+	return f.newestByAccount, nil
 }
 
 // hiddenAt reports whether a message is hidden by an unexpired snooze at the given instant.

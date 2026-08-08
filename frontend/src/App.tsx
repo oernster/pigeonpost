@@ -62,6 +62,10 @@ import {useEditContext} from './hooks/useEditContext'
 import {useMessageClipboard} from './hooks/useMessageClipboard'
 import {canCopy, canCut, canPaste, copySelection, cutSelection, pasteText} from './editClipboard'
 import {ScheduleDialog} from './components/ScheduleDialog'
+import {
+    elsewhereCue, ensureWatermarks, loadWatermarks, saveWatermarks, touchWatermarks,
+    type Watermarks,
+} from './newMail'
 
 // SELECTED_ACCOUNT_KEY holds the id of the account that was open when the app last closed, so a restart
 // reopens it rather than always falling back to the first account.
@@ -69,7 +73,13 @@ const SELECTED_ACCOUNT_KEY = 'selectedAccount'
 
 function App() {
     const [selectedAccount, setSelectedAccount] = useState<string>('')
-    const [unreadCounts, setUnreadCounts] = useState<UnreadCountsResult>({total: 0, byAccount: {}})
+    const [unreadCounts, setUnreadCounts] = useState<UnreadCountsResult>(
+        {total: 0, byAccount: {}, newestByAccount: {}},
+    )
+    // watermarks records, per account, the last instant it was the selected account. The elsewhere
+    // cue on the account picker lights only for unread mail newer than an account's watermark, so a
+    // standing backlog never lights it; only arrivals since you last looked do.
+    const [watermarks, setWatermarks] = useState<Watermarks>(() => loadWatermarks(localStorage))
     // The coupled core of the mail views (the folder list, the search results, the reader tabs and the
     // active message) lives in one hook, so an action updates a message wherever it appears. The three
     // lists are never split apart.
@@ -338,6 +348,27 @@ function App() {
         void loadUnread()
     }, [loadUnread])
 
+    // Persist the watermarks whenever they change, so "last looked" survives a restart.
+    useEffect(() => {
+        saveWatermarks(localStorage, watermarks)
+    }, [watermarks])
+
+    // Reconcile the watermarks with the account list: an account seen for the first time starts as
+    // looked-at now (its pre-existing backlog must not light the cue) and a removed account's entry
+    // is dropped. ensureWatermarks returns the same object when nothing changed, so this cannot loop.
+    useEffect(() => {
+        setWatermarks((marks) => ensureWatermarks(marks, accounts.map((a) => a.id), Date.now()))
+    }, [accounts])
+
+    // elsewhereMail summarises unread mail newly arrived on the accounts the picker's closed trigger
+    // hides (newer than each account's watermark); the sidebar badges it beside the caret.
+    const elsewhereMail = useMemo(
+        () => elsewhereCue(
+            selectedAccount, unreadCounts.byAccount, unreadCounts.newestByAccount ?? {}, watermarks,
+        ),
+        [selectedAccount, unreadCounts, watermarks],
+    )
+
     // The Edit-menu undo and redo stacks live in useUndoRedo; every action hook below records its
     // completed actions through undoRedo.recorder.
     const undoRedo = useUndoRedo({store, loadUnread, refreshFolders, setError})
@@ -603,6 +634,9 @@ function App() {
     }, [conversationView])
 
     const selectAccount = useCallback(async (id: string) => {
+        // Leaving an account stamps it as looked-at up to this instant and entering one clears its
+        // cue, so the elsewhere badge lights only for mail arriving after you were last there.
+        setWatermarks((marks) => touchWatermarks(marks, [selectedAccountRef.current, id], Date.now()))
         setSelectedAccount(id)
         // Claim the folder list for this account before the fetch, so a slower fetch still running for the
         // account being left cannot land afterwards and put its folders back under the new account's
@@ -1243,6 +1277,7 @@ function App() {
                     onSelectSnoozed={() => void selectFolder(SNOOZED_FOLDER_ID)}
                     syncingAccountIds={syncingAccounts}
                     unreadByAccount={unreadCounts.byAccount}
+                    elsewhereCue={elsewhereMail}
                     folders={sidebarFolders}
                     selectedFolder={selectedFolder}
                     onSelectAccount={(id) => void selectAccount(id)}

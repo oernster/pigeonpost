@@ -68,10 +68,14 @@ type MoveResultDTO struct {
 }
 
 // UnreadCountsDTO is the JSON-serialisable view of unread message counts: the total across every
-// account and the per-account breakdown keyed by account id.
+// account, the per-account breakdown keyed by account id and each account's newest unread message
+// date in Unix milliseconds (absent, like the count, when an account has no unread mail). The front
+// end compares newestByAccount to its per-account "last looked" watermarks to cue mail arriving on
+// accounts other than the selected one.
 type UnreadCountsDTO struct {
-	Total     int            `json:"total"`
-	ByAccount map[string]int `json:"byAccount"`
+	Total           int              `json:"total"`
+	ByAccount       map[string]int   `json:"byAccount"`
+	NewestByAccount map[string]int64 `json:"newestByAccount"`
 }
 
 // AddressDTO is the JSON-serialisable view of one email address with its optional display name.

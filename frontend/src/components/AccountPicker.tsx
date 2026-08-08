@@ -1,11 +1,15 @@
 import {useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent} from 'react'
 import type {Account} from '../api'
+import {elsewhereCueLabel, type ElsewhereCue} from '../newMail'
 
 interface AccountPickerProps {
     accounts: Account[]
     selectedAccount: string
     syncingAccountIds: ReadonlySet<string>
     unreadByAccount: {[accountId: string]: number}
+    // elsewhere summarises mail newly arrived on the accounts the closed picker hides, so the trigger
+    // can cue it without the list being open. Zero accounts means no badge.
+    elsewhere: ElsewhereCue
     onSelectAccount: (id: string) => void
     onEditAccount: (account: Account) => void
     onDeleteAccount: (account: Account) => void
@@ -52,7 +56,7 @@ const optionId = (accountId: string) => `account-option-${accountId}`
 // It stays a single focus-ring stop, as the select was: focus rests on the trigger and never moves into the
 // popup, with Up and Down walking the options from there.
 export function AccountPicker({
-    accounts, selectedAccount, syncingAccountIds, unreadByAccount,
+    accounts, selectedAccount, syncingAccountIds, unreadByAccount, elsewhere,
     onSelectAccount, onEditAccount, onDeleteAccount,
 }: AccountPickerProps) {
     // The active account is the selected one; before the first selection settles the picker shows the
@@ -159,7 +163,10 @@ export function AccountPicker({
                     type="button"
                     className="account-trigger"
                     ref={triggerRef}
-                    aria-label="Active account"
+                    aria-label={
+                        'Active account' +
+                        (elsewhere.accounts > 0 ? `, ${elsewhereCueLabel(elsewhere)}` : '')
+                    }
                     aria-haspopup="listbox"
                     aria-expanded={open}
                     aria-controls={LIST_ID}
@@ -172,6 +179,14 @@ export function AccountPicker({
                         unread={unreadByAccount[active.id] ?? 0}
                         syncing={syncingAccountIds.has(active.id)}
                     />
+                    {/* Outlined rather than filled, matching the folder tree's rolled-up badge: an
+                        outline means "not here", and opening the list gives the per-account
+                        breakdown. */}
+                    {elsewhere.accounts > 0 && (
+                        <span className="badge badge-elsewhere" title={elsewhereCueLabel(elsewhere)}>
+                            {elsewhere.unread}
+                        </span>
+                    )}
                     <span className="account-trigger-caret" aria-hidden="true">{open ? '▴' : '▾'}</span>
                 </button>
                 <span className="account-picker-actions">

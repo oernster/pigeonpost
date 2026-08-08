@@ -31,7 +31,10 @@ local-first. A calmer, more predictable alternative to Thunderbird.
   that merges every inbox into one list, each row dotted with its account's colour; replies from it send
   from the row's own account. Send-as addresses. The accounts section is a dropdown holding the account
   you are in, badged with its unread count; picking an account opens its inbox, including the account you
-  are already in, and the app reopens on the account you left. POP3 downloads into one local mailbox with read
+  are already in, and the app reopens on the account you left. Mail arriving on an account other than
+  the one you are in lights a second, outlined badge on the closed dropdown: it counts only mail newer
+  than your last visit to that account, so a standing backlog never lights it, and opening the dropdown
+  shows which accounts it means. POP3 downloads into one local mailbox with read
   and star marks kept locally.
 - **Mail**: folders and summaries cached to local SQLite and read offline; bodies fetched on open and
   cached. HTML renders faithfully in a sandboxed frame that keeps the sender's own styles while running
