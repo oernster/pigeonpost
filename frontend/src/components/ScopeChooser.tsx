@@ -20,20 +20,22 @@ export function ScopeChooser({title, message, danger, busy, onChoose, onCancel}:
     const choiceClass = 'btn scope-choice' + (danger ? ' danger' : ' primary')
     return (
         <div className="modal-backdrop" {...dismiss}>
-            <div className="modal confirm" role="alertdialog" aria-label={title} onClick={(e) => e.stopPropagation()}>
+            <div className="modal confirm pinned-actions" role="alertdialog" aria-label={title} onClick={(e) => e.stopPropagation()}>
                 <ModalClose onClose={onCancel}/>
                 <h2 className="modal-title">{title}</h2>
-                <p className="confirm-message">{message}</p>
-                <div className="scope-choices">
-                    <button className={choiceClass} disabled={busy} onClick={() => onChoose(EventScope.This)}>
-                        This event
-                    </button>
-                    <button className={choiceClass} disabled={busy} onClick={() => onChoose(EventScope.Future)}>
-                        This and following events
-                    </button>
-                    <button className={choiceClass} disabled={busy} onClick={() => onChoose(EventScope.All)}>
-                        All events
-                    </button>
+                <div className="modal-body">
+                    <p className="confirm-message">{message}</p>
+                    <div className="scope-choices">
+                        <button className={choiceClass} disabled={busy} onClick={() => onChoose(EventScope.This)}>
+                            This event
+                        </button>
+                        <button className={choiceClass} disabled={busy} onClick={() => onChoose(EventScope.Future)}>
+                            This and following events
+                        </button>
+                        <button className={choiceClass} disabled={busy} onClick={() => onChoose(EventScope.All)}>
+                            All events
+                        </button>
+                    </div>
                 </div>
                 <div className="modal-actions spread">
                     <button className="btn" onClick={onCancel} disabled={busy} autoFocus>Cancel</button>

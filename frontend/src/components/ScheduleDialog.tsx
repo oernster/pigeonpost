@@ -26,20 +26,22 @@ export function ScheduleDialog({title, label, confirmLabel, onSubmit, onCancel}:
     }
     return (
         <div className="modal-backdrop" {...dismiss}>
-            <div className="modal" role="dialog" aria-label={title} onClick={(e) => e.stopPropagation()}>
+            <div className="modal pinned-actions" role="dialog" aria-label={title} onClick={(e) => e.stopPropagation()}>
                 <ModalClose onClose={onCancel}/>
                 <h2 className="modal-title">{title}</h2>
-                <div className="field">
-                    <span>{label}</span>
-                    <DateField
-                        kind="datetime-local"
-                        ariaLabel={label}
-                        pickerTitle={label}
-                        value={value}
-                        autoFocus
-                        onChange={setValue}
-                        onEnter={submit}
-                    />
+                <div className="modal-body">
+                    <div className="field">
+                        <span>{label}</span>
+                        <DateField
+                            kind="datetime-local"
+                            ariaLabel={label}
+                            pickerTitle={label}
+                            value={value}
+                            autoFocus
+                            onChange={setValue}
+                            onEnter={submit}
+                        />
+                    </div>
                 </div>
                 <div className="modal-actions spread">
                     <button className="btn" onClick={onCancel}>Cancel</button>

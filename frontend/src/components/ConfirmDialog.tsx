@@ -21,10 +21,12 @@ export function ConfirmDialog({title, message, confirmLabel, onConfirm, onCancel
     const dismiss = useBackdropDismiss(onCancel)
     return (
         <div className="modal-backdrop" {...dismiss}>
-            <div className="modal confirm" role="alertdialog" aria-label={title} onClick={(e) => e.stopPropagation()}>
+            <div className="modal confirm pinned-actions" role="alertdialog" aria-label={title} onClick={(e) => e.stopPropagation()}>
                 <ModalClose onClose={onCancel}/>
                 <h2 className="modal-title">{title}</h2>
-                <p className="confirm-message">{message}</p>
+                <div className="modal-body">
+                    <p className="confirm-message">{message}</p>
+                </div>
                 <div className="modal-actions spread">
                     <button className="btn" onClick={onCancel} disabled={busy} autoFocus={!defaultConfirm}>Cancel</button>
                     <button className="btn danger" onClick={onConfirm} disabled={busy} autoFocus={defaultConfirm}>

@@ -51,41 +51,43 @@ export function MessagePickerDialog({messages, onAttach, onCancel}: MessagePicke
     return (
         <div className="modal-backdrop" {...dismiss}>
             <div
-                className="modal attach-picker"
+                className="modal attach-picker pinned-actions"
                 role="dialog"
                 aria-label="Attach email"
                 onClick={(e) => e.stopPropagation()}
             >
                 <ModalClose onClose={onCancel}/>
                 <h2 className="modal-title">Attach email</h2>
-                <input
-                    className="attach-picker-search"
-                    type="search"
-                    placeholder="Search subject or sender"
-                    aria-label="Search messages"
-                    autoFocus
-                    value={query}
-                    onChange={(e) => setQuery(e.target.value)}
-                />
-                <ul className="attach-picker-list">
-                    {shown.length === 0 ? (
-                        <li className="attach-picker-empty">No messages match.</li>
-                    ) : (
-                        shown.map((m) => (
-                            <li key={m.id} className="attach-picker-item">
-                                <label>
-                                    <input
-                                        type="checkbox"
-                                        checked={selected.has(m.id)}
-                                        onChange={() => toggle(m.id)}
-                                    />
-                                    <span className="attach-picker-subject">{m.subject || '(no subject)'}</span>
-                                    <span className="attach-picker-from">{senderOf(m)}</span>
-                                </label>
-                            </li>
-                        ))
-                    )}
-                </ul>
+                <div className="modal-body">
+                    <input
+                        className="attach-picker-search"
+                        type="search"
+                        placeholder="Search subject or sender"
+                        aria-label="Search messages"
+                        autoFocus
+                        value={query}
+                        onChange={(e) => setQuery(e.target.value)}
+                    />
+                    <ul className="attach-picker-list">
+                        {shown.length === 0 ? (
+                            <li className="attach-picker-empty">No messages match.</li>
+                        ) : (
+                            shown.map((m) => (
+                                <li key={m.id} className="attach-picker-item">
+                                    <label>
+                                        <input
+                                            type="checkbox"
+                                            checked={selected.has(m.id)}
+                                            onChange={() => toggle(m.id)}
+                                        />
+                                        <span className="attach-picker-subject">{m.subject || '(no subject)'}</span>
+                                        <span className="attach-picker-from">{senderOf(m)}</span>
+                                    </label>
+                                </li>
+                            ))
+                        )}
+                    </ul>
+                </div>
                 <div className="modal-actions spread">
                     <button className="btn" onClick={onCancel}>Cancel</button>
                     <button className="btn primary" onClick={confirm} disabled={selected.size === 0}>

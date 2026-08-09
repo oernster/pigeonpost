@@ -260,7 +260,7 @@ export function CalendarModal({events, accountId, accountEmail, accountName, ini
 
     return (
         <div className="modal-backdrop" {...dismiss}>
-            <div className="modal calendar-modal" role="dialog" aria-label="Calendar" onClick={(e) => e.stopPropagation()}>
+            <div className="modal calendar-modal pinned-actions" role="dialog" aria-label="Calendar" onClick={(e) => e.stopPropagation()}>
                 <ModalClose onClose={onClose}/>
                 <h2 className="modal-title">Calendar</h2>
                 {error && <div className="compose-error">{error}</div>}
@@ -286,6 +286,7 @@ export function CalendarModal({events, accountId, accountEmail, accountName, ini
                     <button className="btn" onClick={() => void doExport()} disabled={events.length === 0}>Export ICS</button>
                 </div>
 
+                <div className="modal-body">
                 {viewMode === 'month' ? (
                     <div className="cal-grid">
                         {WEEKDAYS.map((w) => (<div key={w} className="cal-weekday">{w}</div>))}
@@ -355,6 +356,7 @@ export function CalendarModal({events, accountId, accountEmail, accountName, ini
                     />
                 )}
 
+                </div>
                 <div className="modal-actions spread">
                     <button className="btn" onClick={onClose}>Close</button>
                     <button className="btn primary" onClick={() => openNew(new Date())}>New event</button>

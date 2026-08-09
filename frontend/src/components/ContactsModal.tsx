@@ -256,7 +256,7 @@ export function ContactsModal({contacts, onChanged, onClose}: ContactsModalProps
 
     return (
         <div className="modal-backdrop" {...dismiss}>
-            <div className="modal contacts" role="dialog" aria-label="Contacts" onClick={(e) => e.stopPropagation()}>
+            <div className="modal contacts pinned-actions" role="dialog" aria-label="Contacts" onClick={(e) => e.stopPropagation()}>
                 <ModalClose onClose={onClose}/>
                 <h2 className="modal-title">Contacts</h2>
                 <p className="setup-hint">Your address book. Import and export use vCard or CSV, so contacts
@@ -283,6 +283,7 @@ export function ContactsModal({contacts, onChanged, onClose}: ContactsModalProps
                     <button className="btn primary" onClick={() => openContact(null)}>New contact</button>
                 </div>
 
+                <div className="modal-body">
                 <div className="cg-bar">
                     <button className={'cg-chip' + (groupFilter === '' ? ' active' : '')}
                             onClick={() => setGroupFilter('')}>
@@ -461,6 +462,7 @@ export function ContactsModal({contacts, onChanged, onClose}: ContactsModalProps
                         <button className="btn" onClick={onClose}>Close</button>
                     </div>
                 )}
+                </div>
             </div>
 
             {pendingDelete && (

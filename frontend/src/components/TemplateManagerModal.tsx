@@ -83,9 +83,10 @@ export function TemplateManagerModal({templates, onChanged, onClose}: TemplateMa
 
     return (
         <div className="modal-backdrop" {...dismiss}>
-            <div className="modal" role="dialog" aria-label="Message templates" onClick={(e) => e.stopPropagation()}>
+            <div className="modal pinned-actions" role="dialog" aria-label="Message templates" onClick={(e) => e.stopPropagation()}>
                 <ModalClose onClose={onClose}/>
                 <h2 className="modal-title">Message templates</h2>
+                <div className="modal-body">
                 <p className="setup-hint">Templates are reusable subjects and bodies you insert while composing.</p>
                 {error && <div className="compose-error">{error}</div>}
                 {templates.length === 0 ? (
@@ -133,6 +134,7 @@ export function TemplateManagerModal({templates, onChanged, onClose}: TemplateMa
                         onChange={(e) => setSubject(e.target.value)}
                     />
                     <RichTextField editor={editor}/>
+                </div>
                 </div>
                 <div className="modal-actions spread">
                     <button className="btn" onClick={editingId ? reset : onClose}>

@@ -20,22 +20,24 @@ export function ProviderChooser({
     const dismiss = useBackdropDismiss(onClose)
     return (
         <div className="modal-backdrop" {...dismiss}>
-            <div className="modal setup" role="dialog" aria-label="Add account" onClick={(e) => e.stopPropagation()}>
+            <div className="modal setup pinned-actions" role="dialog" aria-label="Add account" onClick={(e) => e.stopPropagation()}>
                 <ModalClose onClose={onClose}/>
                 <h2 className="modal-title">Add account</h2>
-                <p className="setup-hint">Choose your email provider, or set the servers up yourself.</p>
-                {error && <div className="compose-error">{error}</div>}
-                <div className="provider-grid">
-                    <button className="provider-btn" onClick={onChooseMicrosoft} disabled={busy}>
-                        Microsoft
-                    </button>
-                    {PROVIDERS.map((p) => (
-                        <button key={p.id} className="provider-btn" onClick={() => onChooseProvider(p)} disabled={busy}>
-                            {p.name}
+                <div className="modal-body">
+                    <p className="setup-hint">Choose your email provider, or set the servers up yourself.</p>
+                    {error && <div className="compose-error">{error}</div>}
+                    <div className="provider-grid">
+                        <button className="provider-btn" onClick={onChooseMicrosoft} disabled={busy}>
+                            Microsoft
                         </button>
-                    ))}
+                        {PROVIDERS.map((p) => (
+                            <button key={p.id} className="provider-btn" onClick={() => onChooseProvider(p)} disabled={busy}>
+                                {p.name}
+                            </button>
+                        ))}
+                    </div>
+                    <button className="btn manual-btn" onClick={onChooseManual} disabled={busy}>Set up manually (other provider)</button>
                 </div>
-                <button className="btn manual-btn" onClick={onChooseManual} disabled={busy}>Set up manually (other provider)</button>
                 <div className="modal-actions">
                     <button className="btn" onClick={onClose} disabled={busy}>Cancel</button>
                 </div>

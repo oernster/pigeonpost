@@ -59,9 +59,10 @@ export function RuleManagerModal({rules, onChanged, onClose}: RuleManagerModalPr
 
     return (
         <div className="modal-backdrop" {...dismiss}>
-            <div className="modal" role="dialog" aria-label="Filter rules" onClick={(e) => e.stopPropagation()}>
+            <div className="modal pinned-actions" role="dialog" aria-label="Filter rules" onClick={(e) => e.stopPropagation()}>
                 <ModalClose onClose={onClose}/>
                 <h2 className="modal-title">Filter rules</h2>
+                <div className="modal-body">
                 <p className="setup-hint">Rules run on each sync. When a message matches, its action is applied.</p>
                 {error && <div className="compose-error">{error}</div>}
                 {rules.length === 0 ? (
@@ -129,6 +130,7 @@ export function RuleManagerModal({rules, onChanged, onClose}: RuleManagerModalPr
                             <option value="flag">Flag</option>
                         </select>
                     </div>
+                </div>
                 </div>
                 <div className="modal-actions spread">
                     <button className="btn" onClick={onClose}>Close</button>

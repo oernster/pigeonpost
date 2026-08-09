@@ -14,13 +14,15 @@ export interface DraftRecoveryDialogProps {
 export function DraftRecoveryDialog({recovery, setRecovery, discardDraft, restoreDraft}: DraftRecoveryDialogProps) {
     return (
         <div className="modal-backdrop" onClick={() => setRecovery(null)}>
-            <div className="modal confirm" role="alertdialog" aria-label="Restore unsent message"
+            <div className="modal confirm pinned-actions" role="alertdialog" aria-label="Restore unsent message"
                  onClick={(e) => e.stopPropagation()}>
                 <h2 className="modal-title">Restore unsent message?</h2>
+                <div className="modal-body">
                 <p className="confirm-message">
                     An unsent message{recovery.subject.trim() ? ` "${recovery.subject.trim()}"` : ''} was
                     left open when PigeonPost last closed. Restore it to keep writing, or discard it.
                 </p>
+                </div>
                 <div className="modal-actions spread">
                     <button className="btn danger" onClick={discardDraft}>Discard</button>
                     <button className="btn primary" onClick={restoreDraft} autoFocus>Restore</button>

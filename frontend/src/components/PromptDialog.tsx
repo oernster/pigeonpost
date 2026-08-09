@@ -25,24 +25,26 @@ export function PromptDialog({title, label, initialValue, confirmLabel, onSubmit
     }
     return (
         <div className="modal-backdrop" {...dismiss}>
-            <div className="modal" role="dialog" aria-label={title} onClick={(e) => e.stopPropagation()}>
+            <div className="modal pinned-actions" role="dialog" aria-label={title} onClick={(e) => e.stopPropagation()}>
                 <ModalClose onClose={onCancel}/>
                 <h2 className="modal-title">{title}</h2>
-                <label className="field">
-                    <span>{label}</span>
-                    <input
-                        value={value}
-                        autoFocus
-                        disabled={busy}
-                        onChange={(e) => setValue(e.target.value)}
-                        onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                                e.preventDefault()
-                                submit()
-                            }
-                        }}
-                    />
-                </label>
+                <div className="modal-body">
+                    <label className="field">
+                        <span>{label}</span>
+                        <input
+                            value={value}
+                            autoFocus
+                            disabled={busy}
+                            onChange={(e) => setValue(e.target.value)}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                    e.preventDefault()
+                                    submit()
+                                }
+                            }}
+                        />
+                    </label>
+                </div>
                 <div className="modal-actions spread">
                     <button className="btn" onClick={onCancel} disabled={busy}>Cancel</button>
                     <button className="btn primary" onClick={submit} disabled={busy || value.trim() === ''}>

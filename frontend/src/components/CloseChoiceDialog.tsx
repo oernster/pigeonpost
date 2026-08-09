@@ -21,17 +21,19 @@ export function CloseChoiceDialog({onMinimise, onQuit, onCancel}: CloseChoiceDia
     const [workOpen] = useState(() => document.querySelector('.modal') !== null)
     return (
         <div className="modal-backdrop top" {...dismiss}>
-            <div className="modal confirm" role="alertdialog" aria-label="Close PigeonPost"
+            <div className="modal confirm pinned-actions" role="alertdialog" aria-label="Close PigeonPost"
                  onClick={(e) => e.stopPropagation()}>
                 <ModalClose onClose={onCancel}/>
                 <h2 className="modal-title">Close PigeonPost</h2>
-                <p className="confirm-message">Keep PigeonPost running in the system tray, or quit the
-                    application? While it runs in the tray, reminders and new mail keep coming through.</p>
-                {workOpen && (
-                    <p className="confirm-message close-work-warning">A window you were working in is
-                        still open and anything unsaved in it may be lost if you quit. Go back to finish
-                        or save it first.</p>
-                )}
+                <div className="modal-body">
+                    <p className="confirm-message">Keep PigeonPost running in the system tray, or quit the
+                        application? While it runs in the tray, reminders and new mail keep coming through.</p>
+                    {workOpen && (
+                        <p className="confirm-message close-work-warning">A window you were working in is
+                            still open and anything unsaved in it may be lost if you quit. Go back to finish
+                            or save it first.</p>
+                    )}
+                </div>
                 <div className="modal-actions spread">
                     <button className="btn" onClick={onQuit}>Quit</button>
                     <div className="action-group">

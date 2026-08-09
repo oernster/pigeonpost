@@ -37,35 +37,37 @@ export function DatePickerDialog({title, value, min, onPick, onClose}: DatePicke
 
     return (
         <div className="modal-backdrop" {...dismiss}>
-            <div className="modal datepick" role="dialog" aria-label={title} onClick={(e) => e.stopPropagation()}>
+            <div className="modal datepick pinned-actions" role="dialog" aria-label={title} onClick={(e) => e.stopPropagation()}>
                 <ModalClose onClose={onClose}/>
                 <h2 className="modal-title">{title}</h2>
-                <div className="datepick-head">
-                    <button type="button" className="btn" aria-label="Previous month"
-                            onClick={() => setPage((p) => addMonths(p, -1))}>&#8249;</button>
-                    <span className="datepick-label" aria-live="polite">{monthLabel(page)}</span>
-                    <button type="button" className="btn" aria-label="Next month"
-                            onClick={() => setPage((p) => addMonths(p, 1))}>&#8250;</button>
-                </div>
-                <div className="datepick-grid" role="grid" aria-label={monthLabel(page)}>
-                    {WEEKDAY_LABELS.map((label) => (
-                        <span key={label} className="datepick-weekday" aria-hidden="true">{label}</span>
-                    ))}
-                    {monthGrid(page).flat().map((cell) => (
-                        <button
-                            key={cell.iso}
-                            type="button"
-                            className={'datepick-day' +
-                                (cell.inMonth ? '' : ' out') +
-                                (cell.iso === value ? ' selected' : '') +
-                                (cell.iso === todayISO ? ' today' : '')}
-                            disabled={beforeMin(cell.iso, min)}
-                            aria-label={cell.iso}
-                            onClick={() => pick(cell.iso)}
-                        >
-                            {cell.day}
-                        </button>
-                    ))}
+                <div className="modal-body">
+                    <div className="datepick-head">
+                        <button type="button" className="btn" aria-label="Previous month"
+                                onClick={() => setPage((p) => addMonths(p, -1))}>&#8249;</button>
+                        <span className="datepick-label" aria-live="polite">{monthLabel(page)}</span>
+                        <button type="button" className="btn" aria-label="Next month"
+                                onClick={() => setPage((p) => addMonths(p, 1))}>&#8250;</button>
+                    </div>
+                    <div className="datepick-grid" role="grid" aria-label={monthLabel(page)}>
+                        {WEEKDAY_LABELS.map((label) => (
+                            <span key={label} className="datepick-weekday" aria-hidden="true">{label}</span>
+                        ))}
+                        {monthGrid(page).flat().map((cell) => (
+                            <button
+                                key={cell.iso}
+                                type="button"
+                                className={'datepick-day' +
+                                    (cell.inMonth ? '' : ' out') +
+                                    (cell.iso === value ? ' selected' : '') +
+                                    (cell.iso === todayISO ? ' today' : '')}
+                                disabled={beforeMin(cell.iso, min)}
+                                aria-label={cell.iso}
+                                onClick={() => pick(cell.iso)}
+                            >
+                                {cell.day}
+                            </button>
+                        ))}
+                    </div>
                 </div>
                 <div className="modal-actions spread">
                     <button type="button" className="btn" onClick={onClose}>Cancel</button>

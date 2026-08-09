@@ -199,7 +199,13 @@
     overflow-y: auto;
 }
 
-.modal.pinned-actions .modal-actions {
+/* Everything that is not the body is fixed furniture: the title, an intro hint, a toolbar above the
+   body (Calendar, Contacts) or the action row below it. None of them may grow or shrink, so the body
+   is the only thing that scrolls and the furniture cannot be squashed on a short window. Stated as
+   one rule rather than one per element, so a dialog that adds a header does not need a new rule.
+   `.licence-text` is excluded by name because it is a scroller in its own right (see below), and
+   naming it here rather than relying on source order means the two rules cannot fight. */
+.modal.pinned-actions > *:not(.modal-body):not(.licence-text) {
     flex: none;
 }
 

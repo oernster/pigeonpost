@@ -2,15 +2,11 @@
 
 A standing reference to the project's outstanding technical debt. It records what is still open, weighs whether each item is worth doing and gives the rationale. Every item is a behaviour-preserving internal refactor: nothing here proposes reverting a feature or changing any UI or UX behaviour. Scope is the whole repository (the Go core plus the React front end), read against the documented design and the structural tests.
 
+**There is no open technical debt.** The sections below are the standing record of what was weighed and deliberately left alone, so the same ground is not covered again. They carry no numbers, because a number here means an open item and a numbered heading that was not one made this file read as three open items when it held one.
+
 ---
 
-## 1. Most modal dialogs still scroll their action row out of sight
-
-The base `.modal` rule is `max-height: calc(100vh - 60px)` with `overflow-y: auto`, so any dialog taller than the window scrolls as one block and takes its buttons with it. The reader's About and Licence dialogs now use the `.modal.pinned-actions` layout instead (a flex column whose inner body is the scroller, the action row pinned beneath it), which is the shape the rest should converge on. Eighteen dialogs still do not: the account details form, the CalDAV and calendars managers, the calendar and event-form modals, the close-choice, confirm, prompt, date-picker, draft-recovery, message-picker, provider-chooser and scope-chooser dialogs, compose, contacts, the rule and template managers and the schedule dialog.
-
-It is left open rather than swept in one pass because the change is not purely mechanical: each dialog has to decide what belongs above the fold and what scrolls, and several are short enough that the question never arises in practice. The cost of leaving it is an inconsistency the user meets only on a small screen, and the fix per dialog is adding the class and wrapping the body.
-
-## 2. Looks like debt, not worth touching
+## Looks like debt, not worth touching
 
 - The `application.MailSource.FetchBody` four-value return `(plain, html, invite, attachments, err)` could be reshaped into a body struct to save the destructure-and-re-thread; a four-value return is idiomatic Go and the port shape is fine as it stands, so it is left.
 - The three enum parsers (`ParseRole`, `ParseParticipationStatus`, `ParseMethod`) look triplicated but differ in empty-handling (only `ParseMethod` treats an empty string as invalid), so a generic helper would need special-casing that trades three clear functions for a fiddlier abstraction.
@@ -18,7 +14,7 @@ It is left open rather than swept in one pass because the change is not purely m
 - The domain `calendar_passthrough` trim guard would change validation for whitespace-only input, so it is a behaviour decision rather than a refactor; it stays unless that behaviour change is intended.
 - The remaining discretionary nits: the domain slice-copy idioms and the `close` builtin shadow; the `MailStore` 17-method interface (a cohesive local-cache abstraction worth revisiting only if it grows); the codec-level clones (`generatedID` and `locationOf` across `ics`, `vcard`, `csv` and `recurrence`, whose dedup would couple otherwise-independent packages); the `csv` `[3]` phone-slot literal; the `schema`/`migrations` split; and the installer and genicons cosmetic nits.
 
-## 3. Intentionally left: groupByFolder for DeleteMany / MoveMany
+## Intentionally left: groupByFolder for DeleteMany / MoveMany
 
 `DeleteMany` and `MoveMany` share batch-by-folder scaffolding. A shared helper looks tempting but is ruled out: collapsing them would change error aggregation from one-per-folder to one overall, an observable behaviour change.
 

@@ -27,35 +27,41 @@ export function CalendarsManager({
     return (
         <>
             <div className="modal-backdrop">
-                <div className="modal event-form" role="dialog" aria-label="Calendars"
+                <div className="modal event-form pinned-actions" role="dialog" aria-label="Calendars"
                      onClick={(e) => e.stopPropagation()}>
                     <ModalClose onClose={onClose}/>
                     <h2 className="modal-title">Calendars</h2>
-                    <p className="setup-hint">Calendars group your events and colour them across every view.</p>
-                    <div className="cg-bar">
-                        {calendars.map((c) => (
-                            <button key={c.id} className="cg-chip"
-                                    onClick={() => setCalForm({id: c.id, name: c.name, colour: c.colour || DEFAULT_EVENT_COLOUR})}>
-                                <span className="cal-swatch" style={{background: c.colour || DEFAULT_EVENT_COLOUR}}/>
-                                {c.name}
+                    <div className="modal-body">
+                        <p className="setup-hint">Calendars group your events and colour them across every view.</p>
+                        <div className="cg-bar">
+                            {calendars.map((c) => (
+                                <button key={c.id} className="cg-chip"
+                                        onClick={() => setCalForm({id: c.id, name: c.name, colour: c.colour || DEFAULT_EVENT_COLOUR})}>
+                                    <span className="cal-swatch" style={{background: c.colour || DEFAULT_EVENT_COLOUR}}/>
+                                    {c.name}
+                                </button>
+                            ))}
+                            <button className="cg-chip"
+                                    onClick={() => setCalForm({id: '', name: '', colour: DEFAULT_EVENT_COLOUR})}>
+                                + New calendar
                             </button>
-                        ))}
-                        <button className="cg-chip"
-                                onClick={() => setCalForm({id: '', name: '', colour: DEFAULT_EVENT_COLOUR})}>
-                            + New calendar
-                        </button>
-                    </div>
-                    {calForm && (
-                        <div className="rule-form">
-                            <div className="rule-form-row">
-                                <input type="color" className="cal-colour" aria-label="Calendar colour"
-                                       value={calForm.colour}
-                                       onChange={(e) => setCalForm((cf) => cf ? {...cf, colour: e.target.value} : cf)}/>
-                                <input className="tag-name-input" placeholder="Calendar name" value={calForm.name}
-                                       autoFocus
-                                       onChange={(e) => setCalForm((cf) => cf ? {...cf, name: e.target.value} : cf)}/>
+                        </div>
+                        {calForm && (
+                            <div className="rule-form">
+                                <div className="rule-form-row">
+                                    <input type="color" className="cal-colour" aria-label="Calendar colour"
+                                           value={calForm.colour}
+                                           onChange={(e) => setCalForm((cf) => cf ? {...cf, colour: e.target.value} : cf)}/>
+                                    <input className="tag-name-input" placeholder="Calendar name" value={calForm.name}
+                                           autoFocus
+                                           onChange={(e) => setCalForm((cf) => cf ? {...cf, name: e.target.value} : cf)}/>
+                                </div>
                             </div>
-                            <div className="modal-actions spread">
+                        )}
+                    </div>
+                    <div className="modal-actions spread">
+                        {calForm ? (
+                            <>
                                 <span>
                                     {calForm.id && (
                                         <button className="btn danger" onClick={() => {
@@ -71,14 +77,11 @@ export function CalendarsManager({
                                         {busy ? 'Saving…' : (calForm.id ? 'Save calendar' : 'Add calendar')}
                                     </button>
                                 </span>
-                            </div>
-                        </div>
-                    )}
-                    {!calForm && (
-                        <div className="modal-actions spread">
+                            </>
+                        ) : (
                             <button className="btn" onClick={onClose}>Done</button>
-                        </div>
-                    )}
+                        )}
+                    </div>
                 </div>
             </div>
 

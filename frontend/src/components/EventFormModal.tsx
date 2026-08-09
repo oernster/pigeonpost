@@ -341,10 +341,11 @@ export function EventFormModal({
     return (
         <>
             <div className="modal-backdrop">
-                <div className="modal event-form" role="dialog"
+                <div className="modal event-form pinned-actions" role="dialog"
                      aria-label={form.id ? 'Edit event' : 'New event'} onClick={(e) => e.stopPropagation()}>
                     <ModalClose onClose={() => setForm(null)}/>
                     <h2 className="modal-title">{form.id ? 'Edit event' : 'New event'}</h2>
+                    <div className="modal-body">
                     <div className="rule-form">
                         <input className="tag-name-input" placeholder="Event title" value={form.summary} autoFocus
                                onChange={(e) => set('summary', e.target.value)}/>
@@ -501,6 +502,7 @@ export function EventFormModal({
                         {(error || status) && (
                             <div className={error ? 'compose-error' : 'setup-hint'}>{error || status}</div>
                         )}
+                    </div>
                         <div className="modal-actions spread">
                             <span>
                                 {form.id && (

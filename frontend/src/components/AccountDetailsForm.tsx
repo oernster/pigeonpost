@@ -99,11 +99,12 @@ export function AccountDetailsForm({form, onClose}: AccountDetailsFormProps) {
 
     return (
         <div className="modal-backdrop" {...dismiss}>
-            <div className="modal setup" role="dialog" aria-label={editing ? 'Edit account' : 'Add account'} onClick={(e) => e.stopPropagation()}>
+            <div className="modal setup pinned-actions" role="dialog" aria-label={editing ? 'Edit account' : 'Add account'} onClick={(e) => e.stopPropagation()}>
                 <ModalClose onClose={onClose}/>
                 <h2 className="modal-title">
                     {editing ? 'Edit account' : msAdd ? 'Add Microsoft' : provider ? `Add ${provider.name}` : 'Add account'}
                 </h2>
+                <div className="modal-body">
                 {oauthMode ? (
                     <p className="setup-hint">
                         {msAdd
@@ -203,6 +204,7 @@ export function AccountDetailsForm({form, onClose}: AccountDetailsFormProps) {
                     </>
                 )}
 
+                </div>
                 <div className="modal-actions spread">
                     {editing ? (
                         <button className="btn" onClick={onClose} disabled={saving}>Cancel</button>

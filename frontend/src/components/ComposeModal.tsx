@@ -422,7 +422,7 @@ export function ComposeModal({accountId, senders, initial, canSaveDraft, onMarkR
 
     return (
         <div className="modal-backdrop" {...dismiss}>
-            <div className="modal compose" role="dialog" aria-label="New message" onClick={(e) => e.stopPropagation()}
+            <div className="modal compose pinned-actions" role="dialog" aria-label="New message" onClick={(e) => e.stopPropagation()}
                  onDragOver={(e) => e.preventDefault()}
                  onDrop={(e) => {
                      // Files dropped anywhere on the compose window follow the intake rule (images
@@ -445,6 +445,7 @@ export function ComposeModal({accountId, senders, initial, canSaveDraft, onMarkR
                  }}>
                 <ModalClose onClose={requestClose}/>
                 <h2 className="modal-title">New message</h2>
+                <div className="modal-body">
                 {error && <div className="compose-error">{error}</div>}
                 {correction.pending && (
                     <div className="compose-correction">
@@ -648,6 +649,7 @@ export function ComposeModal({accountId, senders, initial, canSaveDraft, onMarkR
                         </div>
                     </div>
                 )}
+                </div>
                 <div className="modal-actions spread">
                     <button className="btn" onClick={requestClose} disabled={sending || savingDraft}>Cancel</button>
                     <div className="compose-send-group">
