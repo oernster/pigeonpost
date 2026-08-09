@@ -69,6 +69,7 @@ type App struct {
 	body          *application.MessageBodyService
 	actions       *application.MessageActionService
 	folders       *application.FolderService
+	folderUIState *application.FolderUIStateService
 	rules         *application.RuleService
 	templates     *application.TemplateService
 	contacts      *application.ContactService
@@ -99,6 +100,7 @@ func NewApp(
 	body *application.MessageBodyService,
 	actions *application.MessageActionService,
 	folders *application.FolderService,
+	folderUIState *application.FolderUIStateService,
 	rules *application.RuleService,
 	templates *application.TemplateService,
 	contacts *application.ContactService,
@@ -109,33 +111,34 @@ func NewApp(
 	caldav *application.CalDAVService,
 ) *App {
 	return &App{
-		closer:       closer,
-		notifier:     notifier,
-		alerter:      alerter,
-		tray:         tray,
-		watcher:      watcher,
-		watchers:     make(map[string]context.CancelFunc),
-		accounts:     accounts,
-		setup:        setup,
-		msSetup:      microsoftSetup,
-		mailbox:      mailbox,
-		unified:      unified,
-		snooze:       snooze,
-		sync:         sync,
-		compose:      compose,
-		tags:         tags,
-		tagSync:      tagSync,
-		body:         body,
-		actions:      actions,
-		folders:      folders,
-		rules:        rules,
-		templates:    templates,
-		contacts:     contacts,
-		calendar:     calendar,
-		calendarEdit: calendarEdit,
-		scheduling:   scheduling,
-		remoteImages: remoteImages,
-		caldav:       caldav,
+		closer:        closer,
+		notifier:      notifier,
+		alerter:       alerter,
+		tray:          tray,
+		watcher:       watcher,
+		watchers:      make(map[string]context.CancelFunc),
+		accounts:      accounts,
+		setup:         setup,
+		msSetup:       microsoftSetup,
+		mailbox:       mailbox,
+		unified:       unified,
+		snooze:        snooze,
+		sync:          sync,
+		compose:       compose,
+		tags:          tags,
+		tagSync:       tagSync,
+		body:          body,
+		actions:       actions,
+		folders:       folders,
+		folderUIState: folderUIState,
+		rules:         rules,
+		templates:     templates,
+		contacts:      contacts,
+		calendar:      calendar,
+		calendarEdit:  calendarEdit,
+		scheduling:    scheduling,
+		remoteImages:  remoteImages,
+		caldav:        caldav,
 	}
 }
 

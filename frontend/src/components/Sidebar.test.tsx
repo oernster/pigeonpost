@@ -3,20 +3,35 @@
 // fired and what was written to localStorage. The interface it pins does not move as the sidebar is
 // decomposed in Phase 2 (the persisted collapsed and order state, the account picker and the folder-tree
 // drop split are lifted out beneath these same props), so this suite staying green is
-// the proof each extraction preserved behaviour. The sidebar makes no api calls, so nothing is mocked; the
-// drag math is exercised through the real sidebarDnd and folderPaths modules.
+// the proof each extraction preserved behaviour. The persisted folder state's durable home is the backend
+// database (so it survives an application update) with localStorage as its warm cache; the two backend
+// calls are mocked as benign no-ops below and the restore, write-through and migration tests assert
+// against those mocks. The drag math is exercised through the real sidebarDnd and folderPaths modules.
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 import {act, cleanup, fireEvent, render, waitFor, within} from '@testing-library/react'
 import type {ComponentProps} from 'react'
 import {Sidebar} from './Sidebar'
-import type {Account, Folder} from '../api'
+import {api, type Account, type Folder} from '../api'
 import {folderDragType} from '../sidebarDnd'
 import {messageDragType} from './MessageList'
 
+vi.mock('../api', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('../api')>()
+    return {
+        ...actual,
+        api: {
+            ...actual.api,
+            folderUIState: vi.fn().mockResolvedValue({order: [], collapsed: []}),
+            saveFolderUIState: vi.fn().mockResolvedValue(undefined),
+        },
+    }
+})
+
 type SidebarProps = ComponentProps<typeof Sidebar>
 
-// These mirror the sidebar's private localStorage keys. They are part of the persisted contract (the state
-// that survives a restart), so pinning the exact keys is deliberate: a change here is a behaviour change.
+// These mirror the sidebar's private localStorage keys: the warm cache of the folder display state whose
+// durable home is the backend store. They remain part of the persisted contract (the cache is what renders
+// on the first paint), so pinning the exact keys is deliberate: a change here is a behaviour change.
 const collapseKey = (accountId: string) => `pigeonpost.collapsed.${accountId}`
 const folderOrderKey = (accountId: string) => `pigeonpost.folderorder.${accountId}`
 
@@ -97,7 +112,12 @@ function renderSidebar(overrides: Partial<SidebarProps> = {}) {
     return {...view, ...handlers, accountTrigger, accountOptions, accountOptionLabels, folderRow}
 }
 
-beforeEach(() => localStorage.clear())
+beforeEach(() => {
+    localStorage.clear()
+    // Clears recorded calls on the module-level api mocks (their benign resolved implementations are
+    // kept), so each test asserts only its own backend traffic.
+    vi.clearAllMocks()
+})
 afterEach(() => cleanup())
 
 describe('Sidebar: shell', () => {
@@ -492,6 +512,47 @@ describe('Sidebar: folder drag and drop', () => {
         dropOn(folderRow('work')!, makeDataTransfer({[folderDragType]: 'personal'}), 10)
         expect(onReparentFolder).not.toHaveBeenCalled()
         expect(localStorage.getItem(folderOrderKey('a1'))).toBe('["Work","Personal"]')
+    })
+
+    it('mirrors a reorder to the backend store, sending the full state', async () => {
+        const {folderRow} = renderSidebar({folders: siblings})
+        dropOn(folderRow('work')!, makeDataTransfer({[folderDragType]: 'personal'}), 10)
+        await waitFor(() => {
+            expect(api.saveFolderUIState).toHaveBeenCalledWith('a1', ['Work', 'Personal'], [])
+        })
+    })
+
+    it('mirrors a collapse to the backend store, sending the full state', async () => {
+        const {getByLabelText} = renderSidebar({folders: siblings.concat(makeFolder('reports', 'Work/Reports', 'custom'))})
+        fireEvent.click(getByLabelText('Collapse Work'))
+        await waitFor(() => {
+            expect(api.saveFolderUIState).toHaveBeenCalledWith('a1', [], ['Work'])
+        })
+    })
+
+    // The first launch after an application update: the WebView profile (and with it localStorage) has
+    // been wiped while the backend row survived. The tree restores from it and re-warms the cache.
+    it('restores order and collapse from the backend when localStorage is empty', async () => {
+        vi.mocked(api.folderUIState).mockResolvedValueOnce({order: ['Personal', 'Work'], collapsed: ['Work']})
+        const {folderRow, container} = renderSidebar({
+            folders: siblings.concat(makeFolder('reports', 'Work/Reports', 'custom')),
+        })
+        await waitFor(() => expect(folderRow('reports')).toBeNull())
+        const rows = Array.from(container.querySelectorAll<HTMLElement>('[data-folder-id]'))
+        expect(rows.map((r) => r.getAttribute('data-folder-id'))).toEqual(['personal', 'work'])
+        expect(localStorage.getItem(folderOrderKey('a1'))).toBe('["Personal","Work"]')
+        expect(localStorage.getItem(collapseKey('a1'))).toBe('["Work"]')
+    })
+
+    // The first launch after this feature shipped: the state exists only in localStorage. It is pushed
+    // up to the backend once, so the next application update cannot lose it.
+    it('migrates cached-only state up to the backend', async () => {
+        localStorage.setItem(folderOrderKey('a1'), '["Personal","Work"]')
+        localStorage.setItem(collapseKey('a1'), '["Work"]')
+        renderSidebar({folders: siblings})
+        await waitFor(() => {
+            expect(api.saveFolderUIState).toHaveBeenCalledWith('a1', ['Personal', 'Work'], ['Work'])
+        })
     })
 })
 

@@ -57,6 +57,7 @@ import {defaultUndoSendSeconds, undoSendChoices, useMenus} from './hooks/useMenu
 import {useMessageListKeyboard} from './hooks/useMessageListKeyboard'
 import {usePaneWidths} from './hooks/usePaneWidths'
 import {useFolderPagination} from './hooks/useFolderPagination'
+import {isTypingTarget, useIdleRefocus} from './hooks/useIdleRefocus'
 import {useSnooze} from './hooks/useSnooze'
 import {useUndoRedo} from './hooks/useUndoRedo'
 import {useEditContext} from './hooks/useEditContext'
@@ -125,6 +126,24 @@ function App() {
         accountToDelete, setAccountToDelete, deleting,
         loadAccounts, removeAccount,
     } = useAccounts({selectedAccount, setSelectedAccount, store, setFolders, setSelectedFolder, setError})
+    // After a stretch of no user activity, keyboard focus returns to its resting place: the active
+    // account's Inbox row in the sidebar. Only the focus moves; the selected folder, the message list
+    // and the reader are untouched. Skipped while any dialog or menu is open (they own their focus)
+    // and while the caret sits in a text field (a pause mid-entry must not lose the caret).
+    const refocusInboxRow = useCallback(() => {
+        if (document.querySelector('.modal-backdrop, .context-menu, [role="menu"]')) {
+            return
+        }
+        if (isTypingTarget(document.activeElement)) {
+            return
+        }
+        const inbox = folders.find((f) => f.kind === 'inbox')
+        if (!inbox) {
+            return
+        }
+        document.querySelector<HTMLElement>(`[data-folder-id="${CSS.escape(inbox.id)}"]`)?.focus()
+    }, [folders])
+    useIdleRefocus(refocusInboxRow)
     const [theme, setTheme] = useState<Theme>(loadTheme())
     const [about, setAbout] = useState<AboutInfo | null>(null)
     const [licence, setLicence] = useState<string | null>(null)

@@ -121,6 +121,10 @@ func run() error {
 	remoteImageService := application.NewRemoteImageService(remoteimage.NewResolver())
 	actionService := application.NewMessageActionService(store, store, mailSource)
 	folderService := application.NewFolderService(store, store, imapSource, imapSource)
+	// The folder display state (custom-folder order, collapsed folders) persists in the database rather
+	// than the WebView's localStorage, so it survives an application update (the installer treats the
+	// WebView profile as disposable but preserves the database).
+	folderUIStateService := application.NewFolderUIStateService(store)
 	ruleService := application.NewRuleService(store, newRuleID)
 	templateService := application.NewTemplateService(store, newTemplateID)
 	contactService := application.NewContactService(store, newContactID)
@@ -158,7 +162,7 @@ func run() error {
 	// rather than waiting for the poll; it authenticates through the same keychain vault as fetches.
 	watcher := imap.NewWatcher(vault, tokenManager)
 
-	app = NewApp(store.Close, overlay, flasher, tray, watcher, accountService, setupService, microsoftSetupService, mailboxService, unifiedService, snoozeService, syncService, composeService, tagService, tagSyncService, bodyService, actionService, folderService, ruleService, templateService, contactService, calendarService, calendarEditService, schedulingService, remoteImageService, caldavService)
+	app = NewApp(store.Close, overlay, flasher, tray, watcher, accountService, setupService, microsoftSetupService, mailboxService, unifiedService, snoozeService, syncService, composeService, tagService, tagSyncService, bodyService, actionService, folderService, folderUIStateService, ruleService, templateService, contactService, calendarService, calendarEditService, schedulingService, remoteImageService, caldavService)
 	app.title = windowTitle
 
 	err = wails.Run(&options.App{

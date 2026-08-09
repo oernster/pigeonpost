@@ -45,6 +45,8 @@ import {
     DeleteTemplate,
     ExportContactsToFile,
     ExportEventsToFile,
+    FolderUIState,
+    SaveFolderUIState,
     GetContact,
     GetEvent,
     GetInvitation,
@@ -160,6 +162,9 @@ export type MessageBody = Omit<main.MessageBodyDTO, 'convertValues'>
 export type Attachment = main.AttachmentDTO
 export type OutboxItem = main.OutboxItemDTO
 export type UnreadCountsResult = main.UnreadCountsDTO
+// FolderUIStateResult is an account's persisted folder display state: the custom folders' local order
+// and the collapsed folder paths.
+export type FolderUIStateResult = main.FolderUIStateDTO
 export type BulkResult = main.BulkResultDTO
 // MoveResult reports where a move-shaped action (move, delete to Trash, junk, rescue) put the
 // message: the id it will carry in its destination folder, or empty when the server did not say.
@@ -498,6 +503,12 @@ export const api = {
     // moveFolder reparents a folder under newParentId on the server (an empty newParentId moves it to
     // the top level). Same-level reordering is a local display concern and does not call this.
     moveFolder: (folderId: string, newParentId: string): Promise<void> => MoveFolder(folderId, newParentId),
+    // folderUIState and saveFolderUIState persist the account's local folder display state (the custom
+    // folders' order and the collapsed paths) in the backend database, so it survives an application
+    // update; the WebView's localStorage is only a warm cache of the same state.
+    folderUIState: (accountId: string): Promise<FolderUIStateResult> => FolderUIState(accountId),
+    saveFolderUIState: (accountId: string, order: string[], collapsed: string[]): Promise<void> =>
+        SaveFolderUIState(accountId, order, collapsed),
     listRules: (): Promise<Rule[]> => ListRules(),
     saveRule: (req: RuleInput): Promise<void> => SaveRule(main.RuleRequest.createFrom(req)),
     deleteRule: (ruleId: string): Promise<void> => DeleteRule(ruleId),

@@ -481,7 +481,11 @@ derived with the real separator ("." on StartMail, not the default "/"); a folde
 delimiter falls back to "/". `FolderService.Move` reparents a folder, moving it under a new parent through
 the same path-to-path rename (an empty parent is the top level) and rejecting a move across accounts or
 into the folder's own subtree; the sidebar's folder drag-and-drop calls this, while a same-level reorder is
-a local per-account display order held in the front end, since IMAP has no folder order. Classification
+a local per-account display order, since IMAP has no folder order. That display state (the custom folders'
+order and the collapsed folder paths) persists durably in the database via `FolderUIStateService` and the
+`folder_ui_state` table, so it survives an application update; the WebView's localStorage holds only a
+warm cache of it for the first paint (the installer treats the WebView profile as disposable but
+preserves the database). Classification
 gives each well-known role to exactly one folder: the server's RFC 6154 special-use attributes are
 authoritative, otherwise the well-known leaf name is used; a name match nested under a different
 special folder is rejected, so a stray "Sent" under Drafts never becomes the account Sent. Any stray sent

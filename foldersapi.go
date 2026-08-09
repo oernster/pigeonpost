@@ -20,3 +20,19 @@ func (a *App) DeleteFolder(folderID string) error {
 func (a *App) MoveFolder(folderID, newParentID string) error {
 	return a.folders.Move(a.ctx, folderID, newParentID)
 }
+
+// FolderUIState returns the account's saved folder display state (custom-folder order and collapsed
+// paths). The front end reads it at account load and falls back to its own cache when the call fails.
+func (a *App) FolderUIState(accountID string) (FolderUIStateDTO, error) {
+	order, collapsed, err := a.folderUIState.Load(a.ctx, accountID)
+	if err != nil {
+		return FolderUIStateDTO{}, err
+	}
+	return FolderUIStateDTO{Order: order, Collapsed: collapsed}, nil
+}
+
+// SaveFolderUIState replaces the account's saved folder display state. The front end sends the full
+// state after every reorder or collapse change, so the stored row never holds a partial update.
+func (a *App) SaveFolderUIState(accountID string, order, collapsed []string) error {
+	return a.folderUIState.Save(a.ctx, accountID, order, collapsed)
+}

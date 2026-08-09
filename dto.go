@@ -41,6 +41,13 @@ type FolderDTO struct {
 	Total     int    `json:"total"`
 }
 
+// FolderUIStateDTO is the JSON-serialisable view of an account's local folder display state: the
+// custom folders' user-chosen order and the collapsed folder paths, both as folder-path lists.
+type FolderUIStateDTO struct {
+	Order     []string `json:"order"`
+	Collapsed []string `json:"collapsed"`
+}
+
 // BulkResultDTO is the outcome of a batched message action (delete or move): the ids the server
 // actually acted on (so the UI drops exactly those), the count that could not be processed and a
 // human-readable error when any failed. The facade returns this instead of an error so a partial
