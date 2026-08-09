@@ -304,7 +304,9 @@ taken while offline fails within seconds rather than blocking on the client libr
 system's default wait. Because the online-only actions cannot be queued, their `ErrOffline` is translated
 once at the Wails facade into a plain, user-facing message (the technical dial detail never reaches the
 interface); a batched action carries an offline flag alongside its error so the front end shows that
-message on its own rather than wrapping it in a "N of M could not be ..." line.
+message on its own rather than wrapping it in a "N of M could not be ..." line. Whatever the source,
+an error surfaces in the main window's `ErrorBar` (a banner under the toolbar carrying an explicit
+dismiss control), where it persists until dismissed or replaced by a later action's error.
 
 Undo send: every send passes through `ComposeService.HoldSend` with the user's undo window (a Mail-menu
 choice of 0 to 30 seconds, default 10, persisted locally). A positive window queues the message in the

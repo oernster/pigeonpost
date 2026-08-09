@@ -126,7 +126,8 @@ local-first. A calmer, more predictable alternative to Thunderbird.
   matches instead of duplicating them; a match is merged so an import never overwrites what you
   have already recorded.
 - **Trust**: a dark theme with a light toggle, passwords held in the OS keychain (never the database)
-  and external links opened in your browser. Closing the window while something is still open (a
+  and external links opened in your browser. An action that fails (a move the server refused, say) is
+  reported in a banner under the toolbar with its own dismiss control, so a stale error never lingers. Closing the window while something is still open (a
   half-written message, say) surfaces the keep-in-tray-or-quit choice on top at once and warns that
   unsaved work may be lost, with Go back as the default so nothing is lost silently.
 

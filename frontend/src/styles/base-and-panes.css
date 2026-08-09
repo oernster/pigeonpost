@@ -157,11 +157,39 @@
 }
 
 .error-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
     background-color: rgba(255, 107, 107, 0.15);
     color: var(--danger);
     padding: 6px 14px;
     border-bottom: 1px solid var(--border);
     font-size: 13px;
+}
+
+.error-bar-text {
+    flex: 1;
+    min-width: 0;
+}
+
+/* The dismiss control clears the banner without waiting for a later action to replace it. It stays in
+   the bar's own colour so the whole surface reads as one message plus its close affordance. */
+.error-bar-dismiss {
+    background: none;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    color: var(--danger);
+    font-size: 15px;
+    line-height: 1;
+    padding: 2px 7px;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.error-bar-dismiss:enabled:hover,
+.error-bar-dismiss:enabled:focus-visible {
+    border-color: var(--danger);
+    outline: none;
 }
 
 /* The column widths are CSS variables driven by the pane splitters (usePaneWidths), so dragging a

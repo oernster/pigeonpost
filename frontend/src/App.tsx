@@ -6,6 +6,7 @@ import {UNIFIED_FOLDER_ID, accountChips, isUnifiedFolder} from './unified'
 import {SNOOZED_FOLDER_ID, isSnoozedFolder} from './snooze'
 import {applyTheme, loadTheme, Theme} from './theme'
 import {Sidebar} from './components/Sidebar'
+import {ErrorBar} from './components/ErrorBar'
 import {MessageList, type SearchScope} from './components/MessageList'
 import {MessageContextMenu} from './components/MessageContextMenu'
 import {FolderContextMenu} from './components/FolderContextMenu'
@@ -1260,7 +1261,7 @@ function App() {
                 setManagingCalendar={setManagingCalendar}
                 setTheme={setTheme}
             />
-            {error && <div className="error-bar" role="alert">{error}</div>}
+            <ErrorBar message={error} onDismiss={() => setError('')}/>
             {accounts.length === 0 && !splashVisible ? (
                 <WelcomeScreen setSettingUp={setSettingUp}/>
             ) : (
