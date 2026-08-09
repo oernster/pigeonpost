@@ -31,7 +31,7 @@ wails dev
 ```
 
 `wails dev` installs the front-end dependencies, builds the React app, generates the JavaScript
-bindings from the Go facade, and launches the app with hot reload.
+bindings from the Go facade and launches the app with hot reload.
 
 The app stores its data in a per-user directory:
 
@@ -126,7 +126,7 @@ Build the application and the bespoke installer:
 
 `build.ps1` runs in order: generate icons, `wails build` (the app), zip the built app as the
 installer payload, then `wails build` the installer under `installer/`, which embeds that payload. The
-installer is a Wails app so it shares the application's WebView and dark theme, and it supports
+installer is a Wails app so it shares the application's WebView and dark theme; it supports
 install, repair, upgrade and uninstall, plus a launch-on-boot option.
 
 Outputs:

@@ -31,9 +31,9 @@ local-first. A calmer, more predictable alternative to Thunderbird.
   that merges every inbox into one list, each row dotted with its account's colour; replies from it send
   from the row's own account. Send-as addresses. The accounts section is a dropdown holding the account
   you are in, badged with its unread count; picking an account opens its inbox, including the account you
-  are already in, and the app reopens on the account you left. Mail arriving on an account other than
+  are already in; the app reopens on the account you left. Mail arriving on an account other than
   the one you are in lights a second, outlined badge on the closed dropdown: it counts only mail newer
-  than your last visit to that account, so a standing backlog never lights it, and opening the dropdown
+  than your last visit to that account, so a standing backlog never lights it; opening the dropdown
   shows which accounts it means. POP3 downloads into one local mailbox with read
   and star marks kept locally.
 - **Mail**: folders and summaries cached to local SQLite and read offline; bodies fetched on open and
@@ -52,7 +52,7 @@ local-first. A calmer, more predictable alternative to Thunderbird.
   Ctrl+L), file or message attachments
   (25 MB), reusable message templates, per-account signatures and server Drafts. Typing in To, Cc
   or Bcc suggests matching addresses from your contacts (accept with Enter, Tab or a click); a
-  suggestion just inserts text, so you can edit it freely afterwards, and accepting with Enter or a
+  suggestion just inserts text, so you can edit it freely afterwards; accepting with Enter or a
   click adds the separator too, so you can type the next address straight away. Typing a space after
   a complete address does the same, so a list flows without punctuation. Each suggestion shows the
   contact's name beside its address on one line (long values shorten with an ellipsis) and a contact
@@ -61,10 +61,10 @@ local-first. A calmer, more predictable alternative to Thunderbird.
   its original bytes and sent as a proper inline image every mail client renders; paste or drop any
   other kind of file and it attaches. The one rule: images embed, files attach; the 25 MB limit
   counts embedded images too and forwarding a message carries its embedded images along. In-progress writing autosaves locally and is
-  offered back after a crash, and closing a message you have edited (by any route, including a click
+  offered back after a crash; closing a message you have edited (by any route, including a click
   outside the window) asks before discarding it. Undo send holds each message for a few configurable seconds with an Undo
   that reopens it exactly as written. Send later schedules a message for a chosen moment (presets or an
-  exact date and time); it waits in the Outbox with Cancel send and leaves while the app is running, or
+  exact date and time); it waits in the Outbox with Cancel send and leaves while the app is running or
   at the next launch after the chosen time. Sends made offline queue in a per-account outbox and deliver on the next sync.
   URLs you type or paste go out as real links in any recipient's client and long lines are encoded so
   no mail server can fold and corrupt them in transit.
@@ -72,10 +72,10 @@ local-first. A calmer, more predictable alternative to Thunderbird.
   moves back to the inbox with the server told the verdict), instant offline full-text search with
   operators (from:, to:, has:attachment, dates and more) and colour tags
   that sync across devices as IMAP keywords. Snooze hides a message until a chosen time then returns it
-  untouched with a desktop notification (while the app is running, or at the next launch); hidden
+  untouched with a desktop notification (while the app is running or at the next launch); hidden
   messages wait in a Snoozed view with their due times and an Unsnooze. Move or copy messages by menu or by dragging onto a folder:
   drag one message or a whole selection, however you picked it (Ctrl-click for scattered rows, Shift-click
-  for a run), and dragging any row of that selection takes all of it. A
+  for a run); dragging any row of that selection takes all of it. A
   dragged message leaves the list the moment you drop it rather than when the server has finished, the
   folder that took it flashes twice so you can see where it went, dragging onto a collapsed folder springs
   it open and holding a drag near the top or bottom of the folder pane scrolls it. Undo and redo (Ctrl+Z, Ctrl+Y) unwind the mail
@@ -123,7 +123,7 @@ local-first. A calmer, more predictable alternative to Thunderbird.
   with a toggle on the Contacts page to turn the collection off. CSV import reads both exporters'
   column conventions (including UK and US wording for regions and postcodes) and the encodings they
   actually write, so accented names survive. Importing the same export twice updates the contacts it
-  matches instead of duplicating them, and a match is merged so an import never overwrites what you
+  matches instead of duplicating them; a match is merged so an import never overwrites what you
   have already recorded.
 - **Trust**: a dark theme with a light toggle, passwords held in the OS keychain (never the database)
   and external links opened in your browser. Closing the window while something is still open (a

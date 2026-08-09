@@ -2,7 +2,7 @@
 
 ## Philosophy
 
-- Correctness first. The domain and application layers hold the logic that must be right, and they
+- Correctness first. The domain and application layers hold the logic that must be right; they
   are covered to 100%.
 - No mock libraries. Collaborators are exercised through real implementations or small, hand-written
   fakes that implement the same interfaces (with error-injection fields). This keeps tests honest
@@ -29,10 +29,10 @@ go test ./...       # plain run without the gate
 Whole-repo 100% is deliberately not the target. The layers below only orchestrate live network I/O,
 a native GUI, Win32 system calls or process startup; forcing coverage there would mean mocking the
 operating system, which the no-mocks policy rejects. Instead, the *logic* in each of those packages
-is factored into pure functions that are fully tested, and the thin I/O shell is excluded and
+is factored into pure functions that are fully tested; the thin I/O shell is excluded and
 documented here.
 
-## What is tested, and how
+## What is tested and how
 
 | Layer | Test type | Real resource |
 |---|---|---|
@@ -79,7 +79,7 @@ documented here.
 | internal/infrastructure/storage | ~79% | logic and error paths covered, including keyset message pagination and the atomic tag-keyword and flag-pending sync writes; see exclusions |
 | internal/infrastructure/pop3 | ~40% | response and UIDL parsing covered; the live dial and download excluded |
 | internal/installer | ~22% | extract and paths covered; Win32 side effects excluded |
-| internal/infrastructure/imap | ~27% | the source adapter's pure helpers; the wire-to-domain and HTML logic now lives in `mailparse`, and live fetch/append plus the IDLE watcher are excluded |
+| internal/infrastructure/imap | ~27% | the source adapter's pure helpers; the wire-to-domain and HTML logic now lives in `mailparse`; live fetch/append plus the IDLE watcher are excluded |
 | internal/infrastructure/taskbar | ~17% | the pure label formatting and no-op stub covered; the Windows-only Win32 overlay excluded |
 | internal/infrastructure/smtp | 0% | transport is live `Send` only; MIME building lives in `message` |
 | main package | ~4% | composition root and the Wails facade, excluded; the few covered statements are pure helpers reached by other packages' tests |
@@ -93,7 +93,7 @@ documented here.
   unit-tested without a network, so the IMAP path sits behind a skippable integration test (below). The
   pure logic is separated out and covered independently: MIME body parsing plus HTML sanitising and
   image-blocking in the shared `internal/infrastructure/mailparse` package, the RFC 5322 MIME builder in
-  `internal/infrastructure/message`, and the response and UIDL parsing in `pop3`.
+  `internal/infrastructure/message`, plus the response and UIDL parsing in `pop3`.
 - **Live CalDAV, OAuth and remote-image network paths** (`caldav`, `oauth`, `remoteimage`): the
   request, parse and guard logic is tested against local `httptest` stub servers; the live-wired
   constructors and real-network edges (a real CalDAV server, the browser hand-off, a real image host)
@@ -101,8 +101,8 @@ documented here.
 - **Windows taskbar overlay** (`taskbar/overlay_windows.go`): the Win32 `ITaskbarList3` calls that draw
   the unread badge are Windows-only and build-tagged; the no-op stub and the pure label formatting are
   covered.
-- **Notification chime playback** (`sound/play_windows.go`): the `winmm` `PlaySound` call, and the
-  `Play` entry point that reaches it, would make an audible noise on every test run. The synthesis
+- **Notification chime playback** (`sound/play_windows.go`): the `winmm` `PlaySound` call and the
+  `Play` entry point that reaches it would make an audible noise on every test run. The synthesis
   behind it is pure and fully covered, down to the WAV header fields and the fades at both ends, so
   what is excluded is the syscall alone.
 - **Win32 side effects** (`installer/windows.go`): registry writes, shortcut creation and shell-folder
@@ -170,10 +170,10 @@ npx vitest run --coverage   # enforce the pure-module coverage gate
 - **Structural boundary test.** `src/test/boundary.test.ts` scans the top-level `src/*.ts` modules and
   keeps the gated pure modules pure, the front-end analogue of `boundary_test.go`.
 - **Modal layout test.** `src/components/modalLayout.test.ts` scans the dialog source and holds two
-  rules: every modal carrying an action row pins it, and every pinned modal has something that
+  rules: every modal carrying an action row pins it; every pinned modal has something that
   actually scrolls. Both matter because a dialog that scrolls as one block takes its buttons off a
   short window, which is invisible on a large screen and so cannot be left to review. It reads raw
-  source through Vite's glob rather than `node:fs`, the same as the boundary test, and it asserts it
+  source through Vite's glob rather than `node:fs`, the same as the boundary test; it asserts it
   found panels at all so a rename cannot turn it into a vacuous pass.
 - **The reader's colour treatment** is tested on both halves: its colour arithmetic (colour parsing, alpha
   compositing, sRGB relative luminance, contrast ratio, what counts as a dark background and what counts as
@@ -184,9 +184,9 @@ npx vitest run --coverage   # enforce the pure-module coverage gate
   because the decision depends on each element's own background.
 - **Time and frames are driven, never waited on.** The drag auto-scroll and the self-reading help panes
   both run on a clock, so their tests replace it: `useDragAutoScroll.test.tsx` stubs
-  `requestAnimationFrame` with a queue it steps one frame at a time, and `useAutoScroll.test.tsx` uses
-  fake timers. jsdom lays nothing out, so both stub the element's bounds, `scrollTop` and scroll metrics,
-  and both dispatch drag events by hand: jsdom drops `clientY` and `relatedTarget` from a drag event's
+  `requestAnimationFrame` with a queue it steps one frame at a time; `useAutoScroll.test.tsx` uses
+  fake timers. jsdom lays nothing out, so both stub the element's bounds, `scrollTop` and scroll metrics;
+  both dispatch drag events by hand: jsdom drops `clientY` and `relatedTarget` from a drag event's
   init, so the fields are set as own properties on a plain `Event` (the same workaround the sidebar drop
   tests use). No test sleeps.
 - **Characterisation-first.** The `App.tsx` and component decomposition was done test-first: each

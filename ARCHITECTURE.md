@@ -37,7 +37,7 @@ enforced by a test in `tests/structural/boundary_test.go`, not by convention.
   (`mailrouter`, which routes reads, verification and actions to the IMAP or POP3 adapter by account
   protocol), the reminder and unread surfaces (`taskbar`: the Windows taskbar unread-overlay badge and
   reminder flash, no-ops off Windows, plus the notification tray, a Windows tray icon that also carries
-  the unread badge, or a native desktop notification elsewhere), the notification chime (`sound`, a
+  the unread badge or a native desktop notification elsewhere), the notification chime (`sound`, a
   synthesised WAV played through `winmm` on Windows and a no-op elsewhere), the OS keychain (`keychain`), the
   calendar and contacts codecs (`ics`, `recurrence`, `vcard` and `csv`), the CalDAV sync client
   (`caldav`), the Microsoft OAuth token flow (`oauth`) and the SSRF-guarded remote-image fetcher
@@ -115,8 +115,8 @@ Edit account:
 1. The UI opens the wizard prefilled from the account (its email is fixed, so that field is locked)
    and calls the facade's `UpdateAccount`.
 2. The `AccountSetupService.Update` use case verifies first: a blank password re-verifies with the
-   existing keychain secret (read server-side, never sent to the UI); a new password is verified and,
-   only if good, replaces the stored one. The account is then persisted. A failed verify never
+   existing keychain secret (read server-side, never sent to the UI); a new password is verified and
+   (only if good) replaces the stored one. The account is then persisted. A failed verify never
    disturbs the working account's stored password.
 
 Remove account:
@@ -191,13 +191,13 @@ Read a message body:
    The theme is then applied per element by `emailDarkMode`, which walks the written document. A single
    document-wide invert cannot work, because one message routinely mixes light-designed and dark-designed
    regions: Steam's wishlist mail is a dark panel (`bgcolor #212429`, white text) inside a white wrapper with
-   a white footer, and inverting the lot renders half of it upside down. Classifying the whole message either
+   a white footer; inverting the lot renders half of it upside down. Classifying the whole message either
    way fails for the same reason. So the walk inverts at the root and inverts a second time wherever the
    sender already designed dark, which returns that region to its authored colours. A `filter` on an element
    and one on its descendants compound, so what governs is the PARITY of the filters above a node: the walk
    carries it down and flips only where parity disagrees with the background the author gave that element.
    The invariant is uniform, every region ends up rendering dark. Media (`img`, `picture`, `video`, `svg`,
-   `canvas`) is forced to an even parity so a photo or logo always shows true colour, and media flipped back
+   `canvas`) is forced to an even parity so a photo or logo always shows true colour; media flipped back
    inside an inverted region carries a mid-grey hairline (with `box-sizing: border-box` so it does not resize
    the image) so a genuinely dark image keeps an edge against the now-dark surround.
 
@@ -231,7 +231,7 @@ original To and Cc:
 3. The compose use case loads the account, builds a validated `OutgoingMessage` (sender taken from
    the account) and hands it to the SMTP transport, which authenticates using the keychain password
    and delivers it. The compose editor is TipTap rich text: the draft carries both a plain-text body
-   and an optional HTML body, and when HTML is present the shared `message` MIME builder emits a
+   and an optional HTML body; when HTML is present the shared `message` MIME builder emits a
    `multipart/alternative` message (plain text first, HTML second) so plain-text clients still render.
    The builder linkifies bare and markdown-labelled URLs in the outgoing HTML (so a pasted or
    mailto:-prefilled link reaches recipients in any client as a real anchor) and encodes text parts
@@ -249,7 +249,7 @@ original To and Cc:
    Bcc recipients are added to the SMTP envelope (de-duplicated with To and Cc) but never
    written to the headers. Attachments turn the body into `multipart/mixed`: files chosen
    from disk, files pasted or dropped into the compose window (carried as bytes over the bridge
-   where the engine hands the page File objects, or by path where a paste exposes only file://
+   where the engine hands the page File objects or by path where a paste exposes only file://
    URIs, as WebKit does for Finder-copied files) plus, optionally, an existing message fetched
    as a `message/rfc822` part, bounded by a total-size cap in the facade that counts embedded images
    too.
@@ -261,7 +261,7 @@ the first touch of a recipient field, so an untouched compose makes no call. Acc
 only inserts text into the ordinary input, so the field stays freely editable and the backend
 remains the address validator. Acceptance by Enter or click also appends the canonical separator
 ("; ") so the next address can be typed immediately (Tab does not, since focus is leaving the
-field), and a space typed at the end of a complete address inserts the separator the same way; both
+field) and a space typed at the end of a complete address inserts the separator the same way; both
 are pure `recipientSuggest` functions sharing the separator constant with the separator-correction
 helper in `composeAddresses`. The suggestion pool treats a display name that is the contact's own
 address as no name, so such a contact (auto-collected ones often are) is offered as the bare
@@ -270,7 +270,7 @@ row is scoped to the field's direct child span, keeping it off the suggestion ro
 address spans stay on one line and ellipsise rather than wrap or overflow.
 
 Save draft: Compose > Save draft calls the compose use case, which resolves the account's Drafts
-mailbox from the cached folders and, through the `DraftSaver` port, renders the message with the shared
+mailbox from the cached folders and (through the `DraftSaver` port) renders the message with the shared
 `message` builder and appends it to that mailbox on the server (IMAP APPEND, flagged `\Draft \Seen`).
 Unlike a send, a draft may be incomplete (no recipients, empty body), so it is built with the lenient
 `NewDraftMessage`.
@@ -282,7 +282,7 @@ closing, so a stray click, such as the one that refocuses the app window onto th
 never silently lose a message. An untouched or emptied-out compose closes at once. Send and Save
 draft close directly, having preserved the message. The modal's render in `App` is gated on the
 composing flag alone (not the resolved account), so an account-state change can never unmount a
-compose in progress, and the neutral-focus anchor declines to take focus while any dialog is open.
+compose in progress; the neutral-focus anchor declines to take focus while any dialog is open.
 
 Draft recovery: separately from the server-side Save draft, the compose window autosaves its in-progress
 content (debounced, once the user has edited it) to a single-row local slot through the
@@ -296,7 +296,7 @@ operation through the `OutboxStore` port (the `outbox` table, which also carries
 attachments so a queued message keeps them on replay) and returns success; the UI surfaces the
 queue as a per-account outbox folder where the waiting messages can be reviewed or cancelled. After the
 next successful sync the UI calls replay, which drains the queue oldest-first: each item is re-sent or
-re-appended, removed on success, left in place if still offline, and dropped (with its error reported)
+re-appended, removed on success, left in place if still offline and dropped (with its error reported)
 if it can never succeed. A replayed send keeps the same best-effort Sent copy a direct send leaves. The
 queue covers outgoing mail only; message flag/delete/move actions remain online-only by design. Every
 connection attempt is bounded by a short dial timeout (DNS plus the TCP and TLS handshake), so an action
@@ -316,7 +316,7 @@ elapses, a small dispatcher goroutine in the composition root (`runOutboxDispatc
 tick and gated on the store's earliest hold) sends it and announces the change over the `outbox:changed`
 event. An undo that loses the race is told so: cancel reports whether the item was still queued. A due
 item that finds the server unreachable has its hold cleared, degrading it to an ordinary offline-queued
-item for the next sync rather than being retried every tick, and a hold outlasting an app restart sends
+item for the next sync rather than being retried every tick; a hold outlasting an app restart sends
 on the next launch.
 
 Send later: a scheduled send is the same hold with a chosen instant. The composer's Send later control
@@ -327,9 +327,9 @@ early, the dispatcher delivers it when due, a due-but-offline item degrades to t
 schedule outlasting a restart sends on the next launch. There is no undo toast (the Outbox is the
 cancel surface) and a scheduled reply does not flag its original (a schedule cancelled days later must
 not have already marked it); the composer states the local-first constraint plainly: the message leaves
-while the app runs, or at the next launch after the chosen time.
+while the app runs or at the next launch after the chosen time.
 
-Snooze: a message can be hidden until a chosen moment (context-menu or Mail-menu presets, or a
+Snooze: a message can be hidden until a chosen moment (context-menu or Mail-menu presets or a
 pick-a-time dialog). Snooze is local-only state, one row per message in `message_snooze`:
 nothing reaches the server and read/flag state is untouched. The visible listings
 (`MailStore.ListMessagesVisible`, `ListMessagesPageVisible` and the snooze-aware `UnreadByAccount`
@@ -342,14 +342,14 @@ same per-account dots and cross-account rules as the unified mailbox (rows compo
 account; Move, Copy and Junk live in the real folder). A scheduler goroutine (`runSnoozeScheduler`,
 gated on the store's earliest snooze) pops due snoozes in one transaction, raises a desktop notification
 (a snooze is an alarm the user set) and announces `snooze:changed`; a snooze missed while the app was
-closed pops on the first tick after launch, and a snooze orphaned by its message's deletion or move is
+closed pops on the first tick after launch; a snooze orphaned by its message's deletion or move is
 swept rather than resurfacing as a ghost.
 
 Junk, conversations and list order: marking a message as junk moves it to the account's Junk folder
 through the same online path as Move (`MessageActionService.MarkJunk`, resolving the Junk folder by kind);
 Not junk (`MarkNotJunk`, offered on a message sitting in Junk) rescues it back to the Inbox the same way.
 Both record the spam verdict on the server first as best-effort IMAP keywords (the `$Junk`/`Junk` pair set
-and the `$NotJunk`/`NonJunk` pair cleared, or the reverse), so other clients reading either keyword
+and the `$NotJunk`/`NonJunk` pair cleared or the reverse), so other clients reading either keyword
 convention agree; the folder move stays the authoritative action since keyword support varies by server.
 Conversation grouping and list order are read-side concerns over the same cached summaries the flat list
 uses: the domain `GroupThreads` groups a folder's summaries into conversations by normalised subject
@@ -380,7 +380,7 @@ them.
 
 Delete a message: after a confirmation modal, the UI calls the facade, routed through the
 `MessageActionService`. It resolves the message's folder and account, then via the `MailActions` port
-moves the message to the account's Trash folder when one exists, or deletes it permanently (mark
+moves the message to the account's Trash folder when one exists or deletes it permanently (mark
 `\Deleted` and expunge) when the message is already in Trash or the account has no Trash folder. The
 cached message and everything derived from it (body, tags, index row) are then removed locally.
 
@@ -391,7 +391,7 @@ its new server UID, on the next sync). Copy is the same path without removing th
 
 Every move-shaped action (move, delete to Trash, junk and its rescue, copy, the bulk forms) also
 reports where the message landed: the IMAP adapter reads the server's COPYUID reply (RFC 4315),
-pairing each source UID with its destination UID, and the service maps that to the id the message
+pairing each source UID with its destination UID; the service maps that to the id the message
 carries in its destination (`domain.MessageIDFor`, the single spelling of the folder-plus-UID
 identity). The facade returns it in `MoveResultDTO`/`BulkResultDTO`; a server without UIDPLUS
 reports nothing and the id is empty rather than guessed.
@@ -401,31 +401,31 @@ carries the header and the body; `.reader-footer` is its sibling and holds whate
 its base, so that stays on screen while the email scrolls behind it. As one column the foot came after the
 body, so on a long reply chain the attachment's Save button sat below every quoted round and could only be
 reached by scrolling past the lot. The base is capped at a share of the pane and scrolls internally past
-that, so a message with twenty attachments cannot squeeze the email off the screen, and it is not rendered
+that, so a message with twenty attachments cannot squeeze the email off the screen; it is not rendered
 at all when the message has nothing to put in it. The message popout hosts the same reader and therefore
-stops scrolling it as one block, or the foot would be below the fold again. Adding a new bottom-of-message
+stops scrolling it as one block; otherwise the foot would be below the fold again. Adding a new bottom-of-message
 control means extending the footer's condition, not the layout.
 
-Dragging a message onto a folder is optimistic, and says so. An IMAP move is a live server round trip
+Dragging a message onto a folder is optimistic and says so. An IMAP move is a live server round trip
 that can take seconds, so `useBulkActions` takes the dropped rows out of every on-screen list at the
 moment of the drop rather than when the server answers: a list that does not visibly change reads as a
-drop that missed, and the reflex is to drag again. The rollback is what makes the optimism safe.
+drop that missed; the reflex is to drag again. The rollback is what makes the optimism safe.
 `optimisticList.ts` (a gated pure module) lifts each row with the id of the nearest row before it that
-STAYED in the list, and a refused or partial move splices the untouched rows back into those gaps. The
+STAYED in the list; a refused or partial move splices the untouched rows back into those gaps. The
 anchor is an id and not an index on purpose: a partial move leaves some of the batch gone for good,
 which shifts every index after them. The same handler holds the ids whose move is still open, so a
-repeat drop of a message already in flight is dropped rather than issued twice, and it reports whether
+repeat drop of a message already in flight is dropped rather than issued twice; it reports whether
 it took the drop at all, which is what the sidebar's landing flash is gated on (a drop skipped for being
 same-folder, cross-account or in flight must not be confirmed on screen).
 
 A dragged row that belongs to the selection carries the whole selection, whichever gesture built it: the
 drop handler takes the marked ids when the dropped id is one of them and that one id otherwise, so a
 Ctrl-built and a Shift-built selection are the same thing by the time they reach it. What differed was
-upstream, at the drag start. A Shift-click extends the document text selection across every row it spans,
-and the browser then drags that text rather than the messages, so the row used to cancel the mousedown
+upstream, at the drag start. A Shift-click extends the document text selection across every row it spans;
+the browser then drags that text rather than the messages, so the row used to cancel the mousedown
 default when Shift was held. Cancelling that default cancels the native drag the browser would have begun
 from the same mousedown, which left a Shift-built range selectable but undraggable. The rows are marked
-`user-select: none` in CSS instead: nothing to smear, and the mousedown reaches the browser intact. A row
+`user-select: none` in CSS instead: nothing to smear; the mousedown reaches the browser intact. A row
 is a selection target rather than a text surface, so the suppression belongs on the surface as a standing
 property, not on the event as a special case.
 
@@ -438,14 +438,14 @@ frame loop keyed off the last pointer position, so resting in the band keeps scr
 is the self-reading cycle for long help content, at the pace the desktop apps use: hold still on open,
 read down a pixel every second tick, hold at the tail, rewind fast, repeat. `useAutoScroll` adds what is
 a property of the page rather than the cycle: any manual reading input suspends it for a stillness
-window and it resumes from wherever the reader left it (never switches off), and a surface underneath
+window and it resumes from wherever the reader left it (never switches off); a surface underneath
 another modal is frozen rather than suspended so its phase and position survive the modal above. Both
 panes put the cycle on their inner body and pin their action row beneath it (`.modal.pinned-actions`, a
 flex column whose body is the scroller), so Close never drifts off as the content reads itself. That
 layout is no longer particular to these two: every dialog carrying an action row now wears it, so a
 tall dialog scrolls its body instead of taking its buttons off the bottom of a short window. The
 furniture around the body (a title, an intro, a toolbar above it, the action row below) is held at
-`flex: none` by one rule rather than one per element, and `modalLayout.test.ts` scans the source so a
+`flex: none` by one rule rather than one per element; `modalLayout.test.ts` scans the source so a
 new dialog that forgets the class fails on the day it is written.
 Neither this nor the drop flash is gated on `prefers-reduced-motion`: on Windows that query follows the
 general "Animation effects" switch, which people turn off for performance rather than motion
@@ -513,7 +513,7 @@ searchable as messages are read (headers and the snippet cover everything from s
 save re-indexes its message in the same transaction. The `message_searchable_text` view is the single
 definition of a message's searchable text: every insert site and the schema backfill select from it,
 so the indexed shape cannot drift. The index is deliberately self-contained rather than FTS5
-external-content: the text spans three tables (`message`, `message_body`, `message_attachment`), and
+external-content: the text spans three tables (`message`, `message_body`, `message_attachment`);
 external content requires every delete to reproduce the exact values as indexed, which cross-table
 mutation ordering cannot guarantee; self-contained keeps every consistency path an idempotent DELETE
 or reinsert by message id, at the cost of the index holding its own copy of the text. Folder, account,
@@ -601,7 +601,7 @@ reason: a native select is silent when the option already showing is re-picked, 
 you are already in did nothing, when it should take you back to that account's inbox. Every pick reports
 its account and App opens that account's inbox from there, current one included. It remains a single
 focus-ring stop as the select was: focus rests on the trigger and never enters the popup, with Up and Down
-walking the options through `aria-activedescendant`, Enter picking, Escape dismissing, and Tab or the
+walking the options through `aria-activedescendant`, Enter picking, Escape dismissing and Tab or the
 horizontal arrows closing it as the ring steps away. The closed trigger also carries the elsewhere
 badge (outlined, matching the folder tree's rolled-up badge: an outline means "not here") summing the
 unread on accounts with mail newer than their watermarks, with the per-account breakdown one click
@@ -618,24 +618,24 @@ calendar then reuses.
 
 **Domain.** New pure value objects, immutable and validated on construction like the mail entities.
 Address book first: `Contact` (id, vCard UID for lossless round-trip, formatted name, given/family
-name, organisation, title, note, and slices of `ContactEmail` and `ContactPhone`, each a labelled
+name, organisation, title, note and slices of `ContactEmail` and `ContactPhone`, each a labelled
 value) and `ContactGroup` (id, name, member contact ids, with `With*` copy methods for membership).
 Calendar: `Calendar` and `Event` (id, ICS UID, summary, start/end, all-day flag, location,
-description, and an optional recurrence rule), with time entering only as already-resolved values, the
+description and an optional recurrence rule), with time entering only as already-resolved values, the
 domain still reads no wall clock.
 
 **Application.** New ports mirroring the mail stores: `ContactStore` (list, get, save, delete contacts
 and groups) and `CalendarStore` (calendars, events and preserved passthrough components). Import and export sit behind a codec seam
 so the use case is format-agnostic: a `ContactCodec` interface with `Decode([]byte) ([]domain.Contact,
-error)` and `Encode([]domain.Contact) ([]byte, error)`, implemented once per format, and a
+error)` and `Encode([]domain.Contact) ([]byte, error)`, implemented once per format and a
 `CalendarCodec` likewise. An `ImportContacts` / `ExportContacts` use case selects the codec by the
 chosen format and reconciles by UID so a re-import updates rather than duplicates.
 
 **Infrastructure.** New adapters implementing the ports: `storage` gains `contact`, `contact_email`,
-`contact_phone`, `contact_group` and `contact_group_member` tables, and `calendar` and
+`contact_phone`, `contact_group` and `contact_group_member` tables, plus `calendar` and
 `event` tables. Codec adapters: `vcard` (emersion/go-vcard) and `csv`
-(stdlib `encoding/csv`) for contacts, and `ical` (emersion/go-ical) for calendar. Two contact codecs
-exist deliberately: vCard covers Thunderbird and single-contact Outlook, and CSV covers Outlook's bulk
+(stdlib `encoding/csv`) for contacts, plus `ical` (emersion/go-ical) for calendar. Two contact codecs
+exist deliberately: vCard covers Thunderbird and single-contact Outlook; CSV covers Outlook's bulk
 contact export/import (Outlook exports the address book as CSV, not vCard; Thunderbird reads CSV too).
 The pure decode/encode logic lives in these packages and is covered to 100%; only genuine file or OS
 edges are excluded.
@@ -649,8 +649,8 @@ Contacts page. Collection is a side effect of sending, so it can never fail a se
 
 The `csv` package is split by concern because the two exporters agree on almost nothing: `mapping.go`
 holds the column-alias tables and the row-to-contact rules, `encoding.go` normalises input to UTF-8
-(neither exporter reliably writes it, and a byte-order mark left in place binds to the first header
-and silently drops that column), `dates.go` normalises birthdays to the ISO form the editor accepts,
+(neither exporter reliably writes it; a byte-order mark left in place binds to the first header
+and silently drops that column), `dates.go` normalises birthdays to the ISO form the editor accepts
 and `csv.go` orchestrates. Reconciling a re-import is deliberately NOT the codec's job: CSV carries no
 stable per-contact id, so matching is a policy over the whole address book and lives in
 `ContactService.ImportContacts`, which matches on id or shared email address and merges through the
@@ -658,7 +658,7 @@ pure `Contact.MergedWith` in the domain.
 
 **UI.** A contacts dialog and calendar month, week and day views, both clients of the Application
 use cases only. The contacts dialog is wide, laying the address book out as a three-column card
-grid; each card opens its contact on click or via its edit pencil, and deletion lives at the end of
+grid; each card opens its contact on click or via its edit pencil; deletion lives at the end of
 the open contact's editor beside Save (still behind the confirm-before-delete rule) rather than on
 the list rows. A postal address in the editor is a three-column field grid with its remove control
 alongside, so it cannot be squeezed out of view. Date entry
@@ -684,11 +684,11 @@ parser, which the domain must not depend on, so it lives behind a new Applicatio
 `RecurrenceService` (`Expand` an event into `EventInstance` occurrences within a window; `TruncateBefore`
 rewrite a rule to end before a time), implemented in `infrastructure/recurrence` over the pure-Go
 `teambition/rrule-go` library. `CalendarService.ListEventInstances(from, to)` groups events by series
-(UID, or id when absent), expands each master, suppresses the generated occurrence an override replaces,
+(UID or id when absent), expands each master, suppresses the generated occurrence an override replaces
 and merges one-off events, all sorted by start; a malformed rule degrades to a single instance rather
 than losing the event. Editing or deleting a recurring occurrence carries a scope (this, this-and-future,
 all): `this` writes a single-occurrence override, `future` truncates the master with UNTIL and starts a
-new series from the split (migrating later overrides), and `all` rewrites the master. When the split
+new series from the split (migrating later overrides) and `all` rewrites the master. When the split
 leaves the recurrence unchanged, `SplitCountForward` reduces a COUNT-based rule by the occurrences before
 the split so the forward series carries the remaining count and the two halves keep the original total
 (an open-ended or UNTIL rule needs no adjustment; a rule the user changed is honoured as given). The `ics` codec
@@ -696,21 +696,21 @@ extracts and re-emits RDATE, EXDATE and RECURRENCE-ID alongside the existing opa
 pass-through, so the round-trip stays lossless.
 
 **Event timezones.** An `Event` also carries an IANA zone (the `time_zone` column), so a recurring event
-keeps its local wall-clock time across daylight-saving changes: its Start and End stay absolute instants,
-and the zone says how they are shown and expanded. The expander anchors DTSTART in that zone before
+keeps its local wall-clock time across daylight-saving changes: its Start and End stay absolute instants;
+the zone says how they are shown and expanded. The expander anchors DTSTART in that zone before
 generating, so a 9am daily event stays 9am local while its UTC instant shifts across the DST boundary;
 the IANA database is embedded (`time/tzdata`) so `LoadLocation` resolves on Windows. The `ics` codec reads
 the `TZID` parameter on import and writes `DTSTART;TZID=...` on export (the IANA name, which Google,
 Outlook and Thunderbird resolve from their own databases); a UTC or all-day event carries no zone. On the
 front end a zone picker sets the event zone, the form interprets and shows its wall-clock times in that
-zone, and occurrences render in the browser's local zone. Export also emits a `VTIMEZONE` for every zone
+zone; occurrences render in the browser's local zone. Export also emits a `VTIMEZONE` for every zone
 the events use, so the file defines the zones its `TZID` parameters reference rather than relying on the
 reading application's own database. Each is generated by probing the zone across the earliest event's
 year to find its standard and daylight offsets and the transitions between them, then writing STANDARD
 and DAYLIGHT sub-components with an RRULE derived from each transition date (a zone without daylight
 saving gets a single STANDARD). RDATE, EXDATE and RECURRENCE-ID are written as UTC instants.
 
-**To-dos and journals.** The `ics` codec models only VEVENTs, but a VTODO or VJOURNAL is preserved
+**To-dos and journals.** The `ics` codec models only VEVENTs but a VTODO or VJOURNAL is preserved
 verbatim as a `domain.CalendarPassthrough` (UID, kind, the component re-serialised as a standalone
 VCALENDAR) rather than dropped. `Decode` returns passthrough alongside the events; `ImportEvents` stores
 each in the `calendar_passthrough` table (keyed by UID so a re-import replaces); and
@@ -729,13 +729,13 @@ returns the reminders whose trigger falls in that window; a scheduler goroutine 
 polls it every thirty seconds and emits a Wails event that the front end shows as an on-screen banner. On
 launch it first calls `PendingReminders(now)`, which fires reminders for still-imminent events (starting
 at or after now) whose trigger lapsed while the app was closed, so a reminder for an upcoming event is not
-missed; a reminder for an event already started or past is not resurrected, and the catch-up and live
+missed; a reminder for an event already started or past is not resurrected; the catch-up and live
 windows do not overlap.
 
 **Alerting.** When a batch of reminders fires, the composition root also draws attention from
 outside the window: it flashes the taskbar button through an injected `ReminderAlerter` (the `taskbar`
 package's `Flasher`, a build-tagged no-op off Windows) and raises a notification through the `taskbar`
-package's `Tray`. The tray notification is a Windows balloon on the tray icon, or a native desktop
+package's `Tray`. The tray notification is a Windows balloon on the tray icon or a native desktop
 notification off Windows (a freedesktop D-Bus notification on Linux, an `osascript` notification on
 macOS, a no-op on any other platform). Both alerts skip when the window is already in the foreground, so
 an in-view reminder relies on its banner alone.
@@ -755,10 +755,10 @@ recognisable voice. Off Windows the sound is left to the desktop's own notificat
 chooses it from the user's theme, so there is nothing to override.
 
 **Close to tray.** On Windows the `Tray` is a persistent, clickable
-notification-area icon: left-clicking it reopens the window, and its right-click menu mirrors the Help
+notification-area icon: left-clicking it reopens the window; its right-click menu mirrors the Help
 menu (About, Licence, Check for Updates) plus Open and Quit. Where a restorable tray icon exists (only
 Windows, gated by `Tray.CanHideToTray`), the window's close button does not quit: `OnBeforeClose` keeps
-the window open and emits `app:close-request`, and the front end shows its own dark-themed dialog
+the window open and emits `app:close-request`; the front end shows its own dark-themed dialog
 offering Minimise to tray or Quit. The dialog renders last in App's overlay list on a raised backdrop
 (`modal-backdrop top`), so it surfaces above whatever dialog is open when the close button is pressed
 rather than painting beneath a later-mounted sibling; the Escape stack still closes one layer at a
@@ -771,14 +771,14 @@ leaves the window open. A native dialog is deliberately avoided so the prompt ma
 Where no tray icon exists the close button simply quits. The tray menu's Quit sets a flag so it exits
 without re-triggering that prompt, since it drives the same close path. To keep the `taskbar` package
 free of any UI-framework dependency, the tray's Open and menu items invoke callbacks supplied by the
-`App` facade, which reopen the window (`WindowShow`), emit `menu:*` Wails events the front end turns into
-the same dialogs the in-window Help menu opens, or quit.
+`App` facade, which reopen the window (`WindowShow`), quit or emit `menu:*` Wails events the front end
+turns into the same dialogs the in-window Help menu opens.
 
-**Meeting scheduling (iTIP / iMIP).** An event with attendees is a meeting, and PigeonPost sends and
+**Meeting scheduling (iTIP / iMIP).** An event with attendees is a meeting; PigeonPost sends and
 receives the RFC 5546 scheduling messages (REQUEST, REPLY, CANCEL) as RFC 6047 iMIP `text/calendar` mail
 parts. New pure domain value objects carry the data: `Organizer` (a validated address plus an optional
 common name) and `Attendee` (address, common name, a `Role` and a `ParticipationStatus` enum each parsed
-leniently, and an RSVP flag with a `WithStatus` copy method), with `Event` gaining an organiser and an
+leniently and an RSVP flag with a `WithStatus` copy method), with `Event` gaining an organiser and an
 attendee list (stored as an `event.organizer` column and a JSON `event.attendees`
 column). A `scheduling.go` domain file adds the `Method` enum, the `SchedulingMessage` (a method plus its
 events) and the `CalendarPart` (a method plus the encoded bytes) that an outgoing message carries. These
@@ -789,8 +789,8 @@ The codec seam gains a `SchedulingCodec` port (`DecodeScheduling` reads a VCALEN
 adapter over go-ical. The `SchedulingService` use case (application layer, 100% gated) drives the flows:
 `Respond` saves an incoming REQUEST to the calendar with the chosen PARTSTAT and emails a REPLY to the
 organiser; `ApplyReply` folds an incoming REPLY into the organiser's stored meeting, recording the
-responder's status on every event the reply covers (the named occurrence, or the series master plus
-every override when it names none) and appending a responder the meeting does not list (a delegate, or
+responder's status on every event the reply covers (the named occurrence or the series master plus
+every override when it names none) and appending a responder the meeting does not list (a delegate or
 a guest answering from a different address) rather than dropping the response; `ApplyCancellation`
 removes the meeting a CANCEL withdraws; and `SendRequest` / `SendCancel` email a REQUEST or CANCEL to a
 meeting's attendees from the organising account. A recurring meeting is matched as its series master
@@ -798,7 +798,7 @@ plus any overrides, keyed by UID and RECURRENCE-ID. Every scheduling send (`sche
 the same record an ordinary composed message does: the shared `saveCopyToSent` helper appends a
 best-effort copy to the account's Sent mailbox (skipped for providers that save sent mail server-side),
 an unreachable server queues the message in the offline outbox for the compose dispatcher to replay
-(outbox rows persist the iMIP calendar part so the replayed message keeps its payload), and a
+(outbox rows persist the iMIP calendar part so the replayed message keeps its payload); a
 successful response marks the invite message answered. `Invitation` resolves an invite for display by
 overlaying attendee statuses from the stored calendar copy of the meeting, which is where `Respond`
 records the recipient's answer and `ApplyReply` lands everyone else's, so the card shows the current
@@ -818,10 +818,10 @@ response. The organiser themselves need not appear in the attendee list; their p
 implicit in the ORGANIZER property and no attendee row is invented for them.
 
 Mail carries the invites both ways. Incoming: the shared `mailparse` parser diverts a `text/calendar`
-part into a `ParsedBody.Invite`, and the cached `MessageBody` gains an `invite` column with
+part into a `ParsedBody.Invite`; the cached `MessageBody` gains an `invite` column with
 `HasInvite` / `Invite`, so a message reading offline still shows its invitation. The `MailSource.FetchBody`
 port and both the IMAP and POP3 adapters return the raw calendar bytes alongside the plain and HTML
-parts. Outgoing: an `OutgoingMessage` carries an optional `CalendarPart`, and the shared `message` MIME
+parts. Outgoing: an `OutgoingMessage` carries an optional `CalendarPart`; the shared `message` MIME
 builder writes it as a `text/calendar; method=...; charset=utf-8` part inside the `multipart/mixed` body,
 so one sent message is both a readable email and a valid iMIP scheduling message.
 
@@ -839,7 +839,7 @@ category, recurrence and the attendee list, the fields the encoded REQUEST carri
 save, so a reminder or local calendar tweak saves without emailing an update; the primary button and the
 hint text state in advance whether the save will email the attendees. A
 join link an invite carries in its location or description (Microsoft Teams, Google Meet, Zoom or Webex,
-matched by host) surfaces as a Join button in the event editor, and any other link in the description is
+matched by host) surfaces as a Join button in the event editor; any other link in the description is
 clickable; both open in the external browser through the existing `OpenExternal` facade method, so this
 adds no new port. The invite card also guards against pointless resends: clicking the answer already on
 record shows an inline confirmation naming the recorded response before an identical REPLY is sent
@@ -864,7 +864,7 @@ injected into the facade behind a `MailWatcher` port, so the application layer k
 The watcher set is kept in step with the accounts, so an account added after launch gets instant push
 without a restart. Each account's watcher runs under its own cancellable child of the app context, tracked
 by id: `AddAccount` starts one, `UpdateAccount` restarts it so changed server settings take effect (and a
-switch to POP3 drops the IMAP watcher), and `RemoveAccount` stops it so no stale connection is left.
+switch to POP3 drops the IMAP watcher) and `RemoveAccount` stops it so no stale connection is left.
 Shutdown cancels the app context and stops them all. A fired reminder banner is clickable, opening the
 calendar on that event through the existing calendar binding.
 
