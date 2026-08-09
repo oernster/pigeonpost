@@ -14,6 +14,7 @@ import {act, cleanup, fireEvent, render, screen, waitFor, within} from '@testing
 import App from '../App'
 import type {Account, Folder, Message, OutboxItem} from '../api'
 import {SEARCH_MATCH_END, SEARCH_MATCH_START} from '../api'
+import {IDLE_REFOCUS_MS} from '../hooks/useIdleRefocus'
 
 const apiSpies = vi.hoisted(() => ({
     version: vi.fn(), author: vi.fn(),
@@ -28,6 +29,7 @@ const apiSpies = vi.hoisted(() => ({
     deleteMessage: vi.fn(), deleteMessagePermanent: vi.fn(), saveMessageAs: vi.fn(),
     markFlagged: vi.fn(), moveMessage: vi.fn(), markJunk: vi.fn(), markNotJunk: vi.fn(), copyMessage: vi.fn(),
     createFolder: vi.fn(), renameFolder: vi.fn(), deleteFolder: vi.fn(), moveFolder: vi.fn(),
+    folderUIState: vi.fn(), saveFolderUIState: vi.fn(),
     pickAttachments: vi.fn(), about: vi.fn(), licence: vi.fn(), openReleases: vi.fn(),
     markRead: vi.fn(), moveMessages: vi.fn(), deleteMessagesPermanent: vi.fn(),
     deleteMessages: vi.fn(), showDefaultAppSettings: vi.fn(), minimiseToTray: vi.fn(),
@@ -136,6 +138,8 @@ beforeEach(() => {
     }))
     apiSpies.syncFolder.mockReset().mockResolvedValue(undefined)
     apiSpies.listFolders.mockReset().mockResolvedValue([])
+    apiSpies.folderUIState.mockReset().mockResolvedValue({order: [], collapsed: []})
+    apiSpies.saveFolderUIState.mockReset().mockResolvedValue(undefined)
     apiSpies.listOutbox.mockReset().mockResolvedValue([])
     apiSpies.cancelOutboxItem.mockReset().mockResolvedValue(undefined)
     apiSpies.syncAccount.mockReset().mockResolvedValue(undefined)
@@ -254,6 +258,37 @@ describe('App: account and folder cascade', () => {
         fireEvent.click(container.querySelector('[data-folder-id="archive"]')!)
         await waitFor(() => expect(apiSpies.listMessages).toHaveBeenCalledWith('archive'))
         expect(await screen.findByText('Archived item')).toBeInTheDocument()
+    })
+
+    // After the idle interval with no user activity, the app returns to its resting view: the active
+    // account's Inbox becomes the selected folder again. The timer arms on activity, so the test
+    // switches to fake timers, taps a key and advances past the interval.
+    it('reselects the inbox after the idle interval', async () => {
+        apiSpies.listAccounts.mockResolvedValue([makeAccount()])
+        apiSpies.listFolders.mockResolvedValue([
+            makeFolder('inbox', 'Inbox', 'inbox'),
+            makeFolder('archive', 'Archive', 'custom'),
+        ])
+        apiSpies.listMessages.mockImplementation((id: string) =>
+            Promise.resolve(id === 'archive'
+                ? [makeMessage({id: 'a1', folderId: 'archive', subject: 'Archived item'})]
+                : [makeMessage({subject: 'Weekly report'})]))
+        const {container} = render(<App/>)
+        expect(await screen.findByText('Weekly report')).toBeInTheDocument()
+        fireEvent.click(container.querySelector('[data-folder-id="archive"]')!)
+        expect(await screen.findByText('Archived item')).toBeInTheDocument()
+        vi.useFakeTimers()
+        try {
+            act(() => {
+                window.dispatchEvent(new Event('keydown'))
+                vi.advanceTimersByTime(IDLE_REFOCUS_MS)
+            })
+        } finally {
+            vi.useRealTimers()
+        }
+        expect(await screen.findByText('Weekly report')).toBeInTheDocument()
+        const inbox = container.querySelector('[data-folder-id="inbox"]')!
+        expect(inbox.className).toContain('selected')
     })
 })
 
