@@ -122,8 +122,8 @@ func run() error {
 	actionService := application.NewMessageActionService(store, store, mailSource)
 	folderService := application.NewFolderService(store, store, imapSource, imapSource)
 	// The folder display state (custom-folder order, collapsed folders) persists in the database rather
-	// than the WebView's localStorage, so it survives an application update (the installer treats the
-	// WebView profile as disposable but preserves the database).
+	// than the WebView's localStorage, so it survives an application update (localStorage lives in the
+	// browser-managed WebView profile, which is outside the app's own data directory and not durable).
 	folderUIStateService := application.NewFolderUIStateService(store)
 	ruleService := application.NewRuleService(store, newRuleID)
 	templateService := application.NewTemplateService(store, newTemplateID)

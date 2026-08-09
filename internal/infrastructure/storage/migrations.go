@@ -260,9 +260,9 @@ ALTER TABLE outbox ADD COLUMN calendar_ics TEXT NOT NULL DEFAULT '';
 
 // schemaV49 adds the per-account folder display state: the user's local sibling order for custom
 // folders and the set of collapsed folder paths, each stored as a JSON array of folder paths. This
-// state previously lived only in the WebView's localStorage, which the installer treats as a
-// disposable browser profile, so it was lost on every update; the database is the durable home the
-// installer preserves.
+// state previously lived only in the WebView's localStorage, a browser-managed profile outside the
+// application's own data directory that does not reliably survive an update or reinstall; the
+// database is the durable home.
 const schemaV49 = `
 CREATE TABLE IF NOT EXISTS folder_ui_state (
     account_id     TEXT PRIMARY KEY,

@@ -84,7 +84,8 @@ local-first. A calmer, more predictable alternative to Thunderbird.
   (Ctrl+X/C/V, the Edit menu or a right-click): cut or copy a selection, then paste it into the
   folder being viewed or straight onto a right-clicked folder; cut rows dim until pasted and pasted
   rows appear instantly. Create, rename and delete folders; reorganise the
-  tree by dragging a folder to nest it, move it out or reorder its siblings.
+  tree by dragging a folder to nest it, move it out or reorder its siblings; the order you choose and
+  the folders you keep collapsed are remembered per account and survive an update or reinstall.
   One folder each holds Inbox, Sent, Drafts, Trash, Junk and Archive, leading a collapsible tree with
   unread badges per folder, account and total. On-arrival rules mark or flag by From, To, Cc or Subject.
 - **Read**: an optional reading pane (mark-on-view, F8 toggle) whose attachments stay pinned at the
@@ -92,7 +93,10 @@ local-first. A calmer, more predictable alternative to Thunderbird.
   every quoted round, with draggable pane dividers
   (widths remembered, double-click to reset), a right-click context menu, in-app
   reader tabs, a double-click (or Enter) that pops the message out into its own dialog, mouse and
-  keyboard multi-select with bulk actions, plus full keyboard control through an explicit focus ring. The list stays fluid in folders of tens of thousands of messages. A Date sort and
+  keyboard multi-select with bulk actions, plus full keyboard control through an explicit focus ring;
+  after ten seconds without input the keyboard focus settles back on the active account's Inbox folder
+  (never while a dialog is open or while you are mid-entry in a text field), so keyboard control always
+  resumes from a known place. The list stays fluid in folders of tens of thousands of messages. A Date sort and
   an optional threaded conversation view. A `.eml` file opens in an in-app viewer; on Windows and macOS
   PigeonPost can be set as the default `.eml` handler. PigeonPost registers as a system mail handler on
   Windows, macOS and Linux, so it can be chosen as the default email client (Windows Default apps, the

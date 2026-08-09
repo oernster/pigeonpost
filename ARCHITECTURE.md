@@ -24,7 +24,7 @@ enforced by a test in `tests/structural/boundary_test.go`, not by convention.
   (`AccountStore`, `CredentialStore`, `AccountVerifier`, `MailStore`, `MailSource`, `MailActions`,
   `MailTransport`, `FolderActions`, `DraftSaver`, `OutboxStore`, `TagStore`, `RuleStore`, `Clock`,
   plus the later feature ports for contacts, calendar, recurrence, scheduling, draft recovery,
-  remote images and CalDAV, each introduced with its feature below). The
+  remote images, CalDAV and the folder display state, each introduced with its feature below). The
   `MailSource`, `MailActions` and `AccountVerifier` ports are satisfied by the `mailrouter` adapter,
   which dispatches to the IMAP or POP3 implementation per account protocol. Depends on Domain and the
   standard library only. Never imports Infrastructure or the Wails runtime.
@@ -484,8 +484,10 @@ into the folder's own subtree; the sidebar's folder drag-and-drop calls this, wh
 a local per-account display order, since IMAP has no folder order. That display state (the custom folders'
 order and the collapsed folder paths) persists durably in the database via `FolderUIStateService` and the
 `folder_ui_state` table, so it survives an application update; the WebView's localStorage holds only a
-warm cache of it for the first paint (the installer treats the WebView profile as disposable but
-preserves the database). Classification
+warm cache of it for the first paint. localStorage lives in the WebView2 browser profile (by default
+`%APPDATA%\PigeonPost.exe`, a directory named after the executable and managed by the browser runtime,
+not by PigeonPost), which sits outside the application's own data directory and has proven not to
+survive an update or reinstall, so nothing durable may live only there. Classification
 gives each well-known role to exactly one folder: the server's RFC 6154 special-use attributes are
 authoritative, otherwise the well-known leaf name is used; a name match nested under a different
 special folder is rejected, so a stray "Sent" under Drafts never becomes the account Sent. Any stray sent
@@ -938,8 +940,8 @@ Locked product decisions:
   registration). Gmail personal accounts are supported via an app-password preset; one-click Google
   sign-in is declined (annual CASA fee) and Workspace accounts are OAuth-only, so they are not covered
   by the personal preset.
-- Calendar/contacts: file ICS/vCard import/export, read-only ICS subscription and two-way CalDAV
-  calendar sync are delivered; two-way CardDAV contact sync is planned. The delivered CalDAV sync has
+- Calendar/contacts: file ICS/vCard import/export and two-way CalDAV calendar sync are delivered;
+  two-way CardDAV contact sync is planned. The delivered CalDAV sync has
   not yet been exercised against a live server, so its per-provider edges (ETag and href formats,
   whether 412 is the conflict status, whether a server accepts a client-chosen object name, CTag
   support) are unproven until a first real account exercises them.
