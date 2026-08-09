@@ -74,15 +74,16 @@ documented here.
 | internal/infrastructure/mailparse | ~94% | MIME body parsing, HTML sanitising, URL linkifying, image and CSS-background parking (including the font-source exception) and hidden-preheader removal that keeps MJML layout wrappers and mso-hide content (pure); a few defensive decode branches uncovered |
 | internal/infrastructure/ics | ~92% | RFC 5545 codec round-trip, recurrence and scheduling payloads |
 | internal/infrastructure/remoteimage | ~92% | the SSRF guard and the resolver for parked images and parked CSS backgrounds against stub servers; the live-wired constructor excluded |
-| internal/infrastructure/csv | ~91% | Outlook CSV codec round-trip |
+| internal/infrastructure/csv | ~95% | Outlook CSV codec round-trip |
 | internal/infrastructure/caldav | ~82% | request and parse logic against a stub server; live-server edges and the live-wired writer factory excluded |
 | internal/infrastructure/storage | ~79% | logic and error paths covered, including keyset message pagination and the atomic tag-keyword and flag-pending sync writes; see exclusions |
 | internal/infrastructure/pop3 | ~40% | response and UIDL parsing covered; the live dial and download excluded |
-| internal/installer | ~26% | extract and paths covered; Win32 side effects excluded |
-| internal/infrastructure/imap | ~25% | the source adapter's pure helpers; the wire-to-domain and HTML logic now lives in `mailparse`, and live fetch/append plus the IDLE watcher are excluded |
+| internal/installer | ~22% | extract and paths covered; Win32 side effects excluded |
+| internal/infrastructure/imap | ~27% | the source adapter's pure helpers; the wire-to-domain and HTML logic now lives in `mailparse`, and live fetch/append plus the IDLE watcher are excluded |
 | internal/infrastructure/taskbar | ~17% | the pure label formatting and no-op stub covered; the Windows-only Win32 overlay excluded |
 | internal/infrastructure/smtp | 0% | transport is live `Send` only; MIME building lives in `message` |
-| main package, installer app, tools/genicons | 0% | composition root, GUI and tooling, excluded |
+| main package | ~4% | composition root and the Wails facade, excluded; the few covered statements are pure helpers reached by other packages' tests |
+| installer app, tools/genicons | 0% | GUI and one-shot tooling, excluded |
 
 ## Documented exclusions (and why)
 
@@ -168,6 +169,12 @@ npx vitest run --coverage   # enforce the pure-module coverage gate
   framework plumbing, so a blanket 100% there buys brittle tests, not correctness.
 - **Structural boundary test.** `src/test/boundary.test.ts` scans the top-level `src/*.ts` modules and
   keeps the gated pure modules pure, the front-end analogue of `boundary_test.go`.
+- **Modal layout test.** `src/components/modalLayout.test.ts` scans the dialog source and holds two
+  rules: every modal carrying an action row pins it, and every pinned modal has something that
+  actually scrolls. Both matter because a dialog that scrolls as one block takes its buttons off a
+  short window, which is invisible on a large screen and so cannot be left to review. It reads raw
+  source through Vite's glob rather than `node:fs`, the same as the boundary test, and it asserts it
+  found panels at all so a rename cannot turn it into a vacuous pass.
 - **The reader's colour treatment** is tested on both halves: its colour arithmetic (colour parsing, alpha
   compositing, sRGB relative luminance, contrast ratio, what counts as a dark background and what counts as
   a background image that actually paints) lives in `src/emailColors.ts` under the gate above, pinned

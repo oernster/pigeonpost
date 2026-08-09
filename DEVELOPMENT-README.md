@@ -6,7 +6,7 @@ How to set up, run, test, build and package PigeonPost from source.
 
 | Tool | Version | Notes |
 |---|---|---|
-| Go | 1.23 or newer | The build was verified on Go 1.26. |
+| Go | 1.25 or newer | The floor is the `go` directive in `go.mod`; the build was verified on Go 1.26. |
 | Node.js | 20 or newer | Node 24 verified. Ships with npm. |
 | Wails CLI | v2.12 | `go install github.com/wailsapp/wails/v2/cmd/wails@latest` |
 | WebView2 runtime | current | Pre-installed on Windows 11. Wails uses the system WebView. |

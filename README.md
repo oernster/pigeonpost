@@ -139,7 +139,7 @@ candidates parked beyond these are triaged with their rationale in
 | Concern | Choice |
 |---|---|
 | Shell | Wails v2 (Go + system WebView) |
-| Backend | Go 1.23+ |
+| Backend | Go 1.25+ |
 | Front end | React 18 + TypeScript (Vite) |
 | Mail | emersion go-imap / go-smtp / go-message |
 | Storage | modernc.org/sqlite (pure Go) + FTS5 |

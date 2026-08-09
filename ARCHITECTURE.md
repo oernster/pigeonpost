@@ -441,13 +441,18 @@ a property of the page rather than the cycle: any manual reading input suspends 
 window and it resumes from wherever the reader left it (never switches off), and a surface underneath
 another modal is frozen rather than suspended so its phase and position survive the modal above. Both
 panes put the cycle on their inner body and pin their action row beneath it (`.modal.pinned-actions`, a
-flex column whose body is the scroller), so Close never drifts off as the content reads itself.
+flex column whose body is the scroller), so Close never drifts off as the content reads itself. That
+layout is no longer particular to these two: every dialog carrying an action row now wears it, so a
+tall dialog scrolls its body instead of taking its buttons off the bottom of a short window. The
+furniture around the body (a title, an intro, a toolbar above it, the action row below) is held at
+`flex: none` by one rule rather than one per element, and `modalLayout.test.ts` scans the source so a
+new dialog that forgets the class fails on the day it is written.
 Neither this nor the drop flash is gated on `prefers-reduced-motion`: on Windows that query follows the
 general "Animation effects" switch, which people turn off for performance rather than motion
 sensitivity, so gating on it silently removed both features on a machine that had it off. Stopping the
-cycle is what touching the pane is for. It is worn by the About and Licence
-panes only; every other scrollable surface in the app is a work or decision surface, where content that
-moves on its own would fight the user.
+cycle is what touching the pane is for. The self-reading cycle, unlike the pinned layout above, is worn
+by the About and Licence panes only; every other scrollable surface in the app is a work or decision
+surface, where content that moves on its own would fight the user.
 
 Undo, redo and the message clipboard (front end): the reported destination ids are what make undo
 possible. `undoStack.ts` (a gated pure module) models the undo and redo stacks: entries for the
@@ -563,7 +568,8 @@ custom error types beyond sentinels.
 
 ## Quality enforcement
 
-- `internal/domain` at 100% test coverage.
+- `internal/domain` and `internal/application` at 100% test coverage, enforced by `./test.ps1`, which
+  fails the run when either drops below it. A bare `go test ./...` does not apply the gate.
 - Application use cases tested against hand-written fakes (no mock libraries).
 - Infrastructure tested against a real SQLite database in a temp directory.
 - Structural AST tests enforce layering, domain purity, the module-size limit and the composition
@@ -896,7 +902,7 @@ GPL-3.0 compatible.
 | Concern | Choice | Rationale |
 |---|---|---|
 | Shell | Wails v2 (WebView2/WebKit hosting React + TS) | Proven delivery lineage; single small binary. |
-| Backend | Go 1.21+ | Second first-class language; native cross-platform. |
+| Backend | Go 1.25+ | Second first-class language; native cross-platform. The floor is the `go` directive in `go.mod`. |
 | IMAP | emersion/go-imap (v2, IDLE) | Async push, mature. |
 | POP3 | small hand-rolled client | POP3 is a small protocol. |
 | SMTP send | emersion/go-smtp | Pairs with the suite. |
