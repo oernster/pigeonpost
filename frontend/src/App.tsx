@@ -695,14 +695,18 @@ function App() {
 
     // After a stretch of no user activity the app returns to its resting view: the active account's
     // Inbox becomes the selected folder (highlighted in the sidebar, its list shown) and keyboard
-    // focus lands on its row. Skipped while any dialog or menu is open (they own their focus) and
-    // while the caret sits in a text field (a pause mid-entry must not lose the caret); an idle
-    // stretch already on the Inbox only re-settles the focus.
+    // focus lands on its row. Skipped while any dialog or menu is open (they own their focus), while
+    // the caret sits in a text field (a pause mid-entry must not lose the caret) and while a message
+    // is open in the reader (returning to the Inbox would close it mid-read); an idle stretch
+    // already on the Inbox only re-settles the focus.
     const idleReturnToInbox = useCallback(() => {
         if (document.querySelector('.modal-backdrop, .context-menu, [role="menu"]')) {
             return
         }
         if (isTypingTarget(document.activeElement)) {
+            return
+        }
+        if (selectedMessage) {
             return
         }
         const inbox = folders.find((f) => f.kind === 'inbox')
@@ -713,7 +717,7 @@ function App() {
             void selectFolder(inbox.id)
         }
         document.querySelector<HTMLElement>(`[data-folder-id="${CSS.escape(inbox.id)}"]`)?.focus()
-    }, [folders, selectFolder, selectedFolderRef])
+    }, [folders, selectFolder, selectedFolderRef, selectedMessage])
     useIdleRefocus(idleReturnToInbox)
 
     // toggleUnifiedMailbox shows or hides the sidebar's All-inboxes entry and persists the choice.

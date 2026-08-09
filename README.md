@@ -95,8 +95,9 @@ local-first. A calmer, more predictable alternative to Thunderbird.
   reader tabs, a double-click (or Enter) that pops the message out into its own dialog, mouse and
   keyboard multi-select with bulk actions, plus full keyboard control through an explicit focus ring;
   after ten seconds without input the app settles back on the active account's Inbox: the Inbox becomes
-  the selected folder with keyboard focus on its row (never while a dialog is open or while you are
-  mid-entry in a text field), so the window always resumes from a known place. The list stays fluid in folders of tens of thousands of messages. A Date sort and
+  the selected folder with keyboard focus on its row (never while a dialog is open, while you are
+  mid-entry in a text field or while a message is open in the reader), so the window always resumes
+  from a known place. The list stays fluid in folders of tens of thousands of messages. A Date sort and
   an optional threaded conversation view. A `.eml` file opens in an in-app viewer; on Windows and macOS
   PigeonPost can be set as the default `.eml` handler. PigeonPost registers as a system mail handler on
   Windows, macOS and Linux, so it can be chosen as the default email client (Windows Default apps, the

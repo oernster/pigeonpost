@@ -290,6 +290,38 @@ describe('App: account and folder cascade', () => {
         const inbox = container.querySelector('[data-folder-id="inbox"]')!
         expect(inbox.className).toContain('selected')
     })
+
+    // A message open in the reader keeps the view alive: the idle return would close it mid-read, so
+    // it is skipped entirely while a message is selected.
+    it('stays on the open message instead of returning to the inbox when idle', async () => {
+        apiSpies.listAccounts.mockResolvedValue([makeAccount()])
+        apiSpies.listFolders.mockResolvedValue([
+            makeFolder('inbox', 'Inbox', 'inbox'),
+            makeFolder('archive', 'Archive', 'custom'),
+        ])
+        apiSpies.listMessages.mockImplementation((id: string) =>
+            Promise.resolve(id === 'archive'
+                ? [makeMessage({id: 'a1', folderId: 'archive', subject: 'Archived item'})]
+                : [makeMessage({subject: 'Weekly report'})]))
+        const {container} = render(<App/>)
+        expect(await screen.findByText('Weekly report')).toBeInTheDocument()
+        fireEvent.click(container.querySelector('[data-folder-id="archive"]')!)
+        fireEvent.click(await screen.findByText('Archived item'))
+        await waitFor(() => expect(apiSpies.messageBody).toHaveBeenCalledWith('a1'))
+        vi.useFakeTimers()
+        try {
+            act(() => {
+                window.dispatchEvent(new Event('keydown'))
+                vi.advanceTimersByTime(IDLE_REFOCUS_MS)
+            })
+        } finally {
+            vi.useRealTimers()
+        }
+        const archive = container.querySelector('[data-folder-id="archive"]')!
+        expect(archive.className).toContain('selected')
+        const reader = container.querySelector('.reader') as HTMLElement
+        expect(within(reader).getByRole('button', {name: 'Reply'})).toBeInTheDocument()
+    })
 })
 
 describe('App: reading a message', () => {

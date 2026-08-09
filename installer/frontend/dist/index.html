@@ -436,7 +436,10 @@
                     return withAppClosed(() => run(
                         () => backend().Install($('boot-install').checked).then(() => {
                             if (chooseDefault) backend().ShowDefaultAppSettings()
-                            if (launchAfter) return backend().LaunchApp()
+                            // The app was asked for, so setup's job is done: once the launch has
+                            // succeeded the installer closes itself rather than waiting on Close. A
+                            // failed launch rejects, so the error screen still shows and setup stays open.
+                            if (launchAfter) return backend().LaunchApp().then(() => backend().Quit())
                         }),
                         'Installing PigeonPost', 'PigeonPost installed',
                         doneMessage(launchAfter, chooseDefault),
@@ -475,7 +478,10 @@
                     const launchAfter = $('launch-upgrade').checked
                     return withAppClosed(() => run(
                         () => backend().Install(state.launchOnBoot).then(() => {
-                            if (launchAfter) return backend().LaunchApp()
+                            // The app was asked for, so setup's job is done: once the launch has
+                            // succeeded the installer closes itself rather than waiting on Close. A
+                            // failed launch rejects, so the error screen still shows and setup stays open.
+                            if (launchAfter) return backend().LaunchApp().then(() => backend().Quit())
                         }),
                         'Updating PigeonPost', 'PigeonPost updated',
                         'You are now on v' + state.thisVersion + '.' + (launchAfter ? ' PigeonPost is starting.' : '')))
@@ -516,7 +522,10 @@
                     const launchAfter = $('launch-manage').checked
                     return withAppClosed(() => run(
                         () => backend().Repair().then(() => {
-                            if (launchAfter) return backend().LaunchApp()
+                            // The app was asked for, so setup's job is done: once the launch has
+                            // succeeded the installer closes itself rather than waiting on Close. A
+                            // failed launch rejects, so the error screen still shows and setup stays open.
+                            if (launchAfter) return backend().LaunchApp().then(() => backend().Quit())
                         }),
                         'Repairing PigeonPost', 'Repair complete',
                         'PigeonPost has been reinstalled.' + (launchAfter ? ' PigeonPost is starting.' : '')))
