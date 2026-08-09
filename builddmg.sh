@@ -37,14 +37,14 @@ APPLE_TEAM_ID="${APPLE_TEAM_ID:-W7K465GKFJ}"
 # unnotarized DMG is rejected by Gatekeeper on every machine but the one that signed
 # it, and the failure is invisible at build time.
 ALLOW_UNNOTARIZED="${ALLOW_UNNOTARIZED:-}"
-# Notarization credentials live in the keychain under one profile per app, each holding
-# its own app-specific password, so a leaked credential can be revoked for a single app.
-# The profile defaults to this app's name: running the build from the repo picks up the
-# right credential with nothing to export, and no other app's profile can be used by
-# accident. Set APPLE_KEYCHAIN_PROFILE to override. Create it with:
+# The notarization credential for this app, created once with
 #   xcrun notarytool store-credentials PigeonPost \
 #     --apple-id <id> --team-id <team> --password <app-specific>
-NOTARY_PROFILE="${APPLE_KEYCHAIN_PROFILE:-${APP_NAME}}"
+# One profile per app means a leaked credential can be revoked for a single app. Stated
+# explicitly rather than derived from APP_NAME: the profile is a fact registered with
+# Apple, and deriving it would silently change which credential the build looks for if
+# that name were ever edited. APPLE_KEYCHAIN_PROFILE overrides it.
+NOTARY_PROFILE="${APPLE_KEYCHAIN_PROFILE:-PigeonPost}"
 # The notary service accepts only an app-specific password from appleid.apple.com and
 # rejects the Apple account password with HTTP 401. The shape is distinctive, so it is
 # checked before the build rather than discovered after it.
