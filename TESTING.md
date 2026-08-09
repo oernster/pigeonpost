@@ -52,6 +52,7 @@ documented here.
 | `internal/infrastructure/caldav` | unit against a local stub CalDAV server (httptest) | local HTTP server |
 | `internal/infrastructure/oauth` | unit against stubbed token endpoints (httptest) | local HTTP server |
 | `internal/infrastructure/remoteimage` | unit on the SSRF guard and the resolver for both parked images and parked CSS backgrounds, against local stub servers (httptest) and an injected fetch seam | local HTTP server |
+| `internal/infrastructure/update` | unit on the GitHub latest-release source via an injected HTTP client | none |
 | `internal/infrastructure/keychain` | unit via go-keyring's in-memory mock | none |
 | `internal/infrastructure/taskbar` | unit on the pure label formatting; Win32 overlay excluded | none |
 | `internal/infrastructure/sound` | unit on the chime synthesis and WAV encoding; the winmm playback call excluded | none |
@@ -71,6 +72,7 @@ documented here.
 | internal/infrastructure/vcard | ~97% | vCard codec round-trip |
 | internal/infrastructure/sound | ~97% | the notification chime's synthesis, normalisation and WAV encoding (pure); only the winmm playback call is excluded |
 | internal/infrastructure/oauth | ~95% | token flow against stubbed endpoints; real-network edges excluded |
+| internal/infrastructure/update | ~88% | the GitHub latest-release source against an injected fake client; the live-wired constructor and defensive request/read branches excluded |
 | internal/infrastructure/mailparse | ~94% | MIME body parsing, HTML sanitising, URL linkifying, image and CSS-background parking (including the font-source exception) and hidden-preheader removal that keeps MJML layout wrappers and mso-hide content (pure); a few defensive decode branches uncovered |
 | internal/infrastructure/ics | ~92% | RFC 5545 codec round-trip, recurrence and scheduling payloads |
 | internal/infrastructure/remoteimage | ~92% | the SSRF guard and the resolver for parked images and parked CSS backgrounds against stub servers; the live-wired constructor excluded |
@@ -112,8 +114,8 @@ documented here.
   running the setup program, not by unit tests.
 - **Composition root and startup** (the whole `main` package: `main.go` plus the Wails facade files,
   namely `app.go`, one binding file per feature surface (accounts, mail, folders, send, draft recovery,
-  outbox, snooze, tags, rules, templates, calendar, CalDAV, contacts, scheduling, export and `.eml`
-  files), the background goroutines (the new-mail notifier, the reminder scheduler, the outbox
+  outbox, snooze, tags, rules, templates, calendar, CalDAV, contacts, scheduling, export, `.eml`
+  files and updates), the background goroutines (the new-mail notifier, the reminder scheduler, the outbox
   dispatcher and the snooze scheduler) plus the DTO mappers and clock) and the **icon tool**
   (`tools/genicons`): wiring and one-shot programs, verified by the app and the build succeeding.
 - **A few defensive branches in storage** (a commit failing after a successful transaction, a driver

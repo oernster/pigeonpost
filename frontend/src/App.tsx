@@ -19,6 +19,7 @@ import {WelcomeScreen} from './components/WelcomeScreen'
 import {SelectionSummary} from './components/SelectionSummary'
 import {DraftRecoveryDialog} from './components/DraftRecoveryDialog'
 import {AboutModal} from './components/AboutModal'
+import {UpdateModal} from './components/UpdateModal'
 import {LicenceModal} from './components/LicenceModal'
 import {arrangeByConversation, sortByDate} from './threads'
 import {isJunkFolderMessage} from './folderPaths'
@@ -53,6 +54,7 @@ import {useSync} from './hooks/useSync'
 import {useTags} from './hooks/useTags'
 import {useComposeLauncher} from './hooks/useComposeLauncher'
 import {useAppEvents} from './hooks/useAppEvents'
+import {useUpdateCheck} from './hooks/useUpdateCheck'
 import {defaultUndoSendSeconds, undoSendChoices, useMenus} from './hooks/useMenus'
 import {useMessageListKeyboard} from './hooks/useMessageListKeyboard'
 import {usePaneWidths} from './hooks/usePaneWidths'
@@ -956,9 +958,10 @@ function App() {
         }
     }, [])
 
-    const checkUpdates = useCallback(() => {
-        void api.openReleases()
-    }, [])
+    // The update check: an automatic pass shortly after launch and daily thereafter surfaces the
+    // modal only for a newer, non-skipped release; checkUpdates is the manual Help menu path and
+    // reports every outcome.
+    const {updateStatus, setUpdateStatus, checkUpdates, skipUpdate} = useUpdateCheck()
 
     // The backend-event wiring (the Windows tray menu and app:close-request, an OS-handed .eml, and the poll
     // events that refresh the unread counts and the open folder or the calendar) plus the Windows platform
@@ -1342,6 +1345,12 @@ function App() {
                 />
             )}
             <AboutModal about={about} onClose={() => setAbout(null)}/>
+            <UpdateModal
+                status={updateStatus}
+                onClose={() => setUpdateStatus(null)}
+                onDownload={(url) => void api.openExternal(url)}
+                onSkip={skipUpdate}
+            />
             <LicenceModal text={licence} onClose={() => setLicence(null)}/>
             {launchedEmail && <EmailViewerModal email={launchedEmail} autoLoadImages={autoLoadImages} dark={theme === 'dark'} onClose={() => setLaunchedEmail(null)}/>}
             {popoutOpen && selectedMessage && !multiSelected && (

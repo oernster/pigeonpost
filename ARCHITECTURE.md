@@ -24,7 +24,8 @@ enforced by a test in `tests/structural/boundary_test.go`, not by convention.
   (`AccountStore`, `CredentialStore`, `AccountVerifier`, `MailStore`, `MailSource`, `MailActions`,
   `MailTransport`, `FolderActions`, `DraftSaver`, `OutboxStore`, `TagStore`, `RuleStore`, `Clock`,
   plus the later feature ports for contacts, calendar, recurrence, scheduling, draft recovery,
-  remote images, CalDAV and the folder display state, each introduced with its feature below). The
+  remote images, CalDAV, the folder display state and the update check's `ReleaseSource`, each
+  introduced with its feature below). The
   `MailSource`, `MailActions` and `AccountVerifier` ports are satisfied by the `mailrouter` adapter,
   which dispatches to the IMAP or POP3 implementation per account protocol. Depends on Domain and the
   standard library only. Never imports Infrastructure or the Wails runtime.
@@ -46,8 +47,8 @@ enforced by a test in `tests/structural/boundary_test.go`, not by convention.
   `installer/` Wails setup app.
 - **UI**: the React front end plus the thin Wails facade in package `main` (`app.go` with one binding
   file per feature surface: accounts, mail, folders, send, draft recovery, outbox, snooze, tags, rules,
-  templates, calendar, CalDAV, contacts, scheduling, export, `.eml` files and About, plus the `dto.go`
-  DTO mappers and the `clock.go` clock). The facade is a client of the Application use cases only; it
+  templates, calendar, CalDAV, contacts, scheduling, export, `.eml` files, updates and About, plus the
+  `dto.go` DTO mappers and the `clock.go` clock). The facade is a client of the Application use cases only; it
   maps domain results to DTOs and holds no business logic.
 
 ## Composition root
@@ -568,6 +569,20 @@ value with an operator (contains, is, starts with, ends with or does not contain
 (mark read or flag). The operator column was added by `ALTER TABLE` defaulting to contains,
 so pre-existing rules keep their behaviour. Matching and the action are pure domain logic; move and
 delete on arrival stay deferred because they need UID reconciliation to be safe.
+
+**Update check.** The application `UpdateService` compares the embedded VERSION against the newest
+published GitHub release through the `ReleaseSource` port, implemented by
+`infrastructure/update.GitHubReleaseSource` (a 5 second `net/http` GET of the latest-release
+endpoint, which reports published, non-draft, non-prerelease releases only, so a tag pushed
+mid-development can never prompt; the HTTP client is injected for tests). The service picks the
+download asset for the running OS by filename suffix (`.exe` / `.dmg` / `.flatpak`), reports an
+unreachable source as no update and treats a version the user skipped as seen but not available.
+The facade binding (`updatesapi.go`, `CheckForUpdates`) runs the check off the main thread as every
+Wails bound call is; the front end owns the triggers (`useUpdateCheck`: a launch check shortly
+after start, a daily re-check and the manual Help / tray path, which ignores the skip) and renders
+the outcome in `UpdateModal` (Download via the existing `OpenExternal` scheme allowlist, Skip This
+Version persisted in localStorage with the other presentation preferences, Later). Automatic checks
+surface nothing on failure or when up to date; the manual check reports both.
 
 ## Errors
 

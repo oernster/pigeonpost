@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	goruntime "runtime"
 	"strings"
 	"time"
 
@@ -29,6 +30,7 @@ import (
 	"github.com/oernster/pigeonpost/internal/infrastructure/smtp"
 	"github.com/oernster/pigeonpost/internal/infrastructure/storage"
 	"github.com/oernster/pigeonpost/internal/infrastructure/taskbar"
+	"github.com/oernster/pigeonpost/internal/infrastructure/update"
 )
 
 //go:embed all:frontend/dist
@@ -162,7 +164,13 @@ func run() error {
 	// rather than waiting for the poll; it authenticates through the same keychain vault as fetches.
 	watcher := imap.NewWatcher(vault, tokenManager)
 
-	app = NewApp(store.Close, overlay, flasher, tray, watcher, accountService, setupService, microsoftSetupService, mailboxService, unifiedService, snoozeService, syncService, composeService, tagService, tagSyncService, bodyService, actionService, folderService, folderUIStateService, ruleService, templateService, contactService, calendarService, calendarEditService, schedulingService, remoteImageService, caldavService)
+	// The update check compares the embedded VERSION against the newest published GitHub release,
+	// offering the asset for this OS; the endpoint reports published releases only, so a pushed tag
+	// with no formal release can never prompt.
+	updateService := application.NewUpdateService(
+		update.NewGitHubReleaseSource(), version(), application.PlatformKeyFor(goruntime.GOOS))
+
+	app = NewApp(store.Close, overlay, flasher, tray, watcher, accountService, setupService, microsoftSetupService, mailboxService, unifiedService, snoozeService, syncService, composeService, tagService, tagSyncService, bodyService, actionService, folderService, folderUIStateService, ruleService, templateService, contactService, calendarService, calendarEditService, schedulingService, remoteImageService, caldavService, updateService)
 	app.title = windowTitle
 
 	err = wails.Run(&options.App{

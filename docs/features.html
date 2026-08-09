@@ -160,7 +160,10 @@
                 <h3>Private by the way it is built</h3>
                 <p>Passwords live in your OS keychain, never in a database. Microsoft sign-in stores a
                     token there instead of a password. No PigeonPost cloud sits in the path; your mail is
-                    with your provider and on your machine. The local cache itself is ordinary data on your
+                    with your provider and on your machine. Beyond your own mail servers, the app's one
+                    outbound call is a daily check of the project's GitHub releases for a newer version;
+                    it carries nothing about you and a newer release simply offers the download for your
+                    platform. The local cache itself is ordinary data on your
                     own disk, not encrypted at rest: pair it with your OS disk encryption (BitLocker,
                     FileVault) if you want that protection.</p>
             </div>

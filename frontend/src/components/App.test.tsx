@@ -31,6 +31,7 @@ const apiSpies = vi.hoisted(() => ({
     createFolder: vi.fn(), renameFolder: vi.fn(), deleteFolder: vi.fn(), moveFolder: vi.fn(),
     folderUIState: vi.fn(), saveFolderUIState: vi.fn(),
     pickAttachments: vi.fn(), about: vi.fn(), licence: vi.fn(), openReleases: vi.fn(),
+    checkForUpdates: vi.fn(async () => ({current: '', latest: '', updateAvailable: false, downloadUrl: '', pageUrl: ''})),
     markRead: vi.fn(), moveMessages: vi.fn(), deleteMessagesPermanent: vi.fn(),
     deleteMessages: vi.fn(), showDefaultAppSettings: vi.fn(), minimiseToTray: vi.fn(),
     requestQuit: vi.fn(),

@@ -77,6 +77,7 @@ import {
     SaveRule,
     SaveTemplate,
     CancelOutboxItem,
+    CheckForUpdates,
     ListOutbox,
     OpenExternal,
     OpenReleasesPage,
@@ -153,6 +154,7 @@ export interface SearchResult {
 export const SEARCH_MATCH_START = '\u0001'
 export const SEARCH_MATCH_END = '\u0002'
 export type AboutInfo = main.AboutDTO
+export type UpdateStatus = main.UpdateStatusDTO
 export type Tag = main.TagDTO
 export type Rule = main.RuleDTO
 export type Template = main.TemplateDTO
@@ -520,6 +522,7 @@ export const api = {
     version: (): Promise<string> => Version(),
     author: (): Promise<string> => Author(),
     openReleases: (): Promise<void> => OpenReleasesPage(),
+    checkForUpdates: (skippedVersion: string): Promise<UpdateStatus> => CheckForUpdates(skippedVersion),
     minimiseToTray: (): Promise<void> => MinimiseToTray(),
     requestQuit: (): Promise<void> => RequestQuit(),
     send: (req: ComposeInput): Promise<string> => SendMessage(main.ComposeRequest.createFrom(req)),
