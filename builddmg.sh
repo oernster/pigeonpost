@@ -4,12 +4,18 @@
 #   bash builddmg.sh
 #
 # Flow: generate icons, wails build for darwin/arm64, stamp the bundle version from VERSION,
-# codesign the .app (hardened runtime), stage it with ditto, create-dmg, sign the DMG, then
-# notarize and staple only when APPLE_ID and APPLE_APP_PASSWORD are set.
+# codesign the .app (hardened runtime), notarize and staple the .app, stage it with ditto,
+# create-dmg, stamp the DMG file icon, sign the DMG, then notarize and staple the DMG.
+#
+# Notarization is mandatory. A Developer ID signature alone is not enough: since macOS 10.15
+# Gatekeeper rejects signed-but-unnotarized apps with "Apple could not verify ... is free of
+# malware". APPLE_ID and APPLE_APP_PASSWORD must both be set or the build stops before
+# anything is built.
 #
 # Environment overrides:
 #   DEVELOPER_ID_APPLICATION   signing identity (defaults to Oliver's Developer ID)
-#   APPLE_ID, APPLE_APP_PASSWORD, APPLE_TEAM_ID   notarization credentials (skipped if unset)
+#   APPLE_ID, APPLE_APP_PASSWORD, APPLE_TEAM_ID   notarization credentials (required)
+#   ALLOW_UNNOTARIZED=1        build without notarizing; local testing only, never released
 #
 # Output: PigeonPost.dmg in the repo root
 set -euo pipefail
@@ -27,8 +33,51 @@ DEVELOPER_ID="${DEVELOPER_ID_APPLICATION:-Developer ID Application: Oliver Ernst
 APPLE_ID="${APPLE_ID:-}"
 APPLE_APP_PASSWORD="${APPLE_APP_PASSWORD:-}"
 APPLE_TEAM_ID="${APPLE_TEAM_ID:-W7K465GKFJ}"
+# Escape hatch for local test builds. Distribution builds must never set this: an
+# unnotarized DMG is rejected by Gatekeeper on every machine but the one that signed
+# it, and the failure is invisible at build time.
+ALLOW_UNNOTARIZED="${ALLOW_UNNOTARIZED:-}"
+# Notarization credentials live in the keychain under one profile per app, each holding
+# its own app-specific password, so a leaked credential can be revoked for a single app.
+# The profile defaults to this app's name: running the build from the repo picks up the
+# right credential with nothing to export, and no other app's profile can be used by
+# accident. Set APPLE_KEYCHAIN_PROFILE to override. Create it with:
+#   xcrun notarytool store-credentials PigeonPost \
+#     --apple-id <id> --team-id <team> --password <app-specific>
+NOTARY_PROFILE="${APPLE_KEYCHAIN_PROFILE:-${APP_NAME}}"
+# The notary service accepts only an app-specific password from appleid.apple.com and
+# rejects the Apple account password with HTTP 401. The shape is distinctive, so it is
+# checked before the build rather than discovered after it.
+APP_SPECIFIC_PASSWORD_RE='^[a-z]{4}-[a-z]{4}-[a-z]{4}-[a-z]{4}$'
+# Notarization is the default and the keychain profile always resolves, so the only way
+# to skip it is to ask for that explicitly.
+NOTARIZING=1
+[ "${ALLOW_UNNOTARIZED}" = "1" ] && NOTARIZING=0
 
 section() { printf '\n\033[1m== %s ==\033[0m\n' "$1"; }
+
+# notarytool_submit uploads a file to Apple and waits for the verdict. notarytool exits
+# non-zero on an Invalid verdict, and set -e then fails the build rather than leaving an
+# artifact that looks distributable. Stapling is a separate step because the file that is
+# submitted and the file that carries the ticket differ for a bundle: a zip goes up, the
+# .app gets stapled.
+# The password never reaches the echoed command: with a keychain profile it is not on
+# the command line at all, and the fallback branch prints a masked form.
+notarytool_submit() {
+    if [ -n "${APPLE_ID}" ] && [ -n "${APPLE_APP_PASSWORD}" ]; then
+        echo "\$ xcrun notarytool submit $1 --apple-id ${APPLE_ID} --password ******** --team-id ${APPLE_TEAM_ID} --wait"
+        xcrun notarytool submit "$1" \
+            --apple-id "${APPLE_ID}" \
+            --password "${APPLE_APP_PASSWORD}" \
+            --team-id "${APPLE_TEAM_ID}" \
+            --wait
+        return
+    fi
+    echo "\$ xcrun notarytool submit $1 --keychain-profile ${NOTARY_PROFILE} --wait"
+    xcrun notarytool submit "$1" \
+        --keychain-profile "${NOTARY_PROFILE}" \
+        --wait
+}
 
 # require ensures a tool is on PATH, running the given install command if it is
 # not. The install command is a full shell command (not just a brew formula) so
@@ -62,6 +111,29 @@ stamp_dmg_icon() {
     rm -rf "$work"
 }
 
+section "Notarization credentials"
+# Checked before any build work so a missing password costs a second rather than a
+# full wails build.
+if [ "${NOTARIZING}" -eq 0 ]; then
+    echo "warning: ALLOW_UNNOTARIZED=1; local test build only, do not release the result" >&2
+elif [ -n "${APPLE_ID}" ] && [ -n "${APPLE_APP_PASSWORD}" ]; then
+    if ! [[ "${APPLE_APP_PASSWORD}" =~ ${APP_SPECIFIC_PASSWORD_RE} ]]; then
+        cat >&2 <<EOF
+error: APPLE_APP_PASSWORD is not an app-specific password.
+Expected four lowercase groups of four, like abcd-efgh-ijkl-mnop.
+An Apple account password is rejected by the notary service with
+'HTTP status code: 401. Invalid credentials'.
+Generate one at https://appleid.apple.com (Sign-In and Security, App-Specific
+Passwords), or leave both variables unset and store the credential in the
+keychain as profile ${NOTARY_PROFILE}.
+EOF
+        exit 1
+    fi
+    echo "Notarizing as ${APPLE_ID} (team ${APPLE_TEAM_ID})"
+else
+    echo "Notarizing with keychain profile ${NOTARY_PROFILE}"
+fi
+
 section "Platform guard"
 [ "$(uname -s)" = "Darwin" ] || { echo "error: this script must run on macOS" >&2; exit 1; }
 [ "$(uname -m)" = "arm64" ] || { echo "error: this script targets Apple Silicon (arm64)" >&2; exit 1; }
@@ -90,6 +162,20 @@ section "Codesigning the app bundle"
 codesign --force --deep --options runtime --sign "${DEVELOPER_ID}" "${APP_BUNDLE}"
 codesign --verify --deep --strict "${APP_BUNDLE}"
 
+# Notarize the .app before it goes into the DMG. Stapling only the DMG leaves the
+# copied-out .app with no local ticket, so Gatekeeper falls back to an online check and
+# the app fails to launch for anyone offline or behind a restrictive network. notarytool
+# takes archives only, so ditto zips the bundle first; the ticket goes on the bundle,
+# since a zip cannot carry one.
+if [ "${NOTARIZING}" -eq 1 ]; then
+    section "Notarizing the app bundle (this waits on Apple)"
+    APP_ZIP="$(mktemp -d)/${APP_NAME}.zip"
+    ditto -c -k --keepParent "${APP_BUNDLE}" "${APP_ZIP}"
+    notarytool_submit "${APP_ZIP}"
+    xcrun stapler staple "${APP_BUNDLE}"
+    rm -rf "$(dirname "${APP_ZIP}")"
+fi
+
 section "Creating the DMG"
 rm -rf "${DIST_DIR}"
 rm -f "${DMG_PATH}"
@@ -116,24 +202,28 @@ if [ "${STATUS}" -ne 0 ] && [ "${STATUS}" -ne 2 ]; then
 fi
 rm -rf "${DIST_DIR}"
 
+# The icon stamp writes a resource fork into the DMG, so it runs before signing and
+# notarization. Doing it afterwards would modify a file Gatekeeper has already been
+# told the hash of.
+section "Stamping the DMG file icon"
+stamp_dmg_icon "${DMG_PATH}" "${VOLICON}"
+
 section "Signing the DMG"
 codesign --force --sign "${DEVELOPER_ID}" "${DMG_PATH}"
 codesign --verify "${DMG_PATH}"
 
-if [ -n "${APPLE_ID}" ] && [ -n "${APPLE_APP_PASSWORD}" ]; then
-    section "Notarizing (this waits on Apple)"
-    xcrun notarytool submit "${DMG_PATH}" \
-        --apple-id "${APPLE_ID}" \
-        --password "${APPLE_APP_PASSWORD}" \
-        --team-id "${APPLE_TEAM_ID}" \
-        --wait
+if [ "${NOTARIZING}" -eq 1 ]; then
+    section "Notarizing the DMG (this waits on Apple)"
+    notarytool_submit "${DMG_PATH}"
     xcrun stapler staple "${DMG_PATH}"
+    # stapler validate proves a ticket is attached; spctl replays the check Gatekeeper
+    # runs on the end user's machine. Together they catch the silent case where signing
+    # succeeded but notarization never happened.
+    xcrun stapler validate "${DMG_PATH}"
+    spctl --assess --type install -vv "${DMG_PATH}"
 else
-    section "Notarization skipped (set APPLE_ID and APPLE_APP_PASSWORD to enable)"
+    section "Notarization skipped: unnotarized DMG, do not publish this build"
 fi
-
-section "Stamping the DMG file icon"
-stamp_dmg_icon "${DMG_PATH}" "${VOLICON}"
 
 section "Done"
 echo "${DMG_PATH}"

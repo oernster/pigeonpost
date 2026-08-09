@@ -65,6 +65,8 @@ frontend/src/assets/pigeonpost.png
 # macOS DMG build output
 dist-dmg/
 PigeonPost.dmg
+# create-dmg leaves a read-write scratch image behind if interrupted.
+rw.*.dmg
 
 # Windows installer build output (build.ps1)
 dist-installer/
