@@ -172,7 +172,7 @@ wails dev        # run the app in development
 go test ./...    # run the Go test suite
 cd frontend && npx vitest run   # run the front-end test suite
 ./build.ps1              # build the app exe and the installer (Windows)
-bash builddmg.sh         # build the signed DMG (macOS, Apple Silicon)
+bash builddmg.sh         # build the signed, notarized DMG (macOS, Apple Silicon)
 bash build_flatpak.sh    # build and install the Flatpak (Linux)
 ```
 

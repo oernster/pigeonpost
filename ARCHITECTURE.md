@@ -432,6 +432,16 @@ from the same mousedown, which left a Shift-built range selectable but undraggab
 is a selection target rather than a text surface, so the suppression belongs on the surface as a standing
 property, not on the event as a special case.
 
+`user-select: none` stops the smear but Blink goes further: it classifies a Shift-held mousedown as
+"extend the selection" and refuses to start a native drag from it at all, so the range could be built
+with Shift down yet only dragged after letting go, which reads as drag-and-drop being broken. The
+engine's one escape hatch is the computed `-webkit-user-drag: element` of the pressed node (the
+`draggable` attribute is never consulted and the check runs on the deepest hit-tested node, where the
+property does not inherit), so the rows and all their descendants carry it in `list-rows.css`. That
+makes the pressed child the drag source, so the row's `onDragStart` resets the drag image to the whole
+row at the grab point and the drag looks the same whichever child the press lands on. The rule is
+pinned by a stylesheet-scan test in `App.test.tsx` beside the mousedown-default test above.
+
 Two drag ergonomics live in the sidebar, both as a pure geometry module plus a hook holding the event
 and frame plumbing. `dragScroll.ts` sizes the edge hot zone that auto-scrolls the folder pane during a
 drag: the browser's own is a couple of pixels deep at the pane's edge and runs only while the pointer

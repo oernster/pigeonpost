@@ -146,11 +146,18 @@ bash builddmg.sh
 ```
 
 The script generates icons, builds the app with `wails build -platform darwin/arm64`, stamps the
-bundle version from `VERSION`, codesigns the `.app` with the hardened runtime, wraps it in a
-drag-to-Applications DMG and stamps the DMG's own Finder icon. The signing identity comes from
-`DEVELOPER_ID_APPLICATION` (a default is built in); notarization runs only when `APPLE_ID` and
-`APPLE_APP_PASSWORD` are set (with `APPLE_TEAM_ID` overridable), otherwise it is skipped and the
-DMG is still usable locally.
+bundle version from `VERSION`, codesigns the `.app` with the hardened runtime, notarizes and
+staples the `.app`, wraps it in a drag-to-Applications DMG, stamps the DMG's own Finder icon, signs
+the DMG, then notarizes and staples that too, verifying the result with `stapler` and `spctl`. The
+signing identity comes from `DEVELOPER_ID_APPLICATION` (a default is built in).
+
+Notarization is mandatory: since macOS 10.15 Gatekeeper rejects a signed-but-unnotarized app on
+every machine except the one that signed it, so the build stops before building anything unless
+`APPLE_ID` and `APPLE_APP_PASSWORD` (an app-specific password, checked for shape up front) are both
+set, with `APPLE_TEAM_ID` overridable. The notarization credential lives in the keychain under a
+per-app profile (created once with `xcrun notarytool store-credentials`; `APPLE_KEYCHAIN_PROFILE`
+overrides the name) and the password never reaches the logs. `ALLOW_UNNOTARIZED=1` builds without
+notarizing for local testing only; a DMG built that way must never be released.
 
 Output: `PigeonPost.dmg` in the repo root.
 
