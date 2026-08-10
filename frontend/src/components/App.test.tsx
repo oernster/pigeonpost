@@ -503,6 +503,22 @@ describe('App: multi-selection gestures', () => {
         expect(await screen.findByText('2 messages selected')).toBeInTheDocument()
         expect(row).toHaveAttribute('draggable', 'true')
     })
+
+    it('keeps the Shift-drag escape hatch on the rows in the stylesheet', async () => {
+        // Blink refuses to start a native drag from a Shift-held mousedown unless the pressed
+        // node's computed -webkit-user-drag is element; the draggable attribute is not consulted
+        // and the check runs on the deepest hit-tested node, where the property does not inherit.
+        // Without this rule a Shift-selected range can only be dragged after releasing Shift.
+        // jsdom applies no stylesheets and Vitest serves CSS imports as empty modules (raw query
+        // included), so the rule is pinned by reading the stylesheet from disk. The pieced-together
+        // specifier keeps the untyped node built-in out of tsc's module resolution.
+        const fsModule = 'node:' + 'fs'
+        // Vitest rewrites import.meta.url to a non-file scheme, so the path is anchored to the
+        // runner's working directory (the frontend root) instead.
+        const {readFileSync} = (await import(fsModule)) as {readFileSync: (path: string, encoding: string) => string}
+        const css = readFileSync('src/styles/list-rows.css', 'utf8')
+        expect(css).toMatch(/\.message-row,\s*\.message-row \*\s*\{\s*-webkit-user-drag: element;\s*\}/)
+    })
 })
 
 // The single-message actions that Phase 3.3 moves into useMessageActions. Delete and read are already

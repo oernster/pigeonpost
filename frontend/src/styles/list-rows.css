@@ -85,11 +85,23 @@
    freezing. The rows therefore no longer carry content-visibility (that would fight the virtualizer's own
    height measurement of each rendered row). */
 /* A row is a selection target, not a text surface: without this a Shift-click extends the document text
-   selection across every row it spans, and the browser then drags that text instead of the messages. Doing
+   selection across every row it spans; the browser then drags that text instead of the messages. Doing
    it in CSS keeps the row's mousedown default intact, which is what the native drag start depends on. */
 .message-row,
 .conversation-header {
     user-select: none;
+}
+
+/* user-select: none stops the text smear but Blink still classifies a Shift-held mousedown as
+   "extend the selection" and refuses to start a native drag from it, so a Shift-selected range
+   could only be dragged after releasing Shift. The one escape hatch in the engine is the computed
+   -webkit-user-drag of the pressed node: element exempts it from that classification. Blink checks
+   the deepest hit-tested node (the sender or subject span, not the row) and the property does not
+   inherit, so every descendant needs it too. The row's onDragStart resets the drag image to the
+   whole row, keeping the drag visuals identical whichever child the press lands on. */
+.message-row,
+.message-row * {
+    -webkit-user-drag: element;
 }
 
 .message-row {

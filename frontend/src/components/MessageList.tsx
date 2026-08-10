@@ -299,6 +299,11 @@ export function MessageList(props: MessageListProps) {
                 onDragStart={(e) => {
                     e.dataTransfer.setData(messageDragType, message.id)
                     e.dataTransfer.effectAllowed = 'move'
+                    // -webkit-user-drag: element on the row's descendants (the Shift-drag escape
+                    // hatch, see list-rows.css) makes the pressed child the drag source, so the
+                    // drag image is reset to the whole row at the grab point.
+                    const rect = e.currentTarget.getBoundingClientRect()
+                    e.dataTransfer.setDragImage?.(e.currentTarget, e.clientX - rect.left, e.clientY - rect.top)
                 }}
                 onContextMenu={(e) => {
                     e.preventDefault()
