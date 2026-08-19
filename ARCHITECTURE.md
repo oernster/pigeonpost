@@ -573,12 +573,34 @@ reader marks it read durably: without the guard, the IDLE-triggered inbox re-fet
 server's stale unseen flag straight back over the cache. POP3 accounts record no intents: their flags
 are purely local and the sync's `preserveFlags` carries them across fetches whole.
 
-Filter rules: the `RuleService` use case manages user-defined rules through the `RuleStore` port and
-applies them to arriving messages. A domain `Rule` matches one field (From, To, Cc or Subject) against a
-value with an operator (contains, is, starts with, ends with or does not contain) and carries an action
-(mark read or flag). The operator column was added by `ALTER TABLE` defaulting to contains,
-so pre-existing rules keep their behaviour. Matching and the action are pure domain logic; move and
-delete on arrival stay deferred because they need UID reconciliation to be safe.
+Filter rules: the `RuleService` use case manages user-defined rules through the `RuleStore` port and the
+`RuleExecutor` carries out what they decide. A domain `Rule` is ordered, can be switched off and holds
+several conditions combined by a match mode (all or any) plus several actions. A condition matches one
+field (From, To, Cc, any recipient, Subject or sender domain) against a value with an operator (contains,
+is, starts with, ends with or does not contain). Bcc is deliberately absent: the sending server strips it,
+so a received message never carries one and such a condition could never fire. The actions are mark read,
+flag, move to a named folder and delete permanently.
+
+Evaluation stays pure: `EvaluateRules` returns one `RuleOutcome` per message describing what should
+happen (flags applied, a destination folder, a destruction) and performs no I/O, because a move and a
+destruction act on a remote server. Rules are tried in position order; flag actions accumulate, the first
+move wins, a destroy ends evaluation for that message and `StopProcessing` ends it after a match.
+
+`RuleExecutor` executes the outcomes during the sync, on messages just fetched and not yet cached, so a
+destroyed message never enters the local store: `MailActions.DeleteMany` with an empty trash path marks
+`\Deleted` and expunges where the message stands, with no Trash copy and nothing to tidy up afterwards.
+Moves are batched per destination through `MoveMany`. Three guards bound the destruction, each pinned by
+a test: rules run on the **Inbox only**, so mail the user has already filed by hand is never touched;
+they act on **arrivals only** (an id the local store does not hold), so adding a rule never reaches back
+over existing mail; and destructive actions are held back on a folder's **first sight**, when nothing is
+known locally and every message would otherwise look like an arrival, which is what stops a newly added
+account being emptied. A batch the server refuses leaves its messages in place and reports the failure.
+
+Because a rule runs unattended, the confirmation for a destructive action moves to rule-creation time:
+the UI warns before saving a rule that moves or destroys mail and marks a destroying rule in the list.
+Conditions and actions live in the `rule_condition` and `rule_action` child tables keyed by rule id and
+ordered by position (`schemaV50`); rules written before that carry over verbatim as one-condition,
+one-action rules, their stored field, operator and action integers unchanged.
 
 **Update check.** The application `UpdateService` compares the embedded VERSION against the newest
 published GitHub release through the `ReleaseSource` port, implemented by

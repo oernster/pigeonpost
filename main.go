@@ -114,7 +114,11 @@ func run() error {
 	// each is constructed first and injected into the sync.
 	tagSyncService := application.NewTagSyncService(store, store, store, mailSource)
 	flagSyncService := application.NewFlagSyncService(store, store, mailSource)
-	syncService := application.NewSyncService(store, store, mailSource, store, tagSyncService, flagSyncService)
+	// The rule executor carries out the side-effecting half of a filter rule (move to a folder, destroy
+	// outright) against the server while the sync holds the freshly fetched messages, so a destroyed
+	// message never reaches the local cache. The sync drives it, so it is constructed first.
+	ruleExecutor := application.NewRuleExecutor(store, mailSource)
+	syncService := application.NewSyncService(store, store, mailSource, store, tagSyncService, flagSyncService, ruleExecutor)
 	composeService := application.NewComposeService(store, store, transport, imapSource, imapSource, store, store, clock, newOutboxID)
 	tagService := application.NewTagService(store)
 	bodyService := application.NewMessageBodyService(store, store, mailSource)

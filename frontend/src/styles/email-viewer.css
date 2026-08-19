@@ -79,3 +79,31 @@
     flex-shrink: 0;
 }
 
+
+/* A disabled rule stays listed and readable, dimmed so it is clearly not running. */
+.rule-disabled {
+    opacity: 0.55;
+}
+
+/* The badge marking a rule that deletes mail outright, so the one irreversible action is visible in
+   the list rather than only inside the editor. */
+.rule-badge {
+    margin-left: 8px;
+    padding: 1px 6px;
+    border-radius: 4px;
+    background-color: var(--danger, #b3261e);
+    color: #fff;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+/* The warning shown in the editor while a rule carries the destroy action. */
+.rule-danger {
+    margin: 4px 0 0;
+    padding: 8px 10px;
+    border: 1px solid var(--danger, #b3261e);
+    border-radius: 6px;
+    color: var(--text);
+    font-size: 13px;
+}

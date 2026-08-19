@@ -38,180 +38,217 @@ func ruleMessageWithRecipients(t *testing.T, to, cc []EmailAddress) MessageSumma
 	return m
 }
 
-func TestNewRule(t *testing.T) {
-	r, err := NewRule("  r1  ", "  Newsletters  ", RuleFieldFrom, RuleOpContains, "  news@  ", RuleMarkRead)
+// mustCondition builds a condition the test expects to be valid.
+func mustCondition(t *testing.T, field RuleField, op RuleOperator, text string) RuleCondition {
+	t.Helper()
+	c, err := NewRuleCondition(field, op, text)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf("condition: %v", err)
 	}
-	if r.ID() != "r1" || r.Name() != "Newsletters" || r.Contains() != "news@" {
-		t.Errorf("fields not trimmed: %+v", r)
+	return c
+}
+
+// mustAction builds an action the test expects to be valid.
+func mustAction(t *testing.T, kind RuleActionKind, folderID string) RuleAction {
+	t.Helper()
+	a, err := NewRuleAction(kind, folderID)
+	if err != nil {
+		t.Fatalf("action: %v", err)
 	}
-	if r.Field() != RuleFieldFrom || r.Operator() != RuleOpContains || r.Action() != RuleMarkRead {
-		t.Errorf("field/operator/action wrong: %v / %v / %v", r.Field(), r.Operator(), r.Action())
+	return a
+}
+
+// mustRule builds a rule the test expects to be valid.
+func mustRule(t *testing.T, spec RuleSpec) Rule {
+	t.Helper()
+	if spec.ID == "" {
+		spec.ID = "r1"
+	}
+	if spec.Name == "" {
+		spec.Name = "Rule"
+	}
+	r, err := NewRule(spec)
+	if err != nil {
+		t.Fatalf("rule: %v", err)
+	}
+	return r
+}
+
+func TestNewRuleCondition(t *testing.T) {
+	c := mustCondition(t, RuleFieldFrom, RuleOpContains, "  news@  ")
+	if c.Text() != "news@" {
+		t.Errorf("text not trimmed: %q", c.Text())
+	}
+	if c.Field() != RuleFieldFrom || c.Operator() != RuleOpContains {
+		t.Errorf("field or operator wrong: %v / %v", c.Field(), c.Operator())
+	}
+}
+
+func TestNewRuleConditionInvalid(t *testing.T) {
+	cases := map[string]struct {
+		field    RuleField
+		operator RuleOperator
+		text     string
+		want     error
+	}{
+		"empty text":       {RuleFieldFrom, RuleOpContains, "   ", ErrEmptyRuleMatch},
+		"bad field":        {RuleField(99), RuleOpContains, "x", ErrInvalidRuleField},
+		"negative field":   {RuleField(-1), RuleOpContains, "x", ErrInvalidRuleField},
+		"bad operator":     {RuleFieldFrom, RuleOperator(99), "x", ErrInvalidRuleOperator},
+		"negative operatr": {RuleFieldFrom, RuleOperator(-1), "x", ErrInvalidRuleOperator},
+	}
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			if _, err := NewRuleCondition(c.field, c.operator, c.text); !errors.Is(err, c.want) {
+				t.Errorf("got %v, want %v", err, c.want)
+			}
+		})
+	}
+}
+
+func TestNewRuleAction(t *testing.T) {
+	a := mustAction(t, RuleMoveTo, "  folder-1  ")
+	if a.Kind() != RuleMoveTo || a.FolderID() != "folder-1" {
+		t.Errorf("move action wrong: %v / %q", a.Kind(), a.FolderID())
+	}
+	// A non-move kind carries no destination, even when one is supplied.
+	if got := mustAction(t, RuleDestroy, "folder-1"); got.FolderID() != "" {
+		t.Errorf("destroy kept a folder: %q", got.FolderID())
+	}
+}
+
+func TestNewRuleActionInvalid(t *testing.T) {
+	if _, err := NewRuleAction(RuleActionKind(99), ""); !errors.Is(err, ErrInvalidRuleAction) {
+		t.Errorf("bad kind accepted")
+	}
+	if _, err := NewRuleAction(RuleActionKind(-1), ""); !errors.Is(err, ErrInvalidRuleAction) {
+		t.Errorf("negative kind accepted")
+	}
+	if _, err := NewRuleAction(RuleMoveTo, "  "); !errors.Is(err, ErrMissingRuleFolder) {
+		t.Errorf("move without a destination accepted")
+	}
+}
+
+func TestNewRule(t *testing.T) {
+	r := mustRule(t, RuleSpec{
+		ID: "  r1  ", Name: "  Newsletters  ", Enabled: true, Position: 3,
+		MatchMode: RuleMatchAny, StopProcessing: true,
+		Conditions: []RuleCondition{mustCondition(t, RuleFieldFrom, RuleOpContains, "news@")},
+		Actions:    []RuleAction{mustAction(t, RuleMarkRead, "")},
+	})
+	if r.ID() != "r1" || r.Name() != "Newsletters" {
+		t.Errorf("id or name not trimmed: %q / %q", r.ID(), r.Name())
+	}
+	if !r.Enabled() || r.Position() != 3 || r.MatchMode() != RuleMatchAny || !r.StopProcessing() {
+		t.Errorf("rule settings wrong: %+v", r)
+	}
+	if len(r.Conditions()) != 1 || len(r.Actions()) != 1 {
+		t.Errorf("children wrong: %d conditions, %d actions", len(r.Conditions()), len(r.Actions()))
+	}
+}
+
+func TestNewRuleCopiesChildren(t *testing.T) {
+	conditions := []RuleCondition{mustCondition(t, RuleFieldFrom, RuleOpContains, "a")}
+	actions := []RuleAction{mustAction(t, RuleFlag, "")}
+	r := mustRule(t, RuleSpec{Conditions: conditions, Actions: actions})
+	conditions[0] = mustCondition(t, RuleFieldSubject, RuleOpEquals, "b")
+	actions[0] = mustAction(t, RuleDestroy, "")
+	if r.Conditions()[0].Field() != RuleFieldFrom || r.Actions()[0].Kind() != RuleFlag {
+		t.Errorf("rule shares its caller's slices")
+	}
+	// The accessors hand out copies too.
+	r.Conditions()[0] = mustCondition(t, RuleFieldSubject, RuleOpEquals, "b")
+	if r.Conditions()[0].Field() != RuleFieldFrom {
+		t.Errorf("Conditions() exposed the rule's own slice")
+	}
+	r.Actions()[0] = mustAction(t, RuleDestroy, "")
+	if r.Actions()[0].Kind() != RuleFlag {
+		t.Errorf("Actions() exposed the rule's own slice")
 	}
 }
 
 func TestNewRuleInvalid(t *testing.T) {
+	good := []RuleCondition{mustCondition(t, RuleFieldFrom, RuleOpContains, "a")}
+	goodAct := []RuleAction{mustAction(t, RuleFlag, "")}
 	cases := map[string]struct {
-		id, name string
-		field    RuleField
-		operator RuleOperator
-		match    string
-		action   RuleAction
-		want     error
+		spec RuleSpec
+		want error
 	}{
-		"empty id":         {"", "n", RuleFieldFrom, RuleOpContains, "x", RuleMarkRead, ErrEmptyRuleID},
-		"empty name":       {"r", "", RuleFieldFrom, RuleOpContains, "x", RuleMarkRead, ErrEmptyRuleName},
-		"empty match":      {"r", "n", RuleFieldFrom, RuleOpContains, "  ", RuleMarkRead, ErrEmptyRuleMatch},
-		"invalid field":    {"r", "n", RuleField(9), RuleOpContains, "x", RuleMarkRead, ErrInvalidRuleField},
-		"invalid operator": {"r", "n", RuleFieldFrom, RuleOperator(9), "x", RuleMarkRead, ErrInvalidRuleOperator},
-		"invalid action":   {"r", "n", RuleFieldFrom, RuleOpContains, "x", RuleAction(9), ErrInvalidRuleAction},
+		"empty id":     {RuleSpec{ID: "  ", Name: "n", Conditions: good, Actions: goodAct}, ErrEmptyRuleID},
+		"empty name":   {RuleSpec{ID: "r", Name: "  ", Conditions: good, Actions: goodAct}, ErrEmptyRuleName},
+		"bad mode":     {RuleSpec{ID: "r", Name: "n", MatchMode: RuleMatchMode(9), Conditions: good, Actions: goodAct}, ErrInvalidRuleMatchMode},
+		"no condition": {RuleSpec{ID: "r", Name: "n", Actions: goodAct}, ErrNoRuleConditions},
+		"no action":    {RuleSpec{ID: "r", Name: "n", Conditions: good}, ErrNoRuleActions},
 	}
-	for name, tc := range cases {
+	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {
-			if _, err := NewRule(tc.id, tc.name, tc.field, tc.operator, tc.match, tc.action); !errors.Is(err, tc.want) {
-				t.Errorf("error = %v, want %v", err, tc.want)
+			if _, err := NewRule(c.spec); !errors.Is(err, c.want) {
+				t.Errorf("got %v, want %v", err, c.want)
 			}
 		})
 	}
 }
 
-func TestRuleFieldString(t *testing.T) {
-	cases := map[RuleField]string{
+func TestRuleTokens(t *testing.T) {
+	fields := map[RuleField]string{
 		RuleFieldFrom: "from", RuleFieldSubject: "subject", RuleFieldTo: "to", RuleFieldCc: "cc",
-		RuleField(9): "unknown",
+		RuleFieldAnyRecipient: "anyRecipient", RuleFieldSenderDomain: "senderDomain", RuleField(99): "unknown",
 	}
-	for f, want := range cases {
-		if f.String() != want {
-			t.Errorf("RuleField(%d).String() = %q, want %q", f, f.String(), want)
+	for field, want := range fields {
+		if got := field.String(); got != want {
+			t.Errorf("field %d: got %q, want %q", field, got, want)
 		}
 	}
-	for _, f := range []RuleField{RuleFieldFrom, RuleFieldSubject, RuleFieldTo, RuleFieldCc} {
-		if !f.Valid() {
-			t.Errorf("RuleField %v should be valid", f)
-		}
-	}
-	if RuleField(9).Valid() || RuleField(-1).Valid() {
-		t.Error("out-of-range fields should be invalid")
-	}
-}
-
-func TestRuleOperatorString(t *testing.T) {
-	cases := map[RuleOperator]string{
+	operators := map[RuleOperator]string{
 		RuleOpContains: "contains", RuleOpNotContains: "notContains", RuleOpEquals: "equals",
-		RuleOpStartsWith: "startsWith", RuleOpEndsWith: "endsWith", RuleOperator(9): "unknown",
+		RuleOpStartsWith: "startsWith", RuleOpEndsWith: "endsWith", RuleOperator(99): "unknown",
 	}
-	for o, want := range cases {
-		if o.String() != want {
-			t.Errorf("RuleOperator(%d).String() = %q, want %q", o, o.String(), want)
+	for op, want := range operators {
+		if got := op.String(); got != want {
+			t.Errorf("operator %d: got %q, want %q", op, got, want)
 		}
 	}
-	for _, o := range []RuleOperator{RuleOpContains, RuleOpNotContains, RuleOpEquals, RuleOpStartsWith, RuleOpEndsWith} {
-		if !o.Valid() {
-			t.Errorf("RuleOperator %v should be valid", o)
+	kinds := map[RuleActionKind]string{
+		RuleMarkRead: "markRead", RuleFlag: "flag", RuleMoveTo: "moveTo", RuleDestroy: "destroy",
+		RuleActionKind(99): "unknown",
+	}
+	for kind, want := range kinds {
+		if got := kind.String(); got != want {
+			t.Errorf("kind %d: got %q, want %q", kind, got, want)
 		}
 	}
-	if RuleOperator(9).Valid() || RuleOperator(-1).Valid() {
-		t.Error("out-of-range operators should be invalid")
+	modes := map[RuleMatchMode]string{RuleMatchAll: "all", RuleMatchAny: "any", RuleMatchMode(9): "unknown"}
+	for mode, want := range modes {
+		if got := mode.String(); got != want {
+			t.Errorf("mode %d: got %q, want %q", mode, got, want)
+		}
 	}
 }
 
-func TestRuleActionString(t *testing.T) {
-	if RuleMarkRead.String() != "markRead" || RuleFlag.String() != "flag" || RuleAction(9).String() != "unknown" {
-		t.Error("RuleAction.String wrong")
+func TestRuleActionKindDestructive(t *testing.T) {
+	cases := map[RuleActionKind]bool{
+		RuleMarkRead: false, RuleFlag: false, RuleMoveTo: true, RuleDestroy: true,
 	}
-	if !RuleMarkRead.Valid() || !RuleFlag.Valid() || RuleAction(9).Valid() {
-		t.Error("RuleAction.Valid wrong")
-	}
-}
-
-func TestRuleMatchesOperators(t *testing.T) {
-	msg := ruleMessage(t, "The Boss", "boss@corp.com", "Your Invoice is ready")
-
-	cases := []struct {
-		name     string
-		field    RuleField
-		operator RuleOperator
-		match    string
-		want     bool
-	}{
-		{"from contains", RuleFieldFrom, RuleOpContains, "BOSS", true},
-		{"from not-contains hit", RuleFieldFrom, RuleOpNotContains, "boss", false},
-		{"from not-contains miss", RuleFieldFrom, RuleOpNotContains, "nobody", true},
-		{"from equals address", RuleFieldFrom, RuleOpEquals, "boss@corp.com", true},
-		{"from equals miss", RuleFieldFrom, RuleOpEquals, "the bos", false},
-		{"subject contains", RuleFieldSubject, RuleOpContains, "invoice", true},
-		{"subject starts-with", RuleFieldSubject, RuleOpStartsWith, "your", true},
-		{"subject starts-with miss", RuleFieldSubject, RuleOpStartsWith, "invoice", false},
-		{"subject ends-with", RuleFieldSubject, RuleOpEndsWith, "ready", true},
-		{"subject ends-with miss", RuleFieldSubject, RuleOpEndsWith, "invoice", false},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			r, err := NewRule("r", "n", tc.field, tc.operator, tc.match, RuleFlag)
-			if err != nil {
-				t.Fatalf("new rule: %v", err)
-			}
-			if got := r.Matches(msg); got != tc.want {
-				t.Errorf("Matches = %v, want %v", got, tc.want)
-			}
-		})
+	for kind, want := range cases {
+		if got := kind.Destructive(); got != want {
+			t.Errorf("kind %v destructive = %v, want %v", kind, got, want)
+		}
 	}
 }
 
-func TestRuleMatchesRecipients(t *testing.T) {
-	msg := ruleMessageWithRecipients(t,
-		[]EmailAddress{ruleAddress(t, "Alice", "alice@team.com"), ruleAddress(t, "Bob", "bob@team.com")},
-		[]EmailAddress{ruleAddress(t, "Carol", "carol@other.com")})
-
-	toRule, _ := NewRule("r", "n", RuleFieldTo, RuleOpContains, "bob@team.com", RuleFlag)
-	if !toRule.Matches(msg) {
-		t.Error("to rule should match a recipient address")
+func TestRuleDestructive(t *testing.T) {
+	flagOnly := mustRule(t, RuleSpec{
+		Conditions: []RuleCondition{mustCondition(t, RuleFieldFrom, RuleOpContains, "a")},
+		Actions:    []RuleAction{mustAction(t, RuleMarkRead, ""), mustAction(t, RuleFlag, "")},
+	})
+	if flagOnly.Destructive() {
+		t.Errorf("flag-only rule reported destructive")
 	}
-	toName, _ := NewRule("r", "n", RuleFieldTo, RuleOpEquals, "Alice", RuleFlag)
-	if !toName.Matches(msg) {
-		t.Error("to rule should match a recipient display name")
-	}
-	ccRule, _ := NewRule("r", "n", RuleFieldCc, RuleOpEndsWith, "@other.com", RuleFlag)
-	if !ccRule.Matches(msg) {
-		t.Error("cc rule should match on the cc list")
-	}
-	toMiss, _ := NewRule("r", "n", RuleFieldTo, RuleOpContains, "carol", RuleFlag)
-	if toMiss.Matches(msg) {
-		t.Error("to rule should not match a cc-only recipient")
-	}
-	// "Does not contain" over an empty recipient list is vacuously true.
-	noCc := ruleMessageWithRecipients(t, []EmailAddress{ruleAddress(t, "Dan", "dan@team.com")}, nil)
-	ccNone, _ := NewRule("r", "n", RuleFieldCc, RuleOpNotContains, "anyone", RuleFlag)
-	if !ccNone.Matches(noCc) {
-		t.Error("not-contains over an empty cc list should match")
-	}
-}
-
-func TestApplyRules(t *testing.T) {
-	msg := ruleMessage(t, "News", "news@example.com", "Weekly digest")
-
-	same := ApplyRules([]MessageSummary{msg}, nil)
-	if same[0].IsRead() || same[0].IsFlagged() {
-		t.Error("no rules should not change flags")
-	}
-
-	markRead, _ := NewRule("r1", "read news", RuleFieldFrom, RuleOpContains, "news@", RuleMarkRead)
-	flag, _ := NewRule("r2", "flag digest", RuleFieldSubject, RuleOpContains, "digest", RuleFlag)
-	out := ApplyRules([]MessageSummary{msg}, []Rule{markRead, flag})
-	if !out[0].IsRead() {
-		t.Error("markRead rule should set Seen")
-	}
-	if !out[0].IsFlagged() {
-		t.Error("flag rule should set Flagged")
-	}
-	if msg.IsRead() || msg.IsFlagged() {
-		t.Error("ApplyRules must not mutate the input message")
-	}
-
-	other := ruleMessage(t, "Friend", "friend@example.com", "lunch?")
-	res := ApplyRules([]MessageSummary{other}, []Rule{markRead, flag})
-	if res[0].IsRead() || res[0].IsFlagged() {
-		t.Error("non-matching message should be unchanged")
+	withMove := mustRule(t, RuleSpec{
+		Conditions: []RuleCondition{mustCondition(t, RuleFieldFrom, RuleOpContains, "a")},
+		Actions:    []RuleAction{mustAction(t, RuleMarkRead, ""), mustAction(t, RuleMoveTo, "f2")},
+	})
+	if !withMove.Destructive() {
+		t.Errorf("rule with a move not reported destructive")
 	}
 }

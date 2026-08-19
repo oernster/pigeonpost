@@ -7,29 +7,36 @@ import (
 	"github.com/oernster/pigeonpost/internal/domain"
 )
 
-// RuleDTO is the JSON-serialisable view of a filter rule. Field, operator and action are stable string
-// tokens (e.g. "from"/"to", "contains"/"equals", "markRead"/"flag") so the front end does not depend on
-// the domain enum values.
+// RuleConditionDTO is the JSON-serialisable view of one rule condition. Field and operator are stable
+// string tokens ("from", "anyRecipient", "contains", "endsWith" and so on) so the front end does not
+// depend on the domain enum values.
+type RuleConditionDTO struct {
+	Field    string `json:"field"`
+	Operator string `json:"operator"`
+	Text     string `json:"text"`
+}
+
+// RuleActionDTO is the JSON-serialisable view of one rule action. Kind is a stable string token
+// ("markRead", "flag", "moveTo", "destroy"); FolderID is the destination of a move and empty otherwise.
+type RuleActionDTO struct {
+	Kind     string `json:"kind"`
+	FolderID string `json:"folderId"`
+}
+
+// RuleDTO is the JSON-serialisable view of a filter rule, carried in both directions: the front end
+// lists rules as these and sends one back to save. An empty ID on a save means a new rule.
 type RuleDTO struct {
-	ID       string `json:"id"`
-	Name     string `json:"name"`
-	Field    string `json:"field"`
-	Operator string `json:"operator"`
-	Contains string `json:"contains"`
-	Action   string `json:"action"`
+	ID             string             `json:"id"`
+	Name           string             `json:"name"`
+	Enabled        bool               `json:"enabled"`
+	Position       int                `json:"position"`
+	MatchMode      string             `json:"matchMode"`
+	StopProcessing bool               `json:"stopProcessing"`
+	Conditions     []RuleConditionDTO `json:"conditions"`
+	Actions        []RuleActionDTO    `json:"actions"`
 }
 
-// RuleRequest is the front-end payload for creating or updating a rule. An empty id means a new rule.
-type RuleRequest struct {
-	ID       string `json:"id"`
-	Name     string `json:"name"`
-	Field    string `json:"field"`
-	Operator string `json:"operator"`
-	Contains string `json:"contains"`
-	Action   string `json:"action"`
-}
-
-// ListRules returns all filter rules.
+// ListRules returns all filter rules in evaluation order.
 func (a *App) ListRules() ([]RuleDTO, error) {
 	rules, err := a.rules.List(a.ctx)
 	if err != nil {
@@ -37,45 +44,94 @@ func (a *App) ListRules() ([]RuleDTO, error) {
 	}
 	out := make([]RuleDTO, 0, len(rules))
 	for _, r := range rules {
-		out = append(out, RuleDTO{
-			ID:       r.ID(),
-			Name:     r.Name(),
-			Field:    r.Field().String(),
-			Operator: r.Operator().String(),
-			Contains: r.Contains(),
-			Action:   r.Action().String(),
-		})
+		out = append(out, ruleToDTO(r))
 	}
 	return out, nil
 }
 
 // SaveRule creates or updates a filter rule.
-func (a *App) SaveRule(req RuleRequest) error {
-	field, err := parseRuleField(req.Field)
+func (a *App) SaveRule(req RuleDTO) error {
+	matchMode, err := parseRuleMatchMode(req.MatchMode)
 	if err != nil {
 		return err
 	}
-	operator, err := parseRuleOperator(req.Operator)
+	conditions, err := parseRuleConditions(req.Conditions)
 	if err != nil {
 		return err
 	}
-	action, err := parseRuleAction(req.Action)
+	actions, err := parseRuleActions(req.Actions)
 	if err != nil {
 		return err
 	}
 	return a.rules.Save(a.ctx, application.RuleInput{
-		ID:       req.ID,
-		Name:     req.Name,
-		Field:    field,
-		Operator: operator,
-		Contains: req.Contains,
-		Action:   action,
+		ID:             req.ID,
+		Name:           req.Name,
+		Enabled:        req.Enabled,
+		Position:       req.Position,
+		MatchMode:      matchMode,
+		StopProcessing: req.StopProcessing,
+		Conditions:     conditions,
+		Actions:        actions,
 	})
 }
 
 // DeleteRule removes a filter rule by id.
 func (a *App) DeleteRule(ruleID string) error {
 	return a.rules.Delete(a.ctx, ruleID)
+}
+
+// ReorderRules writes the evaluation order, the rule at index i taking position i.
+func (a *App) ReorderRules(orderedIDs []string) error {
+	return a.rules.Reorder(a.ctx, orderedIDs)
+}
+
+// ruleToDTO converts a domain rule to its wire view.
+func ruleToDTO(r domain.Rule) RuleDTO {
+	conditions := make([]RuleConditionDTO, 0, len(r.Conditions()))
+	for _, c := range r.Conditions() {
+		conditions = append(conditions, RuleConditionDTO{
+			Field: c.Field().String(), Operator: c.Operator().String(), Text: c.Text(),
+		})
+	}
+	actions := make([]RuleActionDTO, 0, len(r.Actions()))
+	for _, a := range r.Actions() {
+		actions = append(actions, RuleActionDTO{Kind: a.Kind().String(), FolderID: a.FolderID()})
+	}
+	return RuleDTO{
+		ID: r.ID(), Name: r.Name(), Enabled: r.Enabled(), Position: r.Position(),
+		MatchMode: r.MatchMode().String(), StopProcessing: r.StopProcessing(),
+		Conditions: conditions, Actions: actions,
+	}
+}
+
+// parseRuleConditions converts the wire conditions to their application inputs.
+func parseRuleConditions(in []RuleConditionDTO) ([]application.RuleConditionInput, error) {
+	out := make([]application.RuleConditionInput, 0, len(in))
+	for _, c := range in {
+		field, err := parseRuleField(c.Field)
+		if err != nil {
+			return nil, err
+		}
+		operator, err := parseRuleOperator(c.Operator)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, application.RuleConditionInput{Field: field, Operator: operator, Text: c.Text})
+	}
+	return out, nil
+}
+
+// parseRuleActions converts the wire actions to their application inputs.
+func parseRuleActions(in []RuleActionDTO) ([]application.RuleActionInput, error) {
+	out := make([]application.RuleActionInput, 0, len(in))
+	for _, a := range in {
+		kind, err := parseRuleActionKind(a.Kind)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, application.RuleActionInput{Kind: kind, FolderID: a.FolderID})
+	}
+	return out, nil
 }
 
 func parseRuleField(s string) (domain.RuleField, error) {
@@ -88,6 +144,10 @@ func parseRuleField(s string) (domain.RuleField, error) {
 		return domain.RuleFieldTo, nil
 	case "cc":
 		return domain.RuleFieldCc, nil
+	case "anyRecipient":
+		return domain.RuleFieldAnyRecipient, nil
+	case "senderDomain":
+		return domain.RuleFieldSenderDomain, nil
 	default:
 		return 0, fmt.Errorf("unknown rule field %q", s)
 	}
@@ -110,12 +170,27 @@ func parseRuleOperator(s string) (domain.RuleOperator, error) {
 	}
 }
 
-func parseRuleAction(s string) (domain.RuleAction, error) {
+func parseRuleMatchMode(s string) (domain.RuleMatchMode, error) {
+	switch s {
+	case "all":
+		return domain.RuleMatchAll, nil
+	case "any":
+		return domain.RuleMatchAny, nil
+	default:
+		return 0, fmt.Errorf("unknown rule match mode %q", s)
+	}
+}
+
+func parseRuleActionKind(s string) (domain.RuleActionKind, error) {
 	switch s {
 	case "markRead":
 		return domain.RuleMarkRead, nil
 	case "flag":
 		return domain.RuleFlag, nil
+	case "moveTo":
+		return domain.RuleMoveTo, nil
+	case "destroy":
+		return domain.RuleDestroy, nil
 	default:
 		return 0, fmt.Errorf("unknown rule action %q", s)
 	}

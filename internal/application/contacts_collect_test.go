@@ -28,12 +28,12 @@ func TestCollectAddressesAddsOnlyUnknown(t *testing.T) {
 	svc := NewContactService(store, fixedID("new"))
 
 	added, err := svc.CollectAddresses(context.Background(), []string{
-		"JANE@example.com",     // already in the book, case-insensitively
-		"bob@new.example",      // new
-		"Bob@New.example",      // duplicate of the previous within this call
-		"not-an-email",         // malformed, skipped silently
-		"",                     // empty, skipped silently
-		"second@new.example",   // new
+		"JANE@example.com",   // already in the book, case-insensitively
+		"bob@new.example",    // new
+		"Bob@New.example",    // duplicate of the previous within this call
+		"not-an-email",       // malformed, skipped silently
+		"",                   // empty, skipped silently
+		"second@new.example", // new
 	})
 	if err != nil {
 		t.Fatalf("collect: %v", err)

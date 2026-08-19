@@ -1,44 +1,63 @@
-import {useState} from 'react'
+import {useEffect, useMemo, useState} from 'react'
 import {useBackdropDismiss} from './useBackdropDismiss'
-import {api, Rule, RuleInput} from '../api'
+import {api, Account, Folder, Rule, RuleInput} from '../api'
 import {ModalClose} from './ModalClose'
+import {ConfirmDialog} from './ConfirmDialog'
+import {RuleEditor, FolderChoice} from './RuleEditor'
+import {destroys, emptyRule, isDestructive, ruleIsComplete, ruleSummary} from './ruleLabels'
 
 interface RuleManagerModalProps {
+    accounts: Account[]
     rules: Rule[]
     onChanged: () => void
     onClose: () => void
 }
 
-const FIELD_LABELS: Record<string, string> = {from: 'From', to: 'To', cc: 'Cc', subject: 'Subject'}
-const OPERATOR_LABELS: Record<string, string> = {
-    contains: 'contains',
-    notContains: "doesn't contain",
-    equals: 'is',
-    startsWith: 'starts with',
-    endsWith: 'ends with',
-}
-const ACTION_LABELS: Record<string, string> = {markRead: 'mark as read', flag: 'flag it'}
-
-// RuleManagerModal lists filter rules and adds new ones. Rules run on each sync; a matching message
-// (its chosen field compared with the operator against the text) has the chosen action applied.
-export function RuleManagerModal({rules, onChanged, onClose}: RuleManagerModalProps) {
+// RuleManagerModal lists the filter rules in the order they run and edits one at a time. Rules run on
+// mail arriving in the Inbox: a message matching a rule's conditions has every one of its actions
+// applied; the order shown here is the order they are tried in.
+export function RuleManagerModal({accounts, rules, onChanged, onClose}: RuleManagerModalProps) {
     const dismiss = useBackdropDismiss(onClose)
-    const [name, setName] = useState('')
-    const [field, setField] = useState('from')
-    const [operator, setOperator] = useState('contains')
-    const [contains, setContains] = useState('')
-    const [action, setAction] = useState('markRead')
+    const [draft, setDraft] = useState<Rule | null>(null)
+    const [pendingConfirm, setPendingConfirm] = useState<Rule | null>(null)
+    const [toDelete, setToDelete] = useState<Rule | null>(null)
+    const [folders, setFolders] = useState<Folder[]>([])
     const [error, setError] = useState('')
     const [busy, setBusy] = useState(false)
 
-    const add = async () => {
+    // Every account's folders are loaded once, so a move action can name any of them. An account that
+    // cannot be read contributes nothing rather than failing the dialog.
+    useEffect(() => {
+        let cancelled = false
+        const load = async () => {
+            const lists = await Promise.all(
+                accounts.map((a) => api.listFolders(a.id).catch((): Folder[] => [])),
+            )
+            if (!cancelled) {
+                setFolders(lists.flat())
+            }
+        }
+        void load()
+        return () => {
+            cancelled = true
+        }
+    }, [accounts])
+
+    // folderChoices labels each destination with its account, because a move names one concrete folder
+    // and so only applies to mail arriving on that account.
+    const folderChoices = useMemo<FolderChoice[]>(() => {
+        const accountName = (id: string) => accounts.find((a) => a.id === id)?.displayName ?? 'Account'
+        return folders.map((f) => ({id: f.id, label: `${accountName(f.accountId)} / ${f.path}`}))
+    }, [accounts, folders])
+
+    const folderName = (folderId: string) =>
+        folderChoices.find((f) => f.id === folderId)?.label ?? 'a folder'
+
+    const run = async (action: () => Promise<void>) => {
         setBusy(true)
         setError('')
         try {
-            const req: RuleInput = {id: '', name, field, operator, contains, action}
-            await api.saveRule(req)
-            setName('')
-            setContains('')
+            await action()
             onChanged()
         } catch (e) {
             setError(String(e))
@@ -47,102 +66,181 @@ export function RuleManagerModal({rules, onChanged, onClose}: RuleManagerModalPr
         }
     }
 
-    const remove = async (id: string) => {
-        setError('')
-        try {
-            await api.deleteRule(id)
-            onChanged()
-        } catch (e) {
-            setError(String(e))
+    // save writes the draft. A rule that moves or destroys mail is confirmed first: it runs unattended,
+    // so this is the only point at which the user can be asked about it at all.
+    const save = (rule: Rule, confirmed: boolean) => {
+        if (isDestructive(rule) && !confirmed) {
+            setPendingConfirm(rule)
+            return
         }
+        setPendingConfirm(null)
+        void run(async () => {
+            await api.saveRule(rule as RuleInput)
+            setDraft(null)
+        })
+    }
+
+    const remove = (rule: Rule) =>
+        void run(async () => {
+            await api.deleteRule(rule.id)
+            setToDelete(null)
+        })
+
+    const toggleEnabled = (rule: Rule) =>
+        void run(() => api.saveRule({...rule, enabled: !rule.enabled} as RuleInput))
+
+    // move shifts a rule up or down the running order and writes the whole order back, so the positions
+    // stay contiguous however they were edited before.
+    const move = (index: number, delta: number) => {
+        const target = index + delta
+        if (target < 0 || target >= rules.length) {
+            return
+        }
+        const order = rules.map((r) => r.id)
+        ;[order[index], order[target]] = [order[target], order[index]]
+        void run(() => api.reorderRules(order))
+    }
+
+    if (draft) {
+        return (
+            <>
+                <div className="modal-backdrop" {...dismiss}>
+                    <div className="modal pinned-actions" role="dialog" aria-label="Edit filter rule" onClick={(e) => e.stopPropagation()}>
+                        <ModalClose onClose={() => setDraft(null)}/>
+                        <h2 className="modal-title">{draft.id === '' ? 'New rule' : 'Edit rule'}</h2>
+                        <div className="modal-body">
+                            {error && <div className="compose-error">{error}</div>}
+                            <RuleEditor rule={draft} folders={folderChoices} onChange={setDraft}/>
+                        </div>
+                        <div className="modal-actions spread">
+                            <button className="btn" onClick={() => setDraft(null)}>Cancel</button>
+                            <button
+                                className={destroys(draft) ? 'btn danger' : 'btn primary'}
+                                onClick={() => save(draft, false)}
+                                disabled={busy || !ruleIsComplete(draft)}
+                            >
+                                {busy ? 'Saving...' : 'Save rule'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                {pendingConfirm && (
+                    <ConfirmDialog
+                        title={destroys(pendingConfirm) ? 'This rule destroys mail' : 'This rule moves mail'}
+                        message={
+                            destroys(pendingConfirm)
+                                ? 'Mail matching this rule will be deleted from the server as it arrives. ' +
+                                  'It does not go to Trash, no copy is kept and you will never see it. ' +
+                                  'Rules run unattended, so you will not be asked again.'
+                                : 'Mail matching this rule will be moved out of the Inbox as it arrives, ' +
+                                  'without being shown there first. Rules run unattended, so you will not be asked again.'
+                        }
+                        confirmLabel={destroys(pendingConfirm) ? 'Save destroying rule' : 'Save rule'}
+                        busy={busy}
+                        onConfirm={() => save(pendingConfirm, true)}
+                        onCancel={() => setPendingConfirm(null)}
+                    />
+                )}
+            </>
+        )
     }
 
     return (
-        <div className="modal-backdrop" {...dismiss}>
-            <div className="modal pinned-actions" role="dialog" aria-label="Filter rules" onClick={(e) => e.stopPropagation()}>
-                <ModalClose onClose={onClose}/>
-                <h2 className="modal-title">Filter rules</h2>
-                <div className="modal-body">
-                <p className="setup-hint">Rules run on each sync. When a message matches, its action is applied.</p>
-                {error && <div className="compose-error">{error}</div>}
-                {rules.length === 0 ? (
-                    <p className="empty-body">No rules yet.</p>
-                ) : (
-                    <ul className="list">
-                        {rules.map((r) => {
-                            // summary is the human-readable rule description, shown as the row subtitle and as
-                            // its hover title so the full text is readable when the row truncates it.
-                            const summary = `If ${FIELD_LABELS[r.field] ?? r.field} ${OPERATOR_LABELS[r.operator] ?? r.operator} "${r.contains}", ${ACTION_LABELS[r.action] ?? r.action}`
-                            return (
-                            <li key={r.id} className="list-item">
-                                <span className="item-text">
-                                    <span className="item-title" title={r.name}>{r.name}</span>
-                                    <span className="item-sub" title={summary}>
-                                        {summary}
-                                    </span>
-                                </span>
-                                <button
-                                    className="account-action delete"
-                                    aria-label={`Delete ${r.name}`}
-                                    title="Delete rule"
-                                    onClick={() => void remove(r.id)}
-                                >
-                                    &times;
-                                </button>
-                            </li>
-                            )
-                        })}
-                    </ul>
-                )}
-                <div className="rule-form">
-                    <input
-                        className="tag-name-input"
-                        placeholder="Rule name"
-                        value={name}
-                        autoFocus
-                        onChange={(e) => setName(e.target.value)}
-                    />
-                    <div className="rule-form-row">
-                        <select value={field} onChange={(e) => setField(e.target.value)}>
-                            <option value="from">From</option>
-                            <option value="to">To</option>
-                            <option value="cc">Cc</option>
-                            <option value="subject">Subject</option>
-                        </select>
-                        <select value={operator} onChange={(e) => setOperator(e.target.value)}>
-                            <option value="contains">contains</option>
-                            <option value="notContains">doesn't contain</option>
-                            <option value="equals">is</option>
-                            <option value="startsWith">starts with</option>
-                            <option value="endsWith">ends with</option>
-                        </select>
-                        <input
-                            className="tag-name-input"
-                            placeholder="text to match"
-                            value={contains}
-                            onChange={(e) => setContains(e.target.value)}
-                        />
+        <>
+            <div className="modal-backdrop" {...dismiss}>
+                <div className="modal pinned-actions" role="dialog" aria-label="Filter rules" onClick={(e) => e.stopPropagation()}>
+                    <ModalClose onClose={onClose}/>
+                    <h2 className="modal-title">Filter rules</h2>
+                    <div className="modal-body">
+                        <p className="setup-hint">
+                            Rules run on mail arriving in the Inbox, in the order shown. They never act on mail
+                            already in your mailbox.
+                        </p>
+                        {error && <div className="compose-error">{error}</div>}
+                        {rules.length === 0 ? (
+                            <p className="empty-body">No rules yet.</p>
+                        ) : (
+                            <ul className="list">
+                                {rules.map((r, index) => {
+                                    const summary = ruleSummary(r, folderName)
+                                    return (
+                                        <li key={r.id} className={`list-item${r.enabled ? '' : ' rule-disabled'}`}>
+                                            <span className="item-text">
+                                                <span className="item-title" title={r.name}>
+                                                    {r.name}
+                                                    {destroys(r) && <span className="rule-badge">destroys</span>}
+                                                </span>
+                                                <span className="item-sub" title={summary}>{summary}</span>
+                                            </span>
+                                            <button
+                                                className="account-action"
+                                                aria-label={`Move ${r.name} up`}
+                                                title="Run this rule earlier"
+                                                disabled={busy || index === 0}
+                                                onClick={() => move(index, -1)}
+                                            >
+                                                &uarr;
+                                            </button>
+                                            <button
+                                                className="account-action"
+                                                aria-label={`Move ${r.name} down`}
+                                                title="Run this rule later"
+                                                disabled={busy || index === rules.length - 1}
+                                                onClick={() => move(index, 1)}
+                                            >
+                                                &darr;
+                                            </button>
+                                            <button
+                                                className="account-action"
+                                                aria-label={r.enabled ? `Disable ${r.name}` : `Enable ${r.name}`}
+                                                title={r.enabled ? 'Disable this rule' : 'Enable this rule'}
+                                                disabled={busy}
+                                                onClick={() => toggleEnabled(r)}
+                                            >
+                                                {r.enabled ? 'On' : 'Off'}
+                                            </button>
+                                            <button
+                                                className="account-action"
+                                                aria-label={`Edit ${r.name}`}
+                                                title="Edit rule"
+                                                disabled={busy}
+                                                onClick={() => setDraft(r)}
+                                            >
+                                                Edit
+                                            </button>
+                                            <button
+                                                className="account-action delete"
+                                                aria-label={`Delete ${r.name}`}
+                                                title="Delete rule"
+                                                disabled={busy}
+                                                onClick={() => setToDelete(r)}
+                                            >
+                                                &times;
+                                            </button>
+                                        </li>
+                                    )
+                                })}
+                            </ul>
+                        )}
                     </div>
-                    <div className="rule-form-row">
-                        <span>then</span>
-                        <select value={action} onChange={(e) => setAction(e.target.value)}>
-                            <option value="markRead">Mark as read</option>
-                            <option value="flag">Flag</option>
-                        </select>
+                    <div className="modal-actions spread">
+                        <button className="btn" onClick={onClose}>Close</button>
+                        <button className="btn primary" onClick={() => setDraft(emptyRule(rules.length))}>
+                            New rule
+                        </button>
                     </div>
-                </div>
-                </div>
-                <div className="modal-actions spread">
-                    <button className="btn" onClick={onClose}>Close</button>
-                    <button
-                        className="btn primary"
-                        onClick={() => void add()}
-                        disabled={busy || name.trim() === '' || contains.trim() === ''}
-                    >
-                        {busy ? 'Adding...' : 'Add rule'}
-                    </button>
                 </div>
             </div>
-        </div>
+            {toDelete && (
+                <ConfirmDialog
+                    title="Delete rule"
+                    message={`"${toDelete.name}" will be removed. Mail it already acted on is not affected.`}
+                    confirmLabel="Delete rule"
+                    busy={busy}
+                    onConfirm={() => remove(toDelete)}
+                    onCancel={() => setToDelete(null)}
+                />
+            )}
+        </>
     )
 }

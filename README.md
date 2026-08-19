@@ -87,7 +87,11 @@ local-first. A calmer, more predictable alternative to Thunderbird.
   tree by dragging a folder to nest it, move it out or reorder its siblings; the order you choose and
   the folders you keep collapsed are remembered per account and survive an update or reinstall.
   One folder each holds Inbox, Sent, Drafts, Trash, Junk and Archive, leading a collapsible tree with
-  unread badges per folder, account and total. On-arrival rules mark or flag by From, To, Cc or Subject.
+  unread badges per folder, account and total. On-arrival rules combine several conditions (From, To, Cc,
+  any recipient, Subject, sender domain) with all-or-any matching, then mark read, flag, move to a folder
+  of your choice or delete permanently. Delete permanently means exactly that: expunged on the server,
+  never sent to Trash and never cached, so there is nothing left to tidy up. Rules run on the Inbox and
+  only on mail arriving after the rule exists, so adding one never reaches back over the mail you have.
 - **Read**: an optional reading pane (mark-on-view, F8 toggle) whose attachments stay pinned at the
   foot of the message, so Open and Save are one click away however long the thread is rather than below
   every quoted round, with draggable pane dividers
@@ -140,7 +144,7 @@ local-first. A calmer, more predictable alternative to Thunderbird.
   half-written message, say) surfaces the keep-in-tray-or-quit choice on top at once and warns that
   unsaved work may be lost, with Go back as the default so nothing is lost silently.
 
-Planned: move/delete rules, OS-delivered calendar alarms, two-way CardDAV contact sync. The
+Planned: OS-delivered calendar alarms, two-way CardDAV contact sync. The
 candidates parked beyond these are triaged with their rationale in
 [FEATURES_PLAN.md](FEATURES_PLAN.md).
 

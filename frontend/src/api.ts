@@ -75,6 +75,7 @@ import {
     MoveMessages,
     RenameFolder,
     SaveRule,
+    ReorderRules,
     SaveTemplate,
     CancelOutboxItem,
     CheckForUpdates,
@@ -157,6 +158,8 @@ export type AboutInfo = main.AboutDTO
 export type UpdateStatus = main.UpdateStatusDTO
 export type Tag = main.TagDTO
 export type Rule = main.RuleDTO
+export type RuleCondition = main.RuleConditionDTO
+export type RuleAction = main.RuleActionDTO
 export type Template = main.TemplateDTO
 // MessageBody drops the generated convertValues helper so an outbox message's body can be built as a
 // plain object literal; the nested AttachmentDTO array carries no helper of its own.
@@ -285,13 +288,17 @@ export interface CalendarEventInput {
     attendees: MeetingAttendeeInput[]
 }
 
+// RuleInput is the shape sent back to save a rule. It mirrors Rule exactly, so a rule read from the
+// back end can be edited and returned without translation; an empty id means a new rule.
 export interface RuleInput {
     id: string
     name: string
-    field: string
-    operator: string
-    contains: string
-    action: string
+    enabled: boolean
+    position: number
+    matchMode: string
+    stopProcessing: boolean
+    conditions: RuleCondition[]
+    actions: RuleAction[]
 }
 
 export interface TagInput {
@@ -512,8 +519,10 @@ export const api = {
     saveFolderUIState: (accountId: string, order: string[], collapsed: string[]): Promise<void> =>
         SaveFolderUIState(accountId, order, collapsed),
     listRules: (): Promise<Rule[]> => ListRules(),
-    saveRule: (req: RuleInput): Promise<void> => SaveRule(main.RuleRequest.createFrom(req)),
+    saveRule: (req: RuleInput): Promise<void> => SaveRule(main.RuleDTO.createFrom(req)),
     deleteRule: (ruleId: string): Promise<void> => DeleteRule(ruleId),
+    // reorderRules writes the evaluation order: the rule at index i takes position i.
+    reorderRules: (orderedIds: string[]): Promise<void> => ReorderRules(orderedIds),
     listTemplates: (): Promise<Template[]> => ListTemplates(),
     saveTemplate: (req: TemplateInput): Promise<void> => SaveTemplate(main.TemplateRequest.createFrom(req)),
     deleteTemplate: (templateId: string): Promise<void> => DeleteTemplate(templateId),

@@ -26,7 +26,7 @@ func newSyncFixture(t *testing.T) (*fakeAccountStore, *fakeMailStore, *fakeMailS
 		},
 	}
 	rules := &fakeRuleStore{}
-	return accounts, mail, source, rules, NewSyncService(accounts, mail, source, rules, &fakeTagSyncer{}, &fakeFlagSyncer{})
+	return accounts, mail, source, rules, NewSyncService(accounts, mail, source, rules, &fakeTagSyncer{}, &fakeFlagSyncer{}, NewRuleExecutor(mail, &fakeMailActions{}))
 }
 
 func TestSyncAccountHappyPath(t *testing.T) {
@@ -61,11 +61,7 @@ func TestSyncAppliesRules(t *testing.T) {
 	}
 	source.messagesByFolder = map[string][]domain.MessageSummary{"f1": {msg}}
 	source.folders = []domain.Folder{testFolder(t, "f1", "a1", "INBOX")}
-	rule, err := domain.NewRule("r1", "News", domain.RuleFieldFrom, domain.RuleOpContains, "news@", domain.RuleMarkRead)
-	if err != nil {
-		t.Fatalf("rule: %v", err)
-	}
-	rules.rules = []domain.Rule{rule}
+	rules.rules = []domain.Rule{newMarkReadRule(t, "r1", "news@")}
 	_ = accounts
 
 	if err := svc.SyncAccount(context.Background(), "a1"); err != nil {
@@ -84,7 +80,7 @@ func TestSyncReconcilesTagsForImapOnly(t *testing.T) {
 	mail.folders["a1"] = []domain.Folder{testFolder(t, "f1", "a1", "INBOX")}
 	source := &fakeMailSource{messagesByFolder: map[string][]domain.MessageSummary{"f1": {testMessage(t, "m1", "f1")}}}
 	tagSync := &fakeTagSyncer{}
-	svc := NewSyncService(accounts, mail, source, &fakeRuleStore{}, tagSync, &fakeFlagSyncer{})
+	svc := NewSyncService(accounts, mail, source, &fakeRuleStore{}, tagSync, &fakeFlagSyncer{}, NewRuleExecutor(mail, &fakeMailActions{}))
 
 	if err := svc.SyncFolder(context.Background(), "f1"); err != nil {
 		t.Fatalf("sync folder: %v", err)
@@ -104,7 +100,7 @@ func TestSyncSkipsTagReconcileForPop3(t *testing.T) {
 	mail.folders["a1"] = []domain.Folder{testFolder(t, "f1", "a1", "INBOX")}
 	source := &fakeMailSource{messagesByFolder: map[string][]domain.MessageSummary{"f1": {pop3Summary(t, "m1", "1", domain.NewFlags(0))}}}
 	tagSync := &fakeTagSyncer{}
-	svc := NewSyncService(accounts, mail, source, &fakeRuleStore{}, tagSync, &fakeFlagSyncer{})
+	svc := NewSyncService(accounts, mail, source, &fakeRuleStore{}, tagSync, &fakeFlagSyncer{}, NewRuleExecutor(mail, &fakeMailActions{}))
 
 	if err := svc.SyncFolder(context.Background(), "f1"); err != nil {
 		t.Fatalf("sync folder: %v", err)
@@ -124,7 +120,7 @@ func TestSyncIgnoresTagSyncError(t *testing.T) {
 	mail.folders["a1"] = []domain.Folder{testFolder(t, "f1", "a1", "INBOX")}
 	source := &fakeMailSource{messagesByFolder: map[string][]domain.MessageSummary{"f1": {testMessage(t, "m1", "f1")}}}
 	tagSync := &fakeTagSyncer{reconcileErr: errBoom, flushErr: errBoom}
-	svc := NewSyncService(accounts, mail, source, &fakeRuleStore{}, tagSync, &fakeFlagSyncer{})
+	svc := NewSyncService(accounts, mail, source, &fakeRuleStore{}, tagSync, &fakeFlagSyncer{}, NewRuleExecutor(mail, &fakeMailActions{}))
 
 	// A tag flush or reconcile failure is best-effort and must never fail the mail sync.
 	if err := svc.SyncFolder(context.Background(), "f1"); err != nil {
@@ -145,7 +141,7 @@ func TestSyncOverlaysPendingFlagsBeforeSave(t *testing.T) {
 		}
 		return out
 	}}
-	svc := NewSyncService(accounts, mail, source, &fakeRuleStore{}, &fakeTagSyncer{}, flagSync)
+	svc := NewSyncService(accounts, mail, source, &fakeRuleStore{}, &fakeTagSyncer{}, flagSync, NewRuleExecutor(mail, &fakeMailActions{}))
 
 	if err := svc.SyncFolder(context.Background(), "f1"); err != nil {
 		t.Fatalf("sync folder: %v", err)
@@ -169,7 +165,7 @@ func TestSyncSkipsFlagReconcileForPop3(t *testing.T) {
 	mail.folders["a1"] = []domain.Folder{testFolder(t, "f1", "a1", "INBOX")}
 	source := &fakeMailSource{messagesByFolder: map[string][]domain.MessageSummary{"f1": {pop3Summary(t, "m1", "1", domain.NewFlags(0))}}}
 	flagSync := &fakeFlagSyncer{}
-	svc := NewSyncService(accounts, mail, source, &fakeRuleStore{}, &fakeTagSyncer{}, flagSync)
+	svc := NewSyncService(accounts, mail, source, &fakeRuleStore{}, &fakeTagSyncer{}, flagSync, NewRuleExecutor(mail, &fakeMailActions{}))
 
 	if err := svc.SyncFolder(context.Background(), "f1"); err != nil {
 		t.Fatalf("sync folder: %v", err)
@@ -189,7 +185,7 @@ func TestSyncIgnoresFlagSyncError(t *testing.T) {
 	mail.folders["a1"] = []domain.Folder{testFolder(t, "f1", "a1", "INBOX")}
 	source := &fakeMailSource{messagesByFolder: map[string][]domain.MessageSummary{"f1": {testMessage(t, "m1", "f1")}}}
 	flagSync := &fakeFlagSyncer{reconcileErr: errBoom, flushErr: errBoom}
-	svc := NewSyncService(accounts, mail, source, &fakeRuleStore{}, &fakeTagSyncer{}, flagSync)
+	svc := NewSyncService(accounts, mail, source, &fakeRuleStore{}, &fakeTagSyncer{}, flagSync, NewRuleExecutor(mail, &fakeMailActions{}))
 
 	// A flag flush or reconcile failure is best-effort and must never fail the mail sync; the fetched
 	// messages are saved as reported and the intents stay for the next pass.
@@ -217,7 +213,7 @@ func TestSyncInboxesOverlaysPendingFlags(t *testing.T) {
 		}
 		return out
 	}}
-	svc := NewSyncService(accounts, mail, source, &fakeRuleStore{}, &fakeTagSyncer{}, flagSync)
+	svc := NewSyncService(accounts, mail, source, &fakeRuleStore{}, &fakeTagSyncer{}, flagSync, NewRuleExecutor(mail, &fakeMailActions{}))
 
 	fresh, err := svc.SyncInboxes(context.Background())
 	if err != nil {
@@ -235,7 +231,7 @@ func TestSyncAccountErrors(t *testing.T) {
 	t.Run("load account", func(t *testing.T) {
 		accounts, mail, source, rules, _ := newSyncFixture(t)
 		accounts.getErr = errBoom
-		svc := NewSyncService(accounts, mail, source, rules, &fakeTagSyncer{}, &fakeFlagSyncer{})
+		svc := NewSyncService(accounts, mail, source, rules, &fakeTagSyncer{}, &fakeFlagSyncer{}, NewRuleExecutor(mail, &fakeMailActions{}))
 		if err := svc.SyncAccount(context.Background(), "a1"); !errors.Is(err, errBoom) {
 			t.Errorf("error = %v, want wrapped boom", err)
 		}
@@ -244,7 +240,7 @@ func TestSyncAccountErrors(t *testing.T) {
 	t.Run("load rules", func(t *testing.T) {
 		accounts, mail, source, rules, _ := newSyncFixture(t)
 		rules.listErr = errBoom
-		svc := NewSyncService(accounts, mail, source, rules, &fakeTagSyncer{}, &fakeFlagSyncer{})
+		svc := NewSyncService(accounts, mail, source, rules, &fakeTagSyncer{}, &fakeFlagSyncer{}, NewRuleExecutor(mail, &fakeMailActions{}))
 		if err := svc.SyncAccount(context.Background(), "a1"); !errors.Is(err, errBoom) {
 			t.Errorf("error = %v, want wrapped boom", err)
 		}
@@ -253,7 +249,7 @@ func TestSyncAccountErrors(t *testing.T) {
 	t.Run("fetch folders", func(t *testing.T) {
 		accounts, mail, source, rules, _ := newSyncFixture(t)
 		source.fetchFoldersErr = errBoom
-		svc := NewSyncService(accounts, mail, source, rules, &fakeTagSyncer{}, &fakeFlagSyncer{})
+		svc := NewSyncService(accounts, mail, source, rules, &fakeTagSyncer{}, &fakeFlagSyncer{}, NewRuleExecutor(mail, &fakeMailActions{}))
 		if err := svc.SyncAccount(context.Background(), "a1"); !errors.Is(err, errBoom) {
 			t.Errorf("error = %v, want wrapped boom", err)
 		}
@@ -262,7 +258,7 @@ func TestSyncAccountErrors(t *testing.T) {
 	t.Run("save folders", func(t *testing.T) {
 		accounts, mail, source, rules, _ := newSyncFixture(t)
 		mail.saveFoldersErr = errBoom
-		svc := NewSyncService(accounts, mail, source, rules, &fakeTagSyncer{}, &fakeFlagSyncer{})
+		svc := NewSyncService(accounts, mail, source, rules, &fakeTagSyncer{}, &fakeFlagSyncer{}, NewRuleExecutor(mail, &fakeMailActions{}))
 		if err := svc.SyncAccount(context.Background(), "a1"); !errors.Is(err, errBoom) {
 			t.Errorf("error = %v, want wrapped boom", err)
 		}
@@ -271,7 +267,7 @@ func TestSyncAccountErrors(t *testing.T) {
 	t.Run("fetch messages", func(t *testing.T) {
 		accounts, mail, source, rules, _ := newSyncFixture(t)
 		source.fetchMessagesErr = errBoom
-		svc := NewSyncService(accounts, mail, source, rules, &fakeTagSyncer{}, &fakeFlagSyncer{})
+		svc := NewSyncService(accounts, mail, source, rules, &fakeTagSyncer{}, &fakeFlagSyncer{}, NewRuleExecutor(mail, &fakeMailActions{}))
 		if err := svc.SyncAccount(context.Background(), "a1"); !errors.Is(err, errBoom) {
 			t.Errorf("error = %v, want wrapped boom", err)
 		}
@@ -280,7 +276,7 @@ func TestSyncAccountErrors(t *testing.T) {
 	t.Run("save messages", func(t *testing.T) {
 		accounts, mail, source, rules, _ := newSyncFixture(t)
 		mail.saveMessagesErr = errBoom
-		svc := NewSyncService(accounts, mail, source, rules, &fakeTagSyncer{}, &fakeFlagSyncer{})
+		svc := NewSyncService(accounts, mail, source, rules, &fakeTagSyncer{}, &fakeFlagSyncer{}, NewRuleExecutor(mail, &fakeMailActions{}))
 		if err := svc.SyncAccount(context.Background(), "a1"); !errors.Is(err, errBoom) {
 			t.Errorf("error = %v, want wrapped boom", err)
 		}
@@ -319,11 +315,7 @@ func TestSyncFolderAppliesRules(t *testing.T) {
 		t.Fatalf("message: %v", err)
 	}
 	source.messagesByFolder = map[string][]domain.MessageSummary{"f1": {msg}}
-	rule, err := domain.NewRule("r1", "News", domain.RuleFieldFrom, domain.RuleOpContains, "news@", domain.RuleMarkRead)
-	if err != nil {
-		t.Fatalf("rule: %v", err)
-	}
-	rules.rules = []domain.Rule{rule}
+	rules.rules = []domain.Rule{newMarkReadRule(t, "r1", "news@")}
 
 	if err := svc.SyncFolder(context.Background(), "f1"); err != nil {
 		t.Fatalf("unexpected error: %v", err)

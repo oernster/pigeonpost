@@ -2,7 +2,9 @@ package domain
 
 import "strings"
 
-// RuleField is the part of a message a rule matches against.
+// RuleField is the part of a message a rule condition matches against. The values of the first four
+// are frozen: they are stored as integers in the rule database and rules written before multi-condition
+// support carry them.
 type RuleField int
 
 const (
@@ -14,6 +16,12 @@ const (
 	RuleFieldTo
 	// RuleFieldCc matches any Cc recipient's display name or address.
 	RuleFieldCc
+	// RuleFieldAnyRecipient matches any To or Cc recipient's display name or address. Bcc is not
+	// modelled: the sending server strips it, so a received message never carries one.
+	RuleFieldAnyRecipient
+	// RuleFieldSenderDomain matches the part of the sender's address after the @, so a rule can name a
+	// whole domain without matching a local part that happens to contain it.
+	RuleFieldSenderDomain
 )
 
 // String returns a stable identifier for the field.
@@ -27,15 +35,19 @@ func (f RuleField) String() string {
 		return "to"
 	case RuleFieldCc:
 		return "cc"
+	case RuleFieldAnyRecipient:
+		return "anyRecipient"
+	case RuleFieldSenderDomain:
+		return "senderDomain"
 	default:
 		return "unknown"
 	}
 }
 
-// Valid reports whether the field is one a rule can match.
-func (f RuleField) Valid() bool { return f >= RuleFieldFrom && f <= RuleFieldCc }
+// Valid reports whether the field is one a condition can match.
+func (f RuleField) Valid() bool { return f >= RuleFieldFrom && f <= RuleFieldSenderDomain }
 
-// RuleOperator is how a rule compares a message field against its match text.
+// RuleOperator is how a condition compares a message field against its match text.
 type RuleOperator int
 
 const (
@@ -69,123 +81,104 @@ func (o RuleOperator) String() string {
 	}
 }
 
-// Valid reports whether the operator is one a rule can use.
+// Valid reports whether the operator is one a condition can use.
 func (o RuleOperator) Valid() bool { return o >= RuleOpContains && o <= RuleOpEndsWith }
 
-// RuleAction is what a rule does to a matching message. v1 actions are non-destructive and idempotent,
-// so they can be re-applied on every sync without harm; move and delete are deliberately not modelled.
-type RuleAction int
+// RuleMatchMode is how a rule combines its conditions. The zero value is "all", so a rule written
+// before multi-condition support (which had exactly one condition) reads back unchanged.
+type RuleMatchMode int
 
 const (
-	// RuleMarkRead marks a matching message as read.
-	RuleMarkRead RuleAction = iota
-	// RuleFlag flags (stars) a matching message.
-	RuleFlag
+	// RuleMatchAll requires every condition to match.
+	RuleMatchAll RuleMatchMode = iota
+	// RuleMatchAny requires at least one condition to match.
+	RuleMatchAny
 )
 
-// String returns a stable identifier for the action.
-func (a RuleAction) String() string {
-	switch a {
-	case RuleMarkRead:
-		return "markRead"
-	case RuleFlag:
-		return "flag"
+// String returns a stable identifier for the match mode.
+func (m RuleMatchMode) String() string {
+	switch m {
+	case RuleMatchAll:
+		return "all"
+	case RuleMatchAny:
+		return "any"
 	default:
 		return "unknown"
 	}
 }
 
-// Valid reports whether the action is one a rule can apply.
-func (a RuleAction) Valid() bool { return a == RuleMarkRead || a == RuleFlag }
+// Valid reports whether the match mode is one a rule can use.
+func (m RuleMatchMode) Valid() bool { return m == RuleMatchAll || m == RuleMatchAny }
 
-// Rule is a user-defined filter: when a message's chosen field satisfies the operator against the
-// given text (case insensitive), the action is applied. It is immutable once constructed.
-type Rule struct {
-	id       string
-	name     string
+// RuleCondition is one field-operator-text test within a rule. It is immutable once constructed.
+type RuleCondition struct {
 	field    RuleField
 	operator RuleOperator
-	contains string
-	action   RuleAction
+	text     string
 }
 
-// NewRule validates and constructs a rule. The id, name and match text must be non-empty, and the
-// field, operator and action must be recognised.
-func NewRule(id, name string, field RuleField, operator RuleOperator, contains string, action RuleAction) (Rule, error) {
-	id = strings.TrimSpace(id)
-	if id == "" {
-		return Rule{}, ErrEmptyRuleID
-	}
-	name = strings.TrimSpace(name)
-	if name == "" {
-		return Rule{}, ErrEmptyRuleName
-	}
-	contains = strings.TrimSpace(contains)
-	if contains == "" {
-		return Rule{}, ErrEmptyRuleMatch
+// NewRuleCondition validates and constructs a condition. The match text must be non-empty and the
+// field and operator must be recognised.
+func NewRuleCondition(field RuleField, operator RuleOperator, text string) (RuleCondition, error) {
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return RuleCondition{}, ErrEmptyRuleMatch
 	}
 	if !field.Valid() {
-		return Rule{}, ErrInvalidRuleField
+		return RuleCondition{}, ErrInvalidRuleField
 	}
 	if !operator.Valid() {
-		return Rule{}, ErrInvalidRuleOperator
+		return RuleCondition{}, ErrInvalidRuleOperator
 	}
-	if !action.Valid() {
-		return Rule{}, ErrInvalidRuleAction
-	}
-	return Rule{id: id, name: name, field: field, operator: operator, contains: contains, action: action}, nil
+	return RuleCondition{field: field, operator: operator, text: text}, nil
 }
 
-// ID returns the rule identifier.
-func (r Rule) ID() string { return r.id }
-
-// Name returns the rule name.
-func (r Rule) Name() string { return r.name }
-
 // Field returns the matched field.
-func (r Rule) Field() RuleField { return r.field }
+func (c RuleCondition) Field() RuleField { return c.field }
 
 // Operator returns how the field is compared against the match text.
-func (r Rule) Operator() RuleOperator { return r.operator }
+func (c RuleCondition) Operator() RuleOperator { return c.operator }
 
-// Contains returns the match text.
-func (r Rule) Contains() string { return r.contains }
+// Text returns the match text.
+func (c RuleCondition) Text() string { return c.text }
 
-// Action returns the action applied on a match.
-func (r Rule) Action() RuleAction { return r.action }
-
-// Matches reports whether the message satisfies this rule. A field can contribute several candidate
-// strings (a recipient's display name and address, for instance); the rule matches when any candidate
-// satisfies the operator, except "does not contain", which matches only when no candidate contains the
-// text.
-func (r Rule) Matches(m MessageSummary) bool {
-	needle := strings.ToLower(r.contains)
-	candidates := r.candidates(m)
-	if r.operator == RuleOpNotContains {
-		for _, c := range candidates {
-			if strings.Contains(strings.ToLower(c), needle) {
+// Matches reports whether the message satisfies this condition. A field can contribute several
+// candidate strings (a recipient's display name and address, for instance); the condition matches when
+// any candidate satisfies the operator, except "does not contain", which matches only when no candidate
+// contains the text. A field with no candidates at all (a message with no Cc, say) does not contain the
+// text, so "does not contain" holds and every positive operator fails.
+func (c RuleCondition) Matches(m MessageSummary) bool {
+	needle := strings.ToLower(c.text)
+	candidates := c.candidates(m)
+	if c.operator == RuleOpNotContains {
+		for _, s := range candidates {
+			if strings.Contains(strings.ToLower(s), needle) {
 				return false
 			}
 		}
 		return true
 	}
-	for _, c := range candidates {
-		if matchOperator(r.operator, strings.ToLower(c), needle) {
+	for _, s := range candidates {
+		if matchOperator(c.operator, strings.ToLower(s), needle) {
 			return true
 		}
 	}
 	return false
 }
 
-// candidates returns the strings the rule's field compares against.
-func (r Rule) candidates(m MessageSummary) []string {
-	switch r.field {
+// candidates returns the strings this condition's field compares against.
+func (c RuleCondition) candidates(m MessageSummary) []string {
+	switch c.field {
 	case RuleFieldSubject:
 		return []string{m.Subject()}
 	case RuleFieldTo:
 		return addressStrings(m.To())
 	case RuleFieldCc:
 		return addressStrings(m.Cc())
+	case RuleFieldAnyRecipient:
+		return append(addressStrings(m.To()), addressStrings(m.Cc())...)
+	case RuleFieldSenderDomain:
+		return senderDomain(m.From())
 	default:
 		return []string{m.From().Display(), m.From().Address()}
 	}
@@ -198,6 +191,16 @@ func addressStrings(addrs []EmailAddress) []string {
 		out = append(out, a.Display(), a.Address())
 	}
 	return out
+}
+
+// senderDomain returns just the domain part of the sender's address, so a domain condition never
+// matches against a local part that happens to contain the text. A message with no sender at all
+// contributes no candidate, so no positive operator can match it.
+func senderDomain(from EmailAddress) []string {
+	if from.Domain() == "" {
+		return nil
+	}
+	return []string{from.Domain()}
 }
 
 // matchOperator applies a positive operator (every operator except "does not contain") to one
@@ -213,29 +216,4 @@ func matchOperator(op RuleOperator, hay, needle string) bool {
 	default:
 		return strings.Contains(hay, needle)
 	}
-}
-
-// ApplyRules returns copies of the messages with every matching rule's action applied. Actions only
-// ever set flags, so applying the same rules again is a no-op: the result is stable across syncs.
-func ApplyRules(messages []MessageSummary, rules []Rule) []MessageSummary {
-	if len(rules) == 0 {
-		return messages
-	}
-	out := make([]MessageSummary, len(messages))
-	for i, m := range messages {
-		flags := m.Flags()
-		for _, r := range rules {
-			if !r.Matches(m) {
-				continue
-			}
-			switch r.action {
-			case RuleMarkRead:
-				flags = flags.With(FlagSeen)
-			case RuleFlag:
-				flags = flags.With(FlagFlagged)
-			}
-		}
-		out[i] = m.WithFlags(flags)
-	}
-	return out
 }

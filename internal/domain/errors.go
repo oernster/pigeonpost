@@ -35,9 +35,16 @@ var (
 	ErrInvalidRuleField    = errors.New("rule field is not valid")
 	ErrInvalidRuleOperator = errors.New("rule operator is not valid")
 	ErrInvalidRuleAction   = errors.New("rule action is not valid")
-	ErrEmptyTemplateID     = errors.New("template id is empty")
-	ErrEmptyTemplateName   = errors.New("template name is empty")
-	ErrEmptyAttachmentName = errors.New("attachment filename is empty")
+	// ErrInvalidRuleMatchMode, ErrNoRuleConditions, ErrNoRuleActions and ErrMissingRuleFolder guard the
+	// multi-condition rule shape: a rule needs a recognised match mode, at least one condition and at
+	// least one action; a move action needs somewhere to move to.
+	ErrInvalidRuleMatchMode = errors.New("rule match mode is not valid")
+	ErrNoRuleConditions     = errors.New("rule has no conditions")
+	ErrNoRuleActions        = errors.New("rule has no actions")
+	ErrMissingRuleFolder    = errors.New("rule move action has no destination folder")
+	ErrEmptyTemplateID      = errors.New("template id is empty")
+	ErrEmptyTemplateName    = errors.New("template name is empty")
+	ErrEmptyAttachmentName  = errors.New("attachment filename is empty")
 
 	ErrEmptyContactID        = errors.New("contact id is empty")
 	ErrEmptyContactName      = errors.New("contact formatted name is empty")

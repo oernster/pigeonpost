@@ -217,6 +217,18 @@ func (f *fakeMailStore) ListMessages(_ context.Context, folderID string) ([]doma
 	return f.messages[folderID], nil
 }
 
+// MessageIDs returns the ids the fake holds for a folder, mirroring the store's narrow arrival lookup.
+func (f *fakeMailStore) MessageIDs(_ context.Context, folderID string) ([]string, error) {
+	if f.listMessagesErr != nil {
+		return nil, f.listMessagesErr
+	}
+	ids := make([]string, 0, len(f.messages[folderID]))
+	for _, m := range f.messages[folderID] {
+		ids = append(ids, m.ID())
+	}
+	return ids, nil
+}
+
 // ListMessagesPage mirrors the store's keyset paging over the in-memory slice: it orders the folder's
 // messages by (date, id), keeps only those strictly after the cursor when one is given and returns at
 // most limit. This lets the service test exercise real paging without a database.
@@ -1270,4 +1282,25 @@ type fakeRemoteImageResolver struct {
 
 func (f *fakeRemoteImageResolver) Resolve(context.Context, string) (string, error) {
 	return f.resolved, f.err
+}
+
+// newMarkReadRule builds an enabled rule that marks read any message whose sender contains match.
+func newMarkReadRule(t *testing.T, id, match string) domain.Rule {
+	t.Helper()
+	cond, err := domain.NewRuleCondition(domain.RuleFieldFrom, domain.RuleOpContains, match)
+	if err != nil {
+		t.Fatalf("condition: %v", err)
+	}
+	action, err := domain.NewRuleAction(domain.RuleMarkRead, "")
+	if err != nil {
+		t.Fatalf("action: %v", err)
+	}
+	rule, err := domain.NewRule(domain.RuleSpec{
+		ID: id, Name: id, Enabled: true,
+		Conditions: []domain.RuleCondition{cond}, Actions: []domain.RuleAction{action},
+	})
+	if err != nil {
+		t.Fatalf("rule: %v", err)
+	}
+	return rule
 }

@@ -1427,7 +1427,12 @@ function App() {
                 />
             )}
             {managingRules && (
-                <RuleManagerModal rules={rules} onChanged={() => void loadRules()} onClose={() => setManagingRules(false)}/>
+                <RuleManagerModal
+                    accounts={accounts}
+                    rules={rules}
+                    onChanged={() => void loadRules()}
+                    onClose={() => setManagingRules(false)}
+                />
             )}
             {managingTemplates && (
                 <TemplateManagerModal

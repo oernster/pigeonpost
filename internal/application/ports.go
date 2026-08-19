@@ -52,6 +52,10 @@ type MailStore interface {
 	ListFolders(ctx context.Context, accountID string) ([]domain.Folder, error)
 	SaveFolders(ctx context.Context, accountID string, folders []domain.Folder) error
 	ListMessages(ctx context.Context, folderID string) ([]domain.MessageSummary, error)
+	// MessageIDs returns just the ids a folder already holds, the set the sync uses to tell an arrival
+	// from a message it has seen before. It is deliberately narrower than ListMessages: the rule engine
+	// needs only membership, on every sync, over folders that can hold tens of thousands of rows.
+	MessageIDs(ctx context.Context, folderID string) ([]string, error)
 	ListMessagesPage(ctx context.Context, folderID string, hasCursor bool, cursorDateMs int64, cursorID string, limit int, ascending bool) ([]domain.MessageSummary, error)
 	ListMessagesVisible(ctx context.Context, folderID string, visibleAt time.Time) ([]domain.MessageSummary, error)
 	ListMessagesPageVisible(ctx context.Context, folderID string, hasCursor bool, cursorDateMs int64, cursorID string, limit int, ascending bool, visibleAt time.Time) ([]domain.MessageSummary, error)

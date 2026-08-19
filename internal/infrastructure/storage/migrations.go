@@ -271,6 +271,47 @@ CREATE TABLE IF NOT EXISTS folder_ui_state (
 );
 `
 
+// schemaV50 rebuilds filter rules as a real rule set: a rule now carries several conditions combined by
+// a match mode (all or any) and several actions, rather than exactly one of each. The conditions and
+// actions move into their own child tables, keyed by rule id and ordered by position; the rule row
+// gains enabled, position (its evaluation priority), match_mode and stop_processing. Existing rules are
+// carried over verbatim: each becomes a one-condition, one-action rule with the same behaviour, taken
+// from the legacy columns before those are dropped. The stored field, operator and action integers keep
+// their historical values, so no value in a carried-over rule is reinterpreted.
+//
+// The step is short DDL plus a backfill over a handful of rows, in the manner of the earlier ADD COLUMN
+// steps: the ALTERs are not re-runnable, so a crash inside it fails the next start loudly rather than
+// migrating a half-built shape.
+const schemaV50 = `
+ALTER TABLE rule ADD COLUMN enabled INTEGER NOT NULL DEFAULT 1;
+ALTER TABLE rule ADD COLUMN position INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE rule ADD COLUMN match_mode INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE rule ADD COLUMN stop_processing INTEGER NOT NULL DEFAULT 0;
+CREATE TABLE IF NOT EXISTS rule_condition (
+    rule_id    TEXT NOT NULL,
+    position   INTEGER NOT NULL,
+    field      INTEGER NOT NULL,
+    operator   INTEGER NOT NULL,
+    match_text TEXT NOT NULL,
+    PRIMARY KEY (rule_id, position)
+);
+CREATE TABLE IF NOT EXISTS rule_action (
+    rule_id   TEXT NOT NULL,
+    position  INTEGER NOT NULL,
+    kind      INTEGER NOT NULL,
+    folder_id TEXT NOT NULL,
+    PRIMARY KEY (rule_id, position)
+);
+INSERT OR IGNORE INTO rule_condition (rule_id, position, field, operator, match_text)
+    SELECT id, 0, field, operator, contains FROM rule;
+INSERT OR IGNORE INTO rule_action (rule_id, position, kind, folder_id)
+    SELECT id, 0, action, '' FROM rule;
+ALTER TABLE rule DROP COLUMN field;
+ALTER TABLE rule DROP COLUMN operator;
+ALTER TABLE rule DROP COLUMN contains;
+ALTER TABLE rule DROP COLUMN action;
+`
+
 // migrations is the ordered list of schema steps. Index i upgrades the database from version i to
 // version i+1, so a fresh database applies them all and an existing one applies only what it lacks.
-var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15, schemaV16, schemaV17, schemaV18, schemaV19, schemaV20, schemaV21, schemaV22, schemaV23, schemaV24, schemaV25, schemaV26, schemaV27, schemaV28, schemaV29, schemaV30, schemaV31, schemaV32, schemaV33, schemaV34, schemaV35, schemaV36, schemaV37, schemaV38, schemaV39, schemaV40, schemaV41, schemaV42, schemaV43, schemaV44, schemaV45, schemaV46, schemaV47, schemaV48, schemaV49}
+var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15, schemaV16, schemaV17, schemaV18, schemaV19, schemaV20, schemaV21, schemaV22, schemaV23, schemaV24, schemaV25, schemaV26, schemaV27, schemaV28, schemaV29, schemaV30, schemaV31, schemaV32, schemaV33, schemaV34, schemaV35, schemaV36, schemaV37, schemaV38, schemaV39, schemaV40, schemaV41, schemaV42, schemaV43, schemaV44, schemaV45, schemaV46, schemaV47, schemaV48, schemaV49, schemaV50}

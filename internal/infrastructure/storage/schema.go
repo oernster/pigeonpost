@@ -5,7 +5,7 @@ package storage
 // schemaVersion is the current on-disk schema version, tracked via SQLite's PRAGMA user_version. It
 // must equal len(migrations): an earlier revision left it one behind (46 with 47 steps), which made
 // schemaV47 unreachable; the bump to 48 applies both it and schemaV48 to existing databases.
-const schemaVersion = 49
+const schemaVersion = 50
 
 // schemaV1 is the initial schema. Statements are idempotent so re-running is safe.
 const schemaV1 = `

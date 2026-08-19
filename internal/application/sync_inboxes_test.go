@@ -30,7 +30,7 @@ func inboxFixture(t *testing.T) (*fakeAccountStore, *fakeMailStore, *fakeMailSou
 	mail.folders["a1"] = []domain.Folder{testFolder(t, "f1", "a1", "INBOX")}
 	source := &fakeMailSource{messagesByFolder: map[string][]domain.MessageSummary{}}
 	rules := &fakeRuleStore{}
-	return accounts, mail, source, rules, NewSyncService(accounts, mail, source, rules, &fakeTagSyncer{}, &fakeFlagSyncer{})
+	return accounts, mail, source, rules, NewSyncService(accounts, mail, source, rules, &fakeTagSyncer{}, &fakeFlagSyncer{}, NewRuleExecutor(mail, &fakeMailActions{}))
 }
 
 func inboxIDs(messages []domain.MessageSummary) []string {
@@ -77,11 +77,7 @@ func TestSyncInboxesSkipsMailAFilterRuleMarkedRead(t *testing.T) {
 		t.Fatalf("message: %v", err)
 	}
 	source.messagesByFolder["f1"] = []domain.MessageSummary{testMessage(t, "m1", "f1"), m9}
-	rule, err := domain.NewRule("r1", "News", domain.RuleFieldFrom, domain.RuleOpContains, "news@", domain.RuleMarkRead)
-	if err != nil {
-		t.Fatalf("rule: %v", err)
-	}
-	rules.rules = []domain.Rule{rule}
+	rules.rules = []domain.Rule{newMarkReadRule(t, "r1", "news@")}
 
 	fresh, err := svc.SyncInboxes(context.Background())
 	if err != nil {

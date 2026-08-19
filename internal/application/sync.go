@@ -35,11 +35,14 @@ type SyncService struct {
 	rules    RuleStore
 	tags     TagSyncer
 	flags    FlagSyncer
+	ruleExec *RuleExecutor
 }
 
 // NewSyncService constructs the service with its injected dependencies.
-func NewSyncService(accounts AccountStore, mail MailStore, source MailSource, rules RuleStore, tags TagSyncer, flags FlagSyncer) *SyncService {
-	return &SyncService{accounts: accounts, mail: mail, source: source, rules: rules, tags: tags, flags: flags}
+func NewSyncService(accounts AccountStore, mail MailStore, source MailSource, rules RuleStore, tags TagSyncer,
+	flags FlagSyncer, ruleExec *RuleExecutor) *SyncService {
+	return &SyncService{accounts: accounts, mail: mail, source: source, rules: rules, tags: tags, flags: flags,
+		ruleExec: ruleExec}
 }
 
 // reconcileTags aligns local tag assignments with the server keywords on the fetched messages, for an IMAP
@@ -103,9 +106,10 @@ func (s *SyncService) SyncAccount(ctx context.Context, accountID string) error {
 		// Align local tag assignments with the server keywords on the fetched messages, before the rules
 		// run, so the reconcile sees the keywords exactly as the server reported them.
 		s.reconcileTags(ctx, account, messages)
-		// Filter rules mark-read or flag matching messages as they arrive. The actions only set
-		// flags, so re-applying on every sync is stable.
-		messages = domain.ApplyRules(messages, rules)
+		// Filter rules act on arriving inbox mail: they set flags, move messages into another folder
+		// or destroy them outright. A rule that could not be carried out is reported after the save
+		// below, so what did work is still stored.
+		messages, ruleErr := s.applyRules(ctx, account, folder, messages, rules)
 		messages, err = s.preserveFlags(ctx, account, folder, messages)
 		if err != nil {
 			return fmt.Errorf("sync: preserve flags for %q: %w", folder.Path(), err)
@@ -115,6 +119,9 @@ func (s *SyncService) SyncAccount(ctx context.Context, accountID string) error {
 		messages = s.reconcileFlags(ctx, account, messages)
 		if err := s.mail.SaveMessages(ctx, folder.ID(), messages); err != nil {
 			return fmt.Errorf("sync: save messages for %q: %w", folder.Path(), err)
+		}
+		if ruleErr != nil {
+			return fmt.Errorf("sync: apply rules to %q: %w", folder.Path(), ruleErr)
 		}
 	}
 	return nil
@@ -145,7 +152,7 @@ func (s *SyncService) SyncFolder(ctx context.Context, folderID string) error {
 		return fmt.Errorf("sync: fetch messages for %q: %w", folder.Path(), err)
 	}
 	s.reconcileTags(ctx, account, messages)
-	messages = domain.ApplyRules(messages, rules)
+	messages, ruleErr := s.applyRules(ctx, account, folder, messages, rules)
 	messages, err = s.preserveFlags(ctx, account, folder, messages)
 	if err != nil {
 		return fmt.Errorf("sync: preserve flags for %q: %w", folder.Path(), err)
@@ -155,6 +162,9 @@ func (s *SyncService) SyncFolder(ctx context.Context, folderID string) error {
 	messages = s.reconcileFlags(ctx, account, messages)
 	if err := s.mail.SaveMessages(ctx, folder.ID(), messages); err != nil {
 		return fmt.Errorf("sync: save messages for %q: %w", folder.Path(), err)
+	}
+	if ruleErr != nil {
+		return fmt.Errorf("sync: apply rules to %q: %w", folder.Path(), ruleErr)
 	}
 	return nil
 }
@@ -220,7 +230,10 @@ func (s *SyncService) refreshInbox(ctx context.Context, account domain.Account, 
 	for _, m := range fetched {
 		serverUnread[m.ID()] = !m.IsRead()
 	}
-	messages := domain.ApplyRules(fetched, rules)
+	// Rules run here too, so mail arriving on the background pass is filtered exactly as it is on an
+	// explicit sync. A rule that could not be carried out is best-effort at this call site, in keeping
+	// with the rest of the pass: it must not silence the other accounts.
+	messages, _ := s.applyRulesKnown(ctx, account, folder, fetched, knownSetOf(existing), rules)
 	if account.Protocol() == domain.ProtocolPOP3 {
 		messages = carryOverFlags(existing, messages)
 	}
