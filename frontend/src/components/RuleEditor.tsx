@@ -32,6 +32,10 @@ function replaceAt<T>(list: T[], index: number, value: T): T[] {
 // The layout is three labelled sections rather than one run of rows, because a rule reads as a
 // sentence (when this matches, do that, with these caveats) and the sections are that sentence's
 // clauses. Each condition and action is its own card so a long rule stays scannable.
+//
+// The remove control is absent, not disabled, on the last remaining condition or action: a rule needs
+// at least one of each, so a cross there could never be clicked; a control that is permanently inert
+// reads as broken rather than as unavailable.
 export function RuleEditor({rule, folders, onChange}: RuleEditorProps) {
     const setConditions = (conditions: RuleCondition[]) => onChange({...rule, conditions} as Rule)
     const setActions = (actions: RuleAction[]) => onChange({...rule, actions} as Rule)
@@ -120,15 +124,16 @@ export function RuleEditor({rule, folders, onChange}: RuleEditorProps) {
                         >
                             Aa
                         </button>
-                        <button
-                            className="rule-remove"
-                            aria-label={`Remove condition ${index + 1}`}
-                            title="Remove this condition"
-                            disabled={rule.conditions.length === 1}
-                            onClick={() => setConditions(rule.conditions.filter((_, i) => i !== index))}
-                        >
-                            &times;
-                        </button>
+                        {rule.conditions.length > 1 && (
+                            <button
+                                className="rule-remove"
+                                aria-label={`Remove condition ${index + 1}`}
+                                title="Remove this condition"
+                                onClick={() => setConditions(rule.conditions.filter((_, i) => i !== index))}
+                            >
+                                &times;
+                            </button>
+                        )}
                     </div>
                 ))}
                 <button
@@ -173,15 +178,16 @@ export function RuleEditor({rule, folders, onChange}: RuleEditorProps) {
                                 ))}
                             </select>
                         )}
-                        <button
-                            className="rule-remove"
-                            aria-label={`Remove action ${index + 1}`}
-                            title="Remove this action"
-                            disabled={rule.actions.length === 1}
-                            onClick={() => setActions(rule.actions.filter((_, i) => i !== index))}
-                        >
-                            &times;
-                        </button>
+                        {rule.actions.length > 1 && (
+                            <button
+                                className="rule-remove"
+                                aria-label={`Remove action ${index + 1}`}
+                                title="Remove this action"
+                                onClick={() => setActions(rule.actions.filter((_, i) => i !== index))}
+                            >
+                                &times;
+                            </button>
+                        )}
                     </div>
                 ))}
                 <button className="rule-add" onClick={() => setActions([...rule.actions, {...EMPTY_ACTION}])}>

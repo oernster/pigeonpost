@@ -126,6 +126,33 @@ describe('RuleManagerModal', () => {
         expect((screen.getByText('Save rule') as HTMLButtonElement).disabled).toBe(false)
     })
 
+    // A rule needs at least one condition and one action, so the remove control on the last remaining
+    // row could never be clicked. It is absent rather than disabled: a permanently inert cross reads as
+    // broken, not as unavailable.
+    it('offers no remove control while a rule has a single condition and action', async () => {
+        renderModal([buildRule()])
+        fireEvent.click(screen.getByLabelText('Edit Newsletters'))
+        expect(screen.queryByLabelText('Remove condition 1')).toBeNull()
+        expect(screen.queryByLabelText('Remove action 1')).toBeNull()
+
+        fireEvent.click(screen.getByText('+ Add condition'))
+        expect(screen.getByLabelText('Remove condition 1')).toBeTruthy()
+        expect(screen.getByLabelText('Remove condition 2')).toBeTruthy()
+        // The action side is untouched by a second condition, so its lone row still offers no cross.
+        expect(screen.queryByLabelText('Remove action 1')).toBeNull()
+    })
+
+    it('removes the condition the cross belongs to', async () => {
+        renderModal([buildRule()])
+        fireEvent.click(screen.getByLabelText('Edit Newsletters'))
+        fireEvent.click(screen.getByText('+ Add condition'))
+        fireEvent.change(screen.getByLabelText('Match text 2'), {target: {value: 'digest'}})
+
+        fireEvent.click(screen.getByLabelText('Remove condition 1'))
+        expect(screen.queryByLabelText('Remove condition 1')).toBeNull()
+        expect((screen.getByLabelText('Match text 1') as HTMLInputElement).value).toBe('digest')
+    })
+
     it('adds a condition and saves both', async () => {
         renderModal([buildRule()])
         fireEvent.click(screen.getByLabelText('Edit Newsletters'))
