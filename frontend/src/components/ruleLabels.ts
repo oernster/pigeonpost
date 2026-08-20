@@ -69,14 +69,6 @@ export function emptyRule(position: number): Rule {
     } as Rule
 }
 
-// scopeOf reads a rule's account scope, treating a missing list as "every account". It is the single
-// place the list is read from, because a rule reaching the UI without one must degrade to the sensible
-// default rather than throw: a render throw has no error boundary above it and unmounts the whole
-// application, so one malformed rule would blank PigeonPost instead of breaking one dialog.
-export function scopeOf(rule: Rule): string[] {
-    return rule.accountIds ?? []
-}
-
 // isDestructive reports whether a rule moves or destroys the messages it matches.
 export function isDestructive(rule: Rule): boolean {
     return rule.actions.some((a) => DESTRUCTIVE_ACTIONS.has(a.kind))
@@ -118,11 +110,10 @@ export function ruleSummary(
 // including the unscoped ones: which mail a rule can reach is the first thing to know about it; a
 // blank there would read as "not yet decided" rather than as "all of them".
 function scopeText(rule: Rule, accountName: (accountId: string) => string): string {
-    const scope = scopeOf(rule)
-    if (scope.length === 0) {
+    if (rule.accountIds.length === 0) {
         return 'On any account, '
     }
-    return `On ${scope.map(accountName).join(' and ')}, `
+    return `On ${rule.accountIds.map(accountName).join(' and ')}, `
 }
 
 // conditionText renders one condition in the summary line, noting case sensitivity only when it is on,

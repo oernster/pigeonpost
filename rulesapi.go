@@ -106,20 +106,8 @@ func ruleToDTO(r domain.Rule) RuleDTO {
 	return RuleDTO{
 		ID: r.ID(), Name: r.Name(), Enabled: r.Enabled(), Position: r.Position(),
 		MatchMode: r.MatchMode().String(), StopProcessing: r.StopProcessing(),
-		AccountIDs: wireList(r.AccountIDs()), Conditions: conditions, Actions: actions,
+		AccountIDs: r.AccountIDs(), Conditions: conditions, Actions: actions,
 	}
-}
-
-// wireList turns a possibly nil slice into an empty one, so it encodes as [] rather than null. The
-// front end's types declare arrays; a null arriving where an array was promised is not a wrong value
-// but a crash: reading .length off it throws during render, with no error boundary above the app, so
-// that unmounts the whole window rather than one dialog. A nil slice is ordinary in Go (an unscoped
-// rule names no account), so the conversion belongs here, at the boundary that makes the promise.
-func wireList(values []string) []string {
-	if values == nil {
-		return []string{}
-	}
-	return values
 }
 
 // parseRuleConditions converts the wire conditions to their application inputs.

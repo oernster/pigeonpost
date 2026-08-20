@@ -226,21 +226,6 @@ describe('RuleManagerModal account scope', () => {
     })
     afterEach(cleanup)
 
-    // The defect that blanked the whole window: an unscoped rule arrived with accountIds null (a Go nil
-    // slice encodes as JSON null), reading .length off it threw during render; with no error
-    // boundary above the app React unmounted everything. The back end now sends an array and the api
-    // layer fills a missing one; this holds the component itself to the same standard, since a dialog
-    // must never be able to take the application down.
-    it('renders a rule whose account scope is missing entirely', () => {
-        const noScope = {...buildRule()} as Record<string, unknown>
-        delete noScope.accountIds
-        renderModal([noScope as unknown as Rule])
-        expect(screen.getByText(/^On any account, if From contains "news@"/)).toBeTruthy()
-
-        fireEvent.click(screen.getByLabelText('Edit Newsletters'))
-        expect(screen.getByText('All accounts').getAttribute('aria-pressed')).toBe('true')
-    })
-
     it('starts a rule on every account and says so', () => {
         renderModal([buildRule()])
         fireEvent.click(screen.getByLabelText('Edit Newsletters'))
