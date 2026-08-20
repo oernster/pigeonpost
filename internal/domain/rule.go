@@ -22,9 +22,9 @@ const (
 	// RuleFieldSenderDomain matches the part of the sender's address after the @, so a rule can name a
 	// whole domain without matching a local part that happens to contain it.
 	RuleFieldSenderDomain
-	// RuleFieldAll matches every one of the above at once: the sender, every To and Cc recipient and the
-	// subject. It is the default a new condition starts on, because "somewhere in this message" is what
-	// a rule is usually reaching for.
+	// RuleFieldAll matches every one of the above at once: the sender, every To and Cc recipient, the
+	// subject and the sender's domain. It is the default a new condition starts on, because "somewhere
+	// in this message" is what a rule is usually reaching for.
 	RuleFieldAll
 )
 

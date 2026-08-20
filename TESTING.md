@@ -57,6 +57,7 @@ documented here.
 | `internal/infrastructure/taskbar` | unit on the pure label formatting; Win32 overlay excluded | none |
 | `internal/infrastructure/sound` | unit on the chime synthesis and WAV encoding; the winmm playback call excluded | none |
 | `internal/installer` | unit on payload extraction and paths | temp dir |
+| `main` (the Wails facade) | unit on its pure helpers only: mailto parsing, attachment decoding, the offline-error translation and the DTO wire shape | none |
 | `tests/structural` | AST scan of the source tree | file reads |
 
 ## Coverage snapshot
@@ -84,7 +85,7 @@ documented here.
 | internal/infrastructure/imap | ~27% | the source adapter's pure helpers; the wire-to-domain and HTML logic now lives in `mailparse`; live fetch/append plus the IDLE watcher are excluded |
 | internal/infrastructure/taskbar | ~17% | the pure label formatting and no-op stub covered; the Windows-only Win32 overlay excluded |
 | internal/infrastructure/smtp | 0% | transport is live `Send` only; MIME building lives in `message` |
-| main package | ~4% | composition root and the Wails facade, excluded; the few covered statements are pure helpers reached by other packages' tests |
+| main package | ~5% | composition root and the Wails facade, excluded; the covered statements are the package's own pure helpers, which carry unit tests of their own (mailto parsing, attachment decoding, the offline-error translation and the rule DTO's wire shape) |
 | installer app, tools/genicons | 0% | GUI and one-shot tooling, excluded |
 
 ## Documented exclusions (and why)
@@ -117,7 +118,12 @@ documented here.
   outbox, snooze, tags, rules, templates, calendar, CalDAV, contacts, scheduling, export, `.eml`
   files and updates), the background goroutines (the new-mail notifier, the reminder scheduler, the outbox
   dispatcher and the snooze scheduler) plus the DTO mappers and clock) and the **icon tool**
-  (`tools/genicons`): wiring and one-shot programs, verified by the app and the build succeeding.
+  (`tools/genicons`): wiring and one-shot programs, verified by the app and the build succeeding. The
+  exclusion is the wiring, not the whole package: the pure helpers that do live here carry their own
+  unit tests. `rulesapi_test.go` is the one to copy when adding another: it asserts on the DTO's
+  marshalled JSON bytes rather than on a hand-written fixture, because a Go nil slice encodes as
+  `null` while the generated front-end type declares an array; only the real encoder output shows
+  that.
 - **A few defensive branches in storage** (a commit failing after a successful transaction, a driver
   read error mid-iteration): not reachably triggerable with a real SQLite file.
 
