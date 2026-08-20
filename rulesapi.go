@@ -103,10 +103,20 @@ func ruleToDTO(r domain.Rule) RuleDTO {
 	for _, a := range r.Actions() {
 		actions = append(actions, RuleActionDTO{Kind: a.Kind().String(), FolderID: a.FolderID()})
 	}
+	// A rule limited to no account has a nil AccountIDs, and encoding/json writes a nil slice as null
+	// rather than []. The front end's type declares an array, so a null there is not a wrong value but
+	// a crash when its length is read, and with no error boundary above the app that takes the whole
+	// window down instead of one dialog. Conditions and actions are already built with make, so they
+	// cannot be nil; this is the one list that can, and it is fixed here rather than in the front end
+	// because the wire shape is this function's promise to keep.
+	accountIDs := r.AccountIDs()
+	if accountIDs == nil {
+		accountIDs = []string{}
+	}
 	return RuleDTO{
 		ID: r.ID(), Name: r.Name(), Enabled: r.Enabled(), Position: r.Position(),
 		MatchMode: r.MatchMode().String(), StopProcessing: r.StopProcessing(),
-		AccountIDs: r.AccountIDs(), Conditions: conditions, Actions: actions,
+		AccountIDs: accountIDs, Conditions: conditions, Actions: actions,
 	}
 }
 
