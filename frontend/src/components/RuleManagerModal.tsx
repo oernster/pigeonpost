@@ -216,7 +216,7 @@ export function RuleManagerModal({accounts, rules, onChanged, onClose}: RuleMana
                                                 {r.enabled ? 'On' : 'Off'}
                                             </button>
                                             <button
-                                                className="account-action"
+                                                className="rule-edit"
                                                 aria-label={`Edit ${r.name}`}
                                                 title="Edit rule"
                                                 disabled={busy}

@@ -272,6 +272,31 @@
     color: var(--accent);
 }
 
+/* Edit is a text button, so it cannot borrow .account-action: that is a 22x22 single-glyph icon button
+   and a word overflows its box, leaving the hover and focus border drawn around the box rather than
+   around the label. It matches the On pill beside it instead, so the two text controls on a rule row
+   read as one pair. */
+.rule-edit {
+    flex: 0 0 auto;
+    padding: 4px 12px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: transparent;
+    color: var(--text-dim);
+    font-size: 12px;
+    cursor: pointer;
+}
+
+.rule-edit:enabled:hover {
+    border-color: var(--accent);
+    color: var(--text);
+}
+
+.rule-edit:disabled {
+    opacity: 0.4;
+    cursor: default;
+}
+
 /* The badge marking a rule that deletes mail outright, so the one irreversible action is visible in
    the list rather than only inside the editor. */
 .rule-badge {
