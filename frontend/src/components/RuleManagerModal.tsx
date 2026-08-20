@@ -105,7 +105,7 @@ export function RuleManagerModal({accounts, rules, onChanged, onClose}: RuleMana
         return (
             <>
                 <div className="modal-backdrop" {...dismiss}>
-                    <div className="modal pinned-actions" role="dialog" aria-label="Edit filter rule" onClick={(e) => e.stopPropagation()}>
+                    <div className="modal rule-modal pinned-actions" role="dialog" aria-label="Edit filter rule" onClick={(e) => e.stopPropagation()}>
                         <ModalClose onClose={() => setDraft(null)}/>
                         <h2 className="modal-title">{draft.id === '' ? 'New rule' : 'Edit rule'}</h2>
                         <div className="modal-body">
@@ -148,7 +148,7 @@ export function RuleManagerModal({accounts, rules, onChanged, onClose}: RuleMana
     return (
         <>
             <div className="modal-backdrop" {...dismiss}>
-                <div className="modal pinned-actions" role="dialog" aria-label="Filter rules" onClick={(e) => e.stopPropagation()}>
+                <div className="modal rule-modal pinned-actions" role="dialog" aria-label="Filter rules" onClick={(e) => e.stopPropagation()}>
                     <ModalClose onClose={onClose}/>
                     <h2 className="modal-title">Filter rules</h2>
                     <div className="modal-body">
@@ -160,11 +160,29 @@ export function RuleManagerModal({accounts, rules, onChanged, onClose}: RuleMana
                         {rules.length === 0 ? (
                             <p className="empty-body">No rules yet.</p>
                         ) : (
-                            <ul className="list">
+                            <ul className="list rule-list">
                                 {rules.map((r, index) => {
                                     const summary = ruleSummary(r, folderName)
                                     return (
-                                        <li key={r.id} className={`list-item${r.enabled ? '' : ' rule-disabled'}`}>
+                                        <li key={r.id} className={`rule-row${r.enabled ? '' : ' off'}`}>
+                                            <span className="rule-order">
+                                                <button
+                                                    aria-label={`Move ${r.name} up`}
+                                                    title="Run this rule earlier"
+                                                    disabled={busy || index === 0}
+                                                    onClick={() => move(index, -1)}
+                                                >
+                                                    &#9650;
+                                                </button>
+                                                <button
+                                                    aria-label={`Move ${r.name} down`}
+                                                    title="Run this rule later"
+                                                    disabled={busy || index === rules.length - 1}
+                                                    onClick={() => move(index, 1)}
+                                                >
+                                                    &#9660;
+                                                </button>
+                                            </span>
                                             <span className="item-text">
                                                 <span className="item-title" title={r.name}>
                                                     {r.name}
@@ -173,25 +191,7 @@ export function RuleManagerModal({accounts, rules, onChanged, onClose}: RuleMana
                                                 <span className="item-sub" title={summary}>{summary}</span>
                                             </span>
                                             <button
-                                                className="account-action"
-                                                aria-label={`Move ${r.name} up`}
-                                                title="Run this rule earlier"
-                                                disabled={busy || index === 0}
-                                                onClick={() => move(index, -1)}
-                                            >
-                                                &uarr;
-                                            </button>
-                                            <button
-                                                className="account-action"
-                                                aria-label={`Move ${r.name} down`}
-                                                title="Run this rule later"
-                                                disabled={busy || index === rules.length - 1}
-                                                onClick={() => move(index, 1)}
-                                            >
-                                                &darr;
-                                            </button>
-                                            <button
-                                                className="account-action"
+                                                className={`rule-toggle${r.enabled ? ' on' : ''}`}
                                                 aria-label={r.enabled ? `Disable ${r.name}` : `Enable ${r.name}`}
                                                 title={r.enabled ? 'Disable this rule' : 'Enable this rule'}
                                                 disabled={busy}
@@ -209,7 +209,7 @@ export function RuleManagerModal({accounts, rules, onChanged, onClose}: RuleMana
                                                 Edit
                                             </button>
                                             <button
-                                                className="account-action delete"
+                                                className="rule-remove"
                                                 aria-label={`Delete ${r.name}`}
                                                 title="Delete rule"
                                                 disabled={busy}

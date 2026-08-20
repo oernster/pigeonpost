@@ -36,7 +36,7 @@ function buildRule(overrides: Partial<Rule> = {}): Rule {
         position: 0,
         matchMode: 'all',
         stopProcessing: false,
-        conditions: [{field: 'from', operator: 'contains', text: 'news@'}],
+        conditions: [{field: 'from', operator: 'contains', text: 'news@', caseSensitive: false}],
         actions: [{kind: 'markRead', folderId: ''}],
         ...overrides,
     } as Rule
@@ -66,8 +66,8 @@ describe('RuleManagerModal', () => {
             buildRule({
                 matchMode: 'any',
                 conditions: [
-                    {field: 'senderDomain', operator: 'equals', text: 'shop.com'},
-                    {field: 'subject', operator: 'contains', text: 'invoice'},
+                    {field: 'senderDomain', operator: 'equals', text: 'shop.com', caseSensitive: false},
+                    {field: 'subject', operator: 'contains', text: 'invoice', caseSensitive: true},
                 ],
                 actions: [{kind: 'markRead', folderId: ''}, {kind: 'moveTo', folderId: 'f2'}],
             }),
@@ -75,7 +75,7 @@ describe('RuleManagerModal', () => {
         await waitFor(() =>
             expect(
                 screen.getByText(
-                    'If Sender domain is "shop.com" or Subject contains "invoice", then mark as read, move to Personal / Receipts',
+                    'If Sender domain is "shop.com" or Subject contains "invoice" (match case), then mark as read, move to Personal / Receipts',
                 ),
             ).toBeTruthy(),
         )
@@ -129,8 +129,8 @@ describe('RuleManagerModal', () => {
     it('adds a condition and saves both', async () => {
         renderModal([buildRule()])
         fireEvent.click(screen.getByLabelText('Edit Newsletters'))
-        fireEvent.click(screen.getByText('Add condition'))
-        fireEvent.change(screen.getAllByLabelText('Match text')[1], {target: {value: 'digest'}})
+        fireEvent.click(screen.getByText('+ Add condition'))
+        fireEvent.change(screen.getByLabelText('Match text 2'), {target: {value: 'digest'}})
         fireEvent.click(screen.getByText('Save rule'))
         await waitFor(() => expect(apiSpies.saveRule).toHaveBeenCalledTimes(1))
         expect(apiSpies.saveRule.mock.calls[0][0].conditions).toHaveLength(2)
@@ -147,6 +147,29 @@ describe('RuleManagerModal', () => {
         renderModal([buildRule(), buildRule({id: 'r2', name: 'Receipts'})])
         fireEvent.click(screen.getByLabelText('Move Receipts up'))
         await waitFor(() => expect(apiSpies.reorderRules).toHaveBeenCalledWith(['r2', 'r1']))
+    })
+
+    // The two defaults a new rule starts on: match anywhere in the message, then fire when any one
+    // condition applies. Narrowing from there is easier than knowing to widen.
+    it('starts a new rule on all fields and any-of-these', async () => {
+        renderModal([])
+        fireEvent.click(screen.getByText('New rule'))
+        expect((screen.getByLabelText('Field 1') as HTMLSelectElement).value).toBe('all')
+        expect((screen.getByLabelText('Match mode') as HTMLSelectElement).value).toBe('any')
+    })
+
+    it('carries the case-sensitivity toggle back on save', async () => {
+        renderModal([buildRule()])
+        fireEvent.click(screen.getByLabelText('Edit Newsletters'))
+
+        const toggle = screen.getByLabelText('Match case 1')
+        expect(toggle.getAttribute('aria-pressed')).toBe('false')
+        fireEvent.click(toggle)
+        expect(screen.getByLabelText('Match case 1').getAttribute('aria-pressed')).toBe('true')
+
+        fireEvent.click(screen.getByText('Save rule'))
+        await waitFor(() => expect(apiSpies.saveRule).toHaveBeenCalledTimes(1))
+        expect(apiSpies.saveRule.mock.calls[0][0].conditions[0].caseSensitive).toBe(true)
     })
 
     it('confirms before deleting a rule', async () => {

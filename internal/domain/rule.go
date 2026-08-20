@@ -22,6 +22,10 @@ const (
 	// RuleFieldSenderDomain matches the part of the sender's address after the @, so a rule can name a
 	// whole domain without matching a local part that happens to contain it.
 	RuleFieldSenderDomain
+	// RuleFieldAll matches every one of the above at once: the sender, every To and Cc recipient and the
+	// subject. It is the default a new condition starts on, because "somewhere in this message" is what
+	// a rule is usually reaching for.
+	RuleFieldAll
 )
 
 // String returns a stable identifier for the field.
@@ -39,13 +43,15 @@ func (f RuleField) String() string {
 		return "anyRecipient"
 	case RuleFieldSenderDomain:
 		return "senderDomain"
+	case RuleFieldAll:
+		return "all"
 	default:
 		return "unknown"
 	}
 }
 
 // Valid reports whether the field is one a condition can match.
-func (f RuleField) Valid() bool { return f >= RuleFieldFrom && f <= RuleFieldSenderDomain }
+func (f RuleField) Valid() bool { return f >= RuleFieldFrom && f <= RuleFieldAll }
 
 // RuleOperator is how a condition compares a message field against its match text.
 type RuleOperator int
@@ -112,14 +118,22 @@ func (m RuleMatchMode) Valid() bool { return m == RuleMatchAll || m == RuleMatch
 
 // RuleCondition is one field-operator-text test within a rule. It is immutable once constructed.
 type RuleCondition struct {
-	field    RuleField
-	operator RuleOperator
-	text     string
+	field         RuleField
+	operator      RuleOperator
+	text          string
+	caseSensitive bool
 }
 
-// NewRuleCondition validates and constructs a condition. The match text must be non-empty and the
-// field and operator must be recognised.
+// NewRuleCondition validates and constructs a case-insensitive condition, the default a rule written
+// through the UI carries and the only behaviour rules had before the flag existed. The match text must
+// be non-empty and the field and operator must be recognised.
 func NewRuleCondition(field RuleField, operator RuleOperator, text string) (RuleCondition, error) {
+	return NewRuleConditionCased(field, operator, text, false)
+}
+
+// NewRuleConditionCased is NewRuleCondition with the case-sensitivity flag stated. When caseSensitive
+// is true the comparison is exact, so "INVOICE" no longer matches "invoice".
+func NewRuleConditionCased(field RuleField, operator RuleOperator, text string, caseSensitive bool) (RuleCondition, error) {
 	text = strings.TrimSpace(text)
 	if text == "" {
 		return RuleCondition{}, ErrEmptyRuleMatch
@@ -130,7 +144,7 @@ func NewRuleCondition(field RuleField, operator RuleOperator, text string) (Rule
 	if !operator.Valid() {
 		return RuleCondition{}, ErrInvalidRuleOperator
 	}
-	return RuleCondition{field: field, operator: operator, text: text}, nil
+	return RuleCondition{field: field, operator: operator, text: text, caseSensitive: caseSensitive}, nil
 }
 
 // Field returns the matched field.
@@ -142,28 +156,41 @@ func (c RuleCondition) Operator() RuleOperator { return c.operator }
 // Text returns the match text.
 func (c RuleCondition) Text() string { return c.text }
 
+// CaseSensitive reports whether the comparison distinguishes upper from lower case.
+func (c RuleCondition) CaseSensitive() bool { return c.caseSensitive }
+
 // Matches reports whether the message satisfies this condition. A field can contribute several
 // candidate strings (a recipient's display name and address, for instance); the condition matches when
 // any candidate satisfies the operator, except "does not contain", which matches only when no candidate
 // contains the text. A field with no candidates at all (a message with no Cc, say) does not contain the
-// text, so "does not contain" holds and every positive operator fails.
+// text, so "does not contain" holds and every positive operator fails. Both sides are lower-cased first
+// unless the condition asked for a case-sensitive comparison.
 func (c RuleCondition) Matches(m MessageSummary) bool {
-	needle := strings.ToLower(c.text)
+	needle := c.fold(c.text)
 	candidates := c.candidates(m)
 	if c.operator == RuleOpNotContains {
 		for _, s := range candidates {
-			if strings.Contains(strings.ToLower(s), needle) {
+			if strings.Contains(c.fold(s), needle) {
 				return false
 			}
 		}
 		return true
 	}
 	for _, s := range candidates {
-		if matchOperator(c.operator, strings.ToLower(s), needle) {
+		if matchOperator(c.operator, c.fold(s), needle) {
 			return true
 		}
 	}
 	return false
+}
+
+// fold normalises one side of a comparison: lower-cased for the default case-insensitive condition,
+// untouched when the condition asked for case to count.
+func (c RuleCondition) fold(s string) string {
+	if c.caseSensitive {
+		return s
+	}
+	return strings.ToLower(s)
 }
 
 // candidates returns the strings this condition's field compares against.
@@ -179,9 +206,20 @@ func (c RuleCondition) candidates(m MessageSummary) []string {
 		return append(addressStrings(m.To()), addressStrings(m.Cc())...)
 	case RuleFieldSenderDomain:
 		return senderDomain(m.From())
+	case RuleFieldAll:
+		return allFieldStrings(m)
 	default:
 		return []string{m.From().Display(), m.From().Address()}
 	}
+}
+
+// allFieldStrings gathers every candidate the other fields offer, so one condition can reach anywhere
+// in the message: the sender, every recipient, the subject and the sender's domain.
+func allFieldStrings(m MessageSummary) []string {
+	out := []string{m.From().Display(), m.From().Address(), m.Subject()}
+	out = append(out, addressStrings(m.To())...)
+	out = append(out, addressStrings(m.Cc())...)
+	return append(out, senderDomain(m.From())...)
 }
 
 // addressStrings flattens addresses to their display names and addresses for matching.

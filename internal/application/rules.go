@@ -13,6 +13,9 @@ type RuleConditionInput struct {
 	Field    domain.RuleField
 	Operator domain.RuleOperator
 	Text     string
+	// CaseSensitive makes the comparison exact. The default (false) is the case-insensitive matching
+	// every rule had before the flag existed.
+	CaseSensitive bool
 }
 
 // RuleActionInput is one action in a rule being saved. FolderID is the destination of a move and is
@@ -136,7 +139,7 @@ func (s *RuleService) Reorder(ctx context.Context, orderedIDs []string) error {
 func buildConditions(in []RuleConditionInput) ([]domain.RuleCondition, error) {
 	out := make([]domain.RuleCondition, 0, len(in))
 	for i, c := range in {
-		cond, err := domain.NewRuleCondition(c.Field, c.Operator, c.Text)
+		cond, err := domain.NewRuleConditionCased(c.Field, c.Operator, c.Text, c.CaseSensitive)
 		if err != nil {
 			return nil, fmt.Errorf("rules: condition %d: %w", i+1, err)
 		}

@@ -20,145 +20,187 @@ interface RuleEditorProps {
     onChange: (rule: Rule) => void
 }
 
+// replaceAt returns the list with one entry swapped, the shape every edit here takes.
+function replaceAt<T>(list: T[], index: number, value: T): T[] {
+    return list.map((item, i) => (i === index ? value : item))
+}
+
 // RuleEditor builds one rule: its name, how its conditions combine, the conditions themselves and the
 // actions taken when they match. It holds no state of its own; the modal owns the draft and this
 // renders it, so there is one place a rule can be in an inconsistent state.
+//
+// The layout is three labelled sections rather than one run of rows, because a rule reads as a
+// sentence (when this matches, do that, with these caveats) and the sections are that sentence's
+// clauses. Each condition and action is its own card so a long rule stays scannable.
 export function RuleEditor({rule, folders, onChange}: RuleEditorProps) {
     const setConditions = (conditions: RuleCondition[]) => onChange({...rule, conditions} as Rule)
     const setActions = (actions: RuleAction[]) => onChange({...rule, actions} as Rule)
-    const replaceAt = <T,>(list: T[], index: number, value: T): T[] =>
-        list.map((item, i) => (i === index ? value : item))
+    const destroying = rule.actions.some((a) => a.kind === 'destroy')
 
     return (
-        <div className="rule-form">
-            <input
-                className="tag-name-input"
-                placeholder="Rule name"
-                value={rule.name}
-                autoFocus
-                onChange={(e) => onChange({...rule, name: e.target.value} as Rule)}
-            />
+        <div className="rule-editor">
+            <section className="rule-section">
+                <label className="rule-label" htmlFor="rule-name">Rule name</label>
+                <input
+                    id="rule-name"
+                    className="tag-name-input rule-name-input"
+                    placeholder="Give the rule a name you will recognise"
+                    value={rule.name}
+                    autoFocus
+                    onChange={(e) => onChange({...rule, name: e.target.value} as Rule)}
+                />
+            </section>
 
-            <div className="rule-form-row">
-                <span>If</span>
-                <select
-                    aria-label="Match mode"
-                    value={rule.matchMode}
-                    onChange={(e) => onChange({...rule, matchMode: e.target.value} as Rule)}
-                >
-                    <option value="all">all of these match</option>
-                    <option value="any">any of these match</option>
-                </select>
-            </div>
-
-            {rule.conditions.map((condition, index) => (
-                <div className="rule-form-row" key={`condition-${index}`}>
+            <section className="rule-section">
+                <div className="rule-section-head">
+                    <h3 className="rule-section-title">When a message matches</h3>
                     <select
-                        aria-label="Field"
-                        value={condition.field}
-                        onChange={(e) =>
-                            setConditions(replaceAt(rule.conditions, index, {...condition, field: e.target.value}))
-                        }
+                        className="rule-mode"
+                        aria-label="Match mode"
+                        value={rule.matchMode}
+                        onChange={(e) => onChange({...rule, matchMode: e.target.value} as Rule)}
                     >
-                        {Object.entries(FIELD_LABELS).map(([value, label]) => (
-                            <option key={value} value={value}>{label}</option>
-                        ))}
+                        <option value="any">any of these apply</option>
+                        <option value="all">all of these apply</option>
                     </select>
-                    <select
-                        aria-label="Operator"
-                        value={condition.operator}
-                        onChange={(e) =>
-                            setConditions(replaceAt(rule.conditions, index, {...condition, operator: e.target.value}))
-                        }
-                    >
-                        {Object.entries(OPERATOR_LABELS).map(([value, label]) => (
-                            <option key={value} value={value}>{label}</option>
-                        ))}
-                    </select>
-                    <input
-                        className="tag-name-input"
-                        placeholder="text to match"
-                        aria-label="Match text"
-                        value={condition.text}
-                        onChange={(e) =>
-                            setConditions(replaceAt(rule.conditions, index, {...condition, text: e.target.value}))
-                        }
-                    />
-                    <button
-                        className="account-action delete"
-                        aria-label={`Remove condition ${index + 1}`}
-                        title="Remove this condition"
-                        disabled={rule.conditions.length === 1}
-                        onClick={() => setConditions(rule.conditions.filter((_, i) => i !== index))}
-                    >
-                        &times;
-                    </button>
                 </div>
-            ))}
-            <div className="rule-form-row">
-                <button
-                    className="btn"
-                    onClick={() => setConditions([...rule.conditions, {...EMPTY_CONDITION}])}
-                >
-                    Add condition
-                </button>
-            </div>
 
-            {rule.actions.map((action, index) => (
-                <div className="rule-form-row" key={`action-${index}`}>
-                    <span>{index === 0 ? 'then' : 'and'}</span>
-                    <select
-                        aria-label={`Action ${index + 1}`}
-                        value={action.kind}
-                        onChange={(e) =>
-                            setActions(replaceAt(rule.actions, index, {kind: e.target.value, folderId: ''}))
-                        }
-                    >
-                        {Object.entries(ACTION_LABELS).map(([value, label]) => (
-                            <option key={value} value={value}>{label}</option>
-                        ))}
-                    </select>
-                    {action.kind === 'moveTo' && (
+                {rule.conditions.map((condition, index) => (
+                    <div className="rule-card" key={`condition-${index}`}>
                         <select
-                            aria-label={`Destination ${index + 1}`}
-                            value={action.folderId}
+                            className="rule-field"
+                            aria-label={`Field ${index + 1}`}
+                            value={condition.field}
                             onChange={(e) =>
-                                setActions(replaceAt(rule.actions, index, {...action, folderId: e.target.value}))
+                                setConditions(replaceAt(rule.conditions, index, {...condition, field: e.target.value}))
                             }
                         >
-                            <option value="">Choose a folder</option>
-                            {folders.map((f) => (
-                                <option key={f.id} value={f.id}>{f.label}</option>
+                            {Object.entries(FIELD_LABELS).map(([value, label]) => (
+                                <option key={value} value={value}>{label}</option>
                             ))}
                         </select>
-                    )}
-                    <button
-                        className="account-action delete"
-                        aria-label={`Remove action ${index + 1}`}
-                        title="Remove this action"
-                        disabled={rule.actions.length === 1}
-                        onClick={() => setActions(rule.actions.filter((_, i) => i !== index))}
-                    >
-                        &times;
-                    </button>
-                </div>
-            ))}
-            <div className="rule-form-row">
-                <button className="btn" onClick={() => setActions([...rule.actions, {...EMPTY_ACTION}])}>
-                    Add action
+                        <select
+                            className="rule-operator"
+                            aria-label={`Operator ${index + 1}`}
+                            value={condition.operator}
+                            onChange={(e) =>
+                                setConditions(replaceAt(rule.conditions, index, {...condition, operator: e.target.value}))
+                            }
+                        >
+                            {Object.entries(OPERATOR_LABELS).map(([value, label]) => (
+                                <option key={value} value={value}>{label}</option>
+                            ))}
+                        </select>
+                        <input
+                            className="tag-name-input rule-text"
+                            placeholder="text to match"
+                            aria-label={`Match text ${index + 1}`}
+                            value={condition.text}
+                            onChange={(e) =>
+                                setConditions(replaceAt(rule.conditions, index, {...condition, text: e.target.value}))
+                            }
+                        />
+                        <button
+                            className={`rule-case${condition.caseSensitive ? ' on' : ''}`}
+                            aria-label={`Match case ${index + 1}`}
+                            aria-pressed={condition.caseSensitive}
+                            title={
+                                condition.caseSensitive
+                                    ? 'Matching case: "Invoice" will not match "invoice"'
+                                    : 'Ignoring case: "Invoice" matches "invoice"'
+                            }
+                            onClick={() =>
+                                setConditions(
+                                    replaceAt(rule.conditions, index, {
+                                        ...condition,
+                                        caseSensitive: !condition.caseSensitive,
+                                    }),
+                                )
+                            }
+                        >
+                            Aa
+                        </button>
+                        <button
+                            className="rule-remove"
+                            aria-label={`Remove condition ${index + 1}`}
+                            title="Remove this condition"
+                            disabled={rule.conditions.length === 1}
+                            onClick={() => setConditions(rule.conditions.filter((_, i) => i !== index))}
+                        >
+                            &times;
+                        </button>
+                    </div>
+                ))}
+                <button
+                    className="rule-add"
+                    onClick={() => setConditions([...rule.conditions, {...EMPTY_CONDITION}])}
+                >
+                    + Add condition
                 </button>
-            </div>
+            </section>
 
-            <label className="rule-form-row">
-                <input
-                    type="checkbox"
-                    checked={rule.stopProcessing}
-                    onChange={(e) => onChange({...rule, stopProcessing: e.target.checked} as Rule)}
-                />
-                <span>Stop running later rules on a message this one matches</span>
-            </label>
+            <section className="rule-section">
+                <div className="rule-section-head">
+                    <h3 className="rule-section-title">Then do this</h3>
+                </div>
 
-            {rule.actions.some((a) => a.kind === 'destroy') && (
+                {rule.actions.map((action, index) => (
+                    <div className={`rule-card${action.kind === 'destroy' ? ' danger' : ''}`} key={`action-${index}`}>
+                        <select
+                            className="rule-action-kind"
+                            aria-label={`Action ${index + 1}`}
+                            value={action.kind}
+                            onChange={(e) =>
+                                setActions(replaceAt(rule.actions, index, {kind: e.target.value, folderId: ''}))
+                            }
+                        >
+                            {Object.entries(ACTION_LABELS).map(([value, label]) => (
+                                <option key={value} value={value}>{label}</option>
+                            ))}
+                        </select>
+                        {action.kind === 'moveTo' && (
+                            <select
+                                className="rule-destination"
+                                aria-label={`Destination ${index + 1}`}
+                                value={action.folderId}
+                                onChange={(e) =>
+                                    setActions(replaceAt(rule.actions, index, {...action, folderId: e.target.value}))
+                                }
+                            >
+                                <option value="">Choose a folder</option>
+                                {folders.map((f) => (
+                                    <option key={f.id} value={f.id}>{f.label}</option>
+                                ))}
+                            </select>
+                        )}
+                        <button
+                            className="rule-remove"
+                            aria-label={`Remove action ${index + 1}`}
+                            title="Remove this action"
+                            disabled={rule.actions.length === 1}
+                            onClick={() => setActions(rule.actions.filter((_, i) => i !== index))}
+                        >
+                            &times;
+                        </button>
+                    </div>
+                ))}
+                <button className="rule-add" onClick={() => setActions([...rule.actions, {...EMPTY_ACTION}])}>
+                    + Add action
+                </button>
+            </section>
+
+            <section className="rule-section">
+                <label className="rule-check">
+                    <input
+                        type="checkbox"
+                        checked={rule.stopProcessing}
+                        onChange={(e) => onChange({...rule, stopProcessing: e.target.checked} as Rule)}
+                    />
+                    <span>Stop running later rules on a message this one matches</span>
+                </label>
+            </section>
+
+            {destroying && (
                 <p className="rule-danger">
                     Delete permanently destroys matching mail on the server. It does not go to Trash, it
                     is not kept locally and it cannot be recovered.

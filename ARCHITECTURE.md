@@ -576,10 +576,13 @@ are purely local and the sync's `preserveFlags` carries them across fetches whol
 Filter rules: the `RuleService` use case manages user-defined rules through the `RuleStore` port and the
 `RuleExecutor` carries out what they decide. A domain `Rule` is ordered, can be switched off and holds
 several conditions combined by a match mode (all or any) plus several actions. A condition matches one
-field (From, To, Cc, any recipient, Subject or sender domain) against a value with an operator (contains,
-is, starts with, ends with or does not contain). Bcc is deliberately absent: the sending server strips it,
-so a received message never carries one and such a condition could never fire. The actions are mark read,
-flag, move to a named folder and delete permanently.
+field (all fields, From, To, Cc, any recipient, Subject or sender domain) against a value with an operator
+(contains, is, starts with, ends with or does not contain), case-insensitively unless the condition sets
+its case-sensitivity flag. The all-fields option reaches the sender, every recipient, the subject and the
+sender's domain at once; it is what a new condition starts on, alongside an any-of-these match mode,
+because narrowing a rule is easier than knowing to widen it. Bcc is deliberately absent: the sending
+server strips it, so a received message never carries one and such a condition could never fire. The
+actions are mark read, flag, move to a named folder and delete permanently.
 
 Evaluation stays pure: `EvaluateRules` returns one `RuleOutcome` per message describing what should
 happen (flags applied, a destination folder, a destruction) and performs no I/O, because a move and a
@@ -600,7 +603,9 @@ Because a rule runs unattended, the confirmation for a destructive action moves 
 the UI warns before saving a rule that moves or destroys mail and marks a destroying rule in the list.
 Conditions and actions live in the `rule_condition` and `rule_action` child tables keyed by rule id and
 ordered by position (`schemaV50`); rules written before that carry over verbatim as one-condition,
-one-action rules, their stored field, operator and action integers unchanged.
+one-action rules, their stored field, operator and action integers unchanged. `schemaV51` adds the
+per-condition case-sensitivity flag, defaulting to 0 so an existing condition keeps comparing
+case-insensitively, which is all any of them ever did.
 
 **Update check.** The application `UpdateService` compares the embedded VERSION against the newest
 published GitHub release through the `ReleaseSource` port, implemented by

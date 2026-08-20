@@ -132,3 +132,79 @@ func TestRuleDisabledNeverMatches(t *testing.T) {
 		t.Errorf("a disabled rule matched")
 	}
 }
+
+// mustCasedCondition builds a case-sensitive condition the test expects to be valid.
+func mustCasedCondition(t *testing.T, field RuleField, op RuleOperator, text string) RuleCondition {
+	t.Helper()
+	c, err := NewRuleConditionCased(field, op, text, true)
+	if err != nil {
+		t.Fatalf("condition: %v", err)
+	}
+	return c
+}
+
+// TestRuleConditionCaseSensitivity pins both halves of the flag: the default ignores case, which is what
+// every rule written before the flag existed did; turning it on makes the comparison exact.
+func TestRuleConditionCaseSensitivity(t *testing.T) {
+	m := ruleMessage(t, "Acme News", "news@acme.com", "Weekly Digest")
+	cases := []struct {
+		name          string
+		operator      RuleOperator
+		field         RuleField
+		text          string
+		insensitive   bool
+		caseSensitive bool
+	}{
+		{"wrong case contains", RuleOpContains, RuleFieldSubject, "DIGEST", true, false},
+		{"right case contains", RuleOpContains, RuleFieldSubject, "Digest", true, true},
+		{"wrong case equals", RuleOpEquals, RuleFieldSubject, "weekly digest", true, false},
+		{"right case equals", RuleOpEquals, RuleFieldSubject, "Weekly Digest", true, true},
+		{"wrong case starts with", RuleOpStartsWith, RuleFieldSubject, "WEEKLY", true, false},
+		{"wrong case ends with", RuleOpEndsWith, RuleFieldSubject, "DIGEST", true, false},
+		// A negation flips with the flag too: the wrong case does not contain the text once case counts.
+		{"wrong case does not contain", RuleOpNotContains, RuleFieldSubject, "DIGEST", false, true},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := mustCondition(t, c.field, c.operator, c.text).Matches(m); got != c.insensitive {
+				t.Errorf("case-insensitive: got %v, want %v", got, c.insensitive)
+			}
+			if got := mustCasedCondition(t, c.field, c.operator, c.text).Matches(m); got != c.caseSensitive {
+				t.Errorf("case-sensitive: got %v, want %v", got, c.caseSensitive)
+			}
+		})
+	}
+}
+
+// TestRuleConditionCaseSensitiveAccessor pins that the flag survives construction, since the store
+// reads it back off the condition.
+func TestRuleConditionCaseSensitiveAccessor(t *testing.T) {
+	if mustCondition(t, RuleFieldFrom, RuleOpContains, "a").CaseSensitive() {
+		t.Errorf("the default condition is case-sensitive")
+	}
+	if !mustCasedCondition(t, RuleFieldFrom, RuleOpContains, "a").CaseSensitive() {
+		t.Errorf("the cased condition lost its flag")
+	}
+}
+
+// TestRuleConditionAllFields pins the default field: one condition reaches the sender, every recipient,
+// the subject and the sender's domain, so a rule can say "anywhere in this message".
+func TestRuleConditionAllFields(t *testing.T) {
+	to := []EmailAddress{ruleAddress(t, "Alice", "alice@example.com")}
+	cc := []EmailAddress{ruleAddress(t, "Team List", "team@lists.example.com")}
+	m, err := NewMessageSummary(MessageSummaryInput{
+		ID: "m1", FolderID: "f1", UID: "1", From: ruleAddress(t, "Acme News", "news@acme.com"),
+		To: to, Cc: cc, Subject: "Weekly Digest", Size: 1, Flags: NewFlags(0),
+	})
+	if err != nil {
+		t.Fatalf("message: %v", err)
+	}
+	for _, text := range []string{"acme news", "news@acme", "digest", "alice@", "team list", "acme.com"} {
+		if !mustCondition(t, RuleFieldAll, RuleOpContains, text).Matches(m) {
+			t.Errorf("all-fields condition missed %q", text)
+		}
+	}
+	if mustCondition(t, RuleFieldAll, RuleOpContains, "nowhere").Matches(m) {
+		t.Errorf("all-fields condition matched text the message does not carry")
+	}
+}

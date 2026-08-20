@@ -84,16 +84,18 @@ type ruleChild[T any] struct {
 // listRuleConditions returns every rule's conditions keyed by rule id, each in stored position order.
 func (s *Store) listRuleConditions(ctx context.Context) (map[string][]domain.RuleCondition, error) {
 	rows, err := queryRows(ctx, s.db, "rule conditions",
-		`SELECT rule_id, field, operator, match_text FROM rule_condition ORDER BY rule_id, position;`,
+		`SELECT rule_id, field, operator, match_text, case_sensitive FROM rule_condition
+		 ORDER BY rule_id, position;`,
 		func(row scanner) (ruleChild[domain.RuleCondition], error) {
 			var (
-				ruleID, text    string
-				field, operator int
+				ruleID, text                   string
+				field, operator, caseSensitive int
 			)
-			if err := row.Scan(&ruleID, &field, &operator, &text); err != nil {
+			if err := row.Scan(&ruleID, &field, &operator, &text, &caseSensitive); err != nil {
 				return ruleChild[domain.RuleCondition]{}, fmt.Errorf("scan rule condition: %w", err)
 			}
-			cond, err := domain.NewRuleCondition(domain.RuleField(field), domain.RuleOperator(operator), text)
+			cond, err := domain.NewRuleConditionCased(domain.RuleField(field), domain.RuleOperator(operator),
+				text, caseSensitive != 0)
 			if err != nil {
 				return ruleChild[domain.RuleCondition]{}, fmt.Errorf("rebuild condition of rule %q: %w", ruleID, err)
 			}
@@ -158,9 +160,10 @@ func (s *Store) SaveRule(ctx context.Context, rule domain.Rule) error {
 		}
 		for i, c := range rule.Conditions() {
 			if _, err := tx.ExecContext(ctx,
-				`INSERT INTO rule_condition (rule_id, position, field, operator, match_text)
-				 VALUES (?, ?, ?, ?, ?);`,
-				rule.ID(), i, int(c.Field()), int(c.Operator()), c.Text()); err != nil {
+				`INSERT INTO rule_condition (rule_id, position, field, operator, match_text, case_sensitive)
+				 VALUES (?, ?, ?, ?, ?, ?);`,
+				rule.ID(), i, int(c.Field()), int(c.Operator()), c.Text(),
+				boolToInt(c.CaseSensitive())); err != nil {
 				return fmt.Errorf("save condition %d of rule %q: %w", i, rule.ID(), err)
 			}
 		}

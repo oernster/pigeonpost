@@ -192,7 +192,8 @@ func TestNewRuleInvalid(t *testing.T) {
 func TestRuleTokens(t *testing.T) {
 	fields := map[RuleField]string{
 		RuleFieldFrom: "from", RuleFieldSubject: "subject", RuleFieldTo: "to", RuleFieldCc: "cc",
-		RuleFieldAnyRecipient: "anyRecipient", RuleFieldSenderDomain: "senderDomain", RuleField(99): "unknown",
+		RuleFieldAnyRecipient: "anyRecipient", RuleFieldSenderDomain: "senderDomain", RuleFieldAll: "all",
+		RuleField(99): "unknown",
 	}
 	for field, want := range fields {
 		if got := field.String(); got != want {

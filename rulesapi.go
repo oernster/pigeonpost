@@ -14,6 +14,8 @@ type RuleConditionDTO struct {
 	Field    string `json:"field"`
 	Operator string `json:"operator"`
 	Text     string `json:"text"`
+	// CaseSensitive makes the comparison exact; the default is case-insensitive matching.
+	CaseSensitive bool `json:"caseSensitive"`
 }
 
 // RuleActionDTO is the JSON-serialisable view of one rule action. Kind is a stable string token
@@ -91,6 +93,7 @@ func ruleToDTO(r domain.Rule) RuleDTO {
 	for _, c := range r.Conditions() {
 		conditions = append(conditions, RuleConditionDTO{
 			Field: c.Field().String(), Operator: c.Operator().String(), Text: c.Text(),
+			CaseSensitive: c.CaseSensitive(),
 		})
 	}
 	actions := make([]RuleActionDTO, 0, len(r.Actions()))
@@ -116,7 +119,9 @@ func parseRuleConditions(in []RuleConditionDTO) ([]application.RuleConditionInpu
 		if err != nil {
 			return nil, err
 		}
-		out = append(out, application.RuleConditionInput{Field: field, Operator: operator, Text: c.Text})
+		out = append(out, application.RuleConditionInput{
+			Field: field, Operator: operator, Text: c.Text, CaseSensitive: c.CaseSensitive,
+		})
 	}
 	return out, nil
 }
@@ -148,6 +153,8 @@ func parseRuleField(s string) (domain.RuleField, error) {
 		return domain.RuleFieldAnyRecipient, nil
 	case "senderDomain":
 		return domain.RuleFieldSenderDomain, nil
+	case "all":
+		return domain.RuleFieldAll, nil
 	default:
 		return 0, fmt.Errorf("unknown rule field %q", s)
 	}

@@ -20,6 +20,16 @@ func storeCondition(t *testing.T, field domain.RuleField, op domain.RuleOperator
 	return c
 }
 
+// storeCasedCondition builds a case-sensitive condition for the rule-store tests.
+func storeCasedCondition(t *testing.T, field domain.RuleField, op domain.RuleOperator, text string) domain.RuleCondition {
+	t.Helper()
+	c, err := domain.NewRuleConditionCased(field, op, text, true)
+	if err != nil {
+		t.Fatalf("condition: %v", err)
+	}
+	return c
+}
+
 // storeAction builds an action for the rule-store tests.
 func storeAction(t *testing.T, kind domain.RuleActionKind, folderID string) domain.RuleAction {
 	t.Helper()
@@ -50,7 +60,7 @@ func TestRuleStoreRoundTrip(t *testing.T) {
 		MatchMode: domain.RuleMatchAny, StopProcessing: true,
 		Conditions: []domain.RuleCondition{
 			storeCondition(t, domain.RuleFieldSenderDomain, domain.RuleOpEquals, "shop.com"),
-			storeCondition(t, domain.RuleFieldSubject, domain.RuleOpContains, "invoice"),
+			storeCasedCondition(t, domain.RuleFieldSubject, domain.RuleOpContains, "invoice"),
 		},
 		Actions: []domain.RuleAction{
 			storeAction(t, domain.RuleMarkRead, ""),
@@ -76,6 +86,10 @@ func TestRuleStoreRoundTrip(t *testing.T) {
 	if len(conditions) != 2 || conditions[0].Field() != domain.RuleFieldSenderDomain ||
 		conditions[0].Text() != "shop.com" || conditions[1].Operator() != domain.RuleOpContains {
 		t.Errorf("conditions not round-tripped in order: %+v", conditions)
+	}
+	if conditions[0].CaseSensitive() || !conditions[1].CaseSensitive() {
+		t.Errorf("case-sensitivity not round-tripped: %v / %v",
+			conditions[0].CaseSensitive(), conditions[1].CaseSensitive())
 	}
 	actions := r.Actions()
 	if len(actions) != 2 || actions[0].Kind() != domain.RuleMarkRead ||
@@ -208,15 +222,19 @@ func TestRuleMigrationCarriesLegacyRules(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open raw db: %v", err)
 	}
-	// legacyVersion is the version before schemaV50, so applying every step below it leaves the old
-	// flat rule table in place.
-	legacyVersion := schemaVersion - 1
-	for _, step := range migrations[:legacyVersion] {
+	// The handle is closed explicitly below before the store reopens the file; this guards the failure
+	// paths, which would otherwise leave it open and block the temp-directory cleanup on Windows.
+	t.Cleanup(func() { _ = db.Close() })
+	// legacyRuleVersion is the version schemaV50 upgrades FROM, the last one where rules still lived in
+	// the flat rule table. It is a fixed number rather than an offset from schemaVersion, so later
+	// migrations do not quietly move this test off the shape it exists to cover.
+	const legacyRuleVersion = 49
+	for _, step := range migrations[:legacyRuleVersion] {
 		if _, err := db.ExecContext(ctx, step); err != nil {
 			t.Fatalf("apply legacy migrations: %v", err)
 		}
 	}
-	if _, err := db.ExecContext(ctx, fmt.Sprintf("PRAGMA user_version = %d;", legacyVersion)); err != nil {
+	if _, err := db.ExecContext(ctx, fmt.Sprintf("PRAGMA user_version = %d;", legacyRuleVersion)); err != nil {
 		t.Fatalf("set legacy version: %v", err)
 	}
 	if _, err := db.ExecContext(ctx,
@@ -256,6 +274,11 @@ func TestRuleMigrationCarriesLegacyRules(t *testing.T) {
 	if len(conditions) != 1 || conditions[0].Field() != domain.RuleFieldSubject ||
 		conditions[0].Operator() != domain.RuleOpEndsWith || conditions[0].Text() != "digest" {
 		t.Errorf("condition not carried over verbatim: %+v", conditions)
+	}
+	// Rules written before the flag existed compared case-insensitively, so a carried-over one must
+	// keep doing exactly that rather than silently tightening.
+	if conditions[0].CaseSensitive() {
+		t.Errorf("a carried-over condition became case-sensitive")
 	}
 	actions := r.Actions()
 	if len(actions) != 1 || actions[0].Kind() != domain.RuleMarkRead {
