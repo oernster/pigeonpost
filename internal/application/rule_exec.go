@@ -31,13 +31,18 @@ func NewRuleExecutor(store MailStore, remote MailActions) *RuleExecutor {
 //
 // Only the rules covering this account are considered: a rule scoped to one address never sees mail
 // arriving on another. Rules act only on arrivals (a message id the local store does not already
-// hold), so adding a rule never reaches back over mail already in the mailbox. Destructive actions (move, destroy) are further
-// held back on the first sight of a folder, when nothing is known locally and every message would
-// otherwise look like an arrival: that first pass establishes the baseline and only sets flags. A batch
-// the server refuses leaves its messages in place and contributes an error, so a partial failure is
-// never silent.
+// hold), so adding a rule never reaches back over mail already in the mailbox. Destructive actions
+// (move, destroy) are further held back until the folder has been baselined: on a folder never synced
+// before, nothing is known locally and its whole backlog would look like arrivals, so that first pass
+// records what is there and only sets flags. A batch the server refuses leaves its messages in place
+// and contributes an error, so a partial failure is never silent.
+//
+// baselined is read from the store rather than inferred from len(known). An emptied inbox holds no
+// cached messages either, so inferring it exempted every message arriving into a filed-clean mailbox
+// from the destructive actions, permanently and silently, for anyone who keeps their inbox at zero.
 func (e *RuleExecutor) Apply(ctx context.Context, account domain.Account, folder domain.Folder,
-	fetched []domain.MessageSummary, known map[string]struct{}, rules []domain.Rule) ([]domain.MessageSummary, error) {
+	fetched []domain.MessageSummary, known map[string]struct{}, baselined bool,
+	rules []domain.Rule) ([]domain.MessageSummary, error) {
 	if len(rules) == 0 || len(fetched) == 0 {
 		return fetched, nil
 	}
@@ -52,8 +57,9 @@ func (e *RuleExecutor) Apply(ctx context.Context, account domain.Account, folder
 		return fetched, nil
 	}
 	outcomes := domain.EvaluateRules(arrivals, rules)
-	// The first sight of a folder is a baseline, not an arrival of everything it holds.
-	if len(known) == 0 {
+	// A folder not yet baselined is being seen for the first time: what it holds is a starting point,
+	// not an arrival of everything in it.
+	if !baselined {
 		return applyOutcomeFlags(fetched, arrivalAt, outcomes, nil), nil
 	}
 	removed, err := e.execute(ctx, account, folder, arrivals, outcomes)

@@ -599,9 +599,20 @@ destroyed message never enters the local store: `MailActions.DeleteMany` with an
 Moves are batched per destination through `MoveMany`. Three guards bound the destruction, each pinned by
 a test: rules run on the **Inbox only**, so mail the user has already filed by hand is never touched;
 they act on **arrivals only** (an id the local store does not hold), so adding a rule never reaches back
-over existing mail; and destructive actions are held back on a folder's **first sight**, when nothing is
-known locally and every message would otherwise look like an arrival, which is what stops a newly added
-account being emptied. A batch the server refuses leaves its messages in place and reports the failure.
+over existing mail; and destructive actions are held back until the folder has been **baselined**, the
+one pass that records what a folder already holds, which is what stops a newly added account being
+emptied by mail that arrived long before the rule. A batch the server refuses leaves its messages in
+place and reports the failure.
+
+The baseline is a stored fact (`folder_baseline`, keyed by folder id), read through
+`MailStore.FolderBaselined` and written by `MarkFolderBaselined` only after the fetched messages are
+safely saved: a folder marked ahead of a failed save would have its whole backlog read as arrivals on
+the next pass. It is deliberately not inferred from the cached messages. That inference, "the local
+store holds no messages for this folder", is equally true of an inbox the user has simply emptied, so
+it exempted every message arriving into a filed-clean mailbox from the destructive actions, silently
+and every time; for anyone who keeps their inbox at zero a destroying rule then essentially never ran.
+It also cannot live on the folder row, because `SaveFolders` clears and rewrites every folder for an
+account on each sync and would take the mark with it, re-arming the exemption forever.
 
 Because a rule runs unattended, the confirmation for a destructive action moves to rule-creation time:
 the UI warns before saving a rule that moves or destroys mail and marks a destroying rule in the list.
@@ -610,7 +621,10 @@ ordered by position (`schemaV50`); rules written before that carry over verbatim
 one-action rules, their stored field, operator and action integers unchanged. `schemaV51` adds the
 per-condition case-sensitivity flag, defaulting to 0 so an existing condition keeps comparing
 case-insensitively, which is all any of them ever did. `schemaV52` adds the `rule_account` scope table;
-a rule with no row there applies everywhere, so nothing needed backfilling.
+a rule with no row there applies everywhere, so nothing needed backfilling. `schemaV53` adds
+`folder_baseline` and marks every folder already in the database, since those installations established
+their baseline through ordinary use; a folder written after that step, which is what a newly added
+account produces, has no row and so still gets its one protected pass.
 
 The editor keeps the scope and a move destination consistent: a scoped rule is offered only folders in
 the accounts it covers; narrowing the scope clears a destination that falls outside it. Without

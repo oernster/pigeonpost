@@ -14,7 +14,7 @@ import (
 // Rules run on the Inbox only. Mail arrives there; it is the one folder where acting on a message
 // is what the user asked for: a rule that moved or destroyed messages in Sent, Archive or Trash would
 // act on mail the user had already filed by hand. Within the Inbox, rules act only on arrivals, their
-// destructive actions held back on a folder's first sight (see RuleExecutor.Apply).
+// destructive actions held back until the folder has been baselined (see RuleExecutor.Apply).
 //
 // The returned error reports a rule that could not be carried out. The messages come back regardless,
 // so the caller saves what it has before deciding what to do with the error.
@@ -27,7 +27,7 @@ func (s *SyncService) applyRules(ctx context.Context, account domain.Account, fo
 	if err != nil {
 		return fetched, err
 	}
-	return s.ruleExec.Apply(ctx, account, folder, fetched, known, rules)
+	return s.applyRulesKnown(ctx, account, folder, fetched, known, rules)
 }
 
 // applyRulesKnown is applyRules for a caller that has already listed the folder's cached messages, so
@@ -37,7 +37,24 @@ func (s *SyncService) applyRulesKnown(ctx context.Context, account domain.Accoun
 	if len(rules) == 0 || folder.Kind() != domain.FolderInbox {
 		return fetched, nil
 	}
-	return s.ruleExec.Apply(ctx, account, folder, fetched, known, rules)
+	baselined, err := s.mail.FolderBaselined(ctx, folder.ID())
+	if err != nil {
+		return fetched, fmt.Errorf("sync: read baseline for %q: %w", folder.ID(), err)
+	}
+	return s.ruleExec.Apply(ctx, account, folder, fetched, known, baselined, rules)
+}
+
+// markBaselined records that a folder's contents are now cached, so the next pass may act destructively
+// on what arrives after them. It is called only once the fetched messages are saved: a folder marked
+// ahead of a failed save would have its whole backlog read as arrivals next time.
+//
+// Only the Inbox is marked, because it is the only folder the rules run on. The mark is idempotent, so
+// every sync calling it costs one no-op insert.
+func (s *SyncService) markBaselined(ctx context.Context, folder domain.Folder) error {
+	if folder.Kind() != domain.FolderInbox {
+		return nil
+	}
+	return s.mail.MarkFolderBaselined(ctx, folder.ID())
 }
 
 // knownIDs reads the ids the local store already holds for a folder, the set that separates an arrival

@@ -487,11 +487,62 @@ func syncRuleFixture(t *testing.T, remote *fakeMailActions) (*fakeMailStore, *fa
 	inbox := testFolder(t, "f1", "a1", "INBOX")
 	mail.folders["a1"] = []domain.Folder{inbox}
 	mail.messages["f1"] = []domain.MessageSummary{testMessage(t, "known", "f1")}
+	// An established folder: its baseline pass has already happened, so rules may act destructively on
+	// what arrives after it.
+	mail.baselined = map[string]bool{"f1": true}
 	source := &fakeMailSource{folders: []domain.Folder{inbox}}
 	rules := &fakeRuleStore{}
 	svc := NewSyncService(accounts, mail, source, rules, &fakeTagSyncer{}, &fakeFlagSyncer{},
 		NewRuleExecutor(mail, remote))
 	return mail, source, rules, svc
+}
+
+// TestSyncReportsABaselineMarkThatFailed pins that a folder whose baseline mark could not be written
+// fails the sync rather than passing quietly. The mark is what licenses the next pass to destroy mail,
+// so a silent failure would leave the folder protected forever with nothing saying why.
+func TestSyncReportsABaselineMarkThatFailed(t *testing.T) {
+	for name, run := range syncRulePaths() {
+		t.Run(name, func(t *testing.T) {
+			mail, source, _, svc := syncRuleFixture(t, &fakeMailActions{})
+			source.messagesByFolder = map[string][]domain.MessageSummary{"f1": {junkArrival(t)}}
+			mail.markBaselineErr = errBoom
+
+			if err := run(svc); !errors.Is(err, errBoom) {
+				t.Errorf("error = %v, want the failed baseline mark wrapped", err)
+			}
+		})
+	}
+}
+
+// TestSyncReportsABaselineReadThatFailed pins the other half: a baseline the store could not be read
+// stops the rules rather than defaulting either way. Defaulting to baselined would destroy a newly
+// added account's backlog on a transient read error; defaulting the other way would silently
+// restore the very exemption this replaced.
+func TestSyncReportsABaselineReadThatFailed(t *testing.T) {
+	for name, run := range syncRulePaths() {
+		t.Run(name, func(t *testing.T) {
+			mail, source, rules, svc := syncRuleFixture(t, &fakeMailActions{})
+			source.messagesByFolder = map[string][]domain.MessageSummary{"f1": {junkArrival(t)}}
+			rules.rules = []domain.Rule{destroyRule(t, "nuke", "bad.example")}
+			mail.baselinedErr = errBoom
+
+			if err := run(svc); !errors.Is(err, errBoom) {
+				t.Errorf("error = %v, want the failed baseline read wrapped", err)
+			}
+			// The arrival is saved untouched: an unreadable baseline never costs mail.
+			if len(mail.messages["f1"]) != 1 {
+				t.Errorf("saved %d messages, want the arrival kept", len(mail.messages["f1"]))
+			}
+		})
+	}
+}
+
+// syncRulePaths are the two sync entry points that run filter rules over a folder and then save it.
+func syncRulePaths() map[string]func(*SyncService) error {
+	return map[string]func(*SyncService) error{
+		"SyncAccount": func(svc *SyncService) error { return svc.SyncAccount(context.Background(), "a1") },
+		"SyncFolder":  func(svc *SyncService) error { return svc.SyncFolder(context.Background(), "f1") },
+	}
 }
 
 // junkArrival is a message from a sender a destroy rule matches, with an id the store does not hold.
@@ -513,11 +564,7 @@ func junkArrival(t *testing.T) domain.MessageSummary {
 // TestSyncReportsARuleThatCouldNotRun pins that a rule the server refused is reported rather than
 // swallowed, on both sync paths. The messages are still saved first, so a failed rule never costs mail.
 func TestSyncReportsARuleThatCouldNotRun(t *testing.T) {
-	cases := map[string]func(*SyncService) error{
-		"SyncAccount": func(svc *SyncService) error { return svc.SyncAccount(context.Background(), "a1") },
-		"SyncFolder":  func(svc *SyncService) error { return svc.SyncFolder(context.Background(), "f1") },
-	}
-	for name, run := range cases {
+	for name, run := range syncRulePaths() {
 		t.Run(name, func(t *testing.T) {
 			remote := &fakeMailActions{deleteManyErr: errBoom}
 			mail, source, rules, svc := syncRuleFixture(t, remote)

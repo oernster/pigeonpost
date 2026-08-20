@@ -149,6 +149,13 @@ type fakeMailStore struct {
 	saveFoldersErr  error
 	listMessagesErr error
 	listPageErr     error
+	// baselined holds the folder ids marked as having had their baseline sync; baselinedMarks
+	// records the order MarkFolderBaselined was called in, so a test can assert it happened after the
+	// save rather than before it.
+	baselined       map[string]bool
+	baselinedMarks  []string
+	baselinedErr    error
+	markBaselineErr error
 	saveMessagesErr error
 	setFlagErr      error
 	// pendingFlags records the intents SetFlag stored (message id to flag to intended value), so tests
@@ -227,6 +234,27 @@ func (f *fakeMailStore) MessageIDs(_ context.Context, folderID string) ([]string
 		ids = append(ids, m.ID())
 	}
 	return ids, nil
+}
+
+// FolderBaselined reports whether the fake has been told the folder completed its baseline sync.
+func (f *fakeMailStore) FolderBaselined(_ context.Context, folderID string) (bool, error) {
+	if f.baselinedErr != nil {
+		return false, f.baselinedErr
+	}
+	return f.baselined[folderID], nil
+}
+
+// MarkFolderBaselined records the mark and the order it arrived in.
+func (f *fakeMailStore) MarkFolderBaselined(_ context.Context, folderID string) error {
+	if f.markBaselineErr != nil {
+		return f.markBaselineErr
+	}
+	if f.baselined == nil {
+		f.baselined = map[string]bool{}
+	}
+	f.baselined[folderID] = true
+	f.baselinedMarks = append(f.baselinedMarks, folderID)
+	return nil
 }
 
 // ListMessagesPage mirrors the store's keyset paging over the in-memory slice: it orders the folder's

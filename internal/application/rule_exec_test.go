@@ -81,8 +81,8 @@ func execFixture(t *testing.T) (*RuleExecutor, *fakeMailStore, *fakeMailActions)
 	return NewRuleExecutor(mail, remote), mail, remote
 }
 
-// primed is the known-id set standing for a folder the sync has seen before, so destructive actions
-// are not held back as they are on a folder's first sight.
+// primed is the known-id set standing for messages the sync has already cached, the set that separates
+// an arrival from one seen before. Whether destructive actions may run is the separate baselined flag.
 func primed(ids ...string) map[string]struct{} {
 	known := make(map[string]struct{}, len(ids))
 	for _, id := range ids {
@@ -98,7 +98,7 @@ func TestRuleExecutorDestroys(t *testing.T) {
 	rules := []domain.Rule{execRule(t, "nuke", "bad.com", execAction(t, domain.RuleDestroy, ""))}
 
 	saved, err := exec.Apply(context.Background(), testAccount(t, "a1"), testFolder(t, "f1", "a1", "INBOX"),
-		fetched, primed("m1"), rules)
+		fetched, primed("m1"), true, rules)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -121,7 +121,7 @@ func TestRuleExecutorMoves(t *testing.T) {
 	rules := []domain.Rule{execRule(t, "file", "shop.com", execAction(t, domain.RuleMoveTo, "f2"))}
 
 	saved, err := exec.Apply(context.Background(), testAccount(t, "a1"), testFolder(t, "f1", "a1", "INBOX"),
-		fetched, primed("m0"), rules)
+		fetched, primed("m0"), true, rules)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -141,7 +141,7 @@ func TestRuleExecutorArrivalsOnly(t *testing.T) {
 	rules := []domain.Rule{execRule(t, "nuke", "bad.com", execAction(t, domain.RuleDestroy, ""))}
 
 	saved, err := exec.Apply(context.Background(), testAccount(t, "a1"), testFolder(t, "f1", "a1", "INBOX"),
-		[]domain.MessageSummary{old}, primed("m1"), rules)
+		[]domain.MessageSummary{old}, primed("m1"), true, rules)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -153,9 +153,9 @@ func TestRuleExecutorArrivalsOnly(t *testing.T) {
 	}
 }
 
-// TestRuleExecutorFirstSightIsBaseline is the guard that a newly added account is not emptied: with
-// nothing known locally every message looks like an arrival, so destructive actions are held back and
-// only flags are applied.
+// TestRuleExecutorFirstSightIsBaseline is the guard that a newly added account is not emptied: on a
+// folder not yet baselined every message looks like an arrival, so destructive actions are held back
+// and only flags are applied.
 func TestRuleExecutorFirstSightIsBaseline(t *testing.T) {
 	exec, _, remote := execFixture(t)
 	fetched := []domain.MessageSummary{execMessage(t, "m1", "11", "spam@bad.com")}
@@ -163,7 +163,7 @@ func TestRuleExecutorFirstSightIsBaseline(t *testing.T) {
 		execAction(t, domain.RuleMarkRead, ""), execAction(t, domain.RuleDestroy, ""))}
 
 	saved, err := exec.Apply(context.Background(), testAccount(t, "a1"), testFolder(t, "f1", "a1", "INBOX"),
-		fetched, map[string]struct{}{}, rules)
+		fetched, map[string]struct{}{}, false, rules)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -178,6 +178,29 @@ func TestRuleExecutorFirstSightIsBaseline(t *testing.T) {
 	}
 }
 
+// TestRuleExecutorEmptiedFolderStillDestroys is the counterpart: the regression this pair exists
+// for. A baselined folder holding nothing locally is not a first sight; it is an inbox the user has
+// filed clean. Deciding that from the cached messages alone made the two indistinguishable, so mail
+// arriving into an emptied inbox was exempted from every destructive action, every time, which for
+// anyone keeping their inbox at zero meant a destroying rule that essentially never ran.
+func TestRuleExecutorEmptiedFolderStillDestroys(t *testing.T) {
+	exec, _, remote := execFixture(t)
+	fetched := []domain.MessageSummary{execMessage(t, "m1", "11", "spam@bad.com")}
+	rules := []domain.Rule{execRule(t, "nuke", "bad.com", execAction(t, domain.RuleDestroy, ""))}
+
+	saved, err := exec.Apply(context.Background(), testAccount(t, "a1"), testFolder(t, "f1", "a1", "INBOX"),
+		fetched, map[string]struct{}{}, true, rules)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(saved) != 0 {
+		t.Fatalf("an arrival into an emptied inbox survived the rule: %v", saved)
+	}
+	if len(remote.deleteManyBatches) != 1 {
+		t.Fatalf("expected one delete batch, got %v", remote.deleteManyBatches)
+	}
+}
+
 func TestRuleExecutorAppliesFlagsToArrivalsOnly(t *testing.T) {
 	exec, _, _ := execFixture(t)
 	known := execMessage(t, "m1", "11", "news@acme.com")
@@ -185,7 +208,7 @@ func TestRuleExecutorAppliesFlagsToArrivalsOnly(t *testing.T) {
 	rules := []domain.Rule{execRule(t, "read", "acme.com", execAction(t, domain.RuleMarkRead, ""))}
 
 	saved, err := exec.Apply(context.Background(), testAccount(t, "a1"), testFolder(t, "f1", "a1", "INBOX"),
-		[]domain.MessageSummary{known, arrival}, primed("m1"), rules)
+		[]domain.MessageSummary{known, arrival}, primed("m1"), true, rules)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -215,7 +238,7 @@ func TestRuleExecutorSkipsUnactionableMoves(t *testing.T) {
 			mail.folders["a2"] = []domain.Folder{testFolder(t, "other", "a2", "Elsewhere")}
 			rules := []domain.Rule{execRule(t, "file", "shop.com", execAction(t, domain.RuleMoveTo, c.dest))}
 			saved, err := exec.Apply(context.Background(), testAccount(t, c.account), inbox,
-				[]domain.MessageSummary{execMessage(t, "m2", "22", "billing@shop.com")}, primed("m0"), rules)
+				[]domain.MessageSummary{execMessage(t, "m2", "22", "billing@shop.com")}, primed("m0"), true, rules)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
@@ -246,7 +269,7 @@ func TestRuleExecutorFailedBatchKeepsMessages(t *testing.T) {
 			c.inject(remote)
 			rules := []domain.Rule{execRule(t, "r", "bad.com", execAction(t, c.action, c.dest))}
 			saved, err := exec.Apply(context.Background(), testAccount(t, "a1"), testFolder(t, "f1", "a1", "INBOX"),
-				[]domain.MessageSummary{execMessage(t, "m2", "22", "spam@bad.com")}, primed("m0"), rules)
+				[]domain.MessageSummary{execMessage(t, "m2", "22", "spam@bad.com")}, primed("m0"), true, rules)
 			if !errors.Is(err, errBoom) {
 				t.Errorf("error = %v, want wrapped boom", err)
 			}
@@ -262,7 +285,7 @@ func TestRuleExecutorUnresolvableDestination(t *testing.T) {
 	mail.getFolderErr = errBoom
 	rules := []domain.Rule{execRule(t, "file", "shop.com", execAction(t, domain.RuleMoveTo, "f2"))}
 	saved, err := exec.Apply(context.Background(), testAccount(t, "a1"), testFolder(t, "f1", "a1", "INBOX"),
-		[]domain.MessageSummary{execMessage(t, "m2", "22", "billing@shop.com")}, primed("m0"), rules)
+		[]domain.MessageSummary{execMessage(t, "m2", "22", "billing@shop.com")}, primed("m0"), true, rules)
 	if !errors.Is(err, errBoom) {
 		t.Errorf("error = %v, want wrapped boom", err)
 	}
@@ -288,7 +311,7 @@ func TestRuleExecutorNoWork(t *testing.T) {
 	}
 	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {
-			if _, err := exec.Apply(context.Background(), account, inbox, c.messages, c.known, c.rules); err != nil {
+			if _, err := exec.Apply(context.Background(), account, inbox, c.messages, c.known, true, c.rules); err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
 		})
@@ -317,7 +340,7 @@ func TestRuleExecutorHonoursAccountScope(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			exec, _, remote := execFixture(t)
 			saved, err := exec.Apply(context.Background(), testAccount(t, c.account), inbox,
-				[]domain.MessageSummary{execMessage(t, "m2", "22", "spam@bad.com")}, primed("m0"), rules)
+				[]domain.MessageSummary{execMessage(t, "m2", "22", "spam@bad.com")}, primed("m0"), true, rules)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
@@ -340,7 +363,7 @@ func TestRuleExecutorUnscopedRuleCoversEveryAccount(t *testing.T) {
 	exec, _, remote := execFixture(t)
 	rules := []domain.Rule{execRule(t, "nuke", "bad.com", execAction(t, domain.RuleDestroy, ""))}
 	if _, err := exec.Apply(context.Background(), testAccount(t, "a9"), testFolder(t, "f1", "a9", "INBOX"),
-		[]domain.MessageSummary{execMessage(t, "m2", "22", "spam@bad.com")}, primed("m0"), rules); err != nil {
+		[]domain.MessageSummary{execMessage(t, "m2", "22", "spam@bad.com")}, primed("m0"), true, rules); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if len(remote.deleteManyBatches) != 1 {

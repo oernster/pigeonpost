@@ -56,6 +56,12 @@ type MailStore interface {
 	// from a message it has seen before. It is deliberately narrower than ListMessages: the rule engine
 	// needs only membership, on every sync, over folders that can hold tens of thousands of rows.
 	MessageIDs(ctx context.Context, folderID string) ([]string, error)
+	// FolderBaselined reports whether a folder has completed the one sync that records what it already
+	// holds. The rule engine needs it to tell a folder it has never seen from one the user has emptied:
+	// both hold no cached messages; only the first may exempt its contents from destructive rules.
+	FolderBaselined(ctx context.Context, folderID string) (bool, error)
+	// MarkFolderBaselined records that baseline, called only after the fetched messages are saved.
+	MarkFolderBaselined(ctx context.Context, folderID string) error
 	ListMessagesPage(ctx context.Context, folderID string, hasCursor bool, cursorDateMs int64, cursorID string, limit int, ascending bool) ([]domain.MessageSummary, error)
 	ListMessagesVisible(ctx context.Context, folderID string, visibleAt time.Time) ([]domain.MessageSummary, error)
 	ListMessagesPageVisible(ctx context.Context, folderID string, hasCursor bool, cursorDateMs int64, cursorID string, limit int, ascending bool, visibleAt time.Time) ([]domain.MessageSummary, error)

@@ -120,6 +120,10 @@ func (s *SyncService) SyncAccount(ctx context.Context, accountID string) error {
 		if err := s.mail.SaveMessages(ctx, folder.ID(), messages); err != nil {
 			return fmt.Errorf("sync: save messages for %q: %w", folder.Path(), err)
 		}
+		// Only now that the folder's contents are cached is its baseline established.
+		if err := s.markBaselined(ctx, folder); err != nil {
+			return fmt.Errorf("sync: mark baseline for %q: %w", folder.Path(), err)
+		}
 		if ruleErr != nil {
 			return fmt.Errorf("sync: apply rules to %q: %w", folder.Path(), ruleErr)
 		}
@@ -162,6 +166,10 @@ func (s *SyncService) SyncFolder(ctx context.Context, folderID string) error {
 	messages = s.reconcileFlags(ctx, account, messages)
 	if err := s.mail.SaveMessages(ctx, folder.ID(), messages); err != nil {
 		return fmt.Errorf("sync: save messages for %q: %w", folder.Path(), err)
+	}
+	// Only now that the folder's contents are cached is its baseline established.
+	if err := s.markBaselined(ctx, folder); err != nil {
+		return fmt.Errorf("sync: mark baseline for %q: %w", folder.Path(), err)
 	}
 	if ruleErr != nil {
 		return fmt.Errorf("sync: apply rules to %q: %w", folder.Path(), ruleErr)
@@ -243,6 +251,9 @@ func (s *SyncService) refreshInbox(ctx context.Context, account domain.Account, 
 	if err := s.mail.SaveMessages(ctx, folder.ID(), messages); err != nil {
 		return nil, err
 	}
+	// Only now that the folder's contents are cached is its baseline established. Best-effort here, in
+	// keeping with the rest of this pass: an unmarked folder simply gets another protected pass.
+	_ = s.markBaselined(ctx, folder)
 	known := make(map[string]struct{}, len(existing))
 	for _, m := range existing {
 		known[m.ID()] = struct{}{}
