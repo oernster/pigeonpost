@@ -81,6 +81,7 @@ type Rule struct {
 	position       int
 	matchMode      RuleMatchMode
 	stopProcessing bool
+	accountIDs     []string
 	conditions     []RuleCondition
 	actions        []RuleAction
 }
@@ -94,8 +95,12 @@ type RuleSpec struct {
 	Position       int
 	MatchMode      RuleMatchMode
 	StopProcessing bool
-	Conditions     []RuleCondition
-	Actions        []RuleAction
+	// AccountIDs limits the rule to the named accounts. Empty means every account, including one added
+	// later: a rule the user never scoped should not quietly stop covering their mail when they add an
+	// address, so "unscoped" has to mean all, never "the accounts that existed when it was written".
+	AccountIDs []string
+	Conditions []RuleCondition
+	Actions    []RuleAction
 }
 
 // NewRule validates and constructs a rule. The id and name must be non-empty, the match mode must be
@@ -125,6 +130,7 @@ func NewRule(spec RuleSpec) (Rule, error) {
 		position:       spec.Position,
 		matchMode:      spec.MatchMode,
 		stopProcessing: spec.StopProcessing,
+		accountIDs:     append([]string(nil), spec.AccountIDs...),
 		conditions:     append([]RuleCondition(nil), spec.Conditions...),
 		actions:        append([]RuleAction(nil), spec.Actions...),
 	}, nil
@@ -147,6 +153,23 @@ func (r Rule) MatchMode() RuleMatchMode { return r.matchMode }
 
 // StopProcessing reports whether a match ends evaluation of later rules for that message.
 func (r Rule) StopProcessing() bool { return r.stopProcessing }
+
+// AccountIDs returns a copy of the accounts the rule is limited to, empty when it applies to all.
+func (r Rule) AccountIDs() []string { return append([]string(nil), r.accountIDs...) }
+
+// AppliesTo reports whether the rule covers the given account. A rule naming no account covers every
+// account, so an unscoped rule keeps working when a new address is added.
+func (r Rule) AppliesTo(accountID string) bool {
+	if len(r.accountIDs) == 0 {
+		return true
+	}
+	for _, id := range r.accountIDs {
+		if id == accountID {
+			return true
+		}
+	}
+	return false
+}
 
 // Conditions returns a copy of the rule's conditions.
 func (r Rule) Conditions() []RuleCondition { return append([]RuleCondition(nil), r.conditions...) }

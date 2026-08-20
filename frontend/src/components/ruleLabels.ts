@@ -63,6 +63,7 @@ export function emptyRule(position: number): Rule {
         position,
         matchMode: 'any',
         stopProcessing: false,
+        accountIds: [],
         conditions: [{...EMPTY_CONDITION}],
         actions: [{...EMPTY_ACTION}],
     } as Rule
@@ -92,12 +93,27 @@ export function ruleIsComplete(rule: Rule): boolean {
 }
 
 // ruleSummary is the one-line description shown under a rule's name, spelling out the whole rule
-// rather than only its first condition.
-export function ruleSummary(rule: Rule, folderName: (folderId: string) => string): string {
+// rather than only its first condition. A rule limited to some accounts says so up front, since which
+// mail a rule can reach matters more than what it then does to it.
+export function ruleSummary(
+    rule: Rule,
+    folderName: (folderId: string) => string,
+    accountName: (accountId: string) => string,
+): string {
     const joiner = rule.matchMode === 'any' ? ' or ' : ' and '
     const conditions = rule.conditions.map(conditionText).join(joiner)
     const actions = rule.actions.map((a) => actionText(a, folderName)).join(', ')
-    return `If ${conditions}, then ${actions}`
+    return `${scopeText(rule, accountName)}if ${conditions}, then ${actions}`
+}
+
+// scopeText opens the summary with the accounts a rule is limited to. It is stated on every rule,
+// including the unscoped ones: which mail a rule can reach is the first thing to know about it; a
+// blank there would read as "not yet decided" rather than as "all of them".
+function scopeText(rule: Rule, accountName: (accountId: string) => string): string {
+    if (rule.accountIds.length === 0) {
+        return 'On any account, '
+    }
+    return `On ${rule.accountIds.map(accountName).join(' and ')}, `
 }
 
 // conditionText renders one condition in the summary line, noting case sensitivity only when it is on,

@@ -574,8 +574,12 @@ server's stale unseen flag straight back over the cache. POP3 accounts record no
 are purely local and the sync's `preserveFlags` carries them across fetches whole.
 
 Filter rules: the `RuleService` use case manages user-defined rules through the `RuleStore` port and the
-`RuleExecutor` carries out what they decide. A domain `Rule` is ordered, can be switched off and holds
-several conditions combined by a match mode (all or any) plus several actions. A condition matches one
+`RuleExecutor` carries out what they decide. A domain `Rule` is ordered, can be switched off, can be limited
+to named accounts and holds several conditions combined by a match mode (all or any) plus several
+actions. A rule naming no account covers every account, including one added after the rule was written:
+"unscoped" has to mean all, never "the accounts that existed at the time"; otherwise a rule would
+quietly stop covering a user's mail the moment they add an address. `RulesForAccount` narrows the set before
+evaluation, so scope is enforced in one place rather than checked per message. A condition matches one
 field (all fields, From, To, Cc, any recipient, Subject or sender domain) against a value with an operator
 (contains, is, starts with, ends with or does not contain), case-insensitively unless the condition sets
 its case-sensitivity flag. The all-fields option reaches the sender, every recipient, the subject and the
@@ -605,7 +609,13 @@ Conditions and actions live in the `rule_condition` and `rule_action` child tabl
 ordered by position (`schemaV50`); rules written before that carry over verbatim as one-condition,
 one-action rules, their stored field, operator and action integers unchanged. `schemaV51` adds the
 per-condition case-sensitivity flag, defaulting to 0 so an existing condition keeps comparing
-case-insensitively, which is all any of them ever did.
+case-insensitively, which is all any of them ever did. `schemaV52` adds the `rule_account` scope table;
+a rule with no row there applies everywhere, so nothing needed backfilling.
+
+The editor keeps the scope and a move destination consistent: a scoped rule is offered only folders in
+the accounts it covers; narrowing the scope clears a destination that falls outside it. Without
+that, a rule could name a folder it can never reach and the move would silently do nothing on every
+sync; clearing it instead blocks the save until a reachable folder is chosen.
 
 **Update check.** The application `UpdateService` compares the embedded VERSION against the newest
 published GitHub release through the `ReleaseSource` port, implemented by

@@ -57,7 +57,7 @@ func TestRuleStoreRoundTrip(t *testing.T) {
 	ctx := context.Background()
 	want := storeRule(t, domain.RuleSpec{
 		ID: "r1", Name: "Receipts", Enabled: true, Position: 2,
-		MatchMode: domain.RuleMatchAny, StopProcessing: true,
+		MatchMode: domain.RuleMatchAny, StopProcessing: true, AccountIDs: []string{"a1", "a2"},
 		Conditions: []domain.RuleCondition{
 			storeCondition(t, domain.RuleFieldSenderDomain, domain.RuleOpEquals, "shop.com"),
 			storeCasedCondition(t, domain.RuleFieldSubject, domain.RuleOpContains, "invoice"),
@@ -87,6 +87,9 @@ func TestRuleStoreRoundTrip(t *testing.T) {
 		conditions[0].Text() != "shop.com" || conditions[1].Operator() != domain.RuleOpContains {
 		t.Errorf("conditions not round-tripped in order: %+v", conditions)
 	}
+	if got := r.AccountIDs(); len(got) != 2 || got[0] != "a1" || got[1] != "a2" {
+		t.Errorf("account scope not round-tripped: %v", got)
+	}
 	if conditions[0].CaseSensitive() || !conditions[1].CaseSensitive() {
 		t.Errorf("case-sensitivity not round-tripped: %v / %v",
 			conditions[0].CaseSensitive(), conditions[1].CaseSensitive())
@@ -104,7 +107,7 @@ func TestRuleStoreUpdateReplacesChildren(t *testing.T) {
 	store := openTestStore(t)
 	ctx := context.Background()
 	base := domain.RuleSpec{
-		ID: "r1", Name: "Rule", Enabled: true,
+		ID: "r1", Name: "Rule", Enabled: true, AccountIDs: []string{"a1"},
 		Conditions: []domain.RuleCondition{
 			storeCondition(t, domain.RuleFieldFrom, domain.RuleOpContains, "a"),
 			storeCondition(t, domain.RuleFieldFrom, domain.RuleOpContains, "b"),
@@ -118,6 +121,7 @@ func TestRuleStoreUpdateReplacesChildren(t *testing.T) {
 	base.Enabled = false
 	base.Conditions = []domain.RuleCondition{storeCondition(t, domain.RuleFieldSubject, domain.RuleOpEquals, "c")}
 	base.Actions = []domain.RuleAction{storeAction(t, domain.RuleDestroy, "")}
+	base.AccountIDs = nil
 	if err := store.SaveRule(ctx, storeRule(t, base)); err != nil {
 		t.Fatalf("second save: %v", err)
 	}
@@ -137,6 +141,10 @@ func TestRuleStoreUpdateReplacesChildren(t *testing.T) {
 	}
 	if got[0].Actions()[0].Kind() != domain.RuleDestroy {
 		t.Errorf("action not replaced: %v", got[0].Actions()[0].Kind())
+	}
+	// Widening a rule back to every account must clear its scope rows, not leave the old one behind.
+	if scope := got[0].AccountIDs(); len(scope) != 0 {
+		t.Errorf("account scope not cleared on update: %v", scope)
 	}
 }
 
@@ -174,7 +182,7 @@ func TestRuleStoreDeleteRemovesChildren(t *testing.T) {
 	store := openTestStore(t)
 	ctx := context.Background()
 	rule := storeRule(t, domain.RuleSpec{
-		ID: "r1", Name: "Rule", Enabled: true,
+		ID: "r1", Name: "Rule", Enabled: true, AccountIDs: []string{"a1"},
 		Conditions: []domain.RuleCondition{storeCondition(t, domain.RuleFieldFrom, domain.RuleOpContains, "a")},
 		Actions:    []domain.RuleAction{storeAction(t, domain.RuleDestroy, "")},
 	})
@@ -191,7 +199,7 @@ func TestRuleStoreDeleteRemovesChildren(t *testing.T) {
 	if len(got) != 0 {
 		t.Fatalf("got %d rules, want none", len(got))
 	}
-	for _, table := range []string{"rule_condition", "rule_action"} {
+	for _, table := range []string{"rule_condition", "rule_action", "rule_account"} {
 		var count int
 		if err := store.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM "+table+";").Scan(&count); err != nil {
 			t.Fatalf("count %s: %v", table, err)
@@ -279,6 +287,10 @@ func TestRuleMigrationCarriesLegacyRules(t *testing.T) {
 	// keep doing exactly that rather than silently tightening.
 	if conditions[0].CaseSensitive() {
 		t.Errorf("a carried-over condition became case-sensitive")
+	}
+	// A rule written before the scope existed named no account, which must keep meaning every account.
+	if scope := r.AccountIDs(); len(scope) != 0 {
+		t.Errorf("a carried-over rule gained an account scope: %v", scope)
 	}
 	actions := r.Actions()
 	if len(actions) != 1 || actions[0].Kind() != domain.RuleMarkRead {

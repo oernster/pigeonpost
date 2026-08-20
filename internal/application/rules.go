@@ -33,8 +33,10 @@ type RuleInput struct {
 	Position       int
 	MatchMode      domain.RuleMatchMode
 	StopProcessing bool
-	Conditions     []RuleConditionInput
-	Actions        []RuleActionInput
+	// AccountIDs limits the rule to the named accounts; empty means every account.
+	AccountIDs []string
+	Conditions []RuleConditionInput
+	Actions    []RuleActionInput
 }
 
 // RuleService is the use-case boundary for managing filter rules.
@@ -78,6 +80,7 @@ func (s *RuleService) Save(ctx context.Context, in RuleInput) error {
 		Position:       in.Position,
 		MatchMode:      in.MatchMode,
 		StopProcessing: in.StopProcessing,
+		AccountIDs:     in.AccountIDs,
 		Conditions:     conditions,
 		Actions:        actions,
 	})
@@ -121,6 +124,7 @@ func (s *RuleService) Reorder(ctx context.Context, orderedIDs []string) error {
 			Position:       position,
 			MatchMode:      rule.MatchMode(),
 			StopProcessing: rule.StopProcessing(),
+			AccountIDs:     rule.AccountIDs(),
 			Conditions:     rule.Conditions(),
 			Actions:        rule.Actions(),
 		})

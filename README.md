@@ -89,7 +89,8 @@ local-first. A calmer, more predictable alternative to Thunderbird.
   One folder each holds Inbox, Sent, Drafts, Trash, Junk and Archive, leading a collapsible tree with
   unread badges per folder, account and total. On-arrival rules combine several conditions (all fields at
   once; or From, To, Cc, any recipient, Subject, sender domain) with all-or-any matching and a per-condition
-  match-case switch, then mark read, flag, move to a folder of your choice or delete permanently. Delete permanently means exactly that: expunged on the server,
+  match-case switch, then mark read, flag, move to a folder of your choice or delete permanently. A rule
+  runs on every account unless you limit it to the ones you pick. Delete permanently means exactly that: expunged on the server,
   never sent to Trash and never cached, so there is nothing left to tidy up. Rules run on the Inbox and
   only on mail arriving after the rule exists, so adding one never reaches back over the mail you have.
 - **Read**: an optional reading pane (mark-on-view, F8 toggle) whose attachments stay pinned at the

@@ -35,6 +35,10 @@ func (s *Store) ListRules(ctx context.Context) ([]domain.Rule, error) {
 	if err != nil {
 		return nil, err
 	}
+	accounts, err := s.listRuleAccounts(ctx)
+	if err != nil {
+		return nil, err
+	}
 	out := make([]domain.Rule, 0, len(rows))
 	for _, row := range rows {
 		rule, err := domain.NewRule(domain.RuleSpec{
@@ -44,6 +48,7 @@ func (s *Store) ListRules(ctx context.Context) ([]domain.Rule, error) {
 			Position:       row.position,
 			MatchMode:      row.matchMode,
 			StopProcessing: row.stopProcessing,
+			AccountIDs:     accounts[row.id],
 			Conditions:     conditions[row.id],
 			Actions:        actions[row.id],
 		})
@@ -131,6 +136,24 @@ func (s *Store) listRuleActions(ctx context.Context) (map[string][]domain.RuleAc
 	return groupByRule(rows), nil
 }
 
+// listRuleAccounts returns the accounts each rule is limited to, keyed by rule id. A rule absent from
+// the map names no account, which means every account.
+func (s *Store) listRuleAccounts(ctx context.Context) (map[string][]string, error) {
+	rows, err := queryRows(ctx, s.db, "rule accounts",
+		"SELECT rule_id, account_id FROM rule_account ORDER BY rule_id, account_id;",
+		func(row scanner) (ruleChild[string], error) {
+			var ruleID, accountID string
+			if err := row.Scan(&ruleID, &accountID); err != nil {
+				return ruleChild[string]{}, fmt.Errorf("scan rule account: %w", err)
+			}
+			return ruleChild[string]{ruleID: ruleID, value: accountID}, nil
+		})
+	if err != nil {
+		return nil, err
+	}
+	return groupByRule(rows), nil
+}
+
 // groupByRule collects child rows under their rule id, preserving the query's order.
 func groupByRule[T any](rows []ruleChild[T]) map[string][]T {
 	out := make(map[string][]T)
@@ -140,8 +163,8 @@ func groupByRule[T any](rows []ruleChild[T]) map[string][]T {
 	return out
 }
 
-// SaveRule inserts or updates a rule with its conditions and actions in one transaction, so a rule can
-// never be left holding a half-written set of either. The children are replaced outright rather than
+// SaveRule inserts or updates a rule with its conditions, actions and account scope in one transaction,
+// so a rule can never be left holding a half-written set of any of them. The children are replaced outright rather than
 // merged, because their positions define the stored order.
 func (s *Store) SaveRule(ctx context.Context, rule domain.Rule) error {
 	return s.inTx(ctx, func(tx *sql.Tx) error {
@@ -167,6 +190,13 @@ func (s *Store) SaveRule(ctx context.Context, rule domain.Rule) error {
 				return fmt.Errorf("save condition %d of rule %q: %w", i, rule.ID(), err)
 			}
 		}
+		for _, accountID := range rule.AccountIDs() {
+			if _, err := tx.ExecContext(ctx,
+				"INSERT INTO rule_account (rule_id, account_id) VALUES (?, ?);",
+				rule.ID(), accountID); err != nil {
+				return fmt.Errorf("save account scope of rule %q: %w", rule.ID(), err)
+			}
+		}
 		for i, a := range rule.Actions() {
 			if _, err := tx.ExecContext(ctx,
 				`INSERT INTO rule_action (rule_id, position, kind, folder_id) VALUES (?, ?, ?, ?);`,
@@ -178,7 +208,7 @@ func (s *Store) SaveRule(ctx context.Context, rule domain.Rule) error {
 	})
 }
 
-// DeleteRule removes a rule and its conditions and actions in one transaction.
+// DeleteRule removes a rule with its conditions, actions and account scope in one transaction.
 func (s *Store) DeleteRule(ctx context.Context, id string) error {
 	return s.inTx(ctx, func(tx *sql.Tx) error {
 		if err := deleteRuleChildren(ctx, tx, id); err != nil {
@@ -191,13 +221,16 @@ func (s *Store) DeleteRule(ctx context.Context, id string) error {
 	})
 }
 
-// deleteRuleChildren clears one rule's conditions and actions.
+// deleteRuleChildren clears one rule's conditions, actions and account scope.
 func deleteRuleChildren(ctx context.Context, tx *sql.Tx, ruleID string) error {
 	if _, err := tx.ExecContext(ctx, "DELETE FROM rule_condition WHERE rule_id = ?;", ruleID); err != nil {
 		return fmt.Errorf("clear conditions of rule %q: %w", ruleID, err)
 	}
 	if _, err := tx.ExecContext(ctx, "DELETE FROM rule_action WHERE rule_id = ?;", ruleID); err != nil {
 		return fmt.Errorf("clear actions of rule %q: %w", ruleID, err)
+	}
+	if _, err := tx.ExecContext(ctx, "DELETE FROM rule_account WHERE rule_id = ?;", ruleID); err != nil {
+		return fmt.Errorf("clear account scope of rule %q: %w", ruleID, err)
 	}
 	return nil
 }

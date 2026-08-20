@@ -157,7 +157,10 @@ export const SEARCH_MATCH_END = '\u0002'
 export type AboutInfo = main.AboutDTO
 export type UpdateStatus = main.UpdateStatusDTO
 export type Tag = main.TagDTO
-export type Rule = main.RuleDTO
+// Rule drops the generated convertValues helper, the same way Message and MessageBody do: the rule
+// editor builds and edits rules as plain object literals; Wails hands back plain JSON at runtime
+// anyway. The nested condition and action DTOs carry no helper of their own.
+export type Rule = Omit<main.RuleDTO, 'convertValues'>
 export type RuleCondition = main.RuleConditionDTO
 export type RuleAction = main.RuleActionDTO
 export type Template = main.TemplateDTO

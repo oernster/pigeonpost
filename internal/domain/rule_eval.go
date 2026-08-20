@@ -79,17 +79,15 @@ func evaluateOne(m MessageSummary, ordered []Rule) RuleOutcome {
 	return outcome
 }
 
-// ApplyRuleFlags returns copies of the messages with only the rules' flag actions applied, ignoring
-// every side-effecting action. It is the pure path for callers that are not in a position to talk to
-// the server; it is stable across repeated application because setting a flag twice is a no-op.
-func ApplyRuleFlags(messages []MessageSummary, rules []Rule) []MessageSummary {
-	if len(rules) == 0 {
-		return messages
-	}
-	outcomes := EvaluateRules(messages, rules)
-	out := make([]MessageSummary, len(outcomes))
-	for i, o := range outcomes {
-		out[i] = o.Message
+// RulesForAccount returns the rules that cover the given account, in the caller's order. The sync
+// narrows the rule set with this before evaluating, so an account-scoped rule cannot reach mail
+// arriving anywhere else.
+func RulesForAccount(rules []Rule, accountID string) []Rule {
+	out := make([]Rule, 0, len(rules))
+	for _, r := range rules {
+		if r.AppliesTo(accountID) {
+			out = append(out, r)
+		}
 	}
 	return out
 }

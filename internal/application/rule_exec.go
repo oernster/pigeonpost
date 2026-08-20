@@ -29,8 +29,9 @@ func NewRuleExecutor(store MailStore, remote MailActions) *RuleExecutor {
 // returns the messages that should be saved locally: previously known messages untouched, arrivals with
 // their flag actions applied, minus both the destroyed and the successfully moved.
 //
-// Rules act only on arrivals (a message id the local store does not already hold), so adding a rule
-// never reaches back over mail already in the mailbox. Destructive actions (move, destroy) are further
+// Only the rules covering this account are considered: a rule scoped to one address never sees mail
+// arriving on another. Rules act only on arrivals (a message id the local store does not already
+// hold), so adding a rule never reaches back over mail already in the mailbox. Destructive actions (move, destroy) are further
 // held back on the first sight of a folder, when nothing is known locally and every message would
 // otherwise look like an arrival: that first pass establishes the baseline and only sets flags. A batch
 // the server refuses leaves its messages in place and contributes an error, so a partial failure is
@@ -38,6 +39,12 @@ func NewRuleExecutor(store MailStore, remote MailActions) *RuleExecutor {
 func (e *RuleExecutor) Apply(ctx context.Context, account domain.Account, folder domain.Folder,
 	fetched []domain.MessageSummary, known map[string]struct{}, rules []domain.Rule) ([]domain.MessageSummary, error) {
 	if len(rules) == 0 || len(fetched) == 0 {
+		return fetched, nil
+	}
+	// Narrow to the rules that cover this account before anything else, so an account-scoped rule
+	// cannot reach mail arriving on another address.
+	rules = domain.RulesForAccount(rules, account.ID())
+	if len(rules) == 0 {
 		return fetched, nil
 	}
 	arrivals, arrivalAt := splitArrivals(fetched, known)

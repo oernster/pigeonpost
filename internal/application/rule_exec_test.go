@@ -41,6 +41,23 @@ func execRule(t *testing.T, id, match string, actions ...domain.RuleAction) doma
 	return rule
 }
 
+// execScopedRule is execRule limited to the named accounts.
+func execScopedRule(t *testing.T, id, match string, accountIDs []string, actions ...domain.RuleAction) domain.Rule {
+	t.Helper()
+	cond, err := domain.NewRuleCondition(domain.RuleFieldFrom, domain.RuleOpContains, match)
+	if err != nil {
+		t.Fatalf("condition: %v", err)
+	}
+	rule, err := domain.NewRule(domain.RuleSpec{
+		ID: id, Name: id, Enabled: true, AccountIDs: accountIDs,
+		Conditions: []domain.RuleCondition{cond}, Actions: actions,
+	})
+	if err != nil {
+		t.Fatalf("rule: %v", err)
+	}
+	return rule
+}
+
 // execAction builds a rule action for the executor tests.
 func execAction(t *testing.T, kind domain.RuleActionKind, folderID string) domain.RuleAction {
 	t.Helper()
@@ -278,5 +295,55 @@ func TestRuleExecutorNoWork(t *testing.T) {
 	}
 	if len(remote.deleteManyBatches) != 0 {
 		t.Errorf("the server was touched with nothing to do: %v", remote.deleteManyBatches)
+	}
+}
+
+// TestRuleExecutorHonoursAccountScope is the guard that a rule limited to one address cannot reach mail
+// arriving on another: the same junk message is destroyed on the account the rule names and left alone
+// on the one it does not.
+func TestRuleExecutorHonoursAccountScope(t *testing.T) {
+	inbox := testFolder(t, "f1", "a1", "INBOX")
+	rules := []domain.Rule{
+		execScopedRule(t, "nuke", "bad.com", []string{"a1"}, execAction(t, domain.RuleDestroy, "")),
+	}
+	cases := map[string]struct {
+		account   string
+		destroyed bool
+	}{
+		"account the rule names":         {"a1", true},
+		"account the rule does not name": {"a2", false},
+	}
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			exec, _, remote := execFixture(t)
+			saved, err := exec.Apply(context.Background(), testAccount(t, c.account), inbox,
+				[]domain.MessageSummary{execMessage(t, "m2", "22", "spam@bad.com")}, primed("m0"), rules)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if got := len(remote.deleteManyBatches) > 0; got != c.destroyed {
+				t.Errorf("destroyed = %v, want %v", got, c.destroyed)
+			}
+			if want := 0; c.destroyed && len(saved) != want {
+				t.Errorf("saved %d messages, want %d", len(saved), want)
+			}
+			if want := 1; !c.destroyed && len(saved) != want {
+				t.Errorf("saved %d messages, want %d", len(saved), want)
+			}
+		})
+	}
+}
+
+// TestRuleExecutorUnscopedRuleCoversEveryAccount pins the other half: a rule naming no account still
+// runs on an account it was never told about.
+func TestRuleExecutorUnscopedRuleCoversEveryAccount(t *testing.T) {
+	exec, _, remote := execFixture(t)
+	rules := []domain.Rule{execRule(t, "nuke", "bad.com", execAction(t, domain.RuleDestroy, ""))}
+	if _, err := exec.Apply(context.Background(), testAccount(t, "a9"), testFolder(t, "f1", "a9", "INBOX"),
+		[]domain.MessageSummary{execMessage(t, "m2", "22", "spam@bad.com")}, primed("m0"), rules); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(remote.deleteManyBatches) != 1 {
+		t.Errorf("an unscoped rule did not run on an unnamed account: %v", remote.deleteManyBatches)
 	}
 }

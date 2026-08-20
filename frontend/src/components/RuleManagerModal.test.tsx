@@ -25,7 +25,10 @@ vi.mock('../api', () => ({
     },
 }))
 
-const accounts = [{id: 'a1', displayName: 'Personal'}] as Account[]
+const accounts = [
+    {id: 'a1', displayName: 'Personal'},
+    {id: 'a2', displayName: 'Work'},
+] as Account[]
 
 // buildRule is a complete, saveable rule the tests then vary.
 function buildRule(overrides: Partial<Rule> = {}): Rule {
@@ -36,6 +39,7 @@ function buildRule(overrides: Partial<Rule> = {}): Rule {
         position: 0,
         matchMode: 'all',
         stopProcessing: false,
+        accountIds: [],
         conditions: [{field: 'from', operator: 'contains', text: 'news@', caseSensitive: false}],
         actions: [{kind: 'markRead', folderId: ''}],
         ...overrides,
@@ -52,9 +56,11 @@ function renderModal(rules: Rule[]) {
 describe('RuleManagerModal', () => {
     beforeEach(() => {
         vi.clearAllMocks()
-        apiSpies.listFolders.mockResolvedValue([
-            {id: 'f2', accountId: 'a1', path: 'Receipts', name: 'Receipts', kind: 'custom', unread: 0, total: 0},
-        ])
+        apiSpies.listFolders.mockImplementation(async (accountId: string) =>
+            accountId === 'a1'
+                ? [{id: 'f2', accountId: 'a1', path: 'Receipts', name: 'Receipts', kind: 'custom', unread: 0, total: 0}]
+                : [{id: 'f9', accountId: 'a2', path: 'Filed', name: 'Filed', kind: 'custom', unread: 0, total: 0}],
+        )
         apiSpies.saveRule.mockResolvedValue(undefined)
         apiSpies.deleteRule.mockResolvedValue(undefined)
         apiSpies.reorderRules.mockResolvedValue(undefined)
@@ -75,7 +81,7 @@ describe('RuleManagerModal', () => {
         await waitFor(() =>
             expect(
                 screen.getByText(
-                    'If Sender domain is "shop.com" or Subject contains "invoice" (match case), then mark as read, move to Personal / Receipts',
+                    'On any account, if Sender domain is "shop.com" or Subject contains "invoice" (match case), then mark as read, move to Personal / Receipts',
                 ),
             ).toBeTruthy(),
         )
@@ -205,5 +211,79 @@ describe('RuleManagerModal', () => {
         expect(apiSpies.deleteRule).not.toHaveBeenCalled()
         fireEvent.click(screen.getByRole('button', {name: 'Delete rule'}))
         await waitFor(() => expect(apiSpies.deleteRule).toHaveBeenCalledWith('r1'))
+    })
+})
+
+describe('RuleManagerModal account scope', () => {
+    beforeEach(() => {
+        vi.clearAllMocks()
+        apiSpies.listFolders.mockImplementation(async (accountId: string) =>
+            accountId === 'a1'
+                ? [{id: 'f2', accountId: 'a1', path: 'Receipts', name: 'Receipts', kind: 'custom', unread: 0, total: 0}]
+                : [{id: 'f9', accountId: 'a2', path: 'Filed', name: 'Filed', kind: 'custom', unread: 0, total: 0}],
+        )
+        apiSpies.saveRule.mockResolvedValue(undefined)
+    })
+    afterEach(cleanup)
+
+    it('starts a rule on every account and says so', () => {
+        renderModal([buildRule()])
+        fireEvent.click(screen.getByLabelText('Edit Newsletters'))
+        expect(screen.getByText('All accounts').getAttribute('aria-pressed')).toBe('true')
+        expect(screen.getByText('Every account, including any you add later')).toBeTruthy()
+    })
+
+    it('saves the accounts a rule is limited to', async () => {
+        renderModal([buildRule()])
+        fireEvent.click(screen.getByLabelText('Edit Newsletters'))
+        fireEvent.click(screen.getByText('Work'))
+        expect(screen.getByText('All accounts').getAttribute('aria-pressed')).toBe('false')
+
+        fireEvent.click(screen.getByText('Save rule'))
+        await waitFor(() => expect(apiSpies.saveRule).toHaveBeenCalledTimes(1))
+        expect(apiSpies.saveRule.mock.calls[0][0].accountIds).toEqual(['a2'])
+    })
+
+    it('widens back to every account when All accounts is picked', async () => {
+        renderModal([buildRule({accountIds: ['a1']})])
+        fireEvent.click(screen.getByLabelText('Edit Newsletters'))
+        fireEvent.click(screen.getByText('All accounts'))
+        fireEvent.click(screen.getByText('Save rule'))
+        await waitFor(() => expect(apiSpies.saveRule).toHaveBeenCalledTimes(1))
+        expect(apiSpies.saveRule.mock.calls[0][0].accountIds).toEqual([])
+    })
+
+    it('offers only folders the scoped rule can reach', async () => {
+        renderModal([buildRule()])
+        fireEvent.click(screen.getByLabelText('Edit Newsletters'))
+        await waitFor(() => expect(apiSpies.listFolders).toHaveBeenCalledTimes(2))
+        fireEvent.change(screen.getByLabelText('Action 1'), {target: {value: 'moveTo'}})
+
+        const options = () =>
+            [...(screen.getByLabelText('Destination 1') as HTMLSelectElement).options].map((o) => o.value)
+        expect(options()).toEqual(['', 'f2', 'f9'])
+
+        fireEvent.click(screen.getByText('Personal'))
+        expect(options()).toEqual(['', 'f2'])
+    })
+
+    // Narrowing the scope after choosing a destination would otherwise leave a move pointing at an
+    // account the rule can no longer see, which would silently do nothing on every sync.
+    it('clears a destination the narrowed scope can no longer reach', async () => {
+        renderModal([buildRule()])
+        fireEvent.click(screen.getByLabelText('Edit Newsletters'))
+        await waitFor(() => expect(apiSpies.listFolders).toHaveBeenCalledTimes(2))
+        fireEvent.change(screen.getByLabelText('Action 1'), {target: {value: 'moveTo'}})
+        fireEvent.change(screen.getByLabelText('Destination 1'), {target: {value: 'f9'}})
+        expect((screen.getByText('Save rule') as HTMLButtonElement).disabled).toBe(false)
+
+        fireEvent.click(screen.getByText('Personal'))
+        expect((screen.getByLabelText('Destination 1') as HTMLSelectElement).value).toBe('')
+        expect((screen.getByText('Save rule') as HTMLButtonElement).disabled).toBe(true)
+    })
+
+    it('names the scope in the rule summary', () => {
+        renderModal([buildRule({accountIds: ['a1', 'a2']})])
+        expect(screen.getByText(/^On Personal and Work, if From contains "news@"/)).toBeTruthy()
     })
 })

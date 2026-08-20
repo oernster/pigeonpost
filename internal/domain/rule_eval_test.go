@@ -121,20 +121,61 @@ func TestEvaluateRulesPerMessage(t *testing.T) {
 	}
 }
 
-func TestApplyRuleFlags(t *testing.T) {
-	m := ruleMessage(t, "Acme", "news@acme.com", "s")
-	// With no rules the input is handed straight back.
-	if got := ApplyRuleFlags([]MessageSummary{m}, nil); len(got) != 1 || got[0].IsRead() {
-		t.Errorf("no-rule path changed the messages")
+// TestRuleAppliesTo pins the scope rule that matters most: a rule naming no account covers every
+// account, including one added after the rule was written.
+func TestRuleAppliesTo(t *testing.T) {
+	action := []RuleAction{mustAction(t, RuleFlag, "")}
+	conditions := []RuleCondition{mustCondition(t, RuleFieldFrom, RuleOpContains, "a")}
+	unscoped := mustRule(t, RuleSpec{Enabled: true, Conditions: conditions, Actions: action})
+	scoped := mustRule(t, RuleSpec{
+		Enabled: true, AccountIDs: []string{"a1", "a3"}, Conditions: conditions, Actions: action,
+	})
+	if !unscoped.AppliesTo("anything") || !unscoped.AppliesTo("") {
+		t.Errorf("an unscoped rule must cover every account")
 	}
-	// Side-effecting actions are ignored: only the flag lands.
-	rules := []Rule{evalRule(t, "r", 0, "acme",
-		mustAction(t, RuleMarkRead, ""), mustAction(t, RuleMoveTo, "f2"))}
-	got := ApplyRuleFlags([]MessageSummary{m}, rules)
-	if !got[0].IsRead() {
-		t.Errorf("flag action did not apply")
+	if !scoped.AppliesTo("a1") || !scoped.AppliesTo("a3") {
+		t.Errorf("a scoped rule does not cover an account it names")
 	}
-	if got[0].FolderID() != m.FolderID() {
-		t.Errorf("the pure path moved a message")
+	if scoped.AppliesTo("a2") {
+		t.Errorf("a scoped rule covers an account it does not name")
+	}
+}
+
+func TestRuleAccountIDsCopied(t *testing.T) {
+	ids := []string{"a1"}
+	r := mustRule(t, RuleSpec{
+		Enabled: true, AccountIDs: ids,
+		Conditions: []RuleCondition{mustCondition(t, RuleFieldFrom, RuleOpContains, "a")},
+		Actions:    []RuleAction{mustAction(t, RuleFlag, "")},
+	})
+	ids[0] = "a2"
+	if r.AccountIDs()[0] != "a1" {
+		t.Errorf("rule shares its caller's account slice")
+	}
+	r.AccountIDs()[0] = "a2"
+	if r.AccountIDs()[0] != "a1" {
+		t.Errorf("AccountIDs() exposed the rule's own slice")
+	}
+}
+
+func TestRulesForAccount(t *testing.T) {
+	action := []RuleAction{mustAction(t, RuleFlag, "")}
+	conditions := []RuleCondition{mustCondition(t, RuleFieldFrom, RuleOpContains, "a")}
+	build := func(id string, accounts []string) Rule {
+		return mustRule(t, RuleSpec{
+			ID: id, Name: id, Enabled: true, AccountIDs: accounts,
+			Conditions: conditions, Actions: action,
+		})
+	}
+	rules := []Rule{build("all", nil), build("a1 only", []string{"a1"}), build("a2 only", []string{"a2"})}
+	got := RulesForAccount(rules, "a1")
+	if len(got) != 2 || got[0].ID() != "all" || got[1].ID() != "a1 only" {
+		t.Fatalf("got %d rules, want the unscoped one and the a1 one in order", len(got))
+	}
+	if len(RulesForAccount(rules, "a9")) != 1 {
+		t.Errorf("an account named by no rule should still get the unscoped ones")
+	}
+	if len(RulesForAccount(nil, "a1")) != 0 {
+		t.Errorf("no rules in, no rules out")
 	}
 }

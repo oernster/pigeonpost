@@ -28,14 +28,16 @@ type RuleActionDTO struct {
 // RuleDTO is the JSON-serialisable view of a filter rule, carried in both directions: the front end
 // lists rules as these and sends one back to save. An empty ID on a save means a new rule.
 type RuleDTO struct {
-	ID             string             `json:"id"`
-	Name           string             `json:"name"`
-	Enabled        bool               `json:"enabled"`
-	Position       int                `json:"position"`
-	MatchMode      string             `json:"matchMode"`
-	StopProcessing bool               `json:"stopProcessing"`
-	Conditions     []RuleConditionDTO `json:"conditions"`
-	Actions        []RuleActionDTO    `json:"actions"`
+	ID             string `json:"id"`
+	Name           string `json:"name"`
+	Enabled        bool   `json:"enabled"`
+	Position       int    `json:"position"`
+	MatchMode      string `json:"matchMode"`
+	StopProcessing bool   `json:"stopProcessing"`
+	// AccountIDs limits the rule to the named accounts; empty means every account.
+	AccountIDs []string           `json:"accountIds"`
+	Conditions []RuleConditionDTO `json:"conditions"`
+	Actions    []RuleActionDTO    `json:"actions"`
 }
 
 // ListRules returns all filter rules in evaluation order.
@@ -72,6 +74,7 @@ func (a *App) SaveRule(req RuleDTO) error {
 		Position:       req.Position,
 		MatchMode:      matchMode,
 		StopProcessing: req.StopProcessing,
+		AccountIDs:     req.AccountIDs,
 		Conditions:     conditions,
 		Actions:        actions,
 	})
@@ -103,7 +106,7 @@ func ruleToDTO(r domain.Rule) RuleDTO {
 	return RuleDTO{
 		ID: r.ID(), Name: r.Name(), Enabled: r.Enabled(), Position: r.Position(),
 		MatchMode: r.MatchMode().String(), StopProcessing: r.StopProcessing(),
-		Conditions: conditions, Actions: actions,
+		AccountIDs: r.AccountIDs(), Conditions: conditions, Actions: actions,
 	}
 }
 

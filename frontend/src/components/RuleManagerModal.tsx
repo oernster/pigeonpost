@@ -3,7 +3,7 @@ import {useBackdropDismiss} from './useBackdropDismiss'
 import {api, Account, Folder, Rule, RuleInput} from '../api'
 import {ModalClose} from './ModalClose'
 import {ConfirmDialog} from './ConfirmDialog'
-import {RuleEditor, FolderChoice} from './RuleEditor'
+import {RuleEditor, FolderChoice, AccountChoice} from './RuleEditor'
 import {destroys, emptyRule, isDestructive, ruleIsComplete, ruleSummary} from './ruleLabels'
 
 interface RuleManagerModalProps {
@@ -43,12 +43,23 @@ export function RuleManagerModal({accounts, rules, onChanged, onClose}: RuleMana
         }
     }, [accounts])
 
+    const accountName = (id: string) => accounts.find((a) => a.id === id)?.displayName ?? 'a removed account'
+
     // folderChoices labels each destination with its account, because a move names one concrete folder
     // and so only applies to mail arriving on that account.
-    const folderChoices = useMemo<FolderChoice[]>(() => {
-        const accountName = (id: string) => accounts.find((a) => a.id === id)?.displayName ?? 'Account'
-        return folders.map((f) => ({id: f.id, label: `${accountName(f.accountId)} / ${f.path}`}))
-    }, [accounts, folders])
+    const folderChoices = useMemo<FolderChoice[]>(
+        () => folders.map((f) => ({
+            id: f.id,
+            accountId: f.accountId,
+            label: `${accounts.find((a) => a.id === f.accountId)?.displayName ?? 'Account'} / ${f.path}`,
+        })),
+        [accounts, folders],
+    )
+
+    const accountChoices = useMemo<AccountChoice[]>(
+        () => accounts.map((a) => ({id: a.id, label: a.displayName})),
+        [accounts],
+    )
 
     const folderName = (folderId: string) =>
         folderChoices.find((f) => f.id === folderId)?.label ?? 'a folder'
@@ -110,7 +121,12 @@ export function RuleManagerModal({accounts, rules, onChanged, onClose}: RuleMana
                         <h2 className="modal-title">{draft.id === '' ? 'New rule' : 'Edit rule'}</h2>
                         <div className="modal-body">
                             {error && <div className="compose-error">{error}</div>}
-                            <RuleEditor rule={draft} folders={folderChoices} onChange={setDraft}/>
+                            <RuleEditor
+                                rule={draft}
+                                folders={folderChoices}
+                                accounts={accountChoices}
+                                onChange={setDraft}
+                            />
                         </div>
                         <div className="modal-actions spread">
                             <button className="btn" onClick={() => setDraft(null)}>Cancel</button>
@@ -162,7 +178,7 @@ export function RuleManagerModal({accounts, rules, onChanged, onClose}: RuleMana
                         ) : (
                             <ul className="list rule-list">
                                 {rules.map((r, index) => {
-                                    const summary = ruleSummary(r, folderName)
+                                    const summary = ruleSummary(r, folderName, accountName)
                                     return (
                                         <li key={r.id} className={`rule-row${r.enabled ? '' : ' off'}`}>
                                             <span className="rule-order">
