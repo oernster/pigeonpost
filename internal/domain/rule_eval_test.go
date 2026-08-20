@@ -179,3 +179,28 @@ func TestRulesForAccount(t *testing.T) {
 		t.Errorf("no rules in, no rules out")
 	}
 }
+
+func TestRuleWithPosition(t *testing.T) {
+	original := mustRule(t, RuleSpec{
+		ID: "r1", Name: "r1", Enabled: true, Position: 0, AccountIDs: []string{"a1"},
+		Conditions: []RuleCondition{mustCondition(t, RuleFieldFrom, RuleOpContains, "a")},
+		Actions:    []RuleAction{mustAction(t, RuleFlag, "")},
+	})
+	moved := original.WithPosition(7)
+	if moved.Position() != 7 {
+		t.Errorf("position not applied: %d", moved.Position())
+	}
+	if original.Position() != 0 {
+		t.Errorf("the original was mutated: %d", original.Position())
+	}
+	// Everything else rides along untouched.
+	if moved.ID() != "r1" || !moved.Enabled() || len(moved.Conditions()) != 1 || len(moved.Actions()) != 1 ||
+		len(moved.AccountIDs()) != 1 {
+		t.Errorf("copy lost part of the rule: %+v", moved)
+	}
+	// The copy owns its slices, so editing one cannot reach the other.
+	moved.AccountIDs()[0] = "a2"
+	if original.AccountIDs()[0] != "a1" {
+		t.Errorf("the copy shares the original's account slice")
+	}
+}

@@ -117,21 +117,7 @@ func (s *RuleService) Reorder(ctx context.Context, orderedIDs []string) error {
 		if !ok || rule.Position() == position {
 			continue
 		}
-		moved, err := domain.NewRule(domain.RuleSpec{
-			ID:             rule.ID(),
-			Name:           rule.Name(),
-			Enabled:        rule.Enabled(),
-			Position:       position,
-			MatchMode:      rule.MatchMode(),
-			StopProcessing: rule.StopProcessing(),
-			AccountIDs:     rule.AccountIDs(),
-			Conditions:     rule.Conditions(),
-			Actions:        rule.Actions(),
-		})
-		if err != nil {
-			return fmt.Errorf("rules: reorder %q: %w", id, err)
-		}
-		if err := s.rules.SaveRule(ctx, moved); err != nil {
+		if err := s.rules.SaveRule(ctx, rule.WithPosition(position)); err != nil {
 			return fmt.Errorf("rules: reorder save %q: %w", id, err)
 		}
 	}

@@ -177,6 +177,17 @@ func (r Rule) Conditions() []RuleCondition { return append([]RuleCondition(nil),
 // Actions returns a copy of the rule's actions.
 func (r Rule) Actions() []RuleAction { return append([]RuleAction(nil), r.actions...) }
 
+// WithPosition returns a copy of the rule at a new place in the evaluation order. Reordering cannot
+// make a valid rule invalid, so this is a copy method rather than a trip back through NewRule: the
+// constructor would force callers to handle an error that cannot happen.
+func (r Rule) WithPosition(position int) Rule {
+	r.position = position
+	r.accountIDs = append([]string(nil), r.accountIDs...)
+	r.conditions = append([]RuleCondition(nil), r.conditions...)
+	r.actions = append([]RuleAction(nil), r.actions...)
+	return r
+}
+
 // Destructive reports whether any of the rule's actions moves or destroys a message.
 func (r Rule) Destructive() bool {
 	for _, a := range r.actions {

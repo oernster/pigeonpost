@@ -454,3 +454,119 @@ func TestSyncAccountPop3PreserveFlagsError(t *testing.T) {
 		t.Errorf("error = %v, want wrapped boom", err)
 	}
 }
+
+// destroyRule is an enabled rule that expunges any message whose sender contains the given text.
+func destroyRule(t *testing.T, id, match string) domain.Rule {
+	t.Helper()
+	cond, err := domain.NewRuleCondition(domain.RuleFieldFrom, domain.RuleOpContains, match)
+	if err != nil {
+		t.Fatalf("condition: %v", err)
+	}
+	action, err := domain.NewRuleAction(domain.RuleDestroy, "")
+	if err != nil {
+		t.Fatalf("action: %v", err)
+	}
+	rule, err := domain.NewRule(domain.RuleSpec{
+		ID: id, Name: id, Enabled: true,
+		Conditions: []domain.RuleCondition{cond}, Actions: []domain.RuleAction{action},
+	})
+	if err != nil {
+		t.Fatalf("rule: %v", err)
+	}
+	return rule
+}
+
+// syncRuleFixture wires a sync whose rule executor talks to the given remote, over an inbox that
+// already holds one cached message (so arrivals are distinguishable and rules are not held back as
+// they are on a folder's first sight).
+func syncRuleFixture(t *testing.T, remote *fakeMailActions) (*fakeMailStore, *fakeMailSource, *fakeRuleStore, *SyncService) {
+	t.Helper()
+	accounts := newFakeAccountStore()
+	accounts.accounts["a1"] = testAccount(t, "a1")
+	mail := newFakeMailStore()
+	inbox := testFolder(t, "f1", "a1", "INBOX")
+	mail.folders["a1"] = []domain.Folder{inbox}
+	mail.messages["f1"] = []domain.MessageSummary{testMessage(t, "known", "f1")}
+	source := &fakeMailSource{folders: []domain.Folder{inbox}}
+	rules := &fakeRuleStore{}
+	svc := NewSyncService(accounts, mail, source, rules, &fakeTagSyncer{}, &fakeFlagSyncer{},
+		NewRuleExecutor(mail, remote))
+	return mail, source, rules, svc
+}
+
+// junkArrival is a message from a sender a destroy rule matches, with an id the store does not hold.
+func junkArrival(t *testing.T) domain.MessageSummary {
+	t.Helper()
+	from, err := domain.NewEmailAddress("", "spam@bad.example")
+	if err != nil {
+		t.Fatalf("address: %v", err)
+	}
+	msg, err := domain.NewMessageSummary(domain.MessageSummaryInput{
+		ID: "new", FolderID: "f1", UID: "9", From: from, Subject: "s", Size: 1, Flags: domain.NewFlags(0),
+	})
+	if err != nil {
+		t.Fatalf("message: %v", err)
+	}
+	return msg
+}
+
+// TestSyncReportsARuleThatCouldNotRun pins that a rule the server refused is reported rather than
+// swallowed, on both sync paths. The messages are still saved first, so a failed rule never costs mail.
+func TestSyncReportsARuleThatCouldNotRun(t *testing.T) {
+	cases := map[string]func(*SyncService) error{
+		"SyncAccount": func(svc *SyncService) error { return svc.SyncAccount(context.Background(), "a1") },
+		"SyncFolder":  func(svc *SyncService) error { return svc.SyncFolder(context.Background(), "f1") },
+	}
+	for name, run := range cases {
+		t.Run(name, func(t *testing.T) {
+			remote := &fakeMailActions{deleteManyErr: errBoom}
+			mail, source, rules, svc := syncRuleFixture(t, remote)
+			source.messagesByFolder = map[string][]domain.MessageSummary{"f1": {junkArrival(t)}}
+			rules.rules = []domain.Rule{destroyRule(t, "nuke", "bad.example")}
+
+			if err := run(svc); !errors.Is(err, errBoom) {
+				t.Errorf("error = %v, want the refused rule wrapped", err)
+			}
+			// The message the server would not delete is kept, not dropped.
+			if len(mail.messages["f1"]) != 1 {
+				t.Errorf("saved %d messages, want the arrival kept", len(mail.messages["f1"]))
+			}
+		})
+	}
+}
+
+// TestSyncRunsRulesOnTheInboxOnly pins the folder scope: a non-inbox folder is passed over untouched,
+// so a rule can never act on mail the user has already filed by hand.
+func TestSyncRunsRulesOnTheInboxOnly(t *testing.T) {
+	remote := &fakeMailActions{}
+	mail, source, rules, svc := syncRuleFixture(t, remote)
+	archive, err := domain.NewFolder("f2", "a1", "Archive", domain.FolderArchive, 0, 0)
+	if err != nil {
+		t.Fatalf("folder: %v", err)
+	}
+	mail.folders["a1"] = []domain.Folder{archive}
+	source.folders = []domain.Folder{archive}
+	source.messagesByFolder = map[string][]domain.MessageSummary{"f2": {junkArrival(t)}}
+	rules.rules = []domain.Rule{destroyRule(t, "nuke", "bad.example")}
+
+	if err := svc.SyncAccount(context.Background(), "a1"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(remote.deleteManyBatches) != 0 {
+		t.Errorf("a rule acted on a non-inbox folder: %v", remote.deleteManyBatches)
+	}
+}
+
+// TestSyncSurfacesAKnownIdReadFailure pins that a failure to read the folder's cached ids (the set that
+// separates an arrival from a message already seen) fails the sync rather than being treated as an
+// empty folder, which would make every message look like a new arrival.
+func TestSyncSurfacesAKnownIdReadFailure(t *testing.T) {
+	mail, source, rules, svc := syncRuleFixture(t, &fakeMailActions{})
+	source.messagesByFolder = map[string][]domain.MessageSummary{"f1": {junkArrival(t)}}
+	rules.rules = []domain.Rule{destroyRule(t, "nuke", "bad.example")}
+	mail.listMessagesErr = errBoom
+
+	if err := svc.SyncFolder(context.Background(), "f1"); !errors.Is(err, errBoom) {
+		t.Errorf("error = %v, want wrapped boom", err)
+	}
+}
