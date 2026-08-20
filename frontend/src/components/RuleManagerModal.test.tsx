@@ -25,9 +25,11 @@ vi.mock('../api', () => ({
     },
 }))
 
+// Both accounts share a display name on purpose: that is the ordinary case (they belong to the same
+// person) and it is what made display-name labelling useless. The address is the discriminator.
 const accounts = [
-    {id: 'a1', displayName: 'Personal'},
-    {id: 'a2', displayName: 'Work'},
+    {id: 'a1', displayName: 'Oliver Ernster', email: 'me@personal.example'},
+    {id: 'a2', displayName: 'Oliver Ernster', email: 'me@work.example'},
 ] as Account[]
 
 // buildRule is a complete, saveable rule the tests then vary.
@@ -81,7 +83,7 @@ describe('RuleManagerModal', () => {
         await waitFor(() =>
             expect(
                 screen.getByText(
-                    'On any account, if Sender domain is "shop.com" or Subject contains "invoice" (match case), then mark as read, move to Personal / Receipts',
+                    'On any account, if Sender domain is "shop.com" or Subject contains "invoice" (match case), then mark as read, move to me@personal.example / Receipts',
                 ),
             ).toBeTruthy(),
         )
@@ -236,7 +238,7 @@ describe('RuleManagerModal account scope', () => {
     it('saves the accounts a rule is limited to', async () => {
         renderModal([buildRule()])
         fireEvent.click(screen.getByLabelText('Edit Newsletters'))
-        fireEvent.click(screen.getByText('Work'))
+        fireEvent.click(screen.getByText('me@work.example'))
         expect(screen.getByText('All accounts').getAttribute('aria-pressed')).toBe('false')
 
         fireEvent.click(screen.getByText('Save rule'))
@@ -263,7 +265,7 @@ describe('RuleManagerModal account scope', () => {
             [...(screen.getByLabelText('Destination 1') as HTMLSelectElement).options].map((o) => o.value)
         expect(options()).toEqual(['', 'f2', 'f9'])
 
-        fireEvent.click(screen.getByText('Personal'))
+        fireEvent.click(screen.getByText('me@personal.example'))
         expect(options()).toEqual(['', 'f2'])
     })
 
@@ -277,13 +279,55 @@ describe('RuleManagerModal account scope', () => {
         fireEvent.change(screen.getByLabelText('Destination 1'), {target: {value: 'f9'}})
         expect((screen.getByText('Save rule') as HTMLButtonElement).disabled).toBe(false)
 
-        fireEvent.click(screen.getByText('Personal'))
+        fireEvent.click(screen.getByText('me@personal.example'))
         expect((screen.getByLabelText('Destination 1') as HTMLSelectElement).value).toBe('')
         expect((screen.getByText('Save rule') as HTMLButtonElement).disabled).toBe(true)
     })
 
     it('names the scope in the rule summary', () => {
         renderModal([buildRule({accountIds: ['a1', 'a2']})])
-        expect(screen.getByText(/^On Personal and Work, if From contains "news@"/)).toBeTruthy()
+        expect(
+            screen.getByText(/^On me@personal.example and me@work.example, if From contains "news@"/),
+        ).toBeTruthy()
+    })
+})
+
+// The chips, the move destinations and the summary must all name an account by something that tells
+// two accounts apart. Labelling by display name left four chips reading "Oliver Ernster".
+describe('RuleManagerModal account labelling', () => {
+    beforeEach(() => {
+        vi.clearAllMocks()
+        apiSpies.listFolders.mockImplementation(async (accountId: string) =>
+            accountId === 'a1'
+                ? [{id: 'f2', accountId: 'a1', path: 'Receipts', name: 'Receipts', kind: 'custom', unread: 0, total: 0}]
+                : [{id: 'f9', accountId: 'a2', path: 'Filed', name: 'Filed', kind: 'custom', unread: 0, total: 0}],
+        )
+    })
+    afterEach(cleanup)
+
+    it('names each account chip by its address, not the shared display name', () => {
+        renderModal([buildRule()])
+        fireEvent.click(screen.getByLabelText('Edit Newsletters'))
+        expect(screen.getByText('me@personal.example')).toBeTruthy()
+        expect(screen.getByText('me@work.example')).toBeTruthy()
+        expect(screen.queryByText('Oliver Ernster')).toBeNull()
+    })
+
+    it('names each move destination by its account address', async () => {
+        renderModal([buildRule()])
+        fireEvent.click(screen.getByLabelText('Edit Newsletters'))
+        await waitFor(() => expect(apiSpies.listFolders).toHaveBeenCalledTimes(2))
+        fireEvent.change(screen.getByLabelText('Action 1'), {target: {value: 'moveTo'}})
+        const labels = [...(screen.getByLabelText('Destination 1') as HTMLSelectElement).options].map((o) => o.text)
+        expect(labels).toEqual(['Choose a folder', 'me@personal.example / Receipts', 'me@work.example / Filed'])
+    })
+
+    it('falls back to the display name when an account has no address', () => {
+        const named = [{id: 'a1', displayName: 'Oliver Ernster', email: ''}] as Account[]
+        render(
+            <RuleManagerModal accounts={named} rules={[buildRule()]} onChanged={() => {}} onClose={() => {}}/>,
+        )
+        fireEvent.click(screen.getByLabelText('Edit Newsletters'))
+        expect(screen.getByText('Oliver Ernster')).toBeTruthy()
     })
 })

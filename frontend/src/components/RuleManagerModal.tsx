@@ -43,7 +43,17 @@ export function RuleManagerModal({accounts, rules, onChanged, onClose}: RuleMana
         }
     }, [accounts])
 
-    const accountName = (id: string) => accounts.find((a) => a.id === id)?.displayName ?? 'a removed account'
+    // An account is named by its address, not its display name: several accounts commonly share one
+    // display name (they are all the same person), which would leave every chip and every destination
+    // reading identically with nothing to choose between them. The address is what makes an account
+    // that account, so it is what the rules UI labels one with.
+    const accountName = (id: string) => {
+        const account = accounts.find((a) => a.id === id)
+        if (!account) {
+            return 'a removed account'
+        }
+        return account.email || account.displayName || 'an unnamed account'
+    }
 
     // folderChoices labels each destination with its account, because a move names one concrete folder
     // and so only applies to mail arriving on that account.
@@ -51,13 +61,14 @@ export function RuleManagerModal({accounts, rules, onChanged, onClose}: RuleMana
         () => folders.map((f) => ({
             id: f.id,
             accountId: f.accountId,
-            label: `${accounts.find((a) => a.id === f.accountId)?.displayName ?? 'Account'} / ${f.path}`,
+            label: `${accountName(f.accountId)} / ${f.path}`,
         })),
+        // eslint-disable-next-line react-hooks/exhaustive-deps
         [accounts, folders],
     )
 
     const accountChoices = useMemo<AccountChoice[]>(
-        () => accounts.map((a) => ({id: a.id, label: a.displayName})),
+        () => accounts.map((a) => ({id: a.id, label: a.email || a.displayName || a.id})),
         [accounts],
     )
 
