@@ -5,6 +5,7 @@ import {
     EMPTY_CONDITION,
     FIELD_LABELS,
     OPERATOR_LABELS,
+    scopeOf,
 } from './ruleLabels'
 
 // FolderChoice is one destination a move action can name: a concrete folder in one account, labelled
@@ -48,12 +49,13 @@ export function RuleEditor({rule, folders, accounts, onChange}: RuleEditorProps)
     const setConditions = (conditions: RuleCondition[]) => onChange({...rule, conditions} as Rule)
     const setActions = (actions: RuleAction[]) => onChange({...rule, actions} as Rule)
     const destroying = rule.actions.some((a) => a.kind === 'destroy')
+    const scope = scopeOf(rule)
 
     // A move names one concrete folder, so only folders the rule can actually reach are offered: an
     // account-scoped rule cannot move mail into an account it never sees.
-    const reachable = rule.accountIds.length === 0
+    const reachable = scope.length === 0
         ? folders
-        : folders.filter((f) => rule.accountIds.includes(f.accountId))
+        : folders.filter((f) => scope.includes(f.accountId))
 
     // Narrowing the scope can strand a destination in an account the rule no longer covers, which would
     // leave a move that silently does nothing. Any such destination is cleared with the same edit, so
@@ -72,11 +74,7 @@ export function RuleEditor({rule, folders, accounts, onChange}: RuleEditorProps)
     }
 
     const toggleAccount = (id: string) =>
-        setAccountIds(
-            rule.accountIds.includes(id)
-                ? rule.accountIds.filter((a) => a !== id)
-                : [...rule.accountIds, id],
-        )
+        setAccountIds(scope.includes(id) ? scope.filter((a) => a !== id) : [...scope, id])
 
     return (
         <div className="rule-editor">
@@ -96,15 +94,15 @@ export function RuleEditor({rule, folders, accounts, onChange}: RuleEditorProps)
                 <div className="rule-section-head">
                     <h3 className="rule-section-title">Applies to</h3>
                     <span className="rule-hint">
-                        {rule.accountIds.length === 0
+                        {scope.length === 0
                             ? 'Every account, including any you add later'
-                            : `${rule.accountIds.length} of ${accounts.length} accounts`}
+                            : `${scope.length} of ${accounts.length} accounts`}
                     </span>
                 </div>
                 <div className="rule-accounts">
                     <button
-                        className={`rule-chip${rule.accountIds.length === 0 ? ' on' : ''}`}
-                        aria-pressed={rule.accountIds.length === 0}
+                        className={`rule-chip${scope.length === 0 ? ' on' : ''}`}
+                        aria-pressed={scope.length === 0}
                         onClick={() => setAccountIds([])}
                     >
                         All accounts
@@ -112,8 +110,8 @@ export function RuleEditor({rule, folders, accounts, onChange}: RuleEditorProps)
                     {accounts.map((a) => (
                         <button
                             key={a.id}
-                            className={`rule-chip${rule.accountIds.includes(a.id) ? ' on' : ''}`}
-                            aria-pressed={rule.accountIds.includes(a.id)}
+                            className={`rule-chip${scope.includes(a.id) ? ' on' : ''}`}
+                            aria-pressed={scope.includes(a.id)}
                             onClick={() => toggleAccount(a.id)}
                         >
                             {a.label}

@@ -521,7 +521,12 @@ export const api = {
     folderUIState: (accountId: string): Promise<FolderUIStateResult> => FolderUIState(accountId),
     saveFolderUIState: (accountId: string, order: string[], collapsed: string[]): Promise<void> =>
         SaveFolderUIState(accountId, order, collapsed),
-    listRules: (): Promise<Rule[]> => ListRules(),
+    // Rules are normalised on the way in: a Go nil slice crosses the wire as null; reading .length
+    // off it throws during render, which with no error boundary above the app blanks the whole window
+    // rather than one dialog. The back end sends arrays (see wireList in rulesapi.go); this is the
+    // second half of that guarantee, so an older build or a future nil cannot take the app down.
+    listRules: async (): Promise<Rule[]> =>
+        (await ListRules()).map((r) => ({...r, accountIds: r.accountIds ?? []})),
     saveRule: (req: RuleInput): Promise<void> => SaveRule(main.RuleDTO.createFrom(req)),
     deleteRule: (ruleId: string): Promise<void> => DeleteRule(ruleId),
     // reorderRules writes the evaluation order: the rule at index i takes position i.
