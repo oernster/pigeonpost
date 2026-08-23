@@ -1,2 +1,9 @@
+# Line endings are declared here rather than left to each machine's core.autocrlf, so a checkout is
+# the same on Windows, macOS and Linux. Every blob in this repository is already LF and so is every
+# working copy, so this changes no bytes; what it stops is git reporting a file as modified purely
+# because autocrlf would have written it back with CRLF. That noise ran to over a hundred files and
+# hid real changes among them.
+* text=auto eol=lf
+
 # Shell scripts run on macOS and Linux; keep them LF regardless of the Windows checkout.
 *.sh text eol=lf
