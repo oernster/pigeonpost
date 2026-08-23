@@ -79,7 +79,7 @@ documented here.
 | internal/infrastructure/remoteimage | ~92% | the SSRF guard and the resolver for parked images and parked CSS backgrounds against stub servers; the live-wired constructor excluded |
 | internal/infrastructure/csv | ~95% | Outlook CSV codec round-trip |
 | internal/infrastructure/caldav | ~82% | request and parse logic against a stub server; live-server edges and the live-wired writer factory excluded |
-| internal/infrastructure/storage | ~79% | logic and error paths covered, including keyset message pagination and the atomic tag-keyword and flag-pending sync writes; see exclusions |
+| internal/infrastructure/storage | ~79% | logic and error paths covered, including keyset message pagination, the atomic tag-keyword and flag-pending sync writes and the folder-baseline mark; see exclusions |
 | internal/infrastructure/pop3 | ~40% | response and UIDL parsing covered; the live dial and download excluded |
 | internal/installer | ~22% | extract and paths covered; Win32 side effects excluded |
 | internal/infrastructure/imap | ~27% | the source adapter's pure helpers; the wire-to-domain and HTML logic now lives in `mailparse`; live fetch/append plus the IDLE watcher are excluded |
@@ -126,6 +126,21 @@ documented here.
   that.
 - **A few defensive branches in storage** (a commit failing after a successful transaction, a driver
   read error mid-iteration): not reachably triggerable with a real SQLite file.
+
+## Migration tests
+
+A migration that backfills or rewrites data decides how an existing installation behaves the moment it
+updates, which a fresh database can never exercise: applied to an empty schema every backfill is a
+no-op and passes vacuously. Those steps are tested against a database built at the version the step
+upgrades FROM: apply `migrations[:n]` by hand, set `PRAGMA user_version = n`, write the old-shape rows,
+then `Open` the file so the real migration runs and assert on what comes back.
+
+`TestRuleMigrationCarriesLegacyRules` (a flat rule reads back as an equivalent one-condition rule) and
+`TestFolderBaselineMigrationMarksExistingFolders` (an existing folder comes out baselined, so the first
+sync after updating does not re-arm the destructive-rule exemption) are the two worked examples, each
+paired with a fresh-database counterpart proving the other side. The `n` in each is a fixed number with
+a comment saying so, never an offset from `schemaVersion`, so a later migration cannot quietly move the
+test off the step it exists to cover.
 
 ## Skippable live integration tests
 

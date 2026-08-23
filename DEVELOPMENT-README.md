@@ -191,6 +191,13 @@ For a plain `wails dev` or `wails build` on a Linux host instead of the flatpak,
 platform packages `wails doctor` lists (gcc, gtk3 and webkit2gtk development headers); on a distro
 that ships only webkit2gtk-4.1 (Ubuntu 24.04 and later), add `-tags webkit2_41`.
 
+## Line endings
+
+`.gitattributes` declares `* text=auto eol=lf`, so a checkout is LF on every platform regardless of the
+machine's `core.autocrlf`. Nothing needs configuring per machine. Leaving it to `core.autocrlf` on a
+Windows checkout had git reporting over a hundred Go files as modified with no content behind any of
+them, which buries a real change among the noise; `git diff` was empty while `git status` was not.
+
 ## Versioning
 
 The single source of truth for the version is the `VERSION` file at the repo root. The runtime reads
