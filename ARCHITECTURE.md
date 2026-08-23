@@ -276,6 +276,26 @@ mailbox from the cached folders and (through the `DraftSaver` port) renders the 
 Unlike a send, a draft may be incomplete (no recipients, empty body), so it is built with the lenient
 `NewDraftMessage`.
 
+Edit draft: opening a message that lives in a Drafts folder routes to the composer rather than the
+reader (double-click or Enter on the row, else the reader toolbar's Edit draft action, which
+replaces reply, reply-all and forward there). The front end fetches the stored body and rebuilds the compose
+fields from the draft itself through the gated pure `draftEdit` module: no signature is seeded and
+nothing is quoted, both being already in the saved text, so a reopen never duplicates them. The
+draft's own id rides the compose state as `draftId`; once the replacement has been sent or saved,
+that superseded Drafts copy is deleted permanently (routing every intermediate save through Trash
+would fill it with versions of one message) and a failed delete leaves a duplicate draft rather than
+losing anything. Two stated limits: Bcc does not round-trip, since a saved draft carries no Bcc
+header; and the route reads the selected account's folder list, so a draft row belonging to another
+account seen in the unified mailbox still opens in the reader.
+
+The compose window is movable by its title bar, so a long reply can be pushed aside to re-read the
+message underneath. The clamp geometry is the gated pure `modalDrag` module (a strip of the window
+always stays reachable at the sides and foot; the top edge never leaves the screen, because the
+header is the only handle); `useModalDrag` owns the pointer capture and applies the offset as a
+translation on top of the backdrop's flex centring, so every compose opens centred, the offset is
+re-clamped on a window resize and a closed window forgets where it was put. A press on a control
+sitting on the bar (the close cross) reaches that control rather than starting a drag.
+
 Compose discard guard: every discard path out of the compose window (backdrop click, Escape, the
 close cross, Cancel) routes through one guard in `ComposeModal`: a compose the user has actually
 edited (the autosave's dirty flag) that still holds content confirms "Discard message?" before

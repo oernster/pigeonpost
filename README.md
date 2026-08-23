@@ -50,7 +50,11 @@ local-first. A calmer, more predictable alternative to Thunderbird.
   progress cue.
 - **Compose**: TipTap rich text, To/Cc/Bcc, reply, reply-all and forward (Ctrl+R, Ctrl+Shift+R and
   Ctrl+L), file or message attachments
-  (25 MB), reusable message templates, per-account signatures and server Drafts. Typing in To, Cc
+  (25 MB), reusable message templates, per-account signatures and server Drafts. A saved draft
+  reopens for editing from the Drafts folder (double-click or Enter on it, else Edit draft in the
+  reader) exactly as it was saved; finishing it, by sending or saving again, replaces the stored
+  copy rather than leaving a stale one behind. The compose window can be dragged by its title bar
+  to uncover the message beneath it; it always opens centred. Typing in To, Cc
   or Bcc suggests matching addresses from your contacts (accept with Enter, Tab or a click); a
   suggestion just inserts text, so you can edit it freely afterwards; accepting with Enter or a
   click adds the separator too, so you can type the next address straight away. Typing a space after
