@@ -97,9 +97,11 @@ function renderReader(overrides: Partial<ReaderProps> = {}) {
         onToggleTag: vi.fn(),
         onSelectTab: vi.fn(),
         onCloseTab: vi.fn(),
+        onEditDraft: vi.fn(),
     }
     const props: ReaderProps = {
         message: makeMessage(),
+        isDraft: false,
         folders: [],
         canMoveCopy: false,
         autoLoadImages: false,
@@ -494,10 +496,10 @@ describe('Reader: reset on message change', () => {
         const handlers = {
             onToggleRead: vi.fn(), onReply: vi.fn(), onReplyAll: vi.fn(), onForward: vi.fn(),
             onDelete: vi.fn(), onCancelSend: vi.fn(), onMove: vi.fn(), onCopy: vi.fn(),
-            onToggleTag: vi.fn(), onSelectTab: vi.fn(), onCloseTab: vi.fn(),
+            onToggleTag: vi.fn(), onSelectTab: vi.fn(), onCloseTab: vi.fn(), onEditDraft: vi.fn(),
         }
         const base: ReaderProps = {
-            message: makeMessage({id: 'first'}), folders: [], canMoveCopy: false, autoLoadImages: false,
+            message: makeMessage({id: 'first'}), isDraft: false, folders: [], canMoveCopy: false, autoLoadImages: false,
             dark: false, tags: [], messageTags: [], body: makeBody(), bodyLoading: false, tabs: [], ...handlers,
         }
         const {rerender} = render(<Reader {...base}/>)

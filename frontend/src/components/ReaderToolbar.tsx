@@ -9,6 +9,10 @@ interface ReaderToolbarProps {
     onBack?: () => void
     // backButtonRef is owned by the reader (shared with its focus sink) and attached to the Back button here.
     backButtonRef: RefObject<HTMLButtonElement>
+    // isDraft marks a message held in the Drafts mailbox: it replaces reply, reply all and forward with a
+    // single Edit draft action, since answering or forwarding your own unsent message is never the intent.
+    isDraft: boolean
+    onEditDraft: (message: Message) => void
     onReply: (message: Message) => void
     onReplyAll: (message: Message) => void
     onForward: (message: Message) => void
@@ -23,13 +27,14 @@ interface ReaderToolbarProps {
     onToggleTag: (tagId: string, assigned: boolean) => void
 }
 
-// ReaderToolbar is the row of actions above a message: reply, reply all, forward, the read toggle, delete
-// and, when the account supports it, the move and copy destinations plus the colour-tag control. A queued
+// ReaderToolbar is the row of actions above a message: reply, reply all, forward (Edit draft instead, for
+// a message still in the Drafts mailbox), the read toggle and delete, plus, when the account supports
+// them, the move and copy destinations and the colour-tag control. A queued
 // outbox message shows only Cancel send. The optional Back button (full-width reader) carries the reader's
 // shared focus ref.
 export function ReaderToolbar({
-    message, outbox, onBack, backButtonRef, onReply, onReplyAll, onForward, onToggleRead, onDelete,
-    onCancelSend, folders, canMoveCopy, onMove, onCopy, messageTags, onToggleTag,
+    message, outbox, onBack, backButtonRef, isDraft, onEditDraft, onReply, onReplyAll, onForward, onToggleRead,
+    onDelete, onCancelSend, folders, canMoveCopy, onMove, onCopy, messageTags, onToggleTag,
 }: ReaderToolbarProps) {
     return (
         <div className="reader-toolbar">
@@ -40,11 +45,17 @@ export function ReaderToolbar({
                 </button>
             ) : (
                 <>
-                    <button className="btn" onClick={() => onReply(message)}>Reply</button>
-                    {((message.to?.length || 0) + (message.cc?.length || 0)) > 0 && (
-                        <button className="btn" onClick={() => onReplyAll(message)}>Reply all</button>
+                    {isDraft ? (
+                        <button className="btn primary" onClick={() => onEditDraft(message)}>Edit draft</button>
+                    ) : (
+                        <>
+                            <button className="btn" onClick={() => onReply(message)}>Reply</button>
+                            {((message.to?.length || 0) + (message.cc?.length || 0)) > 0 && (
+                                <button className="btn" onClick={() => onReplyAll(message)}>Reply all</button>
+                            )}
+                            <button className="btn" onClick={() => onForward(message)}>Forward</button>
+                        </>
                     )}
-                    <button className="btn" onClick={() => onForward(message)}>Forward</button>
                     <button className="btn" onClick={() => onToggleRead(message)}>
                         {message.read ? 'Mark as unread' : 'Mark as read'}
                     </button>

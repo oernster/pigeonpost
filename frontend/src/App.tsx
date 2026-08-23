@@ -106,7 +106,7 @@ function App() {
     const [error, setError] = useState<string>('')
     // The folder list, the selected folder, the folder create/rename/delete/reparent flow and the
     // selected-folder ref live in useFolders. loadFolderMessages and selectFolder stay in App (below): they
-    // coordinate folder navigation with the outbox view, and selectFolder's Outbox branch reads the queue.
+    // coordinate folder navigation with the outbox view; selectFolder's Outbox branch reads the queue.
     const {
         folders, setFolders, selectedFolder, setSelectedFolder, selectedFolderRef,
         selectedAccountRef, applyFolders,
@@ -122,7 +122,7 @@ function App() {
     } = useOutbox({selectedAccount, folders, setError})
     // The account list, the add/edit/remove dialog state and the load/remove operations live in
     // useAccounts. selectAccount and the auto-select effect stay in App (below): account selection cascades
-    // into the folders, the store, the selection and the reader, and it needs loadFolderMessages.
+    // into the folders, the store, the selection and the reader; it also needs loadFolderMessages.
     const {
         accounts, settingUp, setSettingUp, accountToEdit, setAccountToEdit,
         accountToDelete, setAccountToDelete, deleting,
@@ -201,7 +201,7 @@ function App() {
         attachPickerOpen, setAttachPickerOpen,
         recovery, setRecovery,
         signatureHtml,
-        openReply, openReplyAll, openForward,
+        openDraft, openReply, openReplyAll, openForward,
         attachToNewMessage, attachFiles, attachEmails,
         restoreDraft, discardDraft,
     } = useComposeLauncher({accounts, selectedAccount, setSelectedAccount, messageBody, setError})
@@ -377,7 +377,7 @@ function App() {
     // completed actions through undoRedo.recorder.
     const undoRedo = useUndoRedo({store, loadUnread, refreshFolders, setError})
 
-    // The colour-tag palette, the selected message's tags, and the tag-toggle handlers (on the open message
+    // The colour-tag palette, the selected message's tags and the tag-toggle handlers (on the open message
     // and on any message via the context menu) live in useTags.
     const {tags, messageTags, toggleTag, setMessageTagById} = useTags({store, setError, undo: undoRedo.recorder})
 
@@ -402,7 +402,7 @@ function App() {
 
     // undoToast is the live undo-send window: the queued item to cancel, when the window ends and the
     // compose state to restore on undo. One send at a time: a new held send replaces the toast (the
-    // previous message's window keeps running in the backend, it just loses its button, and the Outbox
+    // previous message's window keeps running in the backend, it just loses its button; the Outbox
     // folder still offers Cancel send).
     const millisecondsPerSecond = 1000
     const [undoToast, setUndoToast] = useState<{outboxId: string; expiresAt: number; reopen: ComposeInitial} | null>(null)
@@ -758,7 +758,7 @@ function App() {
     }, [accounts, selectedAccount, selectAccount])
 
     // Keep the Outbox view live while it is open: re-map the rows when the queue changes, drop a
-    // selection whose item was cancelled or sent, and fall back to the inbox once the queue is empty
+    // selection whose item was cancelled or sent, then fall back to the inbox once the queue is empty
     // (the synthetic folder then disappears from the sidebar).
     useEffect(() => {
         if (selectedFolder !== OUTBOX_FOLDER_ID) {
@@ -784,7 +784,7 @@ function App() {
     }, [outboxForAccount, selectedFolder, folders, loadFolderMessages])
 
     // The backend scheduler announces resurfaced snoozes, so the badges and the open view (the inbox a
-    // message returns to, or the Snoozed view it leaves) refresh the moment it comes back.
+    // message returns to, else the Snoozed view it leaves) refresh the moment it comes back.
     useEffect(() => EventsOn('snooze:changed', () => {
         void refreshSnoozedCount()
         void loadUnread()
@@ -837,7 +837,7 @@ function App() {
     }, [loadAccounts, selectAccount])
 
     // A saved account syncs straight away, so adding an account is the whole switch: the first-run user
-    // never has to discover the Sync control to see their mail, and an edited account picks up its
+    // never has to discover the Sync control to see their mail; an edited account picks up its
     // changed server settings immediately.
     useEffect(() => {
         if (syncAfterSave && selectedAccount === syncAfterSave) {
@@ -851,7 +851,7 @@ function App() {
     // activateRow applies the standard list-selection gestures to a row click. A plain click selects the
     // one row and opens it; Ctrl (or Cmd) click toggles the row in or out of the selection; Shift click
     // selects the contiguous range from the anchor. The clicked row always becomes the active one shown in
-    // the reader, and a Shift range keeps the existing anchor so successive Shift clicks re-range from it.
+    // the reader; a Shift range keeps the existing anchor so successive Shift clicks re-range from it.
     const activateRow = useCallback((message: Message, mods: {ctrl: boolean; shift: boolean}) => {
         const list = searchActive ? searchResults : displayMessages
         if (mods.shift && anchorId) {
@@ -963,7 +963,7 @@ function App() {
     // reports every outcome.
     const {updateStatus, setUpdateStatus, checkUpdates, skipUpdate} = useUpdateCheck()
 
-    // The backend-event wiring (the Windows tray menu and app:close-request, an OS-handed .eml, and the poll
+    // The backend-event wiring (the Windows tray menu and app:close-request, an OS-handed .eml plus the poll
     // events that refresh the unread counts and the open folder or the calendar) plus the Windows platform
     // detect live in useAppEvents. It owns launchedEmail, isWindows and closeChoice, which App's render feeds
     // to the EmailViewer, the Mail menu and the CloseChoice dialog.
@@ -989,7 +989,7 @@ function App() {
     // The message-level half of Edit > Cut / Copy / Paste: cut or copy takes the selected messages
     // onto an internal clipboard and paste files them into the folder being viewed (a cut moves
     // optimistically, so the rows appear at once and the server settles behind them; a copy
-    // duplicates). pasteFolderId is the paste target: the open folder, or '' in the views that are
+    // duplicates). pasteFolderId is the paste target: the open folder, else '' in the views that are
     // not one real folder (the outbox, the unified mailbox and Snoozed), which disables the paste.
     const messageClipboard = useMessageClipboard({
         store, selectedFolderId: selectedFolder, undo: undoRedo.recorder, loadUnread, refreshFolders, setError,
@@ -1005,7 +1005,7 @@ function App() {
         }
     }, [messageClipboard, pasteFolderId])
 
-    // A message shown in the reader (the preview pane, or the full-width reader when the pane is off)
+    // A message shown in the reader (the preview pane or the full-width reader when the pane is off)
     // counts as read, so viewing or double-clicking a message un-bolds it. Auto-read fires once per
     // selection, keyed by message id: without this guard, explicitly marking the open message unread
     // re-runs this effect (its read flag changed) and immediately re-reads it. The id is unchanged on
@@ -1024,6 +1024,25 @@ function App() {
         }
     }, [selectedMessage, previewEnabled, readingFull, popoutOpen, markReadOnView])
 
+    // A message in the Drafts mailbox is unfinished work rather than correspondence, so it opens in the
+    // composer instead of the reader. The folder kind is the test, so it holds for a draft reached from a
+    // search result as well as from the Drafts folder itself. It reads the loaded folder list, which is the
+    // selected account's, so a draft row belonging to another account in the unified mailbox is not
+    // recognised as one; that row still opens in the reader, exactly as it did before.
+    const isDraftMessage = (message: Message): boolean =>
+        folders.some((f) => f.id === message.folderId && f.kind === 'drafts')
+
+    // openMessageRow is what opening a row does, from a double-click or from Enter. A message in the Drafts
+    // mailbox is unfinished work rather than correspondence, so it opens in the composer; everything else
+    // opens in the popout reader as before.
+    const openMessageRow = (message: Message) => {
+        if (isDraftMessage(message)) {
+            void openDraft(message)
+            return
+        }
+        openPopout(message)
+    }
+
     // The window keydown handler for the message list and the main-window focus ring lives in
     // useMessageListKeyboard. It reads the current view and its selection, every overlay state (list
     // handling is suppressed while any is open) and the handlers a key fires (open, delete, folder delete).
@@ -1033,7 +1052,7 @@ function App() {
         splashVisible, composing, settingUp, accountToEdit, managingRules, managingTemplates, managingContacts, managingCalendar,
         about, licence, folderPrompt, messageToCancelSend, messageToDelete, accountToDelete, folderToDelete,
         messageToPurge, contextMenu, folderContextMenu, bulkToDelete, bulkToPurge, snoozePickerFor, folders,
-        requestDelete, openMessage: openPopout,
+        requestDelete, openMessage: openMessageRow,
         onCutMessages: messageClipboard.cutMessages,
         onCopyMessages: messageClipboard.copyMessages,
         onPasteMessages: pasteMessages,
@@ -1057,6 +1076,16 @@ function App() {
         const owner = accounts.find((a) => a.id === (message?.accountId || selectedAccount))
         return owner?.protocol === 'pop3'
     }
+    // supersedeDraft drops the stored draft a compose window was reopened from, once its replacement has
+    // been sent or saved. The row goes at once, then the copy itself. The delete is permanent by design: the
+    // copy is stale the moment its replacement exists and routing every intermediate save through Trash
+    // would fill it with versions of one message. A failed delete is swallowed, so the worst case is a
+    // duplicate draft rather than a lost message.
+    const supersedeDraft = (id: string) => {
+        store.removeFromAllLists(new Set([id]))
+        void api.deleteMessagePermanent(id).then(() => refreshFolders()).catch(() => {})
+    }
+
     // accountDots colours each account for the unified list's per-account row dot, by sidebar order.
     const accountDots = useMemo(() => accountChips(accounts), [accounts])
     // The composer sends from the account the launcher resolved (a reply to a unified row must send from
@@ -1064,8 +1093,8 @@ function App() {
     const composeAccountId = composeInitial?.accountId || selectedAccount
     const composeAccount = accounts.find((a) => a.id === composeAccountId)
 
-    // Derived selection: the visible list, the set of highlighted rows (the Ctrl/Shift selection, or just
-    // the active message when there is none), the messages any bulk action operates on, and whether more
+    // Derived selection: the visible list, the set of highlighted rows (the Ctrl/Shift selection, else just
+    // the active message when there is none), the messages any bulk action operates on and whether more
     // than one is selected. menuSelection is what a right-click menu acts on: the whole set when the
     // clicked row is within a multi-selection, otherwise just that row.
     const visibleList = searchActive ? searchResults : displayMessages
@@ -1088,7 +1117,7 @@ function App() {
     }, [visibleList])
 
     // Edit > Cut / Copy / Paste dispatch by context, text first: with a text selection (or a
-    // focused field for paste) they are the ordinary text commands, and the menus never steal
+    // focused field for paste) they are the ordinary text commands; the menus never steal
     // focus from a text field so that selection survives the click. Otherwise they act at the
     // message level through the message clipboard: cut or copy takes the selected email(s) and
     // paste files them into the open folder. Text paste reads the clipboard through the Wails
@@ -1121,7 +1150,7 @@ function App() {
     }
 
     // The message list and reader are extracted so the reading-pane layout can place them side by side
-    // (pane on) or swap between them (pane off: list, or the full-width reader when a message is opened).
+    // (pane on) or swap between them (pane off: the list, else the full-width reader when a message is opened).
     const messageListEl = (
         <MessageList
             messages={visibleList}
@@ -1147,7 +1176,7 @@ function App() {
             onClearSelection={clearSelection}
             onToggleFlag={(m) => void toggleFlag(m)}
             onContextMenu={openContextMenu}
-            onPopout={openPopout}
+            onPopout={openMessageRow}
             onLoadMore={() => void loadMoreMessages()}
         />
     )
@@ -1169,6 +1198,10 @@ function App() {
         onReply: openReply,
         onReplyAll: openReplyAll,
         onForward: openForward,
+        // A draft shows Edit draft in place of the reply and forward actions: answering your own unsent
+        // message is never what was meant.
+        isDraft: selectedMessage !== null && isDraftMessage(selectedMessage),
+        onEditDraft: (m: Message) => void openDraft(m),
         onDelete: (m: Message) => setMessageToDelete(m),
         onCancelSend: (m: Message) => setMessageToCancelSend(m),
         folders,
@@ -1214,7 +1247,7 @@ function App() {
         : false
     // The five menu-bar definitions and the keyboard accelerators that fire the same items from anywhere in
     // the window live in useMenus. It takes the derived gating flags (shared with the titlebar) plus every
-    // action handler, and returns the arrays the Menu components render. mailMoveTargets and the applied-tag
+    // action handler, then returns the arrays the Menu components render. mailMoveTargets and the applied-tag
     // set are computed inside it.
     const {fileMenu, editMenu, viewMenu, mailMenu, helpMenu} = useMenus({
         activeMessage, activeOutbox, canMailAct, canReplyAll, canMoveCopy, selectedAccount, accountSyncing,
@@ -1377,6 +1410,7 @@ function App() {
                     canSaveDraft={composeAccount?.protocol !== 'pop3'}
                     onMarkReplied={(id) => void markReplied(id)}
                     onMarkForwarded={(id) => void markForwarded(id)}
+                    onDraftSuperseded={supersedeDraft}
                     holdSeconds={undoSendSeconds}
                     onHeld={onHeldSend}
                     onClose={() => {
@@ -1456,7 +1490,7 @@ function App() {
                     title="Delete message"
                     message={messagePop3(messageToDelete)
                         ? `Delete "${messageToDelete.subject || '(no subject)'}"? POP3 has no Trash, so it is permanently removed from the server and cannot be recovered.`
-                        : `Delete "${messageToDelete.subject || '(no subject)'}"? It is moved to Trash, or deleted permanently if it is already in Trash or the account has no Trash folder.`}
+                        : `Delete "${messageToDelete.subject || '(no subject)'}"? It is moved to Trash; it is deleted permanently if it is already in Trash or the account has no Trash folder.`}
                     confirmLabel="Delete"
                     busy={deletingMessage}
                     defaultConfirm
@@ -1480,7 +1514,7 @@ function App() {
                     title="Delete messages"
                     message={isPop3
                         ? `Delete ${bulkToDelete.length} messages? POP3 has no Trash, so they are permanently removed from the server and cannot be recovered.`
-                        : `Delete ${bulkToDelete.length} messages? They are moved to Trash, or deleted permanently where the account has no Trash folder.`}
+                        : `Delete ${bulkToDelete.length} messages? They are moved to Trash; where the account has no Trash folder they are deleted permanently.`}
                     confirmLabel={`Delete ${bulkToDelete.length}`}
                     busy={bulkDeleting}
                     defaultConfirm

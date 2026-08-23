@@ -21,6 +21,7 @@ import {bodyMentionsAttachment} from '../composeAttachment'
 import {fromDatetimeLocal, isSchedulable, sendLaterChoices} from '../schedule'
 import {ToolButton} from './ToolButton'
 import {useToolbarNav} from '../hooks/useToolbarNav'
+import {useModalDrag} from '../hooks/useModalDrag'
 
 // ComposeTool is one entry in the formatting strip: its button face, its editor action and its
 // place in the strip's visual grouping.
@@ -67,6 +68,10 @@ export interface ComposeInitial {
     // for a fresh compose, a restored draft or an attach-to-new-message.
     inReplyToId?: string
     replyKind?: 'reply' | 'forward'
+    // draftId is the stored Drafts-mailbox message this compose was reopened from (see openDraft). Once the
+    // edited message has been sent or saved again, that superseded copy is deleted, so finishing a draft
+    // never leaves a stale second copy behind. Unset for every other way of opening the composer.
+    draftId?: string
 }
 
 // Sender is one address the account may send from, offered in the From dropdown.
@@ -90,6 +95,11 @@ interface ComposeModalProps {
     // undo toast's expiry (via onHeld), so undoing a reply never leaves a wrong answered flag.
     onMarkReplied: (id: string) => void
     onMarkForwarded: (id: string) => void
+    // onDraftSuperseded reports the stored draft this compose was reopened from (initial.draftId) once its
+    // replacement has been sent or saved, so the now-stale copy can be removed. Like the marking handlers
+    // above, the composer only says which draft was superseded; the handler owns the server delete, the
+    // in-memory list and the folder counts.
+    onDraftSuperseded: (id: string) => void
     // holdSeconds is the user's undo-send window, passed through to the send request; zero sends
     // immediately. onHeld reports a held send: the queued item's id (for Undo) and the full compose
     // state, so an undone send reopens exactly as it was.
@@ -99,7 +109,7 @@ interface ComposeModalProps {
 }
 
 
-export function ComposeModal({accountId, senders, initial, canSaveDraft, onMarkReplied, onMarkForwarded, holdSeconds, onHeld, onClose}: ComposeModalProps) {
+export function ComposeModal({accountId, senders, initial, canSaveDraft, onMarkReplied, onMarkForwarded, onDraftSuperseded, holdSeconds, onHeld, onClose}: ComposeModalProps) {
     // The chosen From address. It defaults to the reply's delivered-to address when given, otherwise the
     // account's primary (first) sender. The backend validates it against the account's owned addresses.
     const [from, setFrom] = useState(initial?.from || senders[0]?.address || '')
@@ -118,10 +128,10 @@ export function ComposeModal({accountId, senders, initial, canSaveDraft, onMarkR
     const [templatePicker, setTemplatePicker] = useState(false)
 
     // attemptSendRef lets the editor's key handler call the latest attemptSend without recreating the
-    // editor: the editor is built once, but attemptSend closes over state that changes each render.
+    // editor: the editor is built once while attemptSend closes over state that changes each render.
     const attemptSendRef = useRef<() => void>(() => {})
     // noteEditRef bridges the editor's onUpdate to the autosave (created below), for the same reason: the
-    // editor is built once, but the autosave's noteEdit is recreated each render.
+    // editor is built once while the autosave's noteEdit is recreated each render.
     const noteEditRef = useRef<() => void>(() => {})
     // intakeRef bridges the editor's paste and drop handlers to the latest intakeFiles, again because the
     // editor is built once while intakeFiles closes over per-render state.
@@ -137,7 +147,7 @@ export function ComposeModal({accountId, senders, initial, canSaveDraft, onMarkR
         ],
         content: initial?.bodyHtml ?? '',
         // Initial focus is the top of the body, not the To field: a reply, reply-all or forward opens
-        // ready to type above the quoted text, and a fresh compose reaches To with one Shift+Tab.
+        // ready to type above the quoted text; a fresh compose reaches To with one Shift+Tab.
         autofocus: 'start',
         onUpdate: () => noteEditRef.current(),
         editorProps: {
@@ -283,8 +293,17 @@ export function ComposeModal({accountId, senders, initial, canSaveDraft, onMarkR
         }
     }
 
+    // supersedeDraft reports the stored draft this compose was reopened from, once its replacement has been
+    // sent or saved. It runs only after that replacement succeeded, so the draft is never dropped before
+    // something has taken its place.
+    const supersedeDraft = () => {
+        if (initial?.draftId) {
+            onDraftSuperseded(initial.draftId)
+        }
+    }
+
     // send delivers the message now (at null) or schedules it for the chosen instant. A scheduled send
-    // waits in the Outbox with Cancel send: it shows no undo toast, and it does not mark a reply or
+    // waits in the Outbox with Cancel send: it shows no undo toast; it does not mark a reply or
     // forward's original (a schedule cancelled days later must not have already flagged it; the glyph is
     // an accepted gap for scheduled sends).
     // maybeCollectContacts adds the message's recipients to the address book after a successful
@@ -318,6 +337,7 @@ export function ComposeModal({accountId, senders, initial, canSaveDraft, onMarkR
                     onHeld(outboxId, reopenInitial())
                 }
             }
+            supersedeDraft()
             void api.clearDraftRecovery()
             onClose()
         } catch (e) {
@@ -366,6 +386,7 @@ export function ComposeModal({accountId, senders, initial, canSaveDraft, onMarkR
         setError('')
         try {
             await api.saveDraft(buildRequest(null))
+            supersedeDraft()
             void api.clearDraftRecovery()
             onClose()
         } catch (e) {
@@ -420,9 +441,16 @@ export function ComposeModal({accountId, senders, initial, canSaveDraft, onMarkR
     ]
     const toolbar = useToolbarNav(tools.length)
 
+    // The compose window is movable by its title bar, so a long reply can be pushed aside to re-read the
+    // message underneath it. Reopening a stored draft retitles the window, which is the only signal that
+    // sending or saving replaces an existing draft rather than adding one.
+    const drag = useModalDrag()
+    const title = initial?.draftId ? 'Edit draft' : 'New message'
+
     return (
         <div className="modal-backdrop" {...dismiss}>
-            <div className="modal compose pinned-actions" role="dialog" aria-label="New message" onClick={(e) => e.stopPropagation()}
+            <div ref={drag.ref} style={drag.style}
+                 className="modal compose pinned-actions" role="dialog" aria-label={title} onClick={(e) => e.stopPropagation()}
                  onDragOver={(e) => e.preventDefault()}
                  onDrop={(e) => {
                      // Files dropped anywhere on the compose window follow the intake rule (images
@@ -444,7 +472,7 @@ export function ComposeModal({accountId, senders, initial, canSaveDraft, onMarkR
                      }
                  }}>
                 <ModalClose onClose={requestClose}/>
-                <h2 className="modal-title">New message</h2>
+                <h2 {...drag.handleProps} className={`modal-title ${drag.handleProps.className}`}>{title}</h2>
                 <div className="modal-body">
                 {error && <div className="compose-error">{error}</div>}
                 {correction.pending && (
@@ -644,7 +672,7 @@ export function ComposeModal({accountId, senders, initial, canSaveDraft, onMarkR
                             Schedule
                         </button>
                         <div className="compose-schedule-note">
-                            Sends at the chosen time while PigeonPost is running, or at the next launch after it.
+                            Sends at the chosen time while PigeonPost is running, else at the next launch after it.
                             Cancel any time from the Outbox.
                         </div>
                     </div>

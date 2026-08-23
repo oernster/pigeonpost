@@ -81,6 +81,7 @@ function renderCompose(overrides: Partial<ComposeProps> = {}) {
         onClose,
         onMarkReplied,
         onMarkForwarded,
+        onDraftSuperseded: vi.fn(),
         ...overrides,
     }
     const view = render(<ComposeModal {...props}/>)
@@ -132,6 +133,7 @@ describe('ComposeModal: basics', () => {
                 onHeld={vi.fn()}
                 onMarkReplied={vi.fn()}
                 onMarkForwarded={vi.fn()}
+                onDraftSuperseded={vi.fn()}
                 onClose={vi.fn()}
             />,
         )
@@ -282,7 +284,7 @@ describe('ComposeModal: separator correction', () => {
 })
 
 describe('ComposeModal: link editor', () => {
-    it('opens the link row with Apply and Remove, and closes on apply', () => {
+    it('opens the link row with Apply and Remove, then closes on apply', () => {
         renderCompose()
         expect(screen.queryByPlaceholderText('https://example.com')).toBeNull()
         fireEvent.click(screen.getByRole('button', {name: 'Link'}))
@@ -330,7 +332,7 @@ describe('ComposeModal: send later', () => {
         fireEvent.click(screen.getByRole('menuitem', {name: 'Tomorrow morning (09:00)'}))
         await waitFor(() => expect(onClose).toHaveBeenCalled())
         expect(apiSpies.send.mock.calls[0][0].sendAtMs).toBeGreaterThan(Date.now())
-        // A scheduled send waits in the Outbox: no undo toast, and the reply mark stays honest (the
+        // A scheduled send waits in the Outbox: no undo toast; the reply mark stays honest (the
         // schedule may yet be cancelled), so neither callback fires.
         expect(onHeld).not.toHaveBeenCalled()
         expect(onMarkReplied).not.toHaveBeenCalled()

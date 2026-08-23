@@ -27,6 +27,10 @@ function openLinkExternally(href: string) {
 interface ReaderProps {
     message: Message | null
     onToggleRead: (message: Message) => void
+    // isDraft and onEditDraft carry the Drafts-mailbox case through to the toolbar, which then offers
+    // Edit draft in place of reply, reply all and forward.
+    isDraft: boolean
+    onEditDraft: (message: Message) => void
     onReply: (message: Message) => void
     onReplyAll: (message: Message) => void
     onForward: (message: Message) => void
@@ -62,7 +66,7 @@ interface ReaderProps {
     sinkRef?: RefObject<HTMLSpanElement>
 }
 
-export function Reader({message, onToggleRead, onReply, onReplyAll, onForward, onDelete, onCancelSend, folders, onMove, onCopy, canMoveCopy, autoLoadImages, dark, messageTags, onToggleTag, body, bodyLoading, tabs, onSelectTab, onCloseTab, onBack, bodyRef, sinkRef}: ReaderProps) {
+export function Reader({message, onToggleRead, isDraft, onEditDraft, onReply, onReplyAll, onForward, onDelete, onCancelSend, folders, onMove, onCopy, canMoveCopy, autoLoadImages, dark, messageTags, onToggleTag, body, bodyLoading, tabs, onSelectTab, onCloseTab, onBack, bodyRef, sinkRef}: ReaderProps) {
     const [imagesShown, setImagesShown] = useState(autoLoadImages)
     // viewedEmail holds a parsed .eml attachment while the in-app viewer shows it.
     const [viewedEmail, setViewedEmail] = useState<EmailView | null>(null)
@@ -134,6 +138,8 @@ export function Reader({message, onToggleRead, onReply, onReplyAll, onForward, o
                     outbox={outbox}
                     onBack={onBack}
                     backButtonRef={backButtonRef}
+                    isDraft={isDraft}
+                    onEditDraft={onEditDraft}
                     onReply={onReply}
                     onReplyAll={onReplyAll}
                     onForward={onForward}

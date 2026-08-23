@@ -5,6 +5,7 @@ import {ComposeInitial} from '../components/ComposeModal'
 import {useEscapeToClose} from '../components/useBackdropDismiss'
 import {emlFilename} from '../messageText'
 import {buildForward, buildReply, buildReplyAll, quoteFor, replyFromAddress, sendersFor, signatureHtmlFor} from '../replyDraft'
+import {buildDraftEdit} from '../draftEdit'
 
 // MailtoFields is the backend's parsed form of an RFC 6068 mailto: URI (see mailto.go), delivered on the
 // mailto:open event. Go serialises empty address slices as null, hence the nullable arrays.
@@ -58,6 +59,9 @@ export interface ComposeLauncher {
     // signatureHtml is exposed because the Compose buttons (which open a blank composer) still live in App and
     // seed a new message with the account signature.
     signatureHtml: () => string
+    // openDraft reopens a message stored in the Drafts mailbox in the composer, so a saved draft can be
+    // finished. It fetches the body, so it is async; callers fire it and forget it.
+    openDraft: (message: Message) => Promise<void>
     openReply: (message: Message) => void
     openReplyAll: (message: Message) => void
     openForward: (message: Message) => void
@@ -69,7 +73,7 @@ export interface ComposeLauncher {
 }
 
 // useComposeLauncher owns opening the composer: replying, replying-all and forwarding the selected message
-// (pre-filling from the pure replyDraft builders), attaching a message or files to a fresh message, and the
+// (pre-filling from the pure replyDraft builders), attaching a message or files to a fresh message and the
 // draft-recovery prompt offered once on launch. The composer state (composing, composeInitial) and the attach
 // picker and recovery flags live here; the ComposeModal render, the Compose buttons and the recovery dialog
 // stay in App and consume these, so signatureHtml and the raw setters are exposed.
@@ -141,7 +145,7 @@ export function useComposeLauncher(deps: ComposeLauncherDeps): ComposeLauncher {
 
     // A mailto: link the OS handed to PigeonPost (clicked anywhere in Windows once PigeonPost is the
     // default email client) arrives as an event from the backend, which has already revealed the window;
-    // open the composer pre-filled with the link's fields, or surface a parse failure in the error bar.
+    // open the composer pre-filled with the link's fields, else surface a parse failure in the error bar.
     useEffect(() => {
         const off = [
             EventsOn('mailto:open', (fields) => {
@@ -164,6 +168,25 @@ export function useComposeLauncher(deps: ComposeLauncherDeps): ComposeLauncher {
     // replyFrom picks which of the account's own addresses a reply is sent from (see replyDraft.replyFromAddress).
     const replyFrom = (message: Message, accountId: string): string =>
         replyFromAddress(message, sendersFor(accounts.find((a) => a.id === accountId)))
+
+    // openDraft reopens a saved draft for editing: it fetches the stored body, rebuilds the compose fields
+    // from the draft itself (no signature, nothing quoted; both are already in the saved text) and carries
+    // the draft's own id through as draftId, so sending or re-saving replaces that copy instead of leaving
+    // a second one behind. Like a reply, it switches to the account the draft belongs to, so a draft opened
+    // from the unified mailbox is finished under the identity it was written for.
+    const openDraft = async (message: Message) => {
+        const accountId = composeAccountFor(message)
+        try {
+            const body = await api.messageBody(message.id)
+            if (accountId !== selectedAccount && accounts.some((account) => account.id === accountId)) {
+                setSelectedAccount(accountId)
+            }
+            setComposeInitial({...buildDraftEdit(message, body), accountId, draftId: message.id})
+            setComposing(true)
+        } catch (e) {
+            setError(String(e))
+        }
+    }
 
     const openReply = (message: Message) => {
         const accountId = composeAccountFor(message)
@@ -254,7 +277,7 @@ export function useComposeLauncher(deps: ComposeLauncherDeps): ComposeLauncher {
         attachPickerOpen, setAttachPickerOpen,
         recovery, setRecovery,
         signatureHtml,
-        openReply, openReplyAll, openForward,
+        openDraft, openReply, openReplyAll, openForward,
         attachToNewMessage, attachFiles, attachEmails,
         restoreDraft, discardDraft,
     }

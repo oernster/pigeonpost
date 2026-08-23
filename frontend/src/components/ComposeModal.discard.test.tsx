@@ -73,6 +73,7 @@ function renderCompose(overrides: Partial<ComposeProps> = {}) {
         onClose,
         onMarkReplied: vi.fn(),
         onMarkForwarded: vi.fn(),
+        onDraftSuperseded: vi.fn(),
         ...overrides,
     }
     const view = render(<ComposeModal {...props}/>)
@@ -132,7 +133,7 @@ describe('ComposeModal: discard guard', () => {
         expect(onClose).toHaveBeenCalled()
     })
 
-    it('asks before Escape discards an edited compose, and Cancel keeps writing', () => {
+    it('asks before Escape discards an edited compose; Cancel keeps writing', () => {
         const {onClose, toInput} = renderCompose()
         fireEvent.change(toInput(), {target: {value: 'bob@example.com'}})
         fireEvent.keyDown(document, {key: 'Escape'})
@@ -143,7 +144,7 @@ describe('ComposeModal: discard guard', () => {
         expect((toInput() as HTMLInputElement).value).toBe('bob@example.com')
     })
 
-    it('asks on the close cross and on the Cancel button, and Discard then closes', () => {
+    it('asks on the close cross and on the Cancel button; Discard then closes', () => {
         const {onClose, toInput} = renderCompose()
         fireEvent.change(toInput(), {target: {value: 'bob@example.com'}})
         fireEvent.mouseDown(screen.getByRole('button', {name: 'Close'}))

@@ -42,6 +42,8 @@ export default defineConfig({
         'src/editClipboard.ts',
         'src/paneLayout.ts',
         'src/emailColors.ts',
+        'src/draftEdit.ts',
+        'src/modalDrag.ts',
       ],
       thresholds: {lines: 100, functions: 100, statements: 100, branches: 100},
     },

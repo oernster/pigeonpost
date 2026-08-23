@@ -203,14 +203,14 @@
    body (Calendar, Contacts) or the action row below it. None of them may grow or shrink, so the body
    is the only thing that scrolls and the furniture cannot be squashed on a short window. Stated as
    one rule rather than one per element, so a dialog that adds a header does not need a new rule.
-   `.licence-text` is excluded by name because it is a scroller in its own right (see below), and
+   `.licence-text` is excluded by name because it is a scroller in its own right (see below);
    naming it here rather than relying on source order means the two rules cannot fight. */
 .modal.pinned-actions > *:not(.modal-body):not(.licence-text) {
     flex: none;
 }
 
 /* The licence text is its own scroller (it carries a max-height so a licence does not force a full-height
-   dialog). Inside the pinned layout it must also be free to SHRINK, or on a short window the dialog would
+   dialog). Inside the pinned layout it must also be free to SHRINK, else on a short window the dialog would
    clip its own action row rather than giving the text less room. */
 .modal.pinned-actions .licence-text {
     flex: 1;
@@ -241,6 +241,22 @@
 .modal-title {
     margin: 0 0 14px;
     font-size: 18px;
+}
+
+/* A modal that can be moved uses its title bar as the handle (see useModalDrag). The negative margins
+   pull the grab area out over the modal's own padding, so the whole top strip drags rather than just the
+   text; the padding puts it back so the title sits where it always did. touch-action none stops the
+   webview treating a drag as a scroll or a pinch before the pointer events reach the handle. */
+.modal-drag-handle {
+    margin: -24px -24px 14px;
+    padding: 24px 44px 0 24px;
+    cursor: grab;
+    touch-action: none;
+    user-select: none;
+}
+
+.modal-drag-handle.dragging {
+    cursor: grabbing;
 }
 
 .modal.licence {
@@ -353,7 +369,7 @@
 }
 
 /* Both parts of a row stay on one line and ellipsise rather than wrap or overflow: a display name
-   that is itself an address, or a very long address, must never spill into its neighbour. */
+   that is itself an address (or a very long address) must never spill into its neighbour. */
 .recipient-option-name {
     color: var(--text);
     white-space: nowrap;

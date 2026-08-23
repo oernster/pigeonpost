@@ -76,6 +76,7 @@ function renderCompose() {
         onClose={vi.fn()}
         onMarkReplied={vi.fn()}
         onMarkForwarded={vi.fn()}
+        onDraftSuperseded={vi.fn()}
     />)
 }
 
