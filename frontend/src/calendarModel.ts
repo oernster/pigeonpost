@@ -66,6 +66,9 @@ export const REMINDER_PRESETS: {minutes: number; label: string}[] = [
     {minutes: 30, label: '30 minutes before'},
     {minutes: 60, label: '1 hour before'},
     {minutes: 120, label: '2 hours before'},
+    {minutes: 240, label: '4 hours before'},
+    {minutes: 480, label: '8 hours before'},
+    {minutes: 720, label: '12 hours before'},
     {minutes: 1440, label: '1 day before'},
     {minutes: 10080, label: '1 week before'},
 ]
@@ -139,7 +142,7 @@ export const MS_PER_DAY = 86400000
 export const MONTH_MAX_LANES = 3
 
 // dayIndex maps a date to an integer day number (whole local days since the epoch), so day spans and week
-// columns become integer arithmetic. It reads the date's own midnight, and Math.round absorbs the sub-day
+// columns become integer arithmetic. It reads the date's own midnight; Math.round absorbs the sub-day
 // shift a daylight-saving change introduces so consecutive local days always differ by exactly one.
 export function dayIndex(d: Date): number {
     const midnight = new Date(d.getFullYear(), d.getMonth(), d.getDate())
@@ -186,7 +189,7 @@ export interface WeekLayout {
 
 // layoutWeek places every event that intersects the seven-day week starting at weekStartDay into a column
 // span and a lane. Events are ordered by start then longest-first, so a multi-day bar takes a low lane above
-// the shorter events it spans, and each is given the lowest lane free across its whole span. Events past
+// the shorter events it spans; each is given the lowest lane free across its whole span. Events past
 // maxLanes are dropped from the bars and counted into overflow for each day they cover, so a busy day shows
 // a "+N more" rather than growing without bound.
 export function layoutWeek(weekStartDay: number, events: MonthBarInput[], maxLanes: number): WeekLayout {
