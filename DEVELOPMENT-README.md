@@ -198,6 +198,12 @@ machine's `core.autocrlf`. Nothing needs configuring per machine. Leaving it to 
 Windows checkout had git reporting over a hundred Go files as modified with no content behind any of
 them, which buries a real change among the noise; `git diff` was empty while `git status` was not.
 
+One consequence on a checkout that predates the attribute: git does not rewrite files already on
+disk, so some working copies still hold CRLF even though every blob and every fresh checkout is LF.
+Git reports nothing modified (it normalises on the way in, which is the point) but `gofmt -l` lists
+each such file, purely for its line endings and with no formatting difference behind it. Run
+`git ls-files --eol` to see which files those are; re-checking them out is what converts them.
+
 ## Versioning
 
 The single source of truth for the version is the `VERSION` file at the repo root. The runtime reads

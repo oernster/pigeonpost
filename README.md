@@ -118,7 +118,8 @@ local-first. A calmer, more predictable alternative to Thunderbird.
   rather than the shell's default, so a new message is recognisable by ear and is not confused with
   every other app's notification; elsewhere the sound is the one your desktop theme chooses.
 - **Calendar**: month, week and day views (a multi-day event is drawn as one bar across its days), recurring events with per-event time zones, nine
-  emoji-labelled event categories, on-screen reminders and ICS import/export (RFC 5545) that round-trips
+  emoji-labelled event categories, on-screen reminders at a lead you choose (from the moment the event
+  starts out to a week before) and ICS import/export (RFC 5545) that round-trips
   with Outlook and Thunderbird. Every date field in the app (event times, repeat-until, a contact's
   birthday, send later, snooze) opens a themed calendar picker, with direct typing still first-class. Meeting
   invites over iTIP/iMIP (accept, decline, cancel, reply) with clickable join links (Teams, Meet, Zoom,
