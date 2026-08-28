@@ -388,13 +388,15 @@ thread whole in the reader (`ThreadView`), where each message expands in place, 
 first time it is opened; that row is the mouse route and the Mail menu's Open conversation is the
 keyboard one, so the list keeps its single roving tab stop. Both surfaces are gated on the conversation
 view setting along with the grouping itself: the tick is one switch over the whole feature, so turning it
-off flattens the list, withholds the strip's lookup and closes any thread being read. Membership is `domain.ThreadKey` equality, the exported form of the grouping's own
-normalisation, so a message cannot thread one way in the list and another way in the reader. The store's
-`ThreadMessages` narrows the candidates with a subject-suffix LIKE (the key is always a suffix of the raw
-subject; SQL cannot apply the domain's stripping rule), capped, with the exact comparison done in the
-service. Real RFC threading over `In-Reply-To` and `References` would need those headers fetched and
-stored, which the cache does not hold today; subject threading is what both surfaces already agree on. The desktop list mirrors the grouping client-side so it updates instantly with
-optimistic changes, keeping the domain function as the single tested definition.
+off flattens the list, withholds the strip's lookup and closes any thread being read. Membership is
+`domain.ThreadKey` equality, the exported form of the grouping's own normalisation, so a message cannot
+thread one way in the list and another way in the reader. The store's `ThreadMessages` narrows the
+candidates with a subject-suffix LIKE (the key is always a suffix of the raw subject; SQL cannot apply
+the domain's stripping rule), capped at 200, with the exact comparison done in the service. Real RFC
+threading over `In-Reply-To` and `References` would need those headers fetched and stored, which the
+cache does not hold today; subject threading is what both surfaces already agree on. The desktop list
+mirrors the grouping client-side so it updates instantly with optimistic changes, keeping the domain
+function as the single tested definition.
 
 Large folders: the message list is fully virtualised (`@tanstack/react-virtual`) so only on-screen rows
 exist in the DOM and it loads in pages of 200 through keyset pagination. `Store.ListMessagesPage`, exposed
