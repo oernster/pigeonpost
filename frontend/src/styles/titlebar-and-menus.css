@@ -23,11 +23,11 @@
    here, the menu triggers below and the leading icons on the labelled Contacts and Calendar buttons in
    base-and-panes.css. The tray is emoji rather than labels, so the glyph IS the control; at the browser's
    own button size (13.3px, since a button does not inherit the body size) it painted about 13 pixels of
-   ink and read as decoration. Measured with the whole tray rendered, the bar needs about 1320px of width
-   at 28px and about 2185px at 70px, so a window narrower than that squashes the buttons together; a
-   maximised window on a wide display has room to spare. */
+   ink and read as decoration. Measured with the whole tray rendered, the width the bar needs grows with
+   the glyph: about 1320px at 28px, about 1490px at 36px and about 2185px at 70px, so a window narrower
+   than that packs the buttons together. */
 :root {
-    --titlebar-icon-size: 70px;
+    --titlebar-icon-size: 36px;
 }
 
 /* Icon buttons (compose, add account, sync, the reply trio, the theme toggle) share the same box as the
