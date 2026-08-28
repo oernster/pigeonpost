@@ -183,6 +183,23 @@ describe('App: mount and splash', () => {
         expect(apiSpies.listAccounts).toHaveBeenCalled()
     })
 
+    it('groups the title bar into brand-and-menus, the centred controls and the app pair', () => {
+        // The centre group is positioned from the middle of the window outwards, so which controls are
+        // in it is a layout decision rather than a cosmetic one: a control added to the wrong group
+        // lands on the wrong side of the bar.
+        const {container} = render(<App/>)
+        const inCentre = container.querySelectorAll('.titlebar-centre [aria-label], .titlebar-centre button')
+        const centreLabels = [...inCentre].map((el) => el.getAttribute('aria-label') ?? el.textContent?.trim())
+        expect(centreLabels).toContain('Compose')
+        expect(centreLabels).toContain('Add account')
+        expect(centreLabels).toContain('Sync')
+        expect(centreLabels.some((l) => l?.includes('Contacts'))).toBe(true)
+        expect(centreLabels.some((l) => l?.includes('Calendar'))).toBe(true)
+        const right = container.querySelector('.titlebar-right')
+        expect(right?.querySelectorAll('button')).toHaveLength(2)
+        expect(container.querySelector('.titlebar-left .brand')).toBeInTheDocument()
+    })
+
     it('shows the welcome empty-state after the splash when there are no accounts', async () => {
         render(<App/>)
         // The empty-state is gated on the splash having gone (a 2s timer), so wait past it.
@@ -498,7 +515,7 @@ describe('App: multi-selection gestures', () => {
         const down = new MouseEvent('mousedown', {bubbles: true, cancelable: true, shiftKey: true})
         fireEvent(row, down)
         expect(down.defaultPrevented).toBe(false)
-        // The range gesture itself still works, and the dragged row carries its id to the folder tree.
+        // The range gesture itself still works; the dragged row carries its id to the folder tree.
         fireEvent.click(screen.getByText('Second'), {shiftKey: true})
         expect(await screen.findByText('2 messages selected')).toBeInTheDocument()
         expect(row).toHaveAttribute('draggable', 'true')
@@ -652,7 +669,7 @@ describe('App: bulk actions', () => {
     })
 })
 
-// The outbox that Phase 3.6 moves into useOutbox: the queue is loaded on mount and, while the selected
+// The outbox that Phase 3.6 moves into useOutbox: the queue is loaded on mount; while the selected
 // account has queued mail, a synthetic Outbox folder (id __outbox__) appears in the sidebar.
 describe('App: the outbox', () => {
     it('surfaces a synthetic Outbox folder when the account has queued mail (useOutbox)', async () => {
@@ -1007,7 +1024,7 @@ describe('App: message-list keyboard', () => {
 })
 
 // The flat folder view is keyset-paginated (useFolderPagination, wired through loadFolderMessages,
-// loadMoreMessages and toggleSort). The list loads one page, appends the next as it nears the end, and
+// loadMoreMessages and toggleSort). The list loads one page, appends the next as it nears the end, then
 // reloads page one in the new direction when the sort is flipped, so a huge folder never loads every row at
 // once. MESSAGE_PAGE_SIZE is 200 in the mock above.
 describe('App: flat-view pagination', () => {

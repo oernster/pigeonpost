@@ -11,6 +11,31 @@
     gap: 8px;
 }
 
+/* The working controls (compose, add account, sync, Contacts, Calendar) sit centred on the window rather
+   than centred in what the other two groups leave over, which would put them off-centre whenever the left
+   and right groups differ in width, as they always do. That takes them out of the flow: the header keeps
+   its space-between for the brand-and-menus group and the theme-and-help pair, while this group is
+   placed from the middle outwards.
+
+   Below TITLEBAR_CENTRE_FLOW_PX the three groups no longer have the room for that and the centred group
+   would be painted over its neighbours, so it drops back into the flow and shares the squeeze with them.
+   Measured: the left group is about 360px and this one about 500px, so the overlap starts around 1220px. */
+.titlebar-centre {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+@media (max-width: 1280px) {
+    .titlebar-centre {
+        position: static;
+        transform: none;
+    }
+}
+
 /* A thin vertical rule grouping the title-tray buttons. It stretches to the button height. */
 .titlebar-sep {
     align-self: stretch;

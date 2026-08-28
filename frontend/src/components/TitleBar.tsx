@@ -27,9 +27,10 @@ export interface TitleBarProps {
     setTheme: Dispatch<SetStateAction<Theme>>
 }
 
-// TitleBar is the header: the brand with the all-accounts unread badge, the File/Edit/View/Mail menus on the
-// left plus the icon buttons on the right (compose, add account, sync, Contacts, Calendar, the theme toggle
-// and Help). It is presentational: every action is a prop.
+// TitleBar is the header in three groups: the brand with the all-accounts unread badge plus the
+// File/Edit/View/Mail menus on the left, the working controls centred on the window (compose, add
+// account, sync, Contacts, Calendar) and the app-level pair on the right (the theme toggle and Help).
+// It is presentational: every action is a prop.
 //
 // The tray carries only what is live whatever is selected. Reply, reply-all, forward and Attach each needed a
 // selected message, so they stood greyed out most of the time while taking room the tray needs to lay itself
@@ -58,7 +59,7 @@ export function TitleBar(props: TitleBarProps) {
                     <Menu title="View" icon={'\u{1F441}\u{FE0F}'} items={viewMenu} align="left"/>
                     <Menu title="Mail" icon={'\u{1F4EC}'} items={mailMenu} align="left"/>
                 </div>
-                <div className="titlebar-right">
+                <div className="titlebar-centre">
                     <button
                         className="icon-btn"
                         data-tip="Compose"
@@ -96,7 +97,8 @@ export function TitleBar(props: TitleBarProps) {
                     <button className="sync-btn" onClick={() => setManagingCalendar(true)}>
                         <span className="btn-icon">{'\u{1F4C5}'}</span> Calendar
                     </button>
-                    <span className="titlebar-sep" aria-hidden="true"/>
+                </div>
+                <div className="titlebar-right">
                     <button
                         className="icon-btn theme-toggle"
                         data-tip={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
