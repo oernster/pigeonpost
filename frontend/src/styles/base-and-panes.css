@@ -72,10 +72,11 @@
     z-index: 30;
     /* One row read left to right: the brand and menus, then the working controls carrying straight on
        from them, with the theme toggle and Help held at the far end. The gap here separates the three
-       groups; it is wider than the 8px between buttons inside a group, so the seam between the menus
-       and the controls reads as a seam rather than leaving the compose button crowding the Mail menu. */
+       groups; it is wider than the 8px between buttons inside a group and carries a .titlebar-sep rule
+       at the seam between the menus and the controls, so the two groups are told apart by a mark rather
+       than by a stretch of empty bar. */
     display: flex;
-    gap: 16px;
+    gap: 8px;
 }
 
 /* The wordmark yields before the controls do: in a narrow window it truncates so the centre group can

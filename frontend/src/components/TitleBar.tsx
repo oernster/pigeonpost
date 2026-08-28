@@ -59,6 +59,7 @@ export function TitleBar(props: TitleBarProps) {
                     <Menu title="View" icon={'\u{1F441}\u{FE0F}'} items={viewMenu} align="left"/>
                     <Menu title="Mail" icon={'\u{1F4EC}'} items={mailMenu} align="left"/>
                 </div>
+                <span className="titlebar-sep" aria-hidden="true"/>
                 <div className="titlebar-actions">
                     <button
                         className="icon-btn"
