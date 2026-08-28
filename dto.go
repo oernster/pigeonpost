@@ -3,6 +3,7 @@ package main
 import (
 	"time"
 
+	"github.com/oernster/pigeonpost/internal/application"
 	"github.com/oernster/pigeonpost/internal/domain"
 )
 
@@ -68,7 +69,7 @@ type BulkResultDTO struct {
 
 // MoveResultDTO reports where a move-shaped action (move, delete to Trash, junk, rescue) put the
 // message: the id it will carry in its destination folder, predicted from the server's COPYUID
-// reply, or empty when the server does not report one (or the deletion was permanent). The front
+// reply; empty when the server does not report one (or the deletion was permanent). The front
 // end uses it to build undo entries.
 type MoveResultDTO struct {
 	NewId string `json:"newId"`
@@ -148,7 +149,7 @@ type SearchResultDTO struct {
 }
 
 // AttachmentDTO is the JSON-serialisable metadata of one received attachment. It carries no bytes: the
-// reader lists attachments by name and size, and SaveAttachment resolves the content by index from the
+// reader lists attachments by name and size; SaveAttachment resolves the content by index from the
 // cached body when the user saves one.
 type AttachmentDTO struct {
 	Index       int    `json:"index"`
@@ -302,6 +303,26 @@ func toFolderDTOs(folders []domain.Folder) []FolderDTO {
 	return out
 }
 
+// ConversationEntryDTO is one message of a conversation with the folder it lives in, so the reader can
+// label each entry with where it sits (the received message in Inbox, the answer in Sent).
+type ConversationEntryDTO struct {
+	Message    MessageDTO `json:"message"`
+	FolderName string     `json:"folderName"`
+	FolderKind string     `json:"folderKind"`
+}
+
+func toConversationEntryDTOs(entries []application.ConversationEntry) []ConversationEntryDTO {
+	out := make([]ConversationEntryDTO, 0, len(entries))
+	for _, e := range entries {
+		out = append(out, ConversationEntryDTO{
+			Message:    toMessageDTO(e.Summary, nil),
+			FolderName: e.FolderName,
+			FolderKind: e.FolderKind.String(),
+		})
+	}
+	return out
+}
+
 func toMessageDTOs(messages []domain.MessageSummary, coloursByID map[string][]string) []MessageDTO {
 	out := make([]MessageDTO, 0, len(messages))
 	for _, m := range messages {
@@ -320,7 +341,7 @@ func messageIDs(messages []domain.MessageSummary) []string {
 }
 
 // ThreadDTO is the JSON-serialisable view of a conversation: its display subject, message and unread
-// counts, and its messages oldest first. The front end shows the latest message as the collapsed row and
+// counts and its messages oldest first. The front end shows the latest message as the collapsed row and
 // reveals the rest when the thread is expanded.
 type ThreadDTO struct {
 	Subject     string       `json:"subject"`

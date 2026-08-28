@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/oernster/pigeonpost/internal/domain"
@@ -70,6 +71,37 @@ func (s *Store) ListMessages(ctx context.Context, folderID string) ([]domain.Mes
 		`SELECT id, folder_id, uid, message_id, from_display, from_address, to_json, cc_json, subject,
 		        date_ms, size, flags, has_attachments, snippet
 		 FROM message WHERE folder_id = ? ORDER BY date_ms DESC;`, scanMessage, folderID)
+}
+
+// ThreadMessages returns the account's cached messages whose subject ends with subjectSuffix, newest
+// first and capped at limit. The match is deliberately loose: a conversation's key is its subject with
+// the reply and forward prefixes stripped, which is always a suffix of the raw subject; the
+// stripping rule belongs to the domain rather than to SQL. The caller narrows the candidates with
+// domain.ThreadKey. An empty suffix matches every subject, which is correct: blank-subject messages all
+// key to the empty string; the limit is what bounds that case.
+//
+// LIKE is case-insensitive for ASCII in SQLite, matching the key's own lowercasing; a subject holding a
+// LIKE wildcard is escaped so it cannot widen the match. It scans the account's messages rather than
+// using an index: the pattern is leading-wildcard, so no index can serve it; this runs once when a
+// message is opened rather than on every keystroke.
+func (s *Store) ThreadMessages(ctx context.Context, accountID, subjectSuffix string, limit int) ([]domain.MessageSummary, error) {
+	pattern := "%" + escapeLike(subjectSuffix)
+	return queryRows(ctx, s.db, "thread messages",
+		`SELECT m.id, m.folder_id, m.uid, m.message_id, m.from_display, m.from_address, m.to_json,
+		        m.cc_json, m.subject, m.date_ms, m.size, m.flags, m.has_attachments, m.snippet
+		 FROM message m
+		 JOIN folder f ON f.id = m.folder_id
+		 WHERE f.account_id = ? AND m.subject LIKE ? ESCAPE '\'
+		 ORDER BY m.date_ms DESC
+		 LIMIT ?;`, scanMessage, accountID, pattern, limit)
+}
+
+// escapeLike neutralises the LIKE wildcards in a literal, so a subject holding "%" or "_" matches those
+// characters rather than standing in for any text. The escape character is declared by the ESCAPE clause
+// of each query that uses this.
+func escapeLike(literal string) string {
+	replacer := strings.NewReplacer(`\`, `\\`, "%", `\%`, "_", `\_`)
+	return replacer.Replace(literal)
 }
 
 // ListMessagesPage returns one keyset page of a folder's cached message summaries, ordered by date then

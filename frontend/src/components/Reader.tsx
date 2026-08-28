@@ -1,6 +1,6 @@
 import {useEffect, useRef, useState} from 'react'
 import type {RefObject} from 'react'
-import {api, EmailView, Folder, Message, MessageBody, Tag} from '../api'
+import {api, ConversationEntry, EmailView, Folder, Message, MessageBody, Tag} from '../api'
 import {EmailHtmlFrame} from './EmailHtmlFrame'
 import {LinkifiedText} from './LinkifiedText'
 import {EmailViewerModal} from './EmailViewerModal'
@@ -9,6 +9,7 @@ import {ReaderAttachments} from './ReaderAttachments'
 import {isOutboxMessage} from '../outbox'
 import {ReaderTabs} from './ReaderTabs'
 import {InviteCard} from './InviteCard'
+import {ConversationStrip} from './ConversationStrip'
 import {formatAddressList, readableInk} from '../readerFormat'
 import {useRemoteImages} from '../hooks/useRemoteImages'
 
@@ -64,9 +65,13 @@ interface ReaderProps {
     // sinkRef is a neutral anchor at the top of the full-width reader; the parent focuses it on a mouse
     // open so the first Tab lands on the Back button.
     sinkRef?: RefObject<HTMLSpanElement>
+    // conversation is the whole thread this message belongs to, oldest first and gathered across the
+    // account's folders; onOpenConversationEntry opens one of them. Empty for a message that stands alone.
+    conversation: ConversationEntry[]
+    onOpenConversationEntry: (message: Message) => void
 }
 
-export function Reader({message, onToggleRead, isDraft, onEditDraft, onReply, onReplyAll, onForward, onDelete, onCancelSend, folders, onMove, onCopy, canMoveCopy, autoLoadImages, dark, messageTags, onToggleTag, body, bodyLoading, tabs, onSelectTab, onCloseTab, onBack, bodyRef, sinkRef}: ReaderProps) {
+export function Reader({message, onToggleRead, isDraft, onEditDraft, onReply, onReplyAll, onForward, onDelete, onCancelSend, folders, onMove, onCopy, canMoveCopy, autoLoadImages, dark, messageTags, onToggleTag, body, bodyLoading, tabs, onSelectTab, onCloseTab, onBack, bodyRef, sinkRef, conversation, onOpenConversationEntry}: ReaderProps) {
     const [imagesShown, setImagesShown] = useState(autoLoadImages)
     // viewedEmail holds a parsed .eml attachment while the in-app viewer shows it.
     const [viewedEmail, setViewedEmail] = useState<EmailView | null>(null)
@@ -192,6 +197,11 @@ export function Reader({message, onToggleRead, isDraft, onEditDraft, onReply, on
                         <span>{new Date(message.date).toLocaleString()}</span>
                     </div>
                 )}
+                <ConversationStrip
+                    entries={conversation}
+                    currentId={message.id}
+                    onOpen={onOpenConversationEntry}
+                />
             </div>
             <div
                 ref={bodyRef}

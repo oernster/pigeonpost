@@ -98,6 +98,7 @@ function renderReader(overrides: Partial<ReaderProps> = {}) {
         onSelectTab: vi.fn(),
         onCloseTab: vi.fn(),
         onEditDraft: vi.fn(),
+        onOpenConversationEntry: vi.fn(),
     }
     const props: ReaderProps = {
         message: makeMessage(),
@@ -111,6 +112,7 @@ function renderReader(overrides: Partial<ReaderProps> = {}) {
         body: makeBody(),
         bodyLoading: false,
         tabs: [],
+        conversation: [],
         ...handlers,
         ...overrides,
     }
@@ -497,10 +499,12 @@ describe('Reader: reset on message change', () => {
             onToggleRead: vi.fn(), onReply: vi.fn(), onReplyAll: vi.fn(), onForward: vi.fn(),
             onDelete: vi.fn(), onCancelSend: vi.fn(), onMove: vi.fn(), onCopy: vi.fn(),
             onToggleTag: vi.fn(), onSelectTab: vi.fn(), onCloseTab: vi.fn(), onEditDraft: vi.fn(),
+            onOpenConversationEntry: vi.fn(),
         }
         const base: ReaderProps = {
             message: makeMessage({id: 'first'}), isDraft: false, folders: [], canMoveCopy: false, autoLoadImages: false,
-            dark: false, tags: [], messageTags: [], body: makeBody(), bodyLoading: false, tabs: [], ...handlers,
+            dark: false, tags: [], messageTags: [], body: makeBody(), bodyLoading: false, tabs: [],
+            conversation: [], ...handlers,
         }
         const {rerender} = render(<Reader {...base}/>)
         await openColourMenu(user)

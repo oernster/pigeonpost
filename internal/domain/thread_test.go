@@ -41,7 +41,7 @@ func TestGroupThreadsBySubject(t *testing.T) {
 	if lunch.Count() != 3 {
 		t.Errorf("lunch thread count = %d, want 3", lunch.Count())
 	}
-	// Messages are oldest first, and the display subject is the latest message's raw subject.
+	// Messages are oldest first; the display subject is the latest message's raw subject.
 	if lunch.Messages()[0].ID() != "a1" || lunch.Latest().ID() != "a3" {
 		t.Errorf("lunch ordering wrong: first=%s latest=%s", lunch.Messages()[0].ID(), lunch.Latest().ID())
 	}
@@ -82,11 +82,28 @@ func TestNormaliseSubject(t *testing.T) {
 }
 
 func TestSkipReplyCountMalformed(t *testing.T) {
-	// A bracket that never closes, or holds a non-digit, is left in place rather than stripped.
+	// A bracket that never closes or holds a non-digit is left in place rather than stripped.
 	if normaliseSubject("Re[x]: Hello") != "re[x]: hello" {
 		t.Errorf("a non-numeric count should not be stripped: %q", normaliseSubject("Re[x]: Hello"))
 	}
 	if normaliseSubject("Re[2: Hello") != "re[2: hello" {
 		t.Errorf("an unclosed count should not be stripped: %q", normaliseSubject("Re[2: Hello"))
+	}
+}
+
+func TestThreadKey(t *testing.T) {
+	// The exported key is what the conversation lookup compares subjects with, so it has to agree with
+	// the grouping below on every shape of prefix, casing and spacing.
+	cases := map[string]string{
+		"Lunch on Friday":                "lunch on friday",
+		"Re: Lunch on Friday":            "lunch on friday",
+		"FWD:  Re[2]: Lunch   on Friday": "lunch on friday",
+		"  ":                             "",
+		"Re:":                            "",
+	}
+	for subject, want := range cases {
+		if got := ThreadKey(subject); got != want {
+			t.Errorf("ThreadKey(%q) = %q, want %q", subject, got, want)
+		}
 	}
 }

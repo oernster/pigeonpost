@@ -47,6 +47,7 @@ import {rangeIds, toggleId, useSelection} from './hooks/useSelection'
 import {useMessageActions} from './hooks/useMessageActions'
 import {useBulkActions} from './hooks/useBulkActions'
 import {useReaderTabs} from './hooks/useReaderTabs'
+import {useConversation} from './hooks/useConversation'
 import {useOutbox} from './hooks/useOutbox'
 import {FolderPrompt, useFolders} from './hooks/useFolders'
 import {useAccounts} from './hooks/useAccounts'
@@ -1197,6 +1198,10 @@ function App() {
         ['--list-w']: `${paneWidths.widths.list}px`,
     } as CSSProperties
 
+    // conversation is the open message's whole thread, gathered across the account's folders so the
+    // reader can offer the messages the list cannot show beside it.
+    const conversation = useConversation(selectedMessage)
+
     // readerProps is the reader surface shared by the pane (or full-width) reader and the popout
     // dialog, so both render the selected message identically.
     const readerProps = {
@@ -1224,6 +1229,10 @@ function App() {
         onToggleTag: (tagId: string, assigned: boolean) => void toggleTag(tagId, assigned),
         body: messageBody,
         bodyLoading,
+        conversation,
+        // A thread entry opens in its own reader tab: it usually lives in another folder; switching
+        // the list out from under the reader to show it would lose the message being read.
+        onOpenConversationEntry: (m: Message) => openInNewTab(m),
     }
     const readerEl = multiSelected ? (
         <SelectionSummary

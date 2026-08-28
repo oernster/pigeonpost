@@ -178,11 +178,18 @@ type fakeMailStore struct {
 	searchResults       []SearchHit
 	searchQuery         domain.SearchQuery
 	searchLimit         int
-	deletedMessages     []string
-	forcedMessage       *domain.MessageSummary
-	savedFolderKeys     []string
-	savedMessageKeys    []string
-	deletedData         []string
+	// thread* mirror the search fields for ThreadMessages: what the conversation lookup asked for and
+	// what the store hands back.
+	threadResults    []domain.MessageSummary
+	threadAccountID  string
+	threadSuffix     string
+	threadLimit      int
+	threadErr        error
+	deletedMessages  []string
+	forcedMessage    *domain.MessageSummary
+	savedFolderKeys  []string
+	savedMessageKeys []string
+	deletedData      []string
 	// snoozes maps a message id to its snooze-until instant, mirroring the message_snooze table.
 	snoozes       map[string]time.Time
 	setSnoozeErr  error
@@ -496,6 +503,18 @@ func (f *fakeMailStore) SearchMessages(_ context.Context, query domain.SearchQue
 		return nil, f.searchErr
 	}
 	return f.searchResults, nil
+}
+
+// ThreadMessages records the account and suffix it was asked for (the service's suffix is the domain
+// thread key, which the tests assert on) and returns whatever the fake was seeded with. It applies no
+// suffix matching of its own: the real store's loose match is exercised in the storage tests, while
+// these cover the exact ThreadKey filtering the service does over whatever comes back.
+func (f *fakeMailStore) ThreadMessages(_ context.Context, accountID, subjectSuffix string, limit int) ([]domain.MessageSummary, error) {
+	f.threadAccountID, f.threadSuffix, f.threadLimit = accountID, subjectSuffix, limit
+	if f.threadErr != nil {
+		return nil, f.threadErr
+	}
+	return f.threadResults, nil
 }
 
 func (f *fakeMailStore) DeleteMessage(_ context.Context, messageID string) error {

@@ -455,6 +455,106 @@ func TestMailboxServiceThreads(t *testing.T) {
 	}
 }
 
+// conversationMessage builds a summary with a subject and a date, the two fields the conversation
+// lookup reads: the subject decides membership and the date decides the order.
+func conversationMessage(t *testing.T, id, folderID, subject string, at time.Time) domain.MessageSummary {
+	t.Helper()
+	msg, err := domain.NewMessageSummary(domain.MessageSummaryInput{
+		ID: id, FolderID: folderID, UID: "1", Subject: subject, Date: at, Size: 10, Flags: domain.NewFlags(0),
+	})
+	if err != nil {
+		t.Fatalf("build message: %v", err)
+	}
+	return msg
+}
+
+func TestMailboxServiceConversation(t *testing.T) {
+	base := time.Date(2026, 8, 28, 9, 0, 0, 0, time.UTC)
+	store := newFakeMailStore()
+	inbox := testFolder(t, "f1", "a1", "INBOX")
+	sent, err := domain.NewFolder("f2", "a1", "Sent", domain.FolderSent, 0, 0)
+	if err != nil {
+		t.Fatalf("build sent folder: %v", err)
+	}
+	store.folders["a1"] = []domain.Folder{inbox, sent}
+	store.messages["f1"] = []domain.MessageSummary{conversationMessage(t, "m1", "f1", "Lunch on Friday", base)}
+	// The store's suffix match hands back candidates from every folder, including one that only looks
+	// like a member ("Brunch on Friday" ends with the same words) and one whose folder is not cached.
+	store.threadResults = []domain.MessageSummary{
+		conversationMessage(t, "m3", "f1", "Re: Lunch on Friday", base.Add(2*time.Hour)),
+		conversationMessage(t, "m2", "f2", "Re: Lunch on Friday", base.Add(time.Hour)),
+		conversationMessage(t, "m1", "f1", "Lunch on Friday", base),
+		conversationMessage(t, "m4", "f1", "Brunch on Friday", base),
+		conversationMessage(t, "m5", "f9", "Fwd: Lunch on Friday", base),
+	}
+	svc := NewMailboxService(store, time.UTC, fakeClock{now: base})
+
+	entries, err := svc.Conversation(context.Background(), "m1")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if store.threadAccountID != "a1" || store.threadSuffix != "lunch on friday" || store.threadLimit != conversationLimit {
+		t.Errorf("looked up (%q, %q, %d), want (a1, lunch on friday, %d)",
+			store.threadAccountID, store.threadSuffix, store.threadLimit, conversationLimit)
+	}
+	ids := make([]string, 0, len(entries))
+	for _, e := range entries {
+		ids = append(ids, e.Summary.ID())
+	}
+	if len(ids) != 3 || ids[0] != "m1" || ids[1] != "m2" || ids[2] != "m3" {
+		t.Fatalf("conversation = %v, want m1, m2, m3 oldest first", ids)
+	}
+	if entries[1].FolderName != "Sent" || entries[1].FolderKind != domain.FolderSent {
+		t.Errorf("second entry sits in %q (%v), want Sent", entries[1].FolderName, entries[1].FolderKind)
+	}
+}
+
+func TestMailboxServiceConversationErrors(t *testing.T) {
+	newStore := func(t *testing.T) *fakeMailStore {
+		t.Helper()
+		store := newFakeMailStore()
+		store.folders["a1"] = []domain.Folder{testFolder(t, "f1", "a1", "INBOX")}
+		store.messages["f1"] = []domain.MessageSummary{testMessage(t, "m1", "f1")}
+		return store
+	}
+
+	t.Run("message not found", func(t *testing.T) {
+		store := newStore(t)
+		store.getMessageErr = errBoom
+		svc := NewMailboxService(store, time.UTC, fakeClock{})
+		if _, err := svc.Conversation(context.Background(), "m1"); !errors.Is(err, errBoom) {
+			t.Errorf("error = %v, want wrapped boom", err)
+		}
+	})
+
+	t.Run("folder not found", func(t *testing.T) {
+		store := newStore(t)
+		store.getFolderErr = errBoom
+		svc := NewMailboxService(store, time.UTC, fakeClock{})
+		if _, err := svc.Conversation(context.Background(), "m1"); !errors.Is(err, errBoom) {
+			t.Errorf("error = %v, want wrapped boom", err)
+		}
+	})
+
+	t.Run("folder list fails", func(t *testing.T) {
+		store := newStore(t)
+		store.listFoldersErr = errBoom
+		svc := NewMailboxService(store, time.UTC, fakeClock{})
+		if _, err := svc.Conversation(context.Background(), "m1"); !errors.Is(err, errBoom) {
+			t.Errorf("error = %v, want wrapped boom", err)
+		}
+	})
+
+	t.Run("thread lookup fails", func(t *testing.T) {
+		store := newStore(t)
+		store.threadErr = errBoom
+		svc := NewMailboxService(store, time.UTC, fakeClock{})
+		if _, err := svc.Conversation(context.Background(), "m1"); !errors.Is(err, errBoom) {
+			t.Errorf("error = %v, want wrapped boom", err)
+		}
+	})
+}
+
 func TestMailboxServiceSearch(t *testing.T) {
 	store := newFakeMailStore()
 	store.searchResults = []SearchHit{{Summary: testMessage(t, "m1", "f1"), Snippet: "a \x01hello\x02 b"}}

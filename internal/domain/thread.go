@@ -44,7 +44,7 @@ func (t Thread) UnreadCount() int {
 var replyPrefixes = []string{"re", "fwd", "fw", "aw", "sv", "vs", "antw"}
 
 // GroupThreads groups message summaries into conversations by their subject with reply and forward
-// prefixes removed, comparing case-insensitively. Within a thread messages are ordered oldest first, and
+// prefixes removed, comparing case-insensitively. Within a thread messages are ordered oldest first;
 // the threads themselves are ordered by their most recent message, newest first, so the busiest recent
 // conversation sits at the top. Ordering is stable for equal dates, preserving the input order.
 func GroupThreads(messages []MessageSummary) []Thread {
@@ -72,10 +72,17 @@ func GroupThreads(messages []MessageSummary) []Thread {
 	return threads
 }
 
-// normaliseSubject lowercases a subject and strips every leading reply or forward prefix (with an
-// optional bracketed count such as "Re[2]:"), then collapses internal whitespace, so subjects that
-// differ only by those prefixes and spacing thread together. An all-prefix or empty subject normalises
-// to an empty string, grouping blank-subject messages as one conversation.
+// ThreadKey is the identity of a conversation: a subject lowercased with every leading reply or forward
+// prefix stripped (including a bracketed count such as "Re[2]:") and its internal whitespace collapsed,
+// so subjects that differ only by those prefixes and spacing thread together. An all-prefix or empty
+// subject keys to an empty string, grouping blank-subject messages as one conversation. It is exported
+// because two callers must agree on it exactly: GroupThreads, which builds the list's conversations, plus
+// the conversation lookup that gathers one message's thread from across an account's folders.
+func ThreadKey(subject string) string {
+	return normaliseSubject(subject)
+}
+
+// normaliseSubject is the implementation behind ThreadKey; the grouping below uses it directly.
 func normaliseSubject(subject string) string {
 	s := strings.TrimSpace(subject)
 	for {
@@ -89,7 +96,7 @@ func normaliseSubject(subject string) string {
 }
 
 // stripOneReplyPrefix removes a single leading reply or forward prefix (e.g. "Re:", "FWD:", "Re[2]:")
-// from the front of a subject, or returns it unchanged when none is present.
+// from the front of a subject. The subject is returned unchanged when none is present.
 func stripOneReplyPrefix(s string) string {
 	for _, prefix := range replyPrefixes {
 		rest, ok := matchReplyPrefix(s, prefix)
@@ -101,7 +108,7 @@ func stripOneReplyPrefix(s string) string {
 }
 
 // matchReplyPrefix reports whether s begins with the given prefix as a reply marker, that is the prefix
-// (case-insensitive) followed by an optional "[n]" or "(n)" count and then a colon, and returns the text
+// (case-insensitive) followed by an optional "[n]" or "(n)" count and then a colon. It returns the text
 // after the colon when it does.
 func matchReplyPrefix(s, prefix string) (string, bool) {
 	if len(s) < len(prefix) || !strings.EqualFold(s[:len(prefix)], prefix) {

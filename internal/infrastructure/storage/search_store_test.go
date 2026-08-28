@@ -471,3 +471,87 @@ func TestSearchLimitCapsResults(t *testing.T) {
 		t.Errorf("limit ignored: %d hits", len(hits))
 	}
 }
+
+// TestThreadMessagesMatchesAcrossFolders drives the loose suffix match the conversation lookup relies
+// on: it must reach every folder of the account, must not cross into another account and must treat a
+// LIKE wildcard in the subject as a literal rather than as a pattern that widens the match.
+func TestThreadMessagesMatchesAcrossFolders(t *testing.T) {
+	store := openTestStore(t)
+	ctx := context.Background()
+	saveThreadFolders(t, store, "a1", map[string]string{"f1": "INBOX", "f2": "Sent"})
+	saveThreadFolders(t, store, "a2", map[string]string{"f3": "INBOX"})
+	base := time.Date(2026, 8, 28, 9, 0, 0, 0, time.UTC)
+	save := func(folderID string, msgs ...domain.MessageSummary) {
+		t.Helper()
+		if err := store.SaveMessages(ctx, folderID, msgs); err != nil {
+			t.Fatalf("save into %q: %v", folderID, err)
+		}
+	}
+	save("f1",
+		buildSearchMessage(t, searchMsg{id: "m1", folderID: "f1", subject: "Lunch on Friday", date: base}),
+		buildSearchMessage(t, searchMsg{id: "m3", folderID: "f1", subject: "Re: Lunch on Friday", date: base.Add(2 * time.Hour)}),
+		buildSearchMessage(t, searchMsg{id: "m4", folderID: "f1", subject: "Dentist", date: base}),
+	)
+	save("f2", buildSearchMessage(t, searchMsg{id: "m2", folderID: "f2", subject: "Re: Lunch on Friday", date: base.Add(time.Hour)}))
+	save("f3", buildSearchMessage(t, searchMsg{id: "m9", folderID: "f3", subject: "Re: Lunch on Friday", date: base}))
+
+	got, err := store.ThreadMessages(ctx, "a1", "lunch on friday", 10)
+	if err != nil {
+		t.Fatalf("thread messages: %v", err)
+	}
+	ids := make([]string, 0, len(got))
+	for _, m := range got {
+		ids = append(ids, m.ID())
+	}
+	// Newest first, the account's own folders only: the other account's reply never appears.
+	if len(ids) != 3 || ids[0] != "m3" || ids[1] != "m2" || ids[2] != "m1" {
+		t.Fatalf("ids = %v, want m3, m2, m1", ids)
+	}
+
+	capped, err := store.ThreadMessages(ctx, "a1", "lunch on friday", 2)
+	if err != nil {
+		t.Fatalf("capped: %v", err)
+	}
+	if len(capped) != 2 {
+		t.Fatalf("capped = %d rows, want 2", len(capped))
+	}
+}
+
+func TestThreadMessagesTreatsWildcardsAsText(t *testing.T) {
+	store := openTestStore(t)
+	ctx := context.Background()
+	saveThreadFolders(t, store, "a1", map[string]string{"f1": "INBOX"})
+	base := time.Date(2026, 8, 28, 9, 0, 0, 0, time.UTC)
+	if err := store.SaveMessages(ctx, "f1", []domain.MessageSummary{
+		buildSearchMessage(t, searchMsg{id: "m1", folderID: "f1", subject: "50% off", date: base}),
+		buildSearchMessage(t, searchMsg{id: "m2", folderID: "f1", subject: "50X off", date: base}),
+	}); err != nil {
+		t.Fatalf("save: %v", err)
+	}
+
+	got, err := store.ThreadMessages(ctx, "a1", "50% off", 10)
+	if err != nil {
+		t.Fatalf("thread messages: %v", err)
+	}
+	// Unescaped, the % would stand for "any text" and drag "50X off" in with it.
+	if len(got) != 1 || got[0].ID() != "m1" {
+		t.Fatalf("got %d rows (first %v), want only m1", len(got), got)
+	}
+}
+
+// saveThreadFolders writes a set of folders for one account in a single call, since SaveFolders
+// replaces an account's whole folder list.
+func saveThreadFolders(t *testing.T, store *Store, accountID string, paths map[string]string) {
+	t.Helper()
+	folders := make([]domain.Folder, 0, len(paths))
+	for id, path := range paths {
+		folder, err := domain.NewFolder(id, accountID, path, domain.FolderCustom, 0, 0)
+		if err != nil {
+			t.Fatalf("folder %q: %v", id, err)
+		}
+		folders = append(folders, folder)
+	}
+	if err := store.SaveFolders(context.Background(), accountID, folders); err != nil {
+		t.Fatalf("save folders for %q: %v", accountID, err)
+	}
+}

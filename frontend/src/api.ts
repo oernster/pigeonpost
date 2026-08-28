@@ -34,6 +34,7 @@ import {
     MinimiseToTray,
     RequestQuit,
     CollectContacts,
+    Conversation,
     CopyMessage,
     CreateFolder,
     CreateSubfolder,
@@ -174,6 +175,10 @@ export type UnreadCountsResult = main.UnreadCountsDTO
 // FolderUIStateResult is an account's persisted folder display state: the custom folders' local order
 // and the collapsed folder paths.
 export type FolderUIStateResult = main.FolderUIStateDTO
+// ConversationEntry is one message of a thread with the folder it sits in, so the reader can say which
+// of them you received and which you sent.
+export type ConversationEntry = main.ConversationEntryDTO
+
 export type BulkResult = main.BulkResultDTO
 // MoveResult reports where a move-shaped action (move, delete to Trash, junk, rescue) put the
 // message: the id it will carry in its destination folder; empty when the server did not say.
@@ -510,6 +515,10 @@ export const api = {
     // copyMessage duplicates a message into destFolderId; the result carries the id the duplicate
     // holds there when the server reported it (COPYUID), so a pasted copy can show up instantly.
     copyMessage: (messageId: string, destFolderId: string): Promise<MoveResult> => CopyMessage(messageId, destFolderId),
+    // conversation returns every cached message threading with this one, across the account's folders,
+    // oldest first. The list's own grouping sees a single folder, so this is the only view that pairs a
+    // message with the answer you sent to it.
+    conversation: (messageId: string): Promise<ConversationEntry[]> => Conversation(messageId),
     createFolder: (accountId: string, name: string): Promise<void> => CreateFolder(accountId, name),
     // createSubfolder creates a folder named name directly under parentFolderId. The parent supplies the
     // account and the server's hierarchy delimiter, so name is a leaf name and never a path.

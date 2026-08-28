@@ -357,6 +357,83 @@
     flex-shrink: 0;
 }
 
+/* The conversation strip under the message header: the thread this message belongs to, gathered from
+   every folder of the account, one row per message. It is a quiet surface by design (dim text, a hairline
+   above it, no fill) because it is a way through the mail rather than a part of the message; the row you
+   are reading is disabled and marked, so the strip says where you are as well as where you can go. */
+.conversation-strip {
+    margin-top: 12px;
+    border-top: 1px solid var(--border);
+    padding-top: 8px;
+}
+
+.conversation-head {
+    color: var(--text-dim);
+    font-size: 12px;
+    margin-bottom: 4px;
+}
+
+.conversation-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.conversation-item {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    width: 100%;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    color: var(--text);
+    font-size: 13px;
+    padding: 4px 6px;
+    text-align: left;
+    cursor: pointer;
+}
+
+.conversation-item:enabled:hover {
+    background-color: var(--bg-elev);
+}
+
+.conversation-item:enabled:focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 1px;
+}
+
+/* The open message: it stays legible (it is the row that says "you are here") rather than fading out the
+   way a disabled control usually would; it carries the accent bar the selected list row uses. */
+.conversation-item.current {
+    box-shadow: inset 2px 0 0 var(--accent);
+    cursor: default;
+    opacity: 1;
+}
+
+.conversation-index {
+    color: var(--text-dim);
+    width: 18px;
+    flex-shrink: 0;
+}
+
+.conversation-who {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.conversation-folder {
+    color: var(--text-dim);
+    flex-shrink: 0;
+}
+
+.conversation-when {
+    color: var(--text-dim);
+    flex-shrink: 0;
+}
+
 .reader-body {
     padding-top: 16px;
     line-height: 1.5;

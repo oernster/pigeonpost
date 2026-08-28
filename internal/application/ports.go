@@ -95,6 +95,12 @@ type MailStore interface {
 	// capped at limit. Each hit's snippet wraps matched terms in SearchMatchStart/SearchMatchEnd.
 	// Snoozed messages stay searchable: hiding is a folder-view concern, not an existence one.
 	SearchMessages(ctx context.Context, query domain.SearchQuery, limit int) ([]SearchHit, error)
+	// ThreadMessages returns the account's cached messages whose subject ENDS WITH subjectSuffix,
+	// across every folder, capped at limit and newest first. It is deliberately a loose match: a
+	// conversation's key is its subject with the reply and forward prefixes stripped, which is always a
+	// suffix of the raw subject; the store cannot apply the domain's stripping rule itself. The
+	// caller filters the candidates by domain.ThreadKey, which is the authoritative comparison.
+	ThreadMessages(ctx context.Context, accountID, subjectSuffix string, limit int) ([]domain.MessageSummary, error)
 	DeleteMessage(ctx context.Context, messageID string) error
 }
 
@@ -175,7 +181,7 @@ type MailSource interface {
 	FetchFolders(ctx context.Context, account domain.Account) ([]domain.Folder, error)
 	FetchMessages(ctx context.Context, account domain.Account, folder domain.Folder) ([]domain.MessageSummary, error)
 	// FetchBody returns a message's plain-text and HTML bodies, any raw text/calendar scheduling payload
-	// (an iMIP invite or reply, nil when the message carried none), and its attachments (empty when it
+	// (an iMIP invite or reply, nil when the message carried none) and its attachments (empty when it
 	// carried none).
 	FetchBody(ctx context.Context, account domain.Account, folder domain.Folder, uid string) (plain, html string, invite []byte, attachments []domain.Attachment, err error)
 	// FetchRaw returns the full raw RFC822 bytes of a message by its opaque handle, used for export
@@ -268,7 +274,7 @@ type OutboxStore interface {
 // DraftRecoveryStore persists a single local snapshot of an in-progress compose window, so a message
 // still being written survives an accidental close or a crash. It never touches the server; it is the
 // local-recovery counterpart to the server-side draft that DraftSaver appends. Only the most recent
-// snapshot is kept: SaveDraftRecovery replaces any existing one, and GetDraftRecovery reports whether a
+// snapshot is kept: SaveDraftRecovery replaces any existing one; GetDraftRecovery reports whether a
 // snapshot is present.
 type DraftRecoveryStore interface {
 	SaveDraftRecovery(ctx context.Context, recovery domain.DraftRecovery) error

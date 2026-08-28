@@ -25,6 +25,7 @@ const apiSpies = vi.hoisted(() => ({
     messageTags: vi.fn(), messageBody: vi.fn(), loadRemoteImages: vi.fn(), searchMessages: vi.fn(),
     setMessageTag: vi.fn(), listMessages: vi.fn(), listMessagesPage: vi.fn(), syncFolder: vi.fn(),
     listFolders: vi.fn(), listOutbox: vi.fn(), cancelOutboxItem: vi.fn(),
+    conversation: vi.fn(),
     syncAccount: vi.fn(), replayOutbox: vi.fn(), removeAccount: vi.fn(),
     deleteMessage: vi.fn(), deleteMessagePermanent: vi.fn(), saveMessageAs: vi.fn(),
     markFlagged: vi.fn(), moveMessage: vi.fn(), markJunk: vi.fn(), markNotJunk: vi.fn(), copyMessage: vi.fn(),
@@ -154,6 +155,7 @@ beforeEach(() => {
     apiSpies.markJunk.mockReset().mockResolvedValue(undefined)
     apiSpies.markNotJunk.mockReset().mockResolvedValue(undefined)
     apiSpies.copyMessage.mockReset().mockResolvedValue(undefined)
+    apiSpies.conversation.mockReset().mockResolvedValue([])
     apiSpies.createFolder.mockReset().mockResolvedValue(undefined)
     apiSpies.renameFolder.mockReset().mockResolvedValue(undefined)
     apiSpies.deleteFolder.mockReset().mockResolvedValue(undefined)

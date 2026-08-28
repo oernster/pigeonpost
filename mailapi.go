@@ -24,6 +24,18 @@ func (a *App) ListMessages(folderID string) ([]MessageDTO, error) {
 	return toMessageDTOs(messages, colours), nil
 }
 
+// Conversation returns every cached message that threads with the given one, across all of its
+// account's folders and oldest first, each carrying the folder it lives in. The reader lists them so a
+// thread can be walked: the list's own grouping only ever sees one folder, so an answer the user sent
+// sits in Sent, out of reach of the conversation it belongs to.
+func (a *App) Conversation(messageID string) ([]ConversationEntryDTO, error) {
+	entries, err := a.mailbox.Conversation(a.ctx, messageID)
+	if err != nil {
+		return nil, err
+	}
+	return toConversationEntryDTOs(entries), nil
+}
+
 // ListMessagesPage returns one keyset page of a folder's cached message summaries for the reading list's
 // incremental load. The first call passes hasCursor false; while the returned page reports HasMore, the
 // next call passes the page's NextCursor* values back to resume strictly after its last row. limit caps
@@ -59,7 +71,7 @@ func (a *App) ListThreads(folderID string) ([]ThreadDTO, error) {
 
 // SearchMessages returns cached messages matching the query, most relevant first. folderID and
 // accountID scope the search to the UI's selection (empty for all mail). The query text supports the
-// operator grammar: quoted phrases, OR, -negation, from:, to:, subject:, filename:, has:attachment,
+// operator grammar: quoted phrases, the OR keyword, -negation, from:, to:, subject:, filename:, has:attachment,
 // is:unread / is:read / is:flagged, in:<folder>, account:<name> and before:/after:/on: ISO dates.
 func (a *App) SearchMessages(query, folderID, accountID string) (SearchResultDTO, error) {
 	hits, degraded, err := a.mailbox.Search(a.ctx, query, folderID, accountID)

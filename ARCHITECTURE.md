@@ -377,7 +377,18 @@ convention agree; the folder move stays the authoritative action since keyword s
 Conversation grouping and list order are read-side concerns over the same cached summaries the flat list
 uses: the domain `GroupThreads` groups a folder's summaries into conversations by normalised subject
 (reply/forward prefixes stripped), exposed through `MailboxService.Threads`; the UI sorts the list by
-date in either direction. The desktop list mirrors the grouping client-side so it updates instantly with
+date in either direction.
+
+`MailboxService.Conversation` answers the question that grouping raises but cannot settle: a folder's
+threading shows that a message has replies, while the replies themselves live elsewhere, above all the
+ones the user sent, which are in Sent. It gathers the open message's thread across every folder of its
+account and the reader lists it under the header, each entry naming its folder and opening in its own
+reader tab. Membership is `domain.ThreadKey` equality, the exported form of the grouping's own
+normalisation, so a message cannot thread one way in the list and another way in the reader. The store's
+`ThreadMessages` narrows the candidates with a subject-suffix LIKE (the key is always a suffix of the raw
+subject; SQL cannot apply the domain's stripping rule), capped, with the exact comparison done in the
+service. Real RFC threading over `In-Reply-To` and `References` would need those headers fetched and
+stored, which the cache does not hold today; subject threading is what both surfaces already agree on. The desktop list mirrors the grouping client-side so it updates instantly with
 optimistic changes, keeping the domain function as the single tested definition.
 
 Large folders: the message list is fully virtualised (`@tanstack/react-virtual`) so only on-screen rows

@@ -3,6 +3,7 @@ package application
 import (
 	"context"
 	"fmt"
+	"sort"
 	"time"
 
 	"github.com/oernster/pigeonpost/internal/domain"
@@ -63,6 +64,69 @@ func (s *MailboxService) Threads(ctx context.Context, folderID string) ([]domain
 		return nil, fmt.Errorf("list messages for folder %q: %w", folderID, err)
 	}
 	return domain.GroupThreads(messages), nil
+}
+
+// conversationLimit caps how many of an account's messages one conversation lookup considers. A thread
+// is a handful of messages; the cap is there so a pathological subject (an empty one, which every
+// blank-subject message shares) cannot pull an entire mailbox into memory.
+const conversationLimit = 200
+
+// ConversationEntry is one message of a conversation, carried with the folder it lives in so the reader
+// can say where each message sits: the question a cross-folder thread has to answer is which of these
+// you sent and which you received.
+type ConversationEntry struct {
+	Summary    domain.MessageSummary
+	FolderName string
+	FolderKind domain.FolderKind
+}
+
+// Conversation returns every cached message that threads with the given one, across all of its
+// account's folders, oldest first. This is what makes a conversation navigable rather than merely
+// visible: the list's threading groups a folder's own messages, so a reply the user sent (which lives
+// in Sent) or an earlier message they filed elsewhere never appears beside the message that answers it.
+//
+// Membership is domain.ThreadKey equality, the same rule the list's grouping uses, so a message never
+// threads one way in the list and another way here. The store's suffix match narrows the candidates;
+// this comparison decides. A message whose folder has since been removed from the cache is skipped
+// rather than shown under a folder that cannot be named.
+func (s *MailboxService) Conversation(ctx context.Context, messageID string) ([]ConversationEntry, error) {
+	message, err := s.mail.GetMessage(ctx, messageID)
+	if err != nil {
+		return nil, fmt.Errorf("locate message %q: %w", messageID, err)
+	}
+	folder, err := s.mail.GetFolder(ctx, message.FolderID())
+	if err != nil {
+		return nil, fmt.Errorf("locate folder %q: %w", message.FolderID(), err)
+	}
+	folders, err := s.mail.ListFolders(ctx, folder.AccountID())
+	if err != nil {
+		return nil, fmt.Errorf("list folders for account %q: %w", folder.AccountID(), err)
+	}
+	byID := make(map[string]domain.Folder, len(folders))
+	for _, f := range folders {
+		byID[f.ID()] = f
+	}
+
+	key := domain.ThreadKey(message.Subject())
+	candidates, err := s.mail.ThreadMessages(ctx, folder.AccountID(), key, conversationLimit)
+	if err != nil {
+		return nil, fmt.Errorf("list conversation for %q: %w", messageID, err)
+	}
+	entries := make([]ConversationEntry, 0, len(candidates))
+	for _, c := range candidates {
+		if domain.ThreadKey(c.Subject()) != key {
+			continue
+		}
+		home, ok := byID[c.FolderID()]
+		if !ok {
+			continue
+		}
+		entries = append(entries, ConversationEntry{Summary: c, FolderName: home.Name(), FolderKind: home.Kind()})
+	}
+	sort.SliceStable(entries, func(i, j int) bool {
+		return entries[i].Summary.Date().Before(entries[j].Summary.Date())
+	})
+	return entries, nil
 }
 
 // UnreadTotals carries the per-account unread message counts, their sum across all accounts and each
