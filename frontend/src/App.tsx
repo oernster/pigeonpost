@@ -1352,6 +1352,7 @@ function App() {
                     onDeleteAccount={(account) => setAccountToDelete(account)}
                     onNewFolder={() => setFolderPrompt({mode: 'create'})}
                     onRenameFolder={(folder) => setFolderPrompt({mode: 'rename', folder})}
+                    onNewSubfolder={(folder) => setFolderPrompt({mode: 'create', parent: folder})}
                     onReparentFolder={(folderId, newParentId) => void reparentFolder(folderId, newParentId)}
                     onDeleteFolder={(folder) => setFolderToDelete(folder)}
                     onDropMessage={dropMessageOnFolder}

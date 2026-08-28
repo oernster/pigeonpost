@@ -30,6 +30,10 @@ export interface MenuItem {
     submenu?: MenuItem[]
     // separator, when true, renders a divider in place of an item (the other fields are ignored).
     separator?: boolean
+    // hidden keeps an item out of the dropdown while leaving its accelerator wired: the action has a
+    // control of its own (Compose is a button in the title bar), so the entry would be a duplicate,
+    // but the key must still work from anywhere in the window.
+    hidden?: boolean
     // swatch, when set, draws a small colour square before the label (used by the colour tag list).
     swatch?: string
 }
@@ -66,8 +70,12 @@ function keepTextFocus(e: ReactMouseEvent): void {
     }
 }
 
-// MenuItemView renders one entry: a divider, a flyout parent (SubMenuItem) or a leaf button.
+// MenuItemView renders one entry: a divider, a flyout parent (SubMenuItem) or a leaf button. A hidden
+// item renders nothing; it is in the list for its accelerator alone.
 function MenuItemView({item, onChoose}: {item: MenuItem; onChoose: (item: MenuItem) => void}) {
+    if (item.hidden) {
+        return null
+    }
     if (item.separator) {
         return <div className="menu-sep" role="separator"/>
     }
@@ -196,7 +204,7 @@ export const HOVER_CLOSE_DELAY_MS = 200
 
 // Menu is a title-tray dropdown: an emoji trigger that opens a list of items. Hovering the trigger
 // opens it too (the dropdown is headed with the menu's name, since the emoji alone does not carry
-// it), and it closes once the pointer has left both the trigger and the open dropdown. It also
+// it); it closes once the pointer has left both the trigger and the open dropdown. It also
 // closes on an outside click, on Escape and after a leaf item is chosen. It backs the File, Edit,
 // View, Mail and Help menus so they all look and behave the same. Keyboard: Down, Enter or Space on
 // the trigger opens the menu and moves focus to the first item; Up and Down (wrapping) plus Home

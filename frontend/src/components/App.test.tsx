@@ -183,12 +183,12 @@ describe('App: mount and splash', () => {
         expect(apiSpies.listAccounts).toHaveBeenCalled()
     })
 
-    it('groups the title bar into brand-and-menus, the centred controls and the app pair', () => {
-        // The centre group is positioned from the middle of the window outwards, so which controls are
-        // in it is a layout decision rather than a cosmetic one: a control added to the wrong group
-        // lands on the wrong side of the bar.
+    it('groups the title bar into brand-and-menus, the working controls and the app pair', () => {
+        // The last group is held at the far end of the bar while the actions group runs on from the
+        // menus, so which controls are in which group is a layout decision rather than a cosmetic one:
+        // a control added to the wrong group lands on the wrong side of the bar.
         const {container} = render(<App/>)
-        const inCentre = container.querySelectorAll('.titlebar-centre [aria-label], .titlebar-centre button')
+        const inCentre = container.querySelectorAll('.titlebar-actions [aria-label], .titlebar-actions button')
         const centreLabels = [...inCentre].map((el) => el.getAttribute('aria-label') ?? el.textContent?.trim())
         expect(centreLabels).toContain('Compose')
         expect(centreLabels).toContain('Add account')
@@ -940,6 +940,19 @@ describe('App: menus', () => {
         await waitFor(() => expect(apiSpies.listFolders).toHaveBeenCalledWith('acc1'))
         fireEvent.keyDown(document.body, {key: 'n', ctrlKey: true})
         expect(await screen.findByRole('dialog', {name: 'New message'})).toBeInTheDocument()
+    })
+
+    it('keeps Compose out of the Mail menu while its accelerator still fires', async () => {
+        // Composing has a button of its own in the title bar, so the menu entry was a duplicate. The
+        // item stays in the definitions, hidden, because the accelerators are wired from them: the
+        // Ctrl+N test above is what proves the key survived its removal from the dropdown.
+        apiSpies.listAccounts.mockResolvedValue([makeAccount()])
+        apiSpies.listFolders.mockResolvedValue([makeFolder('inbox', 'Inbox', 'inbox')])
+        render(<App/>)
+        await waitFor(() => expect(apiSpies.listFolders).toHaveBeenCalledWith('acc1'))
+        fireEvent.click(screen.getByRole('button', {name: 'Mail'}))
+        expect(await screen.findByRole('menuitem', {name: /Add account/})).toBeInTheDocument()
+        expect(screen.queryByRole('menuitem', {name: 'Compose'})).toBeNull()
     })
 
     it('opens the reply composer via the Ctrl+R submenu accelerator (useMenus)', async () => {

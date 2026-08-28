@@ -70,11 +70,12 @@
        cover the bar as they should. */
     position: relative;
     z-index: 30;
-    /* Three columns: the brand and menus, the centred working controls, the theme toggle and Help. The
-       outer columns take equal shares of whatever the middle does not use, which is what puts the middle
-       column on the window's centre line rather than midway between its neighbours. */
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    /* One row read left to right: the brand and menus, then the working controls carrying straight on
+       from them, with the theme toggle and Help held at the far end. The gap here separates the three
+       groups; it is wider than the 8px between buttons inside a group, so the seam between the menus
+       and the controls reads as a seam rather than leaving the compose button crowding the Mail menu. */
+    display: flex;
+    gap: 16px;
 }
 
 /* The wordmark yields before the controls do: in a narrow window it truncates so the centre group can

@@ -265,7 +265,11 @@ export function useMenus(deps: MenusDeps): Menus {
     ]
     const mailMenu: MenuItem[] = [
         {
+            // Hidden: composing has its own button in the title bar, so an entry here would be a second
+            // way to say the same thing at the top of the menu. The item stays for Ctrl+N, which is
+            // wired from these definitions and would otherwise go with it.
             label: 'Compose',
+            hidden: true,
             shortcut: 'Ctrl+N',
             disabled: !selectedAccount,
             onClick: () => {

@@ -28,8 +28,8 @@ export interface TitleBarProps {
 }
 
 // TitleBar is the header in three groups: the brand with the all-accounts unread badge plus the
-// File/Edit/View/Mail menus on the left, the working controls centred on the window (compose, add
-// account, sync, Contacts, Calendar) and the app-level pair on the right (the theme toggle and Help).
+// File/Edit/View/Mail menus, then the working controls carrying on from them (compose, add account,
+// sync, Contacts, Calendar), then the app-level pair held at the far end (the theme toggle and Help).
 // It is presentational: every action is a prop.
 //
 // The tray carries only what is live whatever is selected. Reply, reply-all, forward and Attach each needed a
@@ -59,7 +59,7 @@ export function TitleBar(props: TitleBarProps) {
                     <Menu title="View" icon={'\u{1F441}\u{FE0F}'} items={viewMenu} align="left"/>
                     <Menu title="Mail" icon={'\u{1F4EC}'} items={mailMenu} align="left"/>
                 </div>
-                <div className="titlebar-centre">
+                <div className="titlebar-actions">
                     <button
                         className="icon-btn"
                         data-tip="Compose"

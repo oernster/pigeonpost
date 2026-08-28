@@ -37,6 +37,8 @@ interface SidebarProps {
     onDeleteAccount: (account: Account) => void
     onNewFolder: () => void
     onRenameFolder: (folder: Folder) => void
+    // onNewSubfolder creates a folder under an existing one, from the row's plus button.
+    onNewSubfolder: (folder: Folder) => void
     // onReparentFolder moves the folder with folderId under newParentId (empty for the top level) on the
     // server; it backs the drag-and-drop reparenting. A same-level reorder is handled locally and never
     // calls this.
@@ -156,8 +158,8 @@ function SidebarHeader(props: SidebarProps) {
     )
 }
 
-// SidebarFolders is the one scrolling region: the folder tree of the selected account, or the prompt to
-// sync when nothing is cached yet.
+// SidebarFolders is the one scrolling region: the folder tree of the selected account, else the prompt
+// to sync when nothing is cached yet.
 function SidebarFolders(props: SidebarProps) {
     const {selectedAccount, folders, selectedFolder} = props
     if (folders.length === 0) {
@@ -170,6 +172,7 @@ function SidebarFolders(props: SidebarProps) {
             selectedAccount={selectedAccount}
             onSelectFolder={props.onSelectFolder}
             onRenameFolder={props.onRenameFolder}
+            onNewSubfolder={props.onNewSubfolder}
             onReparentFolder={props.onReparentFolder}
             onDeleteFolder={props.onDeleteFolder}
             onDropMessage={props.onDropMessage}

@@ -77,6 +77,7 @@ function renderSidebar(overrides: Partial<SidebarProps> = {}) {
         onDeleteAccount: vi.fn(),
         onNewFolder: vi.fn(),
         onRenameFolder: vi.fn(),
+        onNewSubfolder: vi.fn(),
         onReparentFolder: vi.fn(),
         onDeleteFolder: vi.fn(),
         // The default drop is accepted, matching a real move being issued; a test wanting the rejected
@@ -454,9 +455,18 @@ describe('Sidebar: folder tree', () => {
         expect(onDeleteFolder).toHaveBeenCalledWith(nested[1])
     })
 
-    it('offers no rename or delete on a well-known mailbox', () => {
+    it('creates a subfolder from the row, the way the right-click menu does', () => {
+        // The row's toolbar and the folder menu offer the same three actions, so neither is the only
+        // route to any of them.
+        const {getByLabelText, onNewSubfolder} = renderSidebar({folders: nested})
+        fireEvent.click(getByLabelText('New subfolder in Work'))
+        expect(onNewSubfolder).toHaveBeenCalledWith(nested[1])
+    })
+
+    it('offers no folder actions on a well-known mailbox', () => {
         const {folderRow} = renderSidebar({folders: nested})
         expect(within(folderRow('inbox')!).queryByLabelText('Rename Inbox')).toBeNull()
+        expect(within(folderRow('inbox')!).queryByLabelText('New subfolder in Inbox')).toBeNull()
         expect(folderRow('inbox')).not.toHaveAttribute('draggable', 'true')
     })
 })

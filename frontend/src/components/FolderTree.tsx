@@ -19,6 +19,9 @@ interface FolderTreeProps {
     selectedAccount: string
     onSelectFolder: (id: string) => void
     onRenameFolder: (folder: Folder) => void
+    // onNewSubfolder opens the create prompt with this folder as the parent, the row's counterpart of
+    // the right-click menu's New subfolder entry.
+    onNewSubfolder: (folder: Folder) => void
     onReparentFolder: (folderId: string, newParentId: string) => void
     onDeleteFolder: (folder: Folder) => void
     // onDropMessage moves a dragged message into the folder and reports whether the drop was taken.
@@ -404,6 +407,18 @@ export function FolderTree(props: FolderTreeProps) {
                         )}
                         {folder.kind === 'custom' && (
                             <span className="account-actions">
+                                <button
+                                    className="account-action"
+                                    tabIndex={folder.id === tabStopId ? 0 : -1}
+                                    aria-label={`New subfolder in ${folder.name}`}
+                                    title="New subfolder"
+                                    onClick={(e) => {
+                                        e.stopPropagation()
+                                        props.onNewSubfolder(folder)
+                                    }}
+                                >
+                                    &#43;
+                                </button>
                                 <button
                                     className="account-action"
                                     tabIndex={folder.id === tabStopId ? 0 : -1}
