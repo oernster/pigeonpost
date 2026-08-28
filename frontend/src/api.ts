@@ -36,6 +36,7 @@ import {
     CollectContacts,
     CopyMessage,
     CreateFolder,
+    CreateSubfolder,
     DeleteCalendar,
     DeleteContact,
     DeleteContactGroup,
@@ -120,7 +121,7 @@ import {isSnoozedFolder} from './snooze'
 
 export type Account = main.AccountDTO
 export type Folder = main.FolderDTO
-// Wails returns plain JSON at runtime (no class methods), and the UI spreads messages for optimistic
+// Wails returns plain JSON at runtime (no class methods); the UI spreads messages for optimistic
 // updates, so Message is the data-only shape. Omitting convertValues keeps this valid even after the
 // generated MessageDTO regains that helper method on a `wails generate`.
 export type Message = Omit<main.MessageDTO, 'convertValues'>
@@ -175,7 +176,7 @@ export type UnreadCountsResult = main.UnreadCountsDTO
 export type FolderUIStateResult = main.FolderUIStateDTO
 export type BulkResult = main.BulkResultDTO
 // MoveResult reports where a move-shaped action (move, delete to Trash, junk, rescue) put the
-// message: the id it will carry in its destination folder, or empty when the server did not say.
+// message: the id it will carry in its destination folder; empty when the server did not say.
 // Undo entries are built from it.
 export type MoveResult = main.MoveResultDTO
 export type Contact = main.ContactDTO
@@ -510,6 +511,10 @@ export const api = {
     // holds there when the server reported it (COPYUID), so a pasted copy can show up instantly.
     copyMessage: (messageId: string, destFolderId: string): Promise<MoveResult> => CopyMessage(messageId, destFolderId),
     createFolder: (accountId: string, name: string): Promise<void> => CreateFolder(accountId, name),
+    // createSubfolder creates a folder named name directly under parentFolderId. The parent supplies the
+    // account and the server's hierarchy delimiter, so name is a leaf name and never a path.
+    createSubfolder: (parentFolderId: string, name: string): Promise<void> =>
+        CreateSubfolder(parentFolderId, name),
     renameFolder: (folderId: string, newName: string): Promise<void> => RenameFolder(folderId, newName),
     deleteFolder: (folderId: string): Promise<void> => DeleteFolder(folderId),
     // moveFolder reparents a folder under newParentId on the server (an empty newParentId moves it to

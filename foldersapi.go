@@ -5,6 +5,12 @@ func (a *App) CreateFolder(accountID, name string) error {
 	return a.folders.Create(a.ctx, accountID, name)
 }
 
+// CreateSubfolder creates a new mailbox directly under an existing folder on that folder's account
+// and refreshes the cached folder list. name is the new folder's leaf name, never a path.
+func (a *App) CreateSubfolder(parentFolderID, name string) error {
+	return a.folders.CreateChild(a.ctx, parentFolderID, name)
+}
+
 // RenameFolder renames a folder on the server and refreshes the cached folder list.
 func (a *App) RenameFolder(folderID, newName string) error {
 	return a.folders.Rename(a.ctx, folderID, newName)

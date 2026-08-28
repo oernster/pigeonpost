@@ -2,10 +2,12 @@ import {Dispatch, MutableRefObject, SetStateAction, useCallback, useEffect, useR
 import {Folder, api} from '../api'
 import type {MessageStore} from './useMessageStore'
 
-// FolderPrompt is the create-or-rename dialog state: which mode, and the folder being renamed.
+// FolderPrompt is the create-or-rename dialog state: which mode, the folder being renamed, plus the
+// folder a new subfolder goes under. A create naming no parent lands at the top level.
 export interface FolderPrompt {
     mode: 'create' | 'rename'
     folder?: Folder
+    parent?: Folder
 }
 
 // FoldersDeps is what the folder list needs from the rest of App: the selected account (whose folders are
@@ -92,7 +94,9 @@ export function useFolders(deps: FoldersDeps): Folders {
         setFolderBusy(true)
         setError('')
         try {
-            if (folderPrompt.mode === 'create') {
+            if (folderPrompt.mode === 'create' && folderPrompt.parent) {
+                await api.createSubfolder(folderPrompt.parent.id, value)
+            } else if (folderPrompt.mode === 'create') {
                 await api.createFolder(selectedAccount, value)
             } else if (folderPrompt.folder) {
                 await api.renameFolder(folderPrompt.folder.id, value)

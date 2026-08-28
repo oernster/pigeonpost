@@ -43,6 +43,32 @@ func (s *FolderService) Create(ctx context.Context, accountID, name string) erro
 	return s.refresh(ctx, account)
 }
 
+// CreateChild creates a new mailbox named name directly under the folder with parentFolderID, then
+// refreshes the cached list. The parent supplies both the account and the server's hierarchy
+// separator, so the caller passes a leaf name rather than a full path.
+func (s *FolderService) CreateChild(ctx context.Context, parentFolderID, name string) error {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return ErrEmptyFolderName
+	}
+	parent, err := s.store.GetFolder(ctx, parentFolderID)
+	if err != nil {
+		return fmt.Errorf("folders: locate parent folder %q: %w", parentFolderID, err)
+	}
+	if parent.ContainsSeparator(name) {
+		return ErrFolderNameHasSeparator
+	}
+	account, err := s.accounts.GetAccount(ctx, parent.AccountID())
+	if err != nil {
+		return fmt.Errorf("folders: load account %q: %w", parent.AccountID(), err)
+	}
+	path := parent.ChildPath(name)
+	if err := s.remote.CreateFolder(ctx, account, path); err != nil {
+		return fmt.Errorf("folders: create %q: %w", path, err)
+	}
+	return s.refresh(ctx, account)
+}
+
 // Rename changes a folder's leaf name on the server, keeping its parent hierarchy, then refreshes the
 // cached list. The owning account is taken from the folder itself.
 func (s *FolderService) Rename(ctx context.Context, folderID, newName string) error {

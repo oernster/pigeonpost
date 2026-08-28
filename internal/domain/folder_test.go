@@ -181,6 +181,43 @@ func TestFolderMovedUnder(t *testing.T) {
 	}
 }
 
+func TestFolderChildPath(t *testing.T) {
+	parent, err := NewFolder("id", "a1", "Projects", FolderCustom, 0, 0)
+	if err != nil {
+		t.Fatalf("build parent folder: %v", err)
+	}
+	if got := parent.ChildPath("Client"); got != "Projects/Client" {
+		t.Errorf("ChildPath(Client) = %q, want Projects/Client", got)
+	}
+	dotted, err := NewFolderWithSeparator("id2", "a1", "Money", ".", FolderCustom, 0, 0)
+	if err != nil {
+		t.Fatalf("build dotted folder: %v", err)
+	}
+	if got := dotted.ChildPath("Debt"); got != "Money.Debt" {
+		t.Errorf("dotted ChildPath(Debt) = %q, want Money.Debt", got)
+	}
+}
+
+func TestFolderContainsSeparator(t *testing.T) {
+	slashed, err := NewFolder("id", "a1", "Projects", FolderCustom, 0, 0)
+	if err != nil {
+		t.Fatalf("build folder: %v", err)
+	}
+	if !slashed.ContainsSeparator("Client/Work") {
+		t.Error("ContainsSeparator(Client/Work) = false, want true")
+	}
+	if slashed.ContainsSeparator("Client.Work") {
+		t.Error("ContainsSeparator(Client.Work) = true, want false under a slash server")
+	}
+	dotted, err := NewFolderWithSeparator("id2", "a1", "Money", ".", FolderCustom, 0, 0)
+	if err != nil {
+		t.Fatalf("build dotted folder: %v", err)
+	}
+	if !dotted.ContainsSeparator("Debt.Cards") {
+		t.Error("dotted ContainsSeparator(Debt.Cards) = false, want true")
+	}
+}
+
 func TestFolderHasAncestorPath(t *testing.T) {
 	folder, err := NewFolder("id", "a1", "Projects/Client", FolderCustom, 0, 0)
 	if err != nil {

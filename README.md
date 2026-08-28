@@ -87,7 +87,8 @@ local-first. A calmer, more predictable alternative to Thunderbird.
   with each menu entry naming what it will unwind. Cut, copy and paste messages file-manager style
   (Ctrl+X/C/V, the Edit menu or a right-click): cut or copy a selection, then paste it into the
   folder being viewed or straight onto a right-clicked folder; cut rows dim until pasted and pasted
-  rows appear instantly. Create, rename and delete folders; reorganise the
+  rows appear instantly. Create, rename and delete folders: the plus beside the Folders heading makes
+  one at the top level and New subfolder on a folder's right-click menu makes one inside it. Reorganise the
   tree by dragging a folder to nest it, move it out or reorder its siblings; the order you choose and
   the folders you keep collapsed are remembered per account and survive an update or reinstall.
   One folder each holds Inbox, Sent, Drafts, Trash, Junk and Archive, leading a collapsible tree with

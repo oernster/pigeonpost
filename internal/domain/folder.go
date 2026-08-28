@@ -168,6 +168,19 @@ func (f Folder) MovedUnder(newParentPath string) string {
 	return newParentPath + f.separator + f.name
 }
 
+// ChildPath returns the full path a new folder named leaf would have directly under this folder,
+// joined with the server's hierarchy separator. It builds the destination path for creating a
+// subfolder, so the caller never has to know the account's delimiter.
+func (f Folder) ChildPath(leaf string) string {
+	return f.path + f.separator + leaf
+}
+
+// ContainsSeparator reports whether leaf holds the server's hierarchy separator. A leaf name that
+// does is rejected rather than silently creating a deeper nesting than the user asked for.
+func (f Folder) ContainsSeparator(leaf string) bool {
+	return strings.Contains(leaf, f.separator)
+}
+
 // HasAncestorPath reports whether this folder is the folder at ancestorPath or a descendant of it,
 // compared under the folder's hierarchy separator. It guards a move: a folder cannot be reparented
 // under itself or under one of its own descendants.

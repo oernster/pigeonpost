@@ -48,7 +48,7 @@ import {useMessageActions} from './hooks/useMessageActions'
 import {useBulkActions} from './hooks/useBulkActions'
 import {useReaderTabs} from './hooks/useReaderTabs'
 import {useOutbox} from './hooks/useOutbox'
-import {useFolders} from './hooks/useFolders'
+import {FolderPrompt, useFolders} from './hooks/useFolders'
 import {useAccounts} from './hooks/useAccounts'
 import {useSync} from './hooks/useSync'
 import {useTags} from './hooks/useTags'
@@ -74,6 +74,15 @@ import {
 // SELECTED_ACCOUNT_KEY holds the id of the account that was open when the app last closed, so a restart
 // reopens it rather than always falling back to the first account.
 const SELECTED_ACCOUNT_KEY = 'selectedAccount'
+
+// folderPromptTitle names the folder dialog for what it is about to do: a create with a parent is a
+// subfolder of that parent, a create without one lands at the top level.
+function folderPromptTitle(prompt: FolderPrompt): string {
+    if (prompt.mode === 'rename') {
+        return 'Rename folder'
+    }
+    return prompt.parent ? `New folder in ${prompt.parent.name}` : 'New folder'
+}
 
 function App() {
     const [selectedAccount, setSelectedAccount] = useState<string>('')
@@ -1582,6 +1591,8 @@ function App() {
                     y={folderContextMenu.y}
                     canPaste={messageClipboard.hasClip}
                     onPaste={(folder) => void messageClipboard.pasteInto(folder.id)}
+                    canManageFolders={!isPop3}
+                    onNewSubfolder={(folder) => setFolderPrompt({mode: 'create', parent: folder})}
                     onClose={() => setFolderContextMenu(null)}
                 />
             )}
@@ -1597,7 +1608,7 @@ function App() {
             )}
             {folderPrompt && (
                 <PromptDialog
-                    title={folderPrompt.mode === 'create' ? 'New folder' : 'Rename folder'}
+                    title={folderPromptTitle(folderPrompt)}
                     label={folderPrompt.mode === 'create' ? 'Folder name' : 'New name'}
                     initialValue={folderPrompt.mode === 'rename' ? folderPrompt.folder?.name : ''}
                     confirmLabel={folderPrompt.mode === 'create' ? 'Create' : 'Rename'}

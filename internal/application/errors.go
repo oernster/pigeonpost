@@ -44,6 +44,10 @@ var ErrNoInboxFolder = errors.New("account has no inbox folder")
 // ErrEmptyFolderName is returned when a folder create or rename is given a blank name.
 var ErrEmptyFolderName = errors.New("folder name is empty")
 
+// ErrFolderNameHasSeparator is returned when a subfolder is given a leaf name holding the server's
+// hierarchy separator, which would create a deeper nesting than the name asked for.
+var ErrFolderNameHasSeparator = errors.New("folder name cannot contain the mailbox hierarchy separator")
+
 // ErrFolderMoveAcrossAccounts is returned when a folder move names a target parent belonging to a
 // different account; a folder can only be moved within its own account's mailbox tree.
 var ErrFolderMoveAcrossAccounts = errors.New("cannot move a folder to another account")

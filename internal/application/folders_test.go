@@ -82,6 +82,75 @@ func TestFolderCreateErrors(t *testing.T) {
 	})
 }
 
+func TestFolderCreateChild(t *testing.T) {
+	svc, accounts, store, _, remote := newFolderService()
+	seedFolder(t, accounts, store, "f1", "Parent")
+
+	if err := svc.CreateChild(context.Background(), "f1", "  Reports  "); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(remote.created) != 1 || remote.created[0] != "Parent/Reports" {
+		t.Errorf("expected create of Parent/Reports, got %v", remote.created)
+	}
+	if len(store.savedFolderKeys) != 1 {
+		t.Errorf("expected the folder list to be refreshed, got %v", store.savedFolderKeys)
+	}
+}
+
+func TestFolderCreateChildErrors(t *testing.T) {
+	t.Run("empty name", func(t *testing.T) {
+		svc, accounts, store, _, _ := newFolderService()
+		seedFolder(t, accounts, store, "f1", "Parent")
+		if err := svc.CreateChild(context.Background(), "f1", "  "); !errors.Is(err, ErrEmptyFolderName) {
+			t.Errorf("error = %v, want ErrEmptyFolderName", err)
+		}
+	})
+
+	t.Run("parent not found", func(t *testing.T) {
+		svc, _, store, _, _ := newFolderService()
+		store.getFolderErr = errBoom
+		if err := svc.CreateChild(context.Background(), "f1", "Reports"); !errors.Is(err, errBoom) {
+			t.Errorf("error = %v, want wrapped boom", err)
+		}
+	})
+
+	t.Run("name holds the separator", func(t *testing.T) {
+		svc, accounts, store, _, _ := newFolderService()
+		seedFolder(t, accounts, store, "f1", "Parent")
+		err := svc.CreateChild(context.Background(), "f1", "Reports/2026")
+		if !errors.Is(err, ErrFolderNameHasSeparator) {
+			t.Errorf("error = %v, want ErrFolderNameHasSeparator", err)
+		}
+	})
+
+	t.Run("account not found", func(t *testing.T) {
+		svc, accounts, store, _, _ := newFolderService()
+		seedFolder(t, accounts, store, "f1", "Parent")
+		accounts.getErr = errBoom
+		if err := svc.CreateChild(context.Background(), "f1", "Reports"); !errors.Is(err, errBoom) {
+			t.Errorf("error = %v, want wrapped boom", err)
+		}
+	})
+
+	t.Run("remote failure", func(t *testing.T) {
+		svc, accounts, store, _, remote := newFolderService()
+		seedFolder(t, accounts, store, "f1", "Parent")
+		remote.createErr = errBoom
+		if err := svc.CreateChild(context.Background(), "f1", "Reports"); !errors.Is(err, errBoom) {
+			t.Errorf("error = %v, want wrapped boom", err)
+		}
+	})
+
+	t.Run("refresh failure", func(t *testing.T) {
+		svc, accounts, store, source, _ := newFolderService()
+		seedFolder(t, accounts, store, "f1", "Parent")
+		source.fetchFoldersErr = errBoom
+		if err := svc.CreateChild(context.Background(), "f1", "Reports"); !errors.Is(err, errBoom) {
+			t.Errorf("error = %v, want wrapped boom", err)
+		}
+	})
+}
+
 func TestFolderRename(t *testing.T) {
 	svc, accounts, store, _, remote := newFolderService()
 	seedFolder(t, accounts, store, "f1", "Parent/Old")

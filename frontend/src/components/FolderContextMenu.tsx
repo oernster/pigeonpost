@@ -9,6 +9,10 @@ interface FolderContextMenuProps {
     // or copied selection can be pasted straight onto a folder without opening it first.
     canPaste: boolean
     onPaste: (folder: Folder) => void
+    // canManageFolders is false for POP3 accounts, which have no server-side folders; the New
+    // subfolder entry is left out entirely for them.
+    canManageFolders: boolean
+    onNewSubfolder: (folder: Folder) => void
     onClose: () => void
 }
 
@@ -16,7 +20,8 @@ interface FolderContextMenuProps {
 const MENU_MARGIN = 8
 
 // FolderContextMenu is the folder row's right-click menu, the folder-side counterpart of the
-// message context menu: Paste files the message clipboard's cut or copied emails into this folder.
+// message context menu: New subfolder creates a folder directly under this one and Paste files the
+// message clipboard's cut or copied emails into this folder.
 // It shares the .context-menu classes (and so the same styling and the accelerator suppression)
 // and the same dismiss-and-clamp behaviour.
 export function FolderContextMenu(props: FolderContextMenuProps) {
@@ -75,6 +80,18 @@ export function FolderContextMenu(props: FolderContextMenuProps) {
         >
             <div className="context-header">{folder.name}</div>
             <div className="context-sep"/>
+            {props.canManageFolders && (
+                <button
+                    className="context-item"
+                    role="menuitem"
+                    onClick={() => {
+                        props.onNewSubfolder(folder)
+                        onClose()
+                    }}
+                >
+                    New subfolder
+                </button>
+            )}
             <button
                 className="context-item"
                 role="menuitem"
