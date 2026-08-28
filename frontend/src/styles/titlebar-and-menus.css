@@ -1,39 +1,40 @@
-/* The left group: the brand and the File, Edit, View and Mail menus, sitting next to the wordmark. */
+/* The left group: the brand and the File, Edit, View and Mail menus, sitting next to the wordmark. It
+   may shrink (min-width: 0, the wordmark truncating) so the centre group keeps the middle of the window
+   at any width; see .titlebar-centre. */
 .titlebar-left {
     display: flex;
     align-items: center;
     gap: 8px;
+    justify-content: flex-start;
+    min-width: 0;
 }
 
 .titlebar-right {
     display: flex;
     align-items: center;
     gap: 8px;
+    justify-content: flex-end;
+    min-width: 0;
 }
 
-/* The working controls (compose, add account, sync, Contacts, Calendar) sit centred on the window rather
-   than centred in what the other two groups leave over, which would put them off-centre whenever the left
-   and right groups differ in width, as they always do. That takes them out of the flow: the header keeps
-   its space-between for the brand-and-menus group and the theme-and-help pair, while this group is
-   placed from the middle outwards.
+/* The working controls (compose, add account, sync, Contacts, Calendar) hold the middle of the WINDOW,
+   not the middle of whatever the other two groups leave over. The bar is a three-column grid whose outer
+   columns are minmax(0, 1fr): equal shares by construction, so the auto-width middle column lands on the
+   window's centre line whatever the two groups weigh; it stays there as the window is resized.
 
-   Below TITLEBAR_CENTRE_FLOW_PX the three groups no longer have the room for that and the centred group
-   would be painted over its neighbours, so it drops back into the flow and shares the squeeze with them.
-   Measured: the left group is about 360px and this one about 500px, so the overlap starts around 1220px. */
+   The outer columns may shrink below their content (the 0 floor, with min-width: 0 on the groups), which
+   is what keeps the middle centred in a narrow window: the wordmark truncates rather than shoving the
+   controls sideways. Two earlier attempts failed and are recorded so they are not tried again. Flex
+   cannot do this at all: space-between centres nothing; a centred flex item is centred in the gap
+   between its neighbours, which is the window's centre only when those neighbours happen to be the same
+   width. Absolute positioning did centre it while it had room, then overlapped the groups in a narrow
+   window, so it carried a media query that dropped it back into the flow, which meant an off-centre bar
+   at every width below the breakpoint, the default 1200px window among them. */
 .titlebar-centre {
-    position: absolute;
-    left: 50%;
-    transform: translateX(-50%);
     display: flex;
     align-items: center;
     gap: 8px;
-}
-
-@media (max-width: 1280px) {
-    .titlebar-centre {
-        position: static;
-        transform: none;
-    }
+    justify-self: center;
 }
 
 /* A thin vertical rule grouping the title-tray buttons. It stretches to the button height. */

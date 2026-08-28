@@ -60,9 +60,7 @@
 }
 
 .titlebar {
-    display: flex;
     align-items: center;
-    justify-content: space-between;
     padding: 8px 14px;
     background-color: var(--bg-elev);
     border-bottom: 1px solid var(--border);
@@ -72,11 +70,24 @@
        cover the bar as they should. */
     position: relative;
     z-index: 30;
+    /* Three columns: the brand and menus, the centred working controls, the theme toggle and Help. The
+       outer columns take equal shares of whatever the middle does not use, which is what puts the middle
+       column on the window's centre line rather than midway between its neighbours. */
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
 }
 
+/* The wordmark yields before the controls do: in a narrow window it truncates so the centre group can
+   stay on the window's centre line. min-width: 0 is what lets it: a flex item refuses to shrink below its
+   own content without it, so the whole left group would have kept its full width and shoved the controls
+   off centre. */
 .brand {
     font-weight: 600;
     letter-spacing: 0.3px;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 /* A labelled tray button (Contacts, Calendar). It is a flex row so its leading .btn-icon can carry the
