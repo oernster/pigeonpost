@@ -1270,6 +1270,7 @@ function App() {
         toggleConversationView, togglePreview, toggleAutoLoadImages, toggleUnifiedMailbox,
         signatureHtml, setComposeInitial, setComposing, setSettingUp, sync, openInNewTab,
         openReply, openReplyAll, openForward, attachToNewMessage, setReadState, toggleFlag, toggleTag,
+        attachFiles, setAttachPickerOpen, displayMessages,
         moveMessage, copyMessage, markJunk, markNotJunk, snoozeTo, unsnooze, setSnoozePickerFor,
         setMessageToCancelSend, requestDelete, setMessageToPurge,
         showAbout, showLicence, checkUpdates,
@@ -1315,21 +1316,12 @@ function App() {
                 helpMenu={helpMenu}
                 selectedAccount={selectedAccount}
                 accountSyncing={accountSyncing}
-                canMailAct={canMailAct}
-                canReplyAll={canReplyAll}
-                activeMessage={activeMessage}
-                displayMessages={displayMessages}
                 theme={theme}
                 signatureHtml={signatureHtml}
                 setComposeInitial={setComposeInitial}
                 setComposing={setComposing}
                 setSettingUp={setSettingUp}
                 sync={sync}
-                openReply={openReply}
-                openReplyAll={openReplyAll}
-                openForward={openForward}
-                setAttachPickerOpen={setAttachPickerOpen}
-                attachFiles={attachFiles}
                 setManagingContacts={setManagingContacts}
                 setManagingCalendar={setManagingCalendar}
                 setTheme={setTheme}

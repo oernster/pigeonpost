@@ -45,7 +45,7 @@ export interface MenusDeps {
     printMessage: (message: Message) => Promise<void>
     // Edit menu. undoText / redoText name the top history entry ("Undo delete") or are null when
     // there is nothing to unwind. canCutNow / canCopyNow / canPasteNow gate the clipboard items
-    // live; App computes them from the text selection and the message selection together, and the
+    // live; App computes them from the text selection and the message selection together, so the
     // three actions dispatch to whichever level applies (text wins).
     undoText: string | null
     redoText: string | null
@@ -78,6 +78,11 @@ export interface MenusDeps {
     openReplyAll: (message: Message) => void
     openForward: (message: Message) => void
     attachToNewMessage: (message: Message) => void
+    // The Attach submenu starts a fresh message with something already on it: files picked from disk,
+    // or messages picked from the open folder (so it is offered only when that folder holds any).
+    attachFiles: () => Promise<void>
+    setAttachPickerOpen: Dispatch<SetStateAction<boolean>>
+    displayMessages: Message[]
     setReadState: (message: Message, read: boolean) => Promise<void>
     toggleFlag: (message: Message) => Promise<void>
     toggleTag: (tagId: string, assigned: boolean) => Promise<void>
@@ -85,7 +90,7 @@ export interface MenusDeps {
     copyMessage: (message: Message, destFolderId: string) => Promise<void>
     markJunk: (message: Message) => Promise<void>
     markNotJunk: (message: Message) => Promise<void>
-    // Snooze: hide the active message until a chosen moment (a preset, or the picker dialog), and bring
+    // Snooze: hide the active message until a chosen moment (a preset or the picker dialog); bring
     // a hidden one back.
     snoozeTo: (message: Message, at: Date) => Promise<void>
     unsnooze: (message: Message) => Promise<void>
@@ -122,6 +127,7 @@ export function useMenus(deps: MenusDeps): Menus {
         toggleConversationView, togglePreview, toggleAutoLoadImages, toggleUnifiedMailbox,
         signatureHtml, setComposeInitial, setComposing, setSettingUp, sync, openInNewTab,
         openReply, openReplyAll, openForward, attachToNewMessage, setReadState, toggleFlag, toggleTag,
+        attachFiles, setAttachPickerOpen, displayMessages,
         moveMessage, copyMessage, markJunk, markNotJunk, snoozeTo, unsnooze, setSnoozePickerFor,
         setMessageToCancelSend, requestDelete, setMessageToPurge,
         showAbout, showLicence, checkUpdates,
@@ -267,6 +273,24 @@ export function useMenus(deps: MenusDeps): Menus {
                 setComposeInitial(sig ? {bodyHtml: `<p></p>${sig}`} : undefined)
                 setComposing(true)
             },
+        },
+        {
+            label: 'Attach',
+            icon: '\u{1F4CE}',
+            submenu: [
+                {
+                    label: 'Attach email...',
+                    icon: '\u{2709}\u{FE0F}',
+                    disabled: !selectedAccount || displayMessages.length === 0,
+                    onClick: () => setAttachPickerOpen(true),
+                },
+                {
+                    label: 'Attach file(s)...',
+                    icon: '\u{1F4C4}',
+                    disabled: !selectedAccount,
+                    onClick: () => void attachFiles(),
+                },
+            ],
         },
         {
             label: 'Add account',

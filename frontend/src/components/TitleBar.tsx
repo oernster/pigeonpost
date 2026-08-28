@@ -1,5 +1,5 @@
 import {Dispatch, SetStateAction} from 'react'
-import {Message, UnreadCountsResult} from '../api'
+import {UnreadCountsResult} from '../api'
 import {Theme} from '../theme'
 import {ComposeInitial} from './ComposeModal'
 import {Menu, MenuItem} from './Menu'
@@ -16,35 +16,30 @@ export interface TitleBarProps {
     helpMenu: MenuItem[]
     selectedAccount: string
     accountSyncing: boolean
-    canMailAct: boolean
-    canReplyAll: boolean
-    activeMessage: Message | null
-    displayMessages: Message[]
     theme: Theme
     signatureHtml: () => string
     setComposeInitial: Dispatch<SetStateAction<ComposeInitial | undefined>>
     setComposing: Dispatch<SetStateAction<boolean>>
     setSettingUp: Dispatch<SetStateAction<boolean>>
     sync: () => Promise<void>
-    openReply: (message: Message) => void
-    openReplyAll: (message: Message) => void
-    openForward: (message: Message) => void
-    setAttachPickerOpen: Dispatch<SetStateAction<boolean>>
-    attachFiles: () => Promise<void>
     setManagingContacts: Dispatch<SetStateAction<boolean>>
     setManagingCalendar: Dispatch<SetStateAction<boolean>>
     setTheme: Dispatch<SetStateAction<Theme>>
 }
 
 // TitleBar is the header: the brand with the all-accounts unread badge, the File/Edit/View/Mail menus on the
-// left plus the icon buttons on the right (compose, add account, sync, reply/reply-all/forward, the Attach
-// menu, Contacts, Calendar, the theme toggle and Help). It is presentational: every action is a prop.
+// left plus the icon buttons on the right (compose, add account, sync, Contacts, Calendar, the theme toggle
+// and Help). It is presentational: every action is a prop.
+//
+// The tray carries only what is live whatever is selected. Reply, reply-all, forward and Attach each needed a
+// selected message, so they stood greyed out most of the time while taking room the tray needs to lay itself
+// out. They now live in the Mail menu (Respond and Attach); the reply trio is also on the reader's own
+// toolbar and in the message right-click menu, each beside the rest of its group.
 export function TitleBar(props: TitleBarProps) {
     const {
         unreadCounts, fileMenu, editMenu, viewMenu, mailMenu, helpMenu,
-        selectedAccount, accountSyncing, canMailAct, canReplyAll, activeMessage, displayMessages, theme,
+        selectedAccount, accountSyncing, theme,
         signatureHtml, setComposeInitial, setComposing, setSettingUp, sync,
-        openReply, openReplyAll, openForward, setAttachPickerOpen, attachFiles,
         setManagingContacts, setManagingCalendar, setTheme,
     } = props
     return (
@@ -94,53 +89,6 @@ export function TitleBar(props: TitleBarProps) {
                     >
                         {'\u{267B}\u{FE0F}'}
                     </button>
-                    <span className="titlebar-sep" aria-hidden="true"/>
-                    <button
-                        className="icon-btn"
-                        data-tip="Reply"
-                        aria-label="Reply"
-                        disabled={!canMailAct}
-                        onClick={() => activeMessage && openReply(activeMessage)}
-                    >
-                        {'\u{21A9}\u{FE0F}'}
-                    </button>
-                    <button
-                        className="icon-btn"
-                        data-tip="Reply all"
-                        aria-label="Reply all"
-                        disabled={!canReplyAll}
-                        onClick={() => activeMessage && openReplyAll(activeMessage)}
-                    >
-                        {'\u{1F465}'}
-                    </button>
-                    <button
-                        className="icon-btn"
-                        data-tip="Forward"
-                        aria-label="Forward"
-                        disabled={!canMailAct}
-                        onClick={() => activeMessage && openForward(activeMessage)}
-                    >
-                        {'\u{21AA}\u{FE0F}'}
-                    </button>
-                    <Menu
-                        title="Attach"
-                        icon={'\u{1F4CE}'}
-                        align="left"
-                        items={[
-                            {
-                                label: 'Attach email...',
-                                icon: '\u{2709}\u{FE0F}',
-                                disabled: !selectedAccount || displayMessages.length === 0,
-                                onClick: () => setAttachPickerOpen(true),
-                            },
-                            {
-                                label: 'Attach file(s)...',
-                                icon: '\u{1F4C4}',
-                                disabled: !selectedAccount,
-                                onClick: () => void attachFiles(),
-                            },
-                        ]}
-                    />
                     <span className="titlebar-sep" aria-hidden="true"/>
                     <button className="sync-btn" onClick={() => setManagingContacts(true)}>
                         <span className="btn-icon">{'\u{1F4C7}'}</span> Contacts
