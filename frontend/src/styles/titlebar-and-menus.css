@@ -24,10 +24,10 @@
    base-and-panes.css. The tray is emoji rather than labels, so the glyph IS the control; at the browser's
    own button size (13.3px, since a button does not inherit the body size) it painted about 13 pixels of
    ink and read as decoration. Measured with the whole tray rendered, the width the bar needs grows with
-   the glyph: about 1320px at 28px, about 1490px at 36px and about 2185px at 70px, so a window narrower
+   the glyph: about 1260px at 24px, about 1500px at 36px and about 2200px at 70px, so a window narrower
    than that packs the buttons together. */
 :root {
-    --titlebar-icon-size: 36px;
+    --titlebar-icon-size: 24px;
 }
 
 /* Icon buttons (compose, add account, sync, the reply trio, the theme toggle) share the same box as the
