@@ -164,14 +164,20 @@
 
 /* Custom folder rows carry a small floating action toolbar (rename, delete), revealed on hover or
    keyboard focus within the row. It sits out of the flex flow (absolute) so the folder name keeps the
-   full row width; the row is position:relative so the toolbar anchors to it and lifts above its
-   neighbour, so it paints over the row below instead of behind it. Opacity (not visibility) keeps the
-   buttons in the tab order; pointer-events are off while hidden so the invisible toolbar cannot block
-   the row beneath it. */
+   full row width; the row is position:relative so the toolbar anchors to it.
+
+   It is anchored to the RIGHT of the row it belongs to and stays inside that row's own height. It used
+   to hang below the row at its left edge, which put it exactly over the NEXT row's expand/collapse
+   chevron: the pointer sat on two controls a couple of pixels apart, the toolbar vanished the moment
+   the pointer left the row it belonged to and which control a click reached was close to chance. The
+   chevron leads the row and the actions close it, so the two can no longer be confused. Opacity (not
+   visibility) keeps the buttons in the tab order; pointer-events are off while hidden so the invisible
+   toolbar cannot block the row's own click target. */
 .account-actions {
     position: absolute;
-    top: 100%;
-    left: 14px;
+    top: 50%;
+    right: 6px;
+    transform: translateY(-50%);
     z-index: 2;
     display: flex;
     align-items: center;
@@ -262,8 +268,8 @@
 
 /* A completed drop flashes the folder it landed in: two slow pulses up to a bright fill and back to the
    row's normal colour. The drop cue itself vanishes the instant the pointer is released, so without this
-   there is nothing left on screen saying which folder took the message, and a drop into the wrong
-   neighbour reads exactly like a drop into the right one. Slow on purpose: a quick blink is easy to miss
+   there is nothing left on screen saying which folder took the message; a drop into the wrong
+   neighbour then reads exactly like a drop into the right one. Slow on purpose: a quick blink is easy to miss
    and easy to mistake for a rendering artefact.
 
    The peak is deliberately NOT the drag cue's colours. The drag cue (--bg-elev-2 plus a teal ring) was on
@@ -275,8 +281,8 @@
    styling underneath and needing no extra element.
 
    NOT gated on prefers-reduced-motion. On Windows that query is driven by the general "Animation effects"
-   switch, which people turn off for reasons that have nothing to do with motion sensitivity, and it would
-   silently disable a confirmation the user asked for. */
+   switch, which people turn off for reasons that have nothing to do with motion sensitivity; gating on it
+   would silently disable a confirmation the user asked for. */
 @keyframes folder-drop-flash {
     0%, 100% {
         background-color: transparent;
@@ -333,9 +339,9 @@
     color: var(--text);
     border: 1px solid var(--border);
     border-radius: 6px;
-    /* The value shown is always the short "Move to…"/"Copy to…" placeholder (the select resets to ""),
-       but the browser sizes the box to the widest folder-name option, so cap the width to reclaim the
-       space; the open dropdown still lists the full names. */
+    /* The value shown is always the short "Move to…"/"Copy to…" placeholder (the select resets to "");
+       the browser still sizes the box to the widest folder-name option, so cap the width to reclaim the
+       space; the open dropdown lists the full names regardless. */
     max-width: 130px;
     padding: 6px 8px;
     font-size: 13px;

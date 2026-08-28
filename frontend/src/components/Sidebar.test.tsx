@@ -608,3 +608,24 @@ describe('Sidebar: snoozed entry', () => {
         expect(onSelectSnoozed).toHaveBeenCalled()
     })
 })
+
+describe('Sidebar: the folder row action toolbar', () => {
+    it('keeps the hover toolbar on its own row rather than over the next row', async () => {
+        // The toolbar is absolutely positioned, so where it lands is a stylesheet fact rather than a
+        // DOM one: jsdom lays nothing out and Vitest serves CSS imports as empty modules, so the rule
+        // is pinned by reading the stylesheet from disk (the same route as App.test.tsx's drag rule).
+        // Anchored below the row at its left edge (top: 100%, left: 14px) the toolbar sat exactly over
+        // the NEXT row's expand/collapse chevron: two controls on the same pixels, so which one a
+        // click reached was close to chance. Measured on the real stylesheets, the toolbar occupied
+        // x 16 to 74 / y 48 to 78 while that chevron held x 16 to 36 / y 56 to 88.
+        const fsModule = 'node:' + 'fs'
+        const {readFileSync} = (await import(fsModule)) as {readFileSync: (path: string, encoding: string) => string}
+        const css = readFileSync('src/styles/accounts-and-folders.css', 'utf8')
+        const rule = css.slice(css.indexOf('.account-actions {'))
+        const block = rule.slice(0, rule.indexOf('}'))
+        expect(block).toMatch(/position:\s*absolute;/)
+        expect(block).toMatch(/right:\s*\d/)
+        expect(block).not.toMatch(/top:\s*100%/)
+        expect(block).not.toMatch(/left:/)
+    })
+})
