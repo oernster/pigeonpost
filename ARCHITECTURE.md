@@ -509,7 +509,12 @@ Folder operations: the `FolderService` creates, renames and deletes mailboxes on
 `FolderActions` port. Each cached `Folder` records the server's mailbox hierarchy delimiter,
 captured from the IMAP `LIST` response, so the leaf name and a rename's destination path are
 derived with the real separator ("." on StartMail, not the default "/"); a folder with an unknown
-delimiter falls back to "/". `FolderService.Move` reparents a folder, moving it under a new parent through
+delimiter falls back to "/". A folder is created either way round: `Create` takes an account and a
+path and lands at the top level, while `CreateChild` takes a parent folder id and a LEAF name and
+joins the two with that parent's own delimiter (`Folder.ChildPath`), so the caller never has to know
+what the server's delimiter is. A leaf holding the delimiter is refused
+(`ErrFolderNameHasSeparator`) rather than quietly nesting deeper than the name asked for; the parent
+also supplies the account, so a subfolder cannot be created against the wrong one. `FolderService.Move` reparents a folder, moving it under a new parent through
 the same path-to-path rename (an empty parent is the top level) and rejecting a move across accounts or
 into the folder's own subtree; the sidebar's folder drag-and-drop calls this, while a same-level reorder is
 a local per-account display order, since IMAP has no folder order. That display state (the custom folders'
