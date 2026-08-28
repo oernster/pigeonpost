@@ -5,7 +5,7 @@ import {ComposeInitial} from './ComposeModal'
 import {Menu, MenuItem} from './Menu'
 
 // TitleBarProps is the header's slice of App: the unread badge, the five menu-bar arrays (built by useMenus),
-// the derived gating flags the icon buttons read, and the handlers those buttons fire. It is prop-heavy
+// the derived gating flags the icon buttons read plus the handlers those buttons fire. It is prop-heavy
 // because the header is the app's whole action bar; each field drives the control that names it.
 export interface TitleBarProps {
     unreadCounts: UnreadCountsResult
@@ -37,7 +37,7 @@ export interface TitleBarProps {
 }
 
 // TitleBar is the header: the brand with the all-accounts unread badge, the File/Edit/View/Mail menus on the
-// left, and the icon buttons on the right (compose, add account, sync, reply/reply-all/forward, the Attach
+// left plus the icon buttons on the right (compose, add account, sync, reply/reply-all/forward, the Attach
 // menu, Contacts, Calendar, the theme toggle and Help). It is presentational: every action is a prop.
 export function TitleBar(props: TitleBarProps) {
     const {
@@ -143,10 +143,10 @@ export function TitleBar(props: TitleBarProps) {
                     />
                     <span className="titlebar-sep" aria-hidden="true"/>
                     <button className="sync-btn" onClick={() => setManagingContacts(true)}>
-                        {'\u{1F4C7}'} Contacts
+                        <span className="btn-icon">{'\u{1F4C7}'}</span> Contacts
                     </button>
                     <button className="sync-btn" onClick={() => setManagingCalendar(true)}>
-                        {'\u{1F4C5}'} Calendar
+                        <span className="btn-icon">{'\u{1F4C5}'}</span> Calendar
                     </button>
                     <span className="titlebar-sep" aria-hidden="true"/>
                     <button

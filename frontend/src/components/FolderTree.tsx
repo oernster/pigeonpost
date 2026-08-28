@@ -246,7 +246,7 @@ export function FolderTree(props: FolderTreeProps) {
         const messageId = e.dataTransfer.getData(messageDragType)
         if (messageId) {
             // Only a drop that is actually moving something is confirmed on screen. A drop the app skips
-            // (already in this folder, across accounts, a repeat of one still in flight) must not flash, or
+            // (already in this folder, across accounts, a repeat of one still in flight) must not flash; otherwise
             // the cue would be reassuring about a move that is not happening.
             if (props.onDropMessage(messageId, folder.id)) {
                 flashDrop(folder.id)
@@ -386,7 +386,7 @@ export function FolderTree(props: FolderTreeProps) {
                                         toggle(folder.path)
                                     }}
                                 >
-                                    {isCollapsed ? '▸' : '▾'}
+                                    {isCollapsed ? '\u25B6\uFE0E' : '\u25BC\uFE0E'}
                                 </button>
                             ) : (
                                 <span className="folder-toggle-spacer"/>

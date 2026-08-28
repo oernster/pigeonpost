@@ -19,15 +19,21 @@
     margin: 2px 2px;
 }
 
-/* Icon buttons (reading-pane and theme toggles) share the same box as the text buttons beside them, so
-   they match in size and their glyph sits on an elevated background in the readable text colour. */
+/* Icon buttons (compose, add account, sync, the reply trio, the theme toggle) share the same box as the
+   text buttons beside them, so they match in size and their glyph sits on an elevated background in the
+   readable text colour. The title tray is emoji rather than labels, so the glyph IS the control; at the
+   browser's own button size it painted about 13 pixels of ink and read as decoration. Every glyph in the
+   bar now shares the 28px size (the menu triggers and the Contacts and Calendar icons below), which
+   doubles the painted mark. The vertical padding comes down as the type goes up, so the bar grows by a
+   few pixels rather than by the whole difference. */
 .icon-btn {
     background-color: var(--bg-elev-2);
     color: var(--text);
     border: 1px solid var(--border);
     border-radius: 6px;
-    padding: 6px 12px;
-    font-size: 14px;
+    padding: 2px 10px;
+    font-size: 28px;
+    line-height: 1;
     cursor: pointer;
 }
 
@@ -137,12 +143,16 @@
     position: relative;
 }
 
+/* The menu triggers (File, Edit, View, Mail, Attach, Help) are emoji too, so they carry the same glyph
+   size as .icon-btn; their name is in the tooltip and the dropdown header rather than on the button. */
 .menu-title {
     background-color: var(--bg-elev-2);
     color: var(--text);
     border: 1px solid var(--border);
     border-radius: 6px;
-    padding: 6px 16px;
+    padding: 2px 12px;
+    font-size: 28px;
+    line-height: 1;
     cursor: pointer;
 }
 
@@ -301,7 +311,7 @@
     border-color: var(--accent);
 }
 
-/* A disabled button shows a red ring so its inactive state is unmistakable, and it is never a teal
+/* A disabled button shows a red ring so its inactive state is unmistakable; it is never a teal
    hover/focus target. The .btn.primary:disabled selector is needed because the .primary rule below has
    equal specificity and later source order, so without it a disabled primary keeps the teal fill and
    border; scoping to :disabled restores the neutral fill and the red ring. Native disabled buttons are

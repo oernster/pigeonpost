@@ -79,13 +79,25 @@
     letter-spacing: 0.3px;
 }
 
+/* A labelled tray button (Contacts, Calendar). It is a flex row so its leading .btn-icon can carry the
+   title bar's glyph size while the word beside it stays at reading size; centring is the flex box's job
+   rather than a vertical-align nudge that would drift with the icon size. */
 .sync-btn {
     background-color: var(--bg-elev-2);
     color: var(--text);
     border: 1px solid var(--border);
     border-radius: 6px;
-    padding: 6px 16px;
+    padding: 2px 14px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
     cursor: pointer;
+}
+
+/* The leading glyph of a labelled button, sized with the rest of the title bar's icons. */
+.btn-icon {
+    font-size: 28px;
+    line-height: 1;
 }
 
 .sync-btn:enabled:hover {
@@ -203,7 +215,7 @@
     position: relative;
 }
 
-/* Reading pane off: the sidebar plus a single full-width pane (the message list, or the full-width
+/* Reading pane off: the sidebar plus a single full-width pane (the message list; or the full-width
    reader when a message is opened). */
 .panes.no-preview {
     grid-template-columns: var(--sidebar-w, 260px) 1fr;

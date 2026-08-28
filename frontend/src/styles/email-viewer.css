@@ -56,16 +56,24 @@
     padding: 6px 8px;
 }
 
+/* The expand/collapse arrow. It carries the full-size triangles (U+25BC / U+25B6, each with the text
+   variation selector so no platform substitutes an emoji) at 20px rather than the small U+25BE / U+25B8
+   pair at 16px: measured, the painted glyph goes from 7x6 to 16x15 pixels, so the control reads as a
+   control instead of a speck. The box is fixed at 22x20 and centres the glyph, so the larger type
+   cannot make every folder row taller. */
 .folder-toggle {
     background: transparent;
     border: none;
     color: var(--text);
-    font-size: 16px;
+    font-size: 20px;
     line-height: 1;
     cursor: pointer;
     padding: 0;
-    width: 20px;
-    text-align: center;
+    width: 22px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     flex-shrink: 0;
 }
 
@@ -73,9 +81,12 @@
     color: var(--accent);
 }
 
+/* Matches .folder-toggle's box exactly, so a childless folder's icon and name line up with those of a
+   folder that has an arrow and every row is the same height whether it carries one or not. */
 .folder-toggle-spacer {
     display: inline-block;
-    width: 20px;
+    width: 22px;
+    height: 20px;
     flex-shrink: 0;
 }
 
