@@ -112,7 +112,9 @@ local-first. A calmer, more predictable alternative to Thunderbird.
   whole: every message of the exchange gathered across the account's folders rather than the open one, so
   the reply you sent sits with the message it answers instead of staying out of sight in Sent. Each
   message names the folder it lives in, opens in place for reading and can be lifted into its own reader
-  tab. An open message also lists its conversation under the header as a way through it.
+  tab. An open message also lists its conversation under the header as a way through it. The setting
+  governs the whole feature: switch it off and the list goes flat, the strip goes and any open thread
+  closes.
   A `.eml` file opens in an in-app viewer; on Windows and macOS
   PigeonPost can be set as the default `.eml` handler. PigeonPost registers as a system mail handler on
   Windows, macOS and Linux, so it can be chosen as the default email client (Windows Default apps, the

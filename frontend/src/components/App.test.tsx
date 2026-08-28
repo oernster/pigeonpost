@@ -1192,6 +1192,26 @@ describe('App: opening a conversation', () => {
         expect(within(thread).getByText('Sent')).toBeInTheDocument()
     })
 
+    it('shows the conversation strip under an open message only while the view is on', async () => {
+        const {container} = await renderWithConversation()
+        fireEvent.click(screen.getAllByText('Lunch on Friday')[0])
+        await waitFor(() => expect(container.querySelector('.conversation-strip')).not.toBeNull())
+        // The tick governs the whole feature: with conversations off, nothing about them is on screen.
+        fireEvent.click(screen.getByRole('button', {name: 'View'}))
+        fireEvent.click(screen.getByText('Conversation view'))
+        await waitFor(() => expect(container.querySelector('.conversation-strip')).toBeNull())
+        expect(container.querySelector('.conversation-header')).toBeNull()
+    })
+
+    it('closes an open thread when the view is switched off', async () => {
+        const {container} = await renderWithConversation()
+        fireEvent.click(screen.getByRole('button', {name: /Open the conversation/}))
+        await waitFor(() => expect(container.querySelector('.thread-view')).not.toBeNull())
+        fireEvent.click(screen.getByRole('button', {name: 'View'}))
+        fireEvent.click(screen.getByText('Conversation view'))
+        await waitFor(() => expect(container.querySelector('.thread-view')).toBeNull())
+    })
+
     it('leaves the thread when another message is picked', async () => {
         const {container} = await renderWithConversation()
         fireEvent.click(screen.getByRole('button', {name: /Open the conversation/}))

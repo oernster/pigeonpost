@@ -235,10 +235,16 @@ function App() {
     // when the reader is showing a single message. The list's conversation header opens one; picking any
     // message, changing folder or pressing Back closes it, so the thread never lingers over unrelated mail.
     const [threadHeadId, setThreadHeadId] = useState<string | null>(null)
+    // The tick governs the whole feature rather than the list alone: turning it off flattens the list,
+    // takes the strip out from under the open message and closes any thread being read. Someone who has
+    // said they do not want conversations should see none of them.
     const toggleConversationView = useCallback(() => {
         setConversationView((on) => {
             const next = !on
             localStorage.setItem('conversationView', next ? '1' : '0')
+            if (!next) {
+                setThreadHeadId(null)
+            }
             return next
         })
     }, [])
@@ -1215,7 +1221,7 @@ function App() {
 
     // conversation is the open message's whole thread, gathered across the account's folders so the
     // reader can offer the messages the list cannot show beside it.
-    const conversation = useConversation(selectedMessage?.id ?? null)
+    const conversation = useConversation(conversationView && selectedMessage ? selectedMessage.id : null)
 
     // readerProps is the reader surface shared by the pane (or full-width) reader and the popout
     // dialog, so both render the selected message identically.
@@ -1251,7 +1257,7 @@ function App() {
     }
     // A whole conversation wins the reader when one is open: it was asked for explicitly; it also carries
     // the message that would otherwise be shown, expanded, among its own rows.
-    const readerEl = threadHeadId ? (
+    const readerEl = threadHeadId && conversationView ? (
         <ThreadView
             headMessageId={threadHeadId}
             subject={selectedMessage?.subject ?? ''}
@@ -1405,7 +1411,7 @@ function App() {
                         {messageListEl}
                         {readerEl}
                     </>
-                ) : readingFull && (selectedMessage || threadHeadId) ? (
+                ) : readingFull && (selectedMessage || (threadHeadId && conversationView)) ? (
                     readerEl
                 ) : (
                     messageListEl

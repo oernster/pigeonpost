@@ -386,7 +386,9 @@ account. Two surfaces read it. The reader lists it under an open message's heade
 naming its folder and opening in its own reader tab. The conversation header row in the list opens the
 thread whole in the reader (`ThreadView`), where each message expands in place, its body fetched the
 first time it is opened; that row is the mouse route and the Mail menu's Open conversation is the
-keyboard one, so the list keeps its single roving tab stop. Membership is `domain.ThreadKey` equality, the exported form of the grouping's own
+keyboard one, so the list keeps its single roving tab stop. Both surfaces are gated on the conversation
+view setting along with the grouping itself: the tick is one switch over the whole feature, so turning it
+off flattens the list, withholds the strip's lookup and closes any thread being read. Membership is `domain.ThreadKey` equality, the exported form of the grouping's own
 normalisation, so a message cannot thread one way in the list and another way in the reader. The store's
 `ThreadMessages` narrows the candidates with a subject-suffix LIKE (the key is always a suffix of the raw
 subject; SQL cannot apply the domain's stripping rule), capped, with the exact comparison done in the

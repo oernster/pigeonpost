@@ -337,9 +337,11 @@ export function useMenus(deps: MenusDeps): Menus {
             onClick: () => activeMessage && openInNewTab(activeMessage),
         },
         {
+            // Offered only while the conversation view is on: the tick governs the whole feature, so a
+            // keyboard route into a thread must not survive switching conversations off.
             label: 'Open conversation',
             shortcut: 'Ctrl+Shift+T',
-            disabled: !canMailAct,
+            disabled: !canMailAct || !conversationView,
             onClick: () => activeMessage && openThread(activeMessage.id),
         },
         {label: '', separator: true},
