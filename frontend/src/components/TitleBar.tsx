@@ -91,11 +91,21 @@ export function TitleBar(props: TitleBarProps) {
                         {'\u{267B}\u{FE0F}'}
                     </button>
                     <span className="titlebar-sep" aria-hidden="true"/>
-                    <button className="sync-btn" onClick={() => setManagingContacts(true)}>
-                        <span className="btn-icon">{'\u{1F4C7}'}</span> Contacts
+                    <button
+                        className="icon-btn"
+                        data-tip="Contacts"
+                        aria-label="Contacts"
+                        onClick={() => setManagingContacts(true)}
+                    >
+                        {'\u{1F4C7}'}
                     </button>
-                    <button className="sync-btn" onClick={() => setManagingCalendar(true)}>
-                        <span className="btn-icon">{'\u{1F4C5}'}</span> Calendar
+                    <button
+                        className="icon-btn"
+                        data-tip="Calendar"
+                        aria-label="Calendar"
+                        onClick={() => setManagingCalendar(true)}
+                    >
+                        {'\u{1F4C5}'}
                     </button>
                 </div>
                 <div className="titlebar-right">

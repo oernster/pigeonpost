@@ -46,8 +46,8 @@
 }
 
 /* --titlebar-icon-size is the one home for the size of every glyph in the title bar: the icon buttons
-   here, the menu triggers below and the leading icons on the labelled Contacts and Calendar buttons in
-   base-and-panes.css. The tray is emoji rather than labels, so the glyph IS the control; at the browser's
+   here and the menu triggers below. The tray is emoji rather than labels, so the glyph IS the control;
+   at the browser's
    own button size (13.3px, since a button does not inherit the body size) it painted about 13 pixels of
    ink and read as decoration. Measured with the whole tray rendered, the width the bar needs grows with
    the glyph: about 1260px at 24px, about 1500px at 36px and about 2200px at 70px, so a window narrower
@@ -212,10 +212,9 @@
     color: var(--text-dim);
 }
 
-/* Keyboard focus ring on the title-tray buttons (the menu triggers, Contacts and Calendar, the theme
-   toggle). Without it the first Tab lands on the File menu with nothing visible to show for it. */
+/* Keyboard focus ring on the title-tray buttons (the menu triggers and every icon button). Without it
+   the first Tab lands on the File menu with nothing visible to show for it. */
 .menu-title:enabled:focus-visible,
-.sync-btn:enabled:focus-visible,
 .icon-btn:enabled:focus-visible {
     outline: 2px solid var(--ring);
     outline-offset: 2px;

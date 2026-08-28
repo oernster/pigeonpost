@@ -90,37 +90,6 @@
     white-space: nowrap;
 }
 
-/* A labelled tray button (Contacts, Calendar). It is a flex row so its leading .btn-icon can carry the
-   title bar's glyph size while the word beside it stays at reading size; centring is the flex box's job
-   rather than a vertical-align nudge that would drift with the icon size. */
-.sync-btn {
-    background-color: var(--bg-elev-2);
-    color: var(--text);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    padding: 2px 14px;
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    cursor: pointer;
-}
-
-/* The leading glyph of a labelled button, sized with the rest of the title bar's icons from the one
-   --titlebar-icon-size token in titlebar-and-menus.css. */
-.btn-icon {
-    font-size: var(--titlebar-icon-size);
-    line-height: 1;
-}
-
-.sync-btn:enabled:hover {
-    border-color: var(--accent);
-}
-
-.sync-btn:disabled {
-    opacity: 0.5;
-    cursor: default;
-}
-
 .outbox-pill {
     align-self: center;
     background-color: var(--primary);
