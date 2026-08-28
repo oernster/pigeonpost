@@ -96,7 +96,7 @@
 /* The browser's native date-picker icon cannot show a reliable focus state, so it is hidden and replaced
    by a real button (.date-picker-btn) inside .date-field. The button is a normal focusable control, so
    its resting and focused states are unmistakably different: a white glyph at rest (a dark glyph in the
-   light theme, for the pale field), and a teal square with a white glyph on hover or keyboard focus. */
+   light theme, for the pale field); a teal square with a white glyph on hover or keyboard focus. */
 .tag-name-input::-webkit-calendar-picker-indicator {
     display: none;
 }
@@ -425,6 +425,18 @@
 
 .context-item.danger {
     color: var(--danger);
+}
+
+/* The leading glyph on a context-menu entry, carrying the same mark as the button that performs the
+   same action elsewhere (the folder menu's plus, pencil and cross). The width is fixed so every label
+   in the menu starts on the same line whether its entry has a glyph or not; an entry with no
+   counterpart button leaves the span empty rather than borrowing an unrelated symbol. */
+.context-item-icon {
+    display: inline-block;
+    width: 14px;
+    text-align: center;
+    flex-shrink: 0;
+    color: inherit;
 }
 
 /* A submenu parent (the labelled row) and its flyout share a relatively-positioned wrapper. */

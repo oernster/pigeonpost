@@ -18,6 +18,7 @@ function renderMenu(overrides: Partial<MenuProps> = {}) {
     const handlers = {
         onPaste: vi.fn(),
         onNewSubfolder: vi.fn(),
+        onRenameFolder: vi.fn(),
         onDeleteFolder: vi.fn(),
         onClose: vi.fn(),
     }
@@ -67,6 +68,31 @@ describe('FolderContextMenu', () => {
         expect(screen.getByRole('menuitem', {name: 'Paste'})).toBeDisabled()
     })
 
+    it('reports the folder to rename, then closes', () => {
+        const handlers = renderMenu()
+        fireEvent.click(screen.getByRole('menuitem', {name: 'Rename folder'}))
+        expect(handlers.onRenameFolder).toHaveBeenCalledWith(FOLDER)
+        expect(handlers.onClose).toHaveBeenCalled()
+    })
+
+    it('leaves the rename entry out on a well-known folder, as the row does', () => {
+        renderMenu({folder: {...FOLDER, kind: 'inbox'} as Folder})
+        expect(screen.queryByRole('menuitem', {name: 'Rename folder'})).toBeNull()
+    })
+
+    it('marks each entry with the glyph its button carries elsewhere', () => {
+        // The plus on the Folders heading, the pencil and the cross on the row's hover toolbar, so a
+        // menu entry and the button doing the same thing read as one action. Paste has no button of
+        // its own, so its gutter stays empty and only holds the labels in line.
+        renderMenu()
+        const iconOf = (name: string) =>
+            screen.getByRole('menuitem', {name}).querySelector('.context-item-icon')?.textContent
+        expect(iconOf('New subfolder')).toBe('+')
+        expect(iconOf('Rename folder')).toBe('✎')
+        expect(iconOf('Delete folder')).toBe('×')
+        expect(iconOf('Paste')).toBe('')
+    })
+
     it('reports the folder to delete, then closes', () => {
         const handlers = renderMenu()
         fireEvent.click(screen.getByRole('menuitem', {name: 'Delete folder'}))
@@ -89,5 +115,26 @@ describe('FolderContextMenu', () => {
     it('leaves the delete entry out when folders cannot be managed', () => {
         renderMenu({canManageFolders: false})
         expect(screen.queryByRole('menuitem', {name: 'Delete folder'})).toBeNull()
+    })
+
+    it('draws no empty group when a POP3 account leaves only Paste', () => {
+        // Every folder action is absent there, so the rule that separates them from Paste would
+        // otherwise sit directly under the one below the header.
+        const {container} = render(
+            <FolderContextMenu
+                folder={FOLDER}
+                x={10}
+                y={20}
+                canPaste
+                canManageFolders={false}
+                onPaste={vi.fn()}
+                onNewSubfolder={vi.fn()}
+                onRenameFolder={vi.fn()}
+                onDeleteFolder={vi.fn()}
+                onClose={vi.fn()}
+            />,
+        )
+        expect(container.querySelectorAll('.context-sep')).toHaveLength(1)
+        expect(screen.getAllByRole('menuitem')).toHaveLength(1)
     })
 })
