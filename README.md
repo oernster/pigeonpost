@@ -108,9 +108,11 @@ local-first. A calmer, more predictable alternative to Thunderbird.
   the selected folder with keyboard focus on its row (never while a dialog is open, while you are
   mid-entry in a text field or while a message is open in the reader), so the window always resumes
   from a known place. The list stays fluid in folders of tens of thousands of messages. A Date sort and
-  an optional threaded conversation view. An open message lists its whole conversation under the header,
-  gathered across the account's folders rather than the open one, so the reply you sent to a message sits
-  beside the message itself; each entry says which folder it lives in and opens in its own reader tab.
+  an optional threaded conversation view. In that view the header above a grouped conversation opens it
+  whole: every message of the exchange gathered across the account's folders rather than the open one, so
+  the reply you sent sits with the message it answers instead of staying out of sight in Sent. Each
+  message names the folder it lives in, opens in place for reading and can be lifted into its own reader
+  tab. An open message also lists its conversation under the header as a way through it.
   A `.eml` file opens in an in-app viewer; on Windows and macOS
   PigeonPost can be set as the default `.eml` handler. PigeonPost registers as a system mail handler on
   Windows, macOS and Linux, so it can be chosen as the default email client (Windows Default apps, the

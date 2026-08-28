@@ -1,9 +1,9 @@
-import {useEffect, useMemo, useRef, type CSSProperties, type ReactNode, type RefObject} from 'react'
+import {useEffect, useMemo, useRef, type CSSProperties, type RefObject} from 'react'
 import {useVirtualizer, VirtualItem} from '@tanstack/react-virtual'
-import {Message, SEARCH_MATCH_END, SEARCH_MATCH_START} from '../api'
+import {Message} from '../api'
 import {ConversationHead} from '../threads'
 import type {AccountChip} from '../unified'
-import {snoozedUntilLabel} from '../snooze'
+import {MessageRowContent} from './MessageRowContent'
 
 // SearchScope is the search bar's reach: every account, the selected folder or the selected account.
 export type SearchScope = 'all' | 'folder' | 'account'
@@ -13,11 +13,6 @@ export type SearchScope = 'all' | 'folder' | 'account'
 // expands the dragged id to the full selection, so a single id on the drag is enough.
 export const messageDragType = 'application/x-pigeonpost-message'
 
-// REPLIED_GLYPH and FORWARDED_GLYPH are the small arrows shown at the top-left of a row once the message has
-// been replied to (\Answered) or forwarded ($Forwarded). The FE0E text-presentation selector keeps them as
-// flat monochrome glyphs matching the dimmed attachment clip rather than a colourful emoji on some platforms.
-const REPLIED_GLYPH = '\u{21A9}\u{FE0E}'
-const FORWARDED_GLYPH = '\u{21AA}\u{FE0E}'
 
 // The list is virtualised: only the rows on screen are in the DOM, so a folder of tens of thousands of
 // messages renders without freezing. These size hints seed the scrollbar before a row's real height is
@@ -26,6 +21,9 @@ const FORWARDED_GLYPH = '\u{21AA}\u{FE0E}'
 const MESSAGE_ROW_ESTIMATE = 64
 const CONVERSATION_HEADER_ESTIMATE = 26
 const ROW_OVERSCAN = 8
+// OPEN_THREAD_GLYPH is the chevron on a conversation header, so the row reads as a way in rather
+// than as a label. Text rather than an icon file: it inherits the row's colour in both themes.
+const OPEN_THREAD_GLYPH = '›'
 // LOAD_MORE_ROW_THRESHOLD is how close to the last loaded row the viewport must reach before the next
 // page is requested, so the following page is in flight before the user hits the end.
 const LOAD_MORE_ROW_THRESHOLD = 12
@@ -81,6 +79,10 @@ interface MessageListProps {
     // append the next page. The parent guards it (it is a no-op in conversation view, in search or when
     // there is no more to load or a load is already running), so it is safe to call freely.
     onLoadMore: () => void
+    // onOpenConversation opens a whole conversation in the reader, given any message of it. The
+    // conversation header row is what calls it; the keyboard route is the Mail menu item, which acts on
+    // the active message, so the list keeps its single roving tab stop.
+    onOpenConversation: (headMessageId: string) => void
     // sortAscending is the current date order of the list (false is newest first); onToggleSort flips it.
     sortAscending: boolean
     onToggleSort: () => void
@@ -90,50 +92,13 @@ interface MessageListProps {
 // conversation) or a message. The two are flattened into a single sequence so the virtualizer can measure
 // and position them together.
 type ListRow =
-    | {kind: 'header'; key: string; head: ConversationHead}
+    | {kind: 'header'; key: string; head: ConversationHead; headId: string}
     | {kind: 'message'; key: string; message: Message}
-
-function formatDate(iso: string): string {
-    if (!iso) {
-        return ''
-    }
-    const date = new Date(iso)
-    if (isNaN(date.getTime())) {
-        return ''
-    }
-    return date.toLocaleString(undefined, {
-        year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
-    })
-}
 
 // escapeId makes a message id safe to embed in an attribute selector (message ids can carry characters
 // that are special in CSS), falling back to the raw id where CSS.escape is unavailable.
 function escapeId(id: string): string {
     return typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(id) : id
-}
-
-// renderMarkedSnippet turns a backend match snippet into text nodes with each matched run wrapped in
-// <mark>. It only ever splits on the two control-character markers, so message content is rendered as
-// plain text and never interpreted as markup.
-function renderMarkedSnippet(marked: string): ReactNode[] {
-    const out: ReactNode[] = []
-    const chunks = marked.split(SEARCH_MATCH_START)
-    out.push(chunks[0])
-    for (let i = 1; i < chunks.length; i++) {
-        const end = chunks[i].indexOf(SEARCH_MATCH_END)
-        if (end < 0) {
-            out.push(chunks[i])
-            continue
-        }
-        out.push(<mark key={i}>{chunks[i].slice(0, end)}</mark>)
-        out.push(chunks[i].slice(end + SEARCH_MATCH_END.length))
-    }
-    return out
-}
-
-// stripMarkers removes the match markers for plain-text uses of a match snippet (the row tooltip).
-function stripMarkers(marked: string): string {
-    return marked.split(SEARCH_MATCH_START).join('').split(SEARCH_MATCH_END).join('')
 }
 
 export function MessageList(props: MessageListProps) {
@@ -148,7 +113,7 @@ export function MessageList(props: MessageListProps) {
         for (const message of messages) {
             const head = props.conversationHeads.get(message.id)
             if (head) {
-                out.push({kind: 'header', key: 'header:' + message.id, head})
+                out.push({kind: 'header', key: 'header:' + message.id, head, headId: message.id})
             }
             out.push({kind: 'message', key: message.id, message})
         }
@@ -256,17 +221,27 @@ export function MessageList(props: MessageListProps) {
         }
         if (row.kind === 'header') {
             const {head} = row
+            const subject = head.subject || '(no subject)'
             return (
                 <li
                     key={row.key}
                     data-index={index}
                     ref={virtualizer.measureElement}
                     className="conversation-header"
-                    aria-hidden="true"
                     style={style}
                 >
-                    <span className="conversation-subject" title={head.subject || '(no subject)'}>{head.subject || '(no subject)'}</span>
-                    <span className="conversation-count">{head.count} messages</span>
+                    <button
+                        type="button"
+                        className="conversation-header-button"
+                        tabIndex={-1}
+                        title={'Open the conversation: ' + subject}
+                        aria-label={'Open the conversation: ' + subject}
+                        onClick={() => props.onOpenConversation(row.headId)}
+                    >
+                        <span className="conversation-subject">{subject}</span>
+                        <span className="conversation-count">{head.count} messages</span>
+                        <span className="conversation-go" aria-hidden="true">{OPEN_THREAD_GLYPH}</span>
+                    </button>
                 </li>
             )
         }
@@ -310,65 +285,12 @@ export function MessageList(props: MessageListProps) {
                     props.onContextMenu(message, e.clientX, e.clientY)
                 }}
             >
-                <div className="message-row-top">
-                    {message.answered && (
-                        <span className="replied" title="Replied" aria-label="Replied">{REPLIED_GLYPH}</span>
-                    )}
-                    {message.forwarded && (
-                        <span className="forwarded" title="Forwarded" aria-label="Forwarded">{FORWARDED_GLYPH}</span>
-                    )}
-                    <button
-                        className={'message-star' + (message.flagged ? ' on' : '')}
-                        aria-label={message.flagged ? 'Remove star' : 'Add star'}
-                        aria-pressed={message.flagged}
-                        title={message.flagged ? 'Starred' : 'Star'}
-                        onClick={(e) => {
-                            e.stopPropagation()
-                            props.onToggleFlag(message)
-                        }}
-                    >
-                        {message.flagged ? '★' : '☆'}
-                    </button>
-                    {message.hasAttachments && (
-                        <span className="attach" title="Has attachments" aria-label="Has attachments">
-                            {'\u{1F4CE}'}
-                        </span>
-                    )}
-                    {accountChip && (
-                        <span
-                            className="account-dot"
-                            style={{backgroundColor: accountChip.colour}}
-                            title={accountChip.label}
-                            aria-label={`Account ${accountChip.label}`}
-                        />
-                    )}
-                    <span className="message-from" title={message.fromName || message.fromAddress || '(unknown sender)'}>
-                        {message.fromName || message.fromAddress || '(unknown sender)'}
-                    </span>
-                    {message.tagColours.length > 0 && (
-                        <span className="message-tags" aria-hidden="true">
-                            {message.tagColours.map((colour, i) => (
-                                <span key={i} className="message-tag-dot" style={{backgroundColor: colour}}/>
-                            ))}
-                        </span>
-                    )}
-                    {message.snoozedUntilMs > 0 && (
-                        <span className="snoozed-until" title="Snoozed until">
-                            {snoozedUntilLabel(message.snoozedUntilMs)}
-                        </span>
-                    )}
-                    <span className="message-date">{formatDate(message.date)}</span>
-                </div>
-                <div className="message-subject">
-                    {message.subject || '(no subject)'}
-                </div>
-                {matchSnippet ? (
-                    <div className="message-snippet" title={stripMarkers(matchSnippet)}>
-                        {renderMarkedSnippet(matchSnippet)}
-                    </div>
-                ) : (
-                    message.snippet && <div className="message-snippet" title={message.snippet}>{message.snippet}</div>
-                )}
+                <MessageRowContent
+                    message={message}
+                    matchSnippet={matchSnippet}
+                    accountChip={accountChip}
+                    onToggleFlag={props.onToggleFlag}
+                />
             </li>
         )
     }

@@ -1,9 +1,10 @@
 import {useState} from 'react'
-import {api, EmailView} from '../api'
+import {EmailView} from '../api'
 import {EmailHtmlFrame} from './EmailHtmlFrame'
 import {ModalClose} from './ModalClose'
 import {useBackdropDismiss} from './useBackdropDismiss'
 import {useRemoteImages} from '../hooks/useRemoteImages'
+import {openLinkExternally} from '../openLink'
 
 interface EmailViewerModalProps {
     email: EmailView
@@ -14,12 +15,6 @@ interface EmailViewerModalProps {
     // showing on a bright white surface.
     dark: boolean
     onClose: () => void
-}
-
-// openLinkExternally opens a link from the viewed .eml in the OS browser rather than letting it navigate the
-// app's own webview. EmailHtmlFrame has already restricted this to http, https and mailto hrefs.
-function openLinkExternally(href: string) {
-    void api.openExternal(href)
 }
 
 // EmailViewerModal shows an attached .eml inside PigeonPost rather than handing it to an external mail

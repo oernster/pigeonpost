@@ -111,15 +111,44 @@
     border-left: 2px solid transparent;
 }
 
+/* The conversation header is the way into a thread, not a caption: the whole strip is one button, so the
+   entire row is the target rather than a small chevron at its end. The li keeps the virtualizer's absolute
+   placement; the button inside it does the painting. */
 .conversation-header {
+    padding: 0;
+    background-color: var(--bg-elev-2);
+    border-bottom: 1px solid var(--border);
+}
+
+.conversation-header-button {
     display: flex;
     align-items: baseline;
     justify-content: space-between;
     gap: 8px;
+    width: 100%;
     padding: 6px 14px;
-    background-color: var(--bg-elev-2);
-    border-bottom: 1px solid var(--border);
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--text);
     font-size: 12px;
+    font-family: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.conversation-header-button:enabled:hover {
+    background-color: var(--bg-elev);
+}
+
+.conversation-header-button:enabled:focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: -2px;
+}
+
+/* The chevron sits hard against the count so the pair reads as one "open this" affordance. */
+.conversation-go {
+    color: var(--text-dim);
+    flex-shrink: 0;
 }
 
 .conversation-subject {

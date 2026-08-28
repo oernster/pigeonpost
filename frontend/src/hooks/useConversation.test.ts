@@ -1,5 +1,6 @@
-// The reader's conversation loader. ../api is mocked (the Wails seam); the hook's job is to load the
-// open message's thread; above all it discards a load the reader has moved on from.
+// The shared conversation loader behind the reader strip and the thread view. ../api is mocked (the
+// Wails seam); the hook's job is to load a message's thread; above all it discards a load the surface
+// has moved on from.
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 import {act, cleanup, renderHook, waitFor} from '@testing-library/react'
 import type {ConversationEntry, Message} from '../api'
@@ -25,28 +26,28 @@ afterEach(() => cleanup())
 describe('useConversation', () => {
     it('loads the thread of the open message', async () => {
         apiSpies.conversation.mockResolvedValue([makeEntry('m1'), makeEntry('m2')])
-        const {result} = renderHook(() => useConversation(makeMessage('m1')))
+        const {result} = renderHook(() => useConversation('m1'))
         await waitFor(() => expect(result.current).toHaveLength(2))
         expect(apiSpies.conversation).toHaveBeenCalledWith('m1')
     })
 
-    it('asks for nothing while the reader is closed', () => {
+    it('asks for nothing without a message', () => {
         const {result} = renderHook(() => useConversation(null))
         expect(apiSpies.conversation).not.toHaveBeenCalled()
         expect(result.current).toEqual([])
     })
 
-    it('empties the strip when the reader closes', async () => {
+    it('empties the entries when the surface closes', async () => {
         apiSpies.conversation.mockResolvedValue([makeEntry('m1'), makeEntry('m2')])
-        const {result, rerender} = renderHook((message: Message | null) => useConversation(message), {
-            initialProps: makeMessage('m1') as Message | null,
+        const {result, rerender} = renderHook((id: string | null) => useConversation(id), {
+            initialProps: 'm1' as string | null,
         })
         await waitFor(() => expect(result.current).toHaveLength(2))
         rerender(null)
         expect(result.current).toEqual([])
     })
 
-    it('discards a load the reader has moved on from', async () => {
+    it('discards a load the surface has moved on from', async () => {
         // The first lookup resolves after the second message has opened. Its entries belong to a message
         // no longer on screen, so showing them would put one message's thread under another.
         let releaseFirst: (entries: ConversationEntry[]) => void = () => undefined
@@ -56,10 +57,10 @@ describe('useConversation', () => {
             }),
         )
         apiSpies.conversation.mockResolvedValueOnce([makeEntry('second')])
-        const {result, rerender} = renderHook((message: Message | null) => useConversation(message), {
-            initialProps: makeMessage('m1') as Message | null,
+        const {result, rerender} = renderHook((id: string | null) => useConversation(id), {
+            initialProps: 'm1' as string | null,
         })
-        rerender(makeMessage('m2'))
+        rerender('m2')
         await waitFor(() => expect(result.current).toHaveLength(1))
         await act(async () => {
             releaseFirst([makeEntry('stale'), makeEntry('stale2')])
@@ -68,14 +69,14 @@ describe('useConversation', () => {
         expect(result.current[0].message.id).toBe('second')
     })
 
-    it('shows an empty strip when the lookup fails', async () => {
+    it('shows nothing when the lookup fails', async () => {
         apiSpies.conversation.mockResolvedValue([makeEntry('m1'), makeEntry('m2')])
-        const {result, rerender} = renderHook((message: Message | null) => useConversation(message), {
-            initialProps: makeMessage('m1') as Message | null,
+        const {result, rerender} = renderHook((id: string | null) => useConversation(id), {
+            initialProps: 'm1' as string | null,
         })
         await waitFor(() => expect(result.current).toHaveLength(2))
         apiSpies.conversation.mockRejectedValueOnce(new Error('no'))
-        rerender(makeMessage('m2'))
+        rerender('m2')
         await waitFor(() => expect(result.current).toEqual([]))
     })
 })

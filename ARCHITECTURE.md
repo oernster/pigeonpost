@@ -382,8 +382,11 @@ date in either direction.
 `MailboxService.Conversation` answers the question that grouping raises but cannot settle: a folder's
 threading shows that a message has replies, while the replies themselves live elsewhere, above all the
 ones the user sent, which are in Sent. It gathers the open message's thread across every folder of its
-account and the reader lists it under the header, each entry naming its folder and opening in its own
-reader tab. Membership is `domain.ThreadKey` equality, the exported form of the grouping's own
+account. Two surfaces read it. The reader lists it under an open message's header as a strip, each entry
+naming its folder and opening in its own reader tab. The conversation header row in the list opens the
+thread whole in the reader (`ThreadView`), where each message expands in place, its body fetched the
+first time it is opened; that row is the mouse route and the Mail menu's Open conversation is the
+keyboard one, so the list keeps its single roving tab stop. Membership is `domain.ThreadKey` equality, the exported form of the grouping's own
 normalisation, so a message cannot thread one way in the list and another way in the reader. The store's
 `ThreadMessages` narrows the candidates with a subject-suffix LIKE (the key is always a suffix of the raw
 subject; SQL cannot apply the domain's stripping rule), capped, with the exact comparison done in the

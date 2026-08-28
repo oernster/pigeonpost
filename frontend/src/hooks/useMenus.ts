@@ -74,6 +74,9 @@ export interface MenusDeps {
     setSettingUp: Dispatch<SetStateAction<boolean>>
     sync: () => Promise<void>
     openInNewTab: (message: Message, fromKeyboard?: boolean) => void
+    // openThread shows the active message's whole conversation in the reader. This menu item is the
+    // keyboard route to it; the mouse route is the conversation header row in the list.
+    openThread: (headMessageId: string) => void
     openReply: (message: Message) => void
     openReplyAll: (message: Message) => void
     openForward: (message: Message) => void
@@ -125,7 +128,7 @@ export function useMenus(deps: MenusDeps): Menus {
         undoText, redoText, undoAction, redoAction, canCutNow, canCopyNow, canPasteNow, cut, copy, paste, selectAll, canSelectAll,
         setManagingRules, setManagingTemplates, focusSearch,
         toggleConversationView, togglePreview, toggleAutoLoadImages, toggleUnifiedMailbox,
-        signatureHtml, setComposeInitial, setComposing, setSettingUp, sync, openInNewTab,
+        signatureHtml, setComposeInitial, setComposing, setSettingUp, sync, openInNewTab, openThread,
         openReply, openReplyAll, openForward, attachToNewMessage, setReadState, toggleFlag, toggleTag,
         attachFiles, setAttachPickerOpen, displayMessages,
         moveMessage, copyMessage, markJunk, markNotJunk, snoozeTo, unsnooze, setSnoozePickerFor,
@@ -332,6 +335,12 @@ export function useMenus(deps: MenusDeps): Menus {
             shortcut: 'Ctrl+T',
             disabled: !canMailAct,
             onClick: () => activeMessage && openInNewTab(activeMessage),
+        },
+        {
+            label: 'Open conversation',
+            shortcut: 'Ctrl+Shift+T',
+            disabled: !canMailAct,
+            onClick: () => activeMessage && openThread(activeMessage.id),
         },
         {label: '', separator: true},
         {

@@ -1,29 +1,20 @@
-import {useEffect, useRef, useState} from 'react'
+import {useRef, useState} from 'react'
 import type {RefObject} from 'react'
-import {api, ConversationEntry, EmailView, Folder, Message, MessageBody, Tag} from '../api'
-import {EmailHtmlFrame} from './EmailHtmlFrame'
-import {LinkifiedText} from './LinkifiedText'
+import {ConversationEntry, EmailView, Folder, Message, MessageBody, Tag} from '../api'
 import {EmailViewerModal} from './EmailViewerModal'
 import {ReaderToolbar} from './ReaderToolbar'
 import {ReaderAttachments} from './ReaderAttachments'
 import {isOutboxMessage} from '../outbox'
 import {ReaderTabs} from './ReaderTabs'
-import {InviteCard} from './InviteCard'
 import {ConversationStrip} from './ConversationStrip'
+import {MessageBodyView} from './MessageBodyView'
 import {formatAddressList, readableInk} from '../readerFormat'
-import {useRemoteImages} from '../hooks/useRemoteImages'
 
 // The reader body is a scrollable focus stop: the arrow keys scroll it so a long email can be read from
 // the keyboard. READER_SCROLL_STEP_PX is one arrow press; PageUp/PageDown move by READER_PAGE_FRACTION of
 // the visible height.
 const READER_SCROLL_STEP_PX = 40
 const READER_PAGE_FRACTION = 0.9
-
-// openLinkExternally opens a link from a rendered email in the OS browser rather than letting it navigate
-// the app's own webview. EmailHtmlFrame has already restricted this to http, https and mailto hrefs.
-function openLinkExternally(href: string) {
-    void api.openExternal(href)
-}
 
 interface ReaderProps {
     message: Message | null
@@ -72,29 +63,14 @@ interface ReaderProps {
 }
 
 export function Reader({message, onToggleRead, isDraft, onEditDraft, onReply, onReplyAll, onForward, onDelete, onCancelSend, folders, onMove, onCopy, canMoveCopy, autoLoadImages, dark, messageTags, onToggleTag, body, bodyLoading, tabs, onSelectTab, onCloseTab, onBack, bodyRef, sinkRef, conversation, onOpenConversationEntry}: ReaderProps) {
-    const [imagesShown, setImagesShown] = useState(autoLoadImages)
     // viewedEmail holds a parsed .eml attachment while the in-app viewer shows it.
     const [viewedEmail, setViewedEmail] = useState<EmailView | null>(null)
     // backButtonRef is the Back button; the reader's neutral sink hands the first Tab to it on a mouse open.
     const backButtonRef = useRef<HTMLButtonElement>(null)
 
-    // The raw (image-parked) body and its on-demand image resolution. useRemoteImages returns the HTML to
-    // render (the proxy-resolved, image-inlined body once images are shown and ready, else the parked body),
-    // whether that resolve is in flight and whether the body has any blocked remote image. It is called
-    // before the no-message guard so its hooks run unconditionally on every render.
-    const rawHtml = body?.html ?? ''
-    const {renderedHtml, loadingImages, hasBlockedImages} = useRemoteImages(rawHtml, imagesShown)
-
     const tabStrip = tabs.length > 0
         ? <ReaderTabs tabs={tabs} activeMessageId={message?.id ?? ''} onSelectTab={onSelectTab} onCloseTab={onCloseTab}/>
         : null
-
-    // Reset a new message's images to the current auto-load setting: shown at once when auto-load is on,
-    // otherwise re-blocked behind the Load images bar. Toggling the setting re-applies it to the open message
-    // too. The colour menu and the attachments block own their own per-message resets.
-    useEffect(() => {
-        setImagesShown(autoLoadImages)
-    }, [message?.id, autoLoadImages])
 
     if (!message) {
         return (
@@ -248,37 +224,14 @@ export function Reader({message, onToggleRead, isDraft, onEditDraft, onReply, on
                     scroller.scrollBy({left: dx, top: dy})
                 }}
             >
-                {!bodyLoading && body?.hasInvite && <InviteCard messageId={message.id}/>}
-                {bodyLoading ? (
-                    <p className="empty-body">Loading message…</p>
-                ) : body && body.html.trim() !== '' ? (
-                    <>
-                        {hasBlockedImages && !imagesShown && (
-                            <div className="images-blocked-bar">
-                                <span>Remote images were not loaded to protect your privacy.</span>
-                                <button className="btn" onClick={() => setImagesShown(true)}>Load images</button>
-                            </div>
-                        )}
-                        {hasBlockedImages && imagesShown && loadingImages && (
-                            <div className="images-blocked-bar">
-                                <span>Loading images…</span>
-                            </div>
-                        )}
-                        <EmailHtmlFrame
-                            html={renderedHtml}
-                            dark={dark}
-                            onOpenLink={openLinkExternally}
-                        />
-                    </>
-                ) : body && body.plain.trim() !== '' ? (
-                    <pre className="reader-text">
-                        <LinkifiedText text={body.plain} onOpenLink={openLinkExternally} />
-                    </pre>
-                ) : message.snippet ? (
-                    <p>{message.snippet}</p>
-                ) : (
-                    <p className="empty-body">This message has no text content.</p>
-                )}
+                <MessageBodyView
+                    messageId={message.id}
+                    body={body}
+                    loading={bodyLoading}
+                    snippet={message.snippet}
+                    autoLoadImages={autoLoadImages}
+                    dark={dark}
+                />
             </div>
             </div>
             {/* The pinned base of the message. Anything the message offers as an action at its foot belongs

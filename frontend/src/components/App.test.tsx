@@ -1145,3 +1145,58 @@ describe('App: search', () => {
         expect(document.activeElement).toBe(screen.getByLabelText('Search mail'))
     })
 })
+
+describe('App: opening a conversation', () => {
+    // Two messages of one exchange in the open folder, so the conversation view puts a header row above
+    // them. The lookup behind the thread view returns the half the list can never show: the reply that
+    // lives in Sent.
+    const INBOUND = {subject: 'Lunch on Friday', id: 'm1'}
+    const REPLY = {subject: 'Re: Lunch on Friday', id: 'm2'}
+
+    async function renderWithConversation() {
+        localStorage.setItem('conversationView', '1')
+        apiSpies.listAccounts.mockResolvedValue([makeAccount()])
+        apiSpies.listFolders.mockResolvedValue([makeFolder('inbox', 'Inbox', 'inbox')])
+        apiSpies.listMessages.mockResolvedValue([
+            makeMessage(INBOUND),
+            makeMessage({...REPLY, date: '2026-08-28T12:00:00.000Z'}),
+        ])
+        apiSpies.conversation.mockResolvedValue([
+            {message: makeMessage(INBOUND), folderName: 'Inbox', folderKind: 'inbox'},
+            {message: makeMessage({...REPLY, id: 'm3'}), folderName: 'Sent', folderKind: 'sent'},
+        ])
+        const rendered = render(<App/>)
+        await waitFor(() => expect(screen.getByText('2 messages')).toBeInTheDocument())
+        return rendered
+    }
+
+    afterEach(() => localStorage.removeItem('conversationView'))
+
+    it('makes the conversation header a way in rather than a label', async () => {
+        await renderWithConversation()
+        // The header row was decoration for a long time: it announced a conversation and offered no way to
+        // reach it. It is a control now; it names what it opens.
+        const header = screen.getByRole('button', {name: /Open the conversation/})
+        expect(header).toBeInTheDocument()
+    })
+
+    it('opens the whole conversation, including the half that lives in another folder', async () => {
+        const {container} = await renderWithConversation()
+        fireEvent.click(screen.getByRole('button', {name: /Open the conversation/}))
+        await waitFor(() => expect(apiSpies.conversation).toHaveBeenCalledWith('m1'))
+        const thread = await waitFor(() => {
+            const el = container.querySelector('.thread-view')
+            expect(el).not.toBeNull()
+            return el as HTMLElement
+        })
+        expect(within(thread).getByText('Sent')).toBeInTheDocument()
+    })
+
+    it('leaves the thread when another message is picked', async () => {
+        const {container} = await renderWithConversation()
+        fireEvent.click(screen.getByRole('button', {name: /Open the conversation/}))
+        await waitFor(() => expect(container.querySelector('.thread-view')).not.toBeNull())
+        fireEvent.click(screen.getAllByText('Lunch on Friday')[0])
+        await waitFor(() => expect(container.querySelector('.thread-view')).toBeNull())
+    })
+})

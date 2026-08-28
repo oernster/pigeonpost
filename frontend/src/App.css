@@ -10,6 +10,7 @@
 @import './styles/base-and-panes.css';
 @import './styles/list-rows.css';
 @import './styles/reader.css';
+@import './styles/thread-view.css';
 @import './styles/titlebar-and-menus.css';
 @import './styles/reader-invite-attachments.css';
 @import './styles/compose-and-wizard.css';

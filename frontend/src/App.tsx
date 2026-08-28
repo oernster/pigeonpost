@@ -48,6 +48,7 @@ import {useMessageActions} from './hooks/useMessageActions'
 import {useBulkActions} from './hooks/useBulkActions'
 import {useReaderTabs} from './hooks/useReaderTabs'
 import {useConversation} from './hooks/useConversation'
+import {ThreadView} from './components/ThreadView'
 import {useOutbox} from './hooks/useOutbox'
 import {FolderPrompt, useFolders} from './hooks/useFolders'
 import {useAccounts} from './hooks/useAccounts'
@@ -230,6 +231,10 @@ function App() {
     // conversationView groups the folder's messages into conversations; it does not apply to search
     // results, which stay ranked by relevance. The choice is remembered across launches.
     const [conversationView, setConversationView] = useState<boolean>(() => localStorage.getItem('conversationView') === '1')
+    // threadHeadId is the conversation the reader is showing whole, named by any message of it; null
+    // when the reader is showing a single message. The list's conversation header opens one; picking any
+    // message, changing folder or pressing Back closes it, so the thread never lingers over unrelated mail.
+    const [threadHeadId, setThreadHeadId] = useState<string | null>(null)
     const toggleConversationView = useCallback(() => {
         setConversationView((on) => {
             const next = !on
@@ -863,6 +868,7 @@ function App() {
     // selects the contiguous range from the anchor. The clicked row always becomes the active one shown in
     // the reader; a Shift range keeps the existing anchor so successive Shift clicks re-range from it.
     const activateRow = useCallback((message: Message, mods: {ctrl: boolean; shift: boolean}) => {
+        setThreadHeadId(null)
         const list = searchActive ? searchResults : displayMessages
         if (mods.shift && anchorId) {
             setMarkedIds(rangeIds(list, anchorId, message.id))
@@ -1159,6 +1165,14 @@ function App() {
         pasteMessages()
     }
 
+    // openThread shows a whole conversation in the reader. With the reading pane off the reader is not on
+    // screen at all, so it is switched to as well; Back returns to the list exactly as it does for a
+    // single message.
+    const openThread = useCallback((headMessageId: string) => {
+        setThreadHeadId(headMessageId)
+        setReadingFull(true)
+    }, [setReadingFull])
+
     // The message list and reader are extracted so the reading-pane layout can place them side by side
     // (pane on) or swap between them (pane off: the list, else the full-width reader when a message is opened).
     const messageListEl = (
@@ -1183,6 +1197,7 @@ function App() {
             cutIds={messageClipboard.cutIds}
             searchInputRef={searchInputRef}
             onActivate={activateRow}
+            onOpenConversation={openThread}
             onClearSelection={clearSelection}
             onToggleFlag={(m) => void toggleFlag(m)}
             onContextMenu={openContextMenu}
@@ -1200,7 +1215,7 @@ function App() {
 
     // conversation is the open message's whole thread, gathered across the account's folders so the
     // reader can offer the messages the list cannot show beside it.
-    const conversation = useConversation(selectedMessage)
+    const conversation = useConversation(selectedMessage?.id ?? null)
 
     // readerProps is the reader surface shared by the pane (or full-width) reader and the popout
     // dialog, so both render the selected message identically.
@@ -1234,7 +1249,24 @@ function App() {
         // the list out from under the reader to show it would lose the message being read.
         onOpenConversationEntry: (m: Message) => openInNewTab(m),
     }
-    const readerEl = multiSelected ? (
+    // A whole conversation wins the reader when one is open: it was asked for explicitly; it also carries
+    // the message that would otherwise be shown, expanded, among its own rows.
+    const readerEl = threadHeadId ? (
+        <ThreadView
+            headMessageId={threadHeadId}
+            subject={selectedMessage?.subject ?? ''}
+            onClose={() => {
+                setThreadHeadId(null)
+                setReadingFull(false)
+            }}
+            onOpenMessage={(m: Message) => {
+                setThreadHeadId(null)
+                openInNewTab(m)
+            }}
+            autoLoadImages={autoLoadImages}
+            dark={theme === 'dark'}
+        />
+    ) : multiSelected ? (
         <SelectionSummary
             markedIds={markedIds}
             selectedMessages={selectedMessages}
@@ -1277,7 +1309,7 @@ function App() {
         canCutNow, canCopyNow, canPasteNow, cut, copy, paste, selectAll, canSelectAll: visibleList.length > 0,
         setManagingRules, setManagingTemplates, focusSearch,
         toggleConversationView, togglePreview, toggleAutoLoadImages, toggleUnifiedMailbox,
-        signatureHtml, setComposeInitial, setComposing, setSettingUp, sync, openInNewTab,
+        signatureHtml, setComposeInitial, setComposing, setSettingUp, sync, openInNewTab, openThread,
         openReply, openReplyAll, openForward, attachToNewMessage, setReadState, toggleFlag, toggleTag,
         attachFiles, setAttachPickerOpen, displayMessages,
         moveMessage, copyMessage, markJunk, markNotJunk, snoozeTo, unsnooze, setSnoozePickerFor,
@@ -1373,7 +1405,7 @@ function App() {
                         {messageListEl}
                         {readerEl}
                     </>
-                ) : readingFull && selectedMessage ? (
+                ) : readingFull && (selectedMessage || threadHeadId) ? (
                     readerEl
                 ) : (
                     messageListEl
