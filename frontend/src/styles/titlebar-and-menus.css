@@ -47,13 +47,12 @@
 
 /* --titlebar-icon-size is the one home for the size of every glyph in the title bar: the icon buttons
    here and the menu triggers below. The tray is emoji rather than labels, so the glyph IS the control;
-   at the browser's
-   own button size (13.3px, since a button does not inherit the body size) it painted about 13 pixels of
-   ink and read as decoration. Measured with the whole tray rendered, the width the bar needs grows with
-   the glyph: about 1260px at 24px, about 1500px at 36px and about 2200px at 70px, so a window narrower
-   than that packs the buttons together. */
+   at the browser's own button size (13.3px, since a button does not inherit the body size) it painted
+   about 13 pixels of ink and read as decoration. The size drives the width the whole bar needs, so it
+   is measured rather than guessed at: about 13px of ink and 1180px of bar at the browser's own size,
+   25px and 1255px at 24px, 30px and 1330px at 29px. */
 :root {
-    --titlebar-icon-size: 24px;
+    --titlebar-icon-size: 29px;
 }
 
 /* Icon buttons (compose, add account, sync, the reply trio, the theme toggle) share the same box as the
