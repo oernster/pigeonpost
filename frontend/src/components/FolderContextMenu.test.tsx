@@ -18,6 +18,7 @@ function renderMenu(overrides: Partial<MenuProps> = {}) {
     const handlers = {
         onPaste: vi.fn(),
         onNewSubfolder: vi.fn(),
+        onDeleteFolder: vi.fn(),
         onClose: vi.fn(),
     }
     const props: MenuProps = {
@@ -64,5 +65,29 @@ describe('FolderContextMenu', () => {
     it('disables Paste while the clipboard is empty', () => {
         renderMenu({canPaste: false})
         expect(screen.getByRole('menuitem', {name: 'Paste'})).toBeDisabled()
+    })
+
+    it('reports the folder to delete, then closes', () => {
+        const handlers = renderMenu()
+        fireEvent.click(screen.getByRole('menuitem', {name: 'Delete folder'}))
+        expect(handlers.onDeleteFolder).toHaveBeenCalledWith(FOLDER)
+        expect(handlers.onClose).toHaveBeenCalled()
+    })
+
+    it('marks the delete entry as the destructive one', () => {
+        renderMenu()
+        expect(screen.getByRole('menuitem', {name: 'Delete folder'})).toHaveClass('danger')
+    })
+
+    it('leaves the delete entry out on a well-known folder, as the row does', () => {
+        // The row's red cross appears on custom folders only, so a folder the server gave a role to
+        // cannot be deleted from the menu either.
+        renderMenu({folder: {...FOLDER, kind: 'inbox'} as Folder})
+        expect(screen.queryByRole('menuitem', {name: 'Delete folder'})).toBeNull()
+    })
+
+    it('leaves the delete entry out when folders cannot be managed', () => {
+        renderMenu({canManageFolders: false})
+        expect(screen.queryByRole('menuitem', {name: 'Delete folder'})).toBeNull()
     })
 })

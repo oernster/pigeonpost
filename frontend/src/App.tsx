@@ -1593,6 +1593,7 @@ function App() {
                     onPaste={(folder) => void messageClipboard.pasteInto(folder.id)}
                     canManageFolders={!isPop3}
                     onNewSubfolder={(folder) => setFolderPrompt({mode: 'create', parent: folder})}
+                    onDeleteFolder={(folder) => setFolderToDelete(folder)}
                     onClose={() => setFolderContextMenu(null)}
                 />
             )}

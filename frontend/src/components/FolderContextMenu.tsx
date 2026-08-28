@@ -10,9 +10,12 @@ interface FolderContextMenuProps {
     canPaste: boolean
     onPaste: (folder: Folder) => void
     // canManageFolders is false for POP3 accounts, which have no server-side folders; the New
-    // subfolder entry is left out entirely for them.
+    // subfolder and Delete folder entries are left out entirely for them.
     canManageFolders: boolean
     onNewSubfolder: (folder: Folder) => void
+    // onDeleteFolder opens the same confirmation the row's red cross does; the menu never deletes
+    // anything itself.
+    onDeleteFolder: (folder: Folder) => void
     onClose: () => void
 }
 
@@ -20,12 +23,17 @@ interface FolderContextMenuProps {
 const MENU_MARGIN = 8
 
 // FolderContextMenu is the folder row's right-click menu, the folder-side counterpart of the
-// message context menu: New subfolder creates a folder directly under this one and Paste files the
-// message clipboard's cut or copied emails into this folder.
+// message context menu: New subfolder creates a folder directly under this one, Paste files the
+// message clipboard's cut or copied emails into this folder and Delete folder removes it. Delete is
+// offered on exactly the folders whose row carries the red cross, custom ones, so a well-known
+// folder (Inbox, Sent, Trash and the rest) cannot be deleted from here either; it opens the same
+// confirmation the cross does rather than acting on the click.
 // It shares the .context-menu classes (and so the same styling and the accelerator suppression)
 // and the same dismiss-and-clamp behaviour.
 export function FolderContextMenu(props: FolderContextMenuProps) {
     const {folder, onClose} = props
+    // The red cross on the row appears on custom folders only, so the menu entry matches it exactly.
+    const canDelete = props.canManageFolders && folder.kind === 'custom'
     const ref = useRef<HTMLDivElement>(null)
     const [pos, setPos] = useState({x: props.x, y: props.y})
 
@@ -103,6 +111,21 @@ export function FolderContextMenu(props: FolderContextMenuProps) {
             >
                 Paste
             </button>
+            {canDelete && (
+                <>
+                    <div className="context-sep"/>
+                    <button
+                        className="context-item danger"
+                        role="menuitem"
+                        onClick={() => {
+                            props.onDeleteFolder(folder)
+                            onClose()
+                        }}
+                    >
+                        Delete folder
+                    </button>
+                </>
+            )}
         </div>
     )
 }

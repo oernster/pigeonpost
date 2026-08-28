@@ -19,20 +19,28 @@
     margin: 2px 2px;
 }
 
+/* --titlebar-icon-size is the one home for the size of every glyph in the title bar: the icon buttons
+   here, the menu triggers below and the leading icons on the labelled Contacts and Calendar buttons in
+   base-and-panes.css. The tray is emoji rather than labels, so the glyph IS the control; at the browser's
+   own button size (13.3px, since a button does not inherit the body size) it painted about 13 pixels of
+   ink and read as decoration. Measured with the whole tray rendered, the bar needs about 1320px of width
+   at 28px and about 2185px at 70px, so a window narrower than that squashes the buttons together; a
+   maximised window on a wide display has room to spare. */
+:root {
+    --titlebar-icon-size: 70px;
+}
+
 /* Icon buttons (compose, add account, sync, the reply trio, the theme toggle) share the same box as the
    text buttons beside them, so they match in size and their glyph sits on an elevated background in the
-   readable text colour. The title tray is emoji rather than labels, so the glyph IS the control; at the
-   browser's own button size it painted about 13 pixels of ink and read as decoration. Every glyph in the
-   bar now shares the 28px size (the menu triggers and the Contacts and Calendar icons below), which
-   doubles the painted mark. The vertical padding comes down as the type goes up, so the bar grows by a
-   few pixels rather than by the whole difference. */
+   readable text colour. The vertical padding stays small as the type goes up, so the bar grows by the
+   glyph alone rather than by the glyph plus its box. */
 .icon-btn {
     background-color: var(--bg-elev-2);
     color: var(--text);
     border: 1px solid var(--border);
     border-radius: 6px;
     padding: 2px 10px;
-    font-size: 28px;
+    font-size: var(--titlebar-icon-size);
     line-height: 1;
     cursor: pointer;
 }
@@ -151,7 +159,7 @@
     border: 1px solid var(--border);
     border-radius: 6px;
     padding: 2px 12px;
-    font-size: 28px;
+    font-size: var(--titlebar-icon-size);
     line-height: 1;
     cursor: pointer;
 }
