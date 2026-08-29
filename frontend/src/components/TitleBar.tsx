@@ -29,9 +29,16 @@ export interface TitleBarProps {
     setTheme: Dispatch<SetStateAction<Theme>>
 }
 
-// TitleBar is the header in three groups: the app mark with the all-accounts unread badge plus the
-// File/Edit/View/Mail menus, then the working controls carrying on from them (compose, add account,
-// sync, Contacts, Calendar), then the app-level pair held at the far end (the theme toggle and Help).
+// TitleBar is the header in three groups: the app mark with the all-accounts unread badge held at the
+// left, then everything that acts on mail centred on the window (the File/Edit/View/Mail menus running
+// straight into compose, add account, sync, Contacts and Calendar), then the app-level pair held at the
+// far end (the theme toggle and Help).
+//
+// The mark is alone on the left deliberately. It is the one thing in the bar that is not a control, so
+// leaving it where a window's icon belongs and gathering the controls in the middle puts the working set
+// under the eye rather than trailing off one edge. Centring was tried once before and reverted, when the
+// menus stayed left and only the working controls moved: that split one sequence into two with a gap
+// between them. Moving the menus into the centre with them is what makes it one run again.
 //
 // The mark wears an icon button's box so it sits in the row of controls as one of them; it is a span
 // rather than a button, because there is nothing to press. That is what keeps it out of the tab order
@@ -65,13 +72,13 @@ export function TitleBar(props: TitleBarProps) {
                             {unreadCounts.total}
                         </span>
                     )}
+                </div>
+                <div className="titlebar-actions">
                     <Menu title="File" icon={icons.file} items={fileMenu} align="left"/>
                     <Menu title="Edit" icon={icons.edit} items={editMenu} align="left"/>
                     <Menu title="View" icon={icons.view} items={viewMenu} align="left"/>
                     <Menu title="Mail" icon={icons.mail} items={mailMenu} align="left"/>
-                </div>
-                <span className="titlebar-sep" aria-hidden="true"/>
-                <div className="titlebar-actions">
+                    <span className="titlebar-sep" aria-hidden="true"/>
                     <button
                         className="icon-btn icon-btn-image"
                         data-tip="Compose"
