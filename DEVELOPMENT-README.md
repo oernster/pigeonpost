@@ -125,7 +125,7 @@ Run the tests (see [TESTING.md](TESTING.md) for detail):
 
 ```
 go test ./...                    # Go suite
-./test.ps1                       # Go suite with the coverage gate
+./test.ps1                       # formatting, vet, Go suite and the coverage gate
 cd frontend && npx vitest run    # front-end suite (Vitest + jsdom)
 ```
 
@@ -230,6 +230,12 @@ disk, so some working copies still hold CRLF even though every blob and every fr
 Git reports nothing modified (it normalises on the way in, which is the point) but `gofmt -l` lists
 each such file, purely for its line endings and with no formatting difference behind it. Run
 `git ls-files --eol` to see which files those are; re-checking them out is what converts them.
+
+This is no longer merely untidy. `./test.ps1` checks formatting over the whole tree, so a working copy
+still holding CRLF fails the gate on every one of those files before a single test runs. Converting
+them costs nothing: the blobs are already LF, so rewriting the working copy to match leaves `git diff`
+empty and only marks the index stat-dirty until git next refreshes it. A fresh clone is unaffected,
+because the attribute forces LF on checkout whatever the machine's `core.autocrlf` says.
 
 ## Versioning
 

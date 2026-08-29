@@ -17,11 +17,17 @@ There is a hard 100% coverage gate on the correctness core:
 - `internal/domain`
 - `internal/application`
 
-`./test.ps1` runs the whole suite with coverage and fails if any statement in those two packages is
-uncovered. It also prints the full per-package report.
+`./test.ps1` checks formatting, runs `go vet`, then runs the whole suite with coverage and fails if
+any statement in those two packages is uncovered. It also prints the full per-package report. The two
+cheap checks run first, so a formatting slip is reported in seconds rather than after a full coverage
+run. Each fails the script outright, so a green run means all three passed.
+
+`go vet` earns its own step even though `go test` applies a few of the same analysers. That subset is
+short (printf and a handful of others), so anything outside it, a copied lock or a malformed struct
+tag, reaches nothing without the explicit step.
 
 ```
-./test.ps1          # run tests and enforce the gate
+./test.ps1          # check formatting, vet, run tests and enforce the gate
 ./test.ps1 -Html    # also open the HTML coverage report
 go test ./...       # plain run without the gate
 ```
