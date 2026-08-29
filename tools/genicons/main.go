@@ -9,10 +9,15 @@
 //	frontend/src/assets/icons/*.png       (the title-bar and folder-list glyphs)
 //
 // The glyph set is derived from the artwork in assets/ at the repo root, one output per master. Each is
-// cropped to its visible pixels, centred on a transparent square and scaled down to one common size, so
-// every glyph carries the same visual weight whatever the master's own framing was. Without that crop a
-// letterboxed master (the inbox tray fills a little over half its canvas) renders half the height of a
-// master drawn edge to edge beside it.
+// cropped to its visible pixels and scaled to one common ink HEIGHT, its width following the artwork's
+// own proportions. The file therefore carries ink and nothing else, which leaves each surface free to
+// normalise as it wants: the folder list sizes by height so every mark reads the same height in a row,
+// while the title bar fits each into a square box so every button stays the same size.
+//
+// It squared them once, which was wrong twice over. Without any crop a letterboxed master renders far
+// smaller than one drawn edge to edge. With a crop but squared, a wide drawing loses height instead:
+// measured across this set the ink aspect runs from 0.93 to 1.46, so in a 22px square box the snooze
+// mark stood 15px tall against 22px for a square one, with sent and inbox close behind it.
 //
 // It also derives the donate button's artwork from its own master, donate.png. That one is not an icon
 // and is handled separately: it is a wide pair of glasses drawn at a button's height, so squaring it
@@ -58,12 +63,13 @@ const (
 	glyphOutputDir  = "frontend/src/assets/icons"
 )
 
-// glyphSide is the pixel side of each generated glyph. The largest surface that draws one is the title
-// bar at --titlebar-glyph-size (61px), so this is four times that, on the same reasoning as donateHeight:
-// crisp under display scaling without carrying a megabyte-scale master into the binary. Raising that CSS
-// token means raising this with it; the two are kept in step by hand, since neither language can read
-// the other's constant.
-const glyphSide = 244
+// glyphHeight is the ink height of each generated glyph; its width follows the artwork. The largest
+// surface that draws one is the title bar at --titlebar-glyph-size (61px), so this is four times that,
+// on the same reasoning as donateHeight: crisp under display scaling without carrying a megabyte-scale
+// master into the binary. Raising that CSS token means raising this with it; the two are kept in step by
+// hand, since neither language can read the other's constant. The masters cap it: the shortest of them,
+// inbox, carries 283px of ink height; artwork is never enlarged.
+const glyphHeight = 244
 
 // glyphAlphaFloor is the alpha, on the usual 0 to 255 scale, at or below which a pixel is treated as
 // empty canvas when cropping. Artwork of this kind carries a soft glow fading to alpha 1 far outside the
@@ -159,7 +165,7 @@ func writeGlyphs() (int, error) {
 			return 0, err
 		}
 		name := strings.ToLower(entry.Name())
-		if err := writePNG(filepath.Join(glyphOutputDir, name), resize(toSquare(cropToArtwork(master)), glyphSide)); err != nil {
+		if err := writePNG(filepath.Join(glyphOutputDir, name), scaleToHeight(cropToArtwork(master), glyphHeight)); err != nil {
 			return 0, err
 		}
 		written++

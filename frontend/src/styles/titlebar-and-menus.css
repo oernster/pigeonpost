@@ -90,10 +90,17 @@
 /* The header's own artwork, drawn larger than an emoji of the same nominal size. The selector names the
    header element rather than .titlebar, because the bottom tray is built from .titlebar too and its
    donate mark keeps the size above. The horizontal padding drops as the picture grows, so the bar holds
-   roughly the width it had rather than growing by the picture plus its box. */
+   roughly the width it had rather than growing by the picture plus its box.
+
+   The box is square and both axes are given, with the picture fitted inside it. The glyphs carry ink and
+   nothing else, so their proportions vary; sized by height alone a wide one would make its button wider
+   and a tall one taller; the row of buttons would then stop matching. Fitting each into a square box
+   normalises them on their longer side, which is what keeps every button the same size. */
 header.titlebar .icon-btn-image img,
 header.titlebar .menu-title img {
     height: var(--titlebar-glyph-size);
+    width: var(--titlebar-glyph-size);
+    object-fit: contain;
 }
 
 header.titlebar .icon-btn-image,
