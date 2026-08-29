@@ -14,17 +14,21 @@ import {Sidebar} from './Sidebar'
 import {api, type Account, type Folder} from '../api'
 import {folderDragType} from '../sidebarDnd'
 import {messageDragType} from './MessageList'
+import {spiesNotInApi, unstubbedNames} from '../test/apiMock'
 
-vi.mock('../api', async (importOriginal) => {
-    const actual = await importOriginal<typeof import('../api')>()
-    return {
-        ...actual,
-        api: {
-            ...actual.api,
-            folderUIState: vi.fn().mockResolvedValue({order: [], collapsed: []}),
-            saveFolderUIState: vi.fn().mockResolvedValue(undefined),
-        },
-    }
+const apiSpies = vi.hoisted(() => ({
+    folderUIState: vi.fn(),
+    saveFolderUIState: vi.fn(),
+}))
+
+// The mock is built from the real api rather than hand-listed here, so a method reached with no spy
+// fails the test by name instead of throwing a TypeError into the nearest catch and passing. The
+// afterEach below reports any that were reached. See src/test/apiMock.ts.
+const unstubbedCalls = vi.hoisted(() => new Set<string>())
+vi.mock('../api', async () => {
+    const actual = await vi.importActual<typeof import('../api')>('../api')
+    const {buildApiStubs} = await import('../test/apiMock')
+    return {...actual, api: buildApiStubs(actual, apiSpies as unknown as Record<string, unknown>, unstubbedCalls)}
 })
 
 type SidebarProps = ComponentProps<typeof Sidebar>
@@ -114,12 +118,24 @@ function renderSidebar(overrides: Partial<SidebarProps> = {}) {
 }
 
 beforeEach(() => {
+    // These two were resolved values on the old inline mock; they are the folder display state the
+    // sidebar reads on mount and writes back, so every test needs them settled.
+    apiSpies.folderUIState.mockReset().mockResolvedValue({order: [], collapsed: []})
+    apiSpies.saveFolderUIState.mockReset().mockResolvedValue(undefined)
+})
+
+beforeEach(() => {
     localStorage.clear()
     // Clears recorded calls on the module-level api mocks (their benign resolved implementations are
     // kept), so each test asserts only its own backend traffic.
     vi.clearAllMocks()
 })
-afterEach(() => cleanup())
+afterEach(() => {
+    cleanup()
+    // Unmounting can reach the api too, so this is read after cleanup rather than before it.
+    expect(unstubbedNames(unstubbedCalls), 'api methods reached with no stub: declare them in apiSpies')
+        .toEqual([])
+})
 
 describe('Sidebar: shell', () => {
     it('shows the empty state when there are no accounts', () => {
@@ -637,5 +653,15 @@ describe('Sidebar: the folder row action toolbar', () => {
         expect(block).toMatch(/right:\s*\d/)
         expect(block).not.toMatch(/top:\s*100%/)
         expect(block).not.toMatch(/left:/)
+    })
+})
+
+// The mock covers the api in both directions: the afterEach above catches a method reached with no
+// spy; this catches the opposite, a spy declared under a name the api does not have, which binds to
+// nothing, so every test configuring it would be configuring a stub the code can never call.
+describe('the api mock', () => {
+    it('declares no spy the real api does not have', async () => {
+        const actual = await vi.importActual<typeof import('../api')>('../api')
+        expect(spiesNotInApi(actual, apiSpies as unknown as Record<string, unknown>)).toEqual([])
     })
 })

@@ -6,6 +6,7 @@ import {cleanup, fireEvent, render, screen, waitFor} from '@testing-library/reac
 import {ContactsModal} from './ContactsModal'
 import {AUTO_COLLECT_KEY} from '../autoCollect'
 import type {Contact} from '../api'
+import {spiesNotInApi, unstubbedNames} from '../test/apiMock'
 
 const apiSpies = vi.hoisted(() => ({
     listContactGroups: vi.fn(),
@@ -17,17 +18,15 @@ const apiSpies = vi.hoisted(() => ({
     exportContactsToFile: vi.fn(),
 }))
 
-vi.mock('../api', () => ({
-    api: {
-        listContactGroups: apiSpies.listContactGroups,
-        saveContact: apiSpies.saveContact,
-        deleteContact: apiSpies.deleteContact,
-        saveContactGroup: apiSpies.saveContactGroup,
-        deleteContactGroup: apiSpies.deleteContactGroup,
-        importContactsFromFile: apiSpies.importContactsFromFile,
-        exportContactsToFile: apiSpies.exportContactsToFile,
-    },
-}))
+// The mock is built from the real api rather than hand-listed here, so a method reached with no spy
+// fails the test by name instead of throwing a TypeError into the nearest catch and passing. The
+// afterEach below reports any that were reached. See src/test/apiMock.ts.
+const unstubbedCalls = vi.hoisted(() => new Set<string>())
+vi.mock('../api', async () => {
+    const actual = await vi.importActual<typeof import('../api')>('../api')
+    const {buildApiStubs} = await import('../test/apiMock')
+    return {...actual, api: buildApiStubs(actual, apiSpies as unknown as Record<string, unknown>, unstubbedCalls)}
+})
 
 function contact(id: string, name: string, address: string): Contact {
     return {
@@ -55,6 +54,9 @@ beforeEach(() => {
 afterEach(() => {
     window.localStorage.removeItem(AUTO_COLLECT_KEY)
     cleanup()
+    // Unmounting can reach the api too, so this is read after cleanup rather than before it.
+    expect(unstubbedNames(unstubbedCalls), 'api methods reached with no stub: declare them in apiSpies')
+        .toEqual([])
 })
 
 describe('ContactsModal: layout and delete placement', () => {
@@ -118,5 +120,15 @@ describe('ContactsModal: the auto-collect toggle', () => {
         renderContacts()
         expect(screen.getByRole('checkbox', {name: 'Add people you email to contacts automatically'}))
             .not.toBeChecked()
+    })
+})
+
+// The mock covers the api in both directions: the afterEach above catches a method reached with no
+// spy; this catches the opposite, a spy declared under a name the api does not have, which binds to
+// nothing, so every test configuring it would be configuring a stub the code can never call.
+describe('the api mock', () => {
+    it('declares no spy the real api does not have', async () => {
+        const actual = await vi.importActual<typeof import('../api')>('../api')
+        expect(spiesNotInApi(actual, apiSpies as unknown as Record<string, unknown>)).toEqual([])
     })
 })

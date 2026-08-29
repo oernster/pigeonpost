@@ -8,6 +8,7 @@ import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 import {act, cleanup, fireEvent, render, screen, within} from '@testing-library/react'
 import type {ComponentProps} from 'react'
 import {ComposeModal} from './ComposeModal'
+import {spiesNotInApi, unstubbedNames} from '../test/apiMock'
 
 const apiSpies = vi.hoisted(() => ({
     send: vi.fn(),
@@ -19,17 +20,15 @@ const apiSpies = vi.hoisted(() => ({
     collectContacts: vi.fn(),
 }))
 
-vi.mock('../api', () => ({
-    api: {
-        send: apiSpies.send,
-        saveDraft: apiSpies.saveDraft,
-        clearDraftRecovery: apiSpies.clearDraftRecovery,
-        saveDraftRecovery: apiSpies.saveDraftRecovery,
-        pickAttachments: apiSpies.pickAttachments,
-        listContacts: apiSpies.listContacts,
-        collectContacts: apiSpies.collectContacts,
-    },
-}))
+// The mock is built from the real api rather than hand-listed here, so a method reached with no spy
+// fails the test by name instead of throwing a TypeError into the nearest catch and passing. The
+// afterEach below reports any that were reached. See src/test/apiMock.ts.
+const unstubbedCalls = vi.hoisted(() => new Set<string>())
+vi.mock('../api', async () => {
+    const actual = await vi.importActual<typeof import('../api')>('../api')
+    const {buildApiStubs} = await import('../test/apiMock')
+    return {...actual, api: buildApiStubs(actual, apiSpies as unknown as Record<string, unknown>, unstubbedCalls)}
+})
 
 vi.mock('@tiptap/react', () => {
     const chain = () => {
@@ -105,6 +104,9 @@ beforeEach(() => {
 afterEach(() => {
     cleanup()
     vi.useRealTimers()
+    // Unmounting can reach the api too, so this is read after cleanup rather than before it.
+    expect(unstubbedNames(unstubbedCalls), 'api methods reached with no stub: declare them in apiSpies')
+        .toEqual([])
 })
 
 describe('ComposeModal: discard guard', () => {
@@ -170,5 +172,15 @@ describe('ComposeModal: discard guard', () => {
         fireEvent.keyDown(document, {key: 'Escape'})
         expect(discardDialog()).toBeInTheDocument()
         expect(onClose).not.toHaveBeenCalled()
+    })
+})
+
+// The mock covers the api in both directions: the afterEach above catches a method reached with no
+// spy; this catches the opposite, a spy declared under a name the api does not have, which binds to
+// nothing, so every test configuring it would be configuring a stub the code can never call.
+describe('the api mock', () => {
+    it('declares no spy the real api does not have', async () => {
+        const actual = await vi.importActual<typeof import('../api')>('../api')
+        expect(spiesNotInApi(actual, apiSpies as unknown as Record<string, unknown>)).toEqual([])
     })
 })

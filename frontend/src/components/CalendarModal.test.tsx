@@ -13,6 +13,7 @@ import type {ComponentProps} from 'react'
 import {CalendarModal} from './CalendarModal'
 import {EventScope} from '../api'
 import type {Calendar, CalendarEvent, CalendarEventInstance} from '../api'
+import {spiesNotInApi, unstubbedNames} from '../test/apiMock'
 
 const apiSpies = vi.hoisted(() => ({
     listCalendars: vi.fn(),
@@ -36,10 +37,15 @@ const apiSpies = vi.hoisted(() => ({
 
 // The mock provides EventScope with the real integer values (a runtime enum the modal and the ScopeChooser
 // both read) and swaps the api object for spies.
-vi.mock('../api', () => ({
-    api: apiSpies,
-    EventScope: {This: 0, Future: 1, All: 2},
-}))
+// The mock is built from the real api rather than hand-listed here, so a method reached with no spy
+// fails the test by name instead of throwing a TypeError into the nearest catch and passing. The
+// afterEach below reports any that were reached. See src/test/apiMock.ts.
+const unstubbedCalls = vi.hoisted(() => new Set<string>())
+vi.mock('../api', async () => {
+    const actual = await vi.importActual<typeof import('../api')>('../api')
+    const {buildApiStubs} = await import('../test/apiMock')
+    return {...actual, api: buildApiStubs(actual, apiSpies as unknown as Record<string, unknown>, unstubbedCalls)}
+})
 
 type CalendarProps = ComponentProps<typeof CalendarModal>
 
@@ -100,7 +106,12 @@ beforeEach(() => {
     apiSpies.syncCalDAV.mockReset().mockResolvedValue(undefined)
 })
 
-afterEach(() => cleanup())
+afterEach(() => {
+    cleanup()
+    // Unmounting can reach the api too, so this is read after cleanup rather than before it.
+    expect(unstubbedNames(unstubbedCalls), 'api methods reached with no stub: declare them in apiSpies')
+        .toEqual([])
+})
 
 describe('CalendarModal: basics', () => {
     it('renders the calendar and loads calendars and instances on mount', async () => {
@@ -397,5 +408,15 @@ describe('CalendarModal: error handling', () => {
         apiSpies.listEventInstances.mockRejectedValue('load failed')
         renderCalendar()
         expect(await screen.findByText('load failed')).toBeInTheDocument()
+    })
+})
+
+// The mock covers the api in both directions: the afterEach above catches a method reached with no
+// spy; this catches the opposite, a spy declared under a name the api does not have, which binds to
+// nothing, so every test configuring it would be configuring a stub the code can never call.
+describe('the api mock', () => {
+    it('declares no spy the real api does not have', async () => {
+        const actual = await vi.importActual<typeof import('../api')>('../api')
+        expect(spiesNotInApi(actual, apiSpies as unknown as Record<string, unknown>)).toEqual([])
     })
 })

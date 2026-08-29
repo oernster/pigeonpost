@@ -7,6 +7,7 @@ import {act, cleanup, renderHook} from '@testing-library/react'
 import type {Message} from '../api'
 import {useMessageStore} from './useMessageStore'
 import {useMessageActions} from './useMessageActions'
+import {spiesNotInApi, unstubbedNames} from '../test/apiMock'
 
 const apiSpies = vi.hoisted(() => ({
     markReplied: vi.fn(),
@@ -15,14 +16,15 @@ const apiSpies = vi.hoisted(() => ({
     markFlagged: vi.fn(),
 }))
 
-vi.mock('../api', () => ({
-    api: {
-        markReplied: apiSpies.markReplied,
-        markForwarded: apiSpies.markForwarded,
-        markRead: apiSpies.markRead,
-        markFlagged: apiSpies.markFlagged,
-    },
-}))
+// The mock is built from the real api rather than hand-listed here, so a method reached with no spy
+// fails the test by name instead of throwing a TypeError into the nearest catch and passing. The
+// afterEach below reports any that were reached. See src/test/apiMock.ts.
+const unstubbedCalls = vi.hoisted(() => new Set<string>())
+vi.mock('../api', async () => {
+    const actual = await vi.importActual<typeof import('../api')>('../api')
+    const {buildApiStubs} = await import('../test/apiMock')
+    return {...actual, api: buildApiStubs(actual, apiSpies as unknown as Record<string, unknown>, unstubbedCalls)}
+})
 
 function makeMessage(overrides: Partial<Message> = {}): Message {
     return {
@@ -79,7 +81,12 @@ beforeEach(() => {
     undoSpies.push.mockReset()
     undoSpies.registerTagExecutor.mockReset()
 })
-afterEach(() => cleanup())
+afterEach(() => {
+    cleanup()
+    // Unmounting can reach the api too, so this is read after cleanup rather than before it.
+    expect(unstubbedNames(unstubbedCalls), 'api methods reached with no stub: declare them in apiSpies')
+        .toEqual([])
+})
 
 describe('useMessageActions: markReplied / markForwarded', () => {
     it('flips answered on the matching row across every list once the server records it', async () => {
@@ -215,5 +222,15 @@ describe('useMessageActions: undo recording', () => {
             await result.current.actions.toggleFlag(result.current.store.messages[0])
         })
         expect(undoSpies.push).not.toHaveBeenCalled()
+    })
+})
+
+// The mock covers the api in both directions: the afterEach above catches a method reached with no
+// spy; this catches the opposite, a spy declared under a name the api does not have, which binds to
+// nothing, so every test configuring it would be configuring a stub the code can never call.
+describe('the api mock', () => {
+    it('declares no spy the real api does not have', async () => {
+        const actual = await vi.importActual<typeof import('../api')>('../api')
+        expect(spiesNotInApi(actual, apiSpies as unknown as Record<string, unknown>)).toEqual([])
     })
 })

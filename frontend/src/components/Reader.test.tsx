@@ -11,6 +11,7 @@ import {Reader} from './Reader'
 import type {Folder, Message, MessageBody, Tag} from '../api'
 import {TAG_PALETTE, colourTagId} from '../tagColours'
 import {formatBytes} from '../readerFormat'
+import {spiesNotInApi, unstubbedNames} from '../test/apiMock'
 
 // The reader reaches the backend only through ../api, so mocking that one module isolates it fully. vi.hoisted
 // lifts the spy set above the hoisted vi.mock factory so the factory can close over it.
@@ -23,16 +24,15 @@ const apiSpies = vi.hoisted(() => ({
     loadRemoteImages: vi.fn(),
 }))
 
-vi.mock('../api', () => ({
-    api: {
-        openExternal: apiSpies.openExternal,
-        saveAttachment: apiSpies.saveAttachment,
-        openAttachment: apiSpies.openAttachment,
-        openEmailAttachment: apiSpies.openEmailAttachment,
-        saveAllAttachments: apiSpies.saveAllAttachments,
-        loadRemoteImages: apiSpies.loadRemoteImages,
-    },
-}))
+// The mock is built from the real api rather than hand-listed here, so a method reached with no spy
+// fails the test by name instead of throwing a TypeError into the nearest catch and passing. The
+// afterEach below reports any that were reached. See src/test/apiMock.ts.
+const unstubbedCalls = vi.hoisted(() => new Set<string>())
+vi.mock('../api', async () => {
+    const actual = await vi.importActual<typeof import('../api')>('../api')
+    const {buildApiStubs} = await import('../test/apiMock')
+    return {...actual, api: buildApiStubs(actual, apiSpies as unknown as Record<string, unknown>, unstubbedCalls)}
+})
 
 type ReaderProps = ComponentProps<typeof Reader>
 
@@ -139,7 +139,12 @@ beforeEach(() => {
     })
 })
 
-afterEach(() => cleanup())
+afterEach(() => {
+    cleanup()
+    // Unmounting can reach the api too, so this is read after cleanup rather than before it.
+    expect(unstubbedNames(unstubbedCalls), 'api methods reached with no stub: declare them in apiSpies')
+        .toEqual([])
+})
 
 describe('Reader: empty and basic render', () => {
     it('shows the prompt and no toolbar when no message is selected', () => {
@@ -511,5 +516,15 @@ describe('Reader: reset on message change', () => {
         expect(screen.getByRole('group', {name: 'Tag colour'})).toBeInTheDocument()
         rerender(<Reader {...base} message={makeMessage({id: 'second'})}/>)
         expect(screen.queryByRole('group', {name: 'Tag colour'})).toBeNull()
+    })
+})
+
+// The mock covers the api in both directions: the afterEach above catches a method reached with no
+// spy; this catches the opposite, a spy declared under a name the api does not have, which binds to
+// nothing, so every test configuring it would be configuring a stub the code can never call.
+describe('the api mock', () => {
+    it('declares no spy the real api does not have', async () => {
+        const actual = await vi.importActual<typeof import('../api')>('../api')
+        expect(spiesNotInApi(actual, apiSpies as unknown as Record<string, unknown>)).toEqual([])
     })
 })

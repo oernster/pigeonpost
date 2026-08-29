@@ -5,9 +5,18 @@ import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 import {cleanup, render, screen, waitFor} from '@testing-library/react'
 import {MessageBodyView} from './MessageBodyView'
 import type {MessageBody} from '../api'
+import {spiesNotInApi, unstubbedNames} from '../test/apiMock'
 
-const apiSpies = vi.hoisted(() => ({loadRemoteImages: vi.fn(), openExternal: vi.fn(), messageInvite: vi.fn()}))
-vi.mock('../api', () => ({api: apiSpies}))
+const apiSpies = vi.hoisted(() => ({loadRemoteImages: vi.fn(), openExternal: vi.fn()}))
+// The mock is built from the real api rather than hand-listed here, so a method reached with no spy
+// fails the test by name instead of throwing a TypeError into the nearest catch and passing. The
+// afterEach below reports any that were reached. See src/test/apiMock.ts.
+const unstubbedCalls = vi.hoisted(() => new Set<string>())
+vi.mock('../api', async () => {
+    const actual = await vi.importActual<typeof import('../api')>('../api')
+    const {buildApiStubs} = await import('../test/apiMock')
+    return {...actual, api: buildApiStubs(actual, apiSpies as unknown as Record<string, unknown>, unstubbedCalls)}
+})
 
 function body(overrides: Partial<MessageBody> = {}): MessageBody {
     return {plain: '', html: '', hasInvite: false, attachments: [], ...overrides} as MessageBody
@@ -32,7 +41,12 @@ beforeEach(() => {
     apiSpies.openExternal.mockReset()
 })
 
-afterEach(() => cleanup())
+afterEach(() => {
+    cleanup()
+    // Unmounting can reach the api too, so this is read after cleanup rather than before it.
+    expect(unstubbedNames(unstubbedCalls), 'api methods reached with no stub: declare them in apiSpies')
+        .toEqual([])
+})
 
 describe('MessageBodyView', () => {
     it('says it is loading before the body arrives', () => {
@@ -71,5 +85,15 @@ describe('MessageBodyView', () => {
         renderBody({body: body({html: '<img data-pp-src="http://x/y.png">'}), autoLoadImages: true})
         await waitFor(() => expect(apiSpies.loadRemoteImages).toHaveBeenCalled())
         expect(screen.queryByText(/Remote images were not loaded/)).toBeNull()
+    })
+})
+
+// The mock covers the api in both directions: the afterEach above catches a method reached with no
+// spy; this catches the opposite, a spy declared under a name the api does not have, which binds to
+// nothing, so every test configuring it would be configuring a stub the code can never call.
+describe('the api mock', () => {
+    it('declares no spy the real api does not have', async () => {
+        const actual = await vi.importActual<typeof import('../api')>('../api')
+        expect(spiesNotInApi(actual, apiSpies as unknown as Record<string, unknown>)).toEqual([])
     })
 })

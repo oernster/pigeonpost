@@ -1,19 +1,32 @@
 // useFolderPagination owns the keyset cursor for the flat folder view. These tests drive it directly (the
 // api seam is stubbed, as in App.test) to pin the cursor bookkeeping the app relies on: the first page
 // records the cursor, the next page walks it in the same direction, already-loaded ids are filtered,
-// paging stops when no more remains, overlapping loads are guarded, and reset clears the cursor.
+// paging stops when no more remains, overlapping loads are guarded and reset clears the cursor.
 import {act, renderHook} from '@testing-library/react'
-import {beforeEach, describe, expect, it, vi} from 'vitest'
+import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 import type {Message, MessagePage} from '../api'
 import {useFolderPagination} from './useFolderPagination'
+import {spiesNotInApi, unstubbedNames} from '../test/apiMock'
 
-const listMessagesPage = vi.hoisted(() => vi.fn())
-// MESSAGE_PAGE_SIZE is a real runtime export of ../api, so the mock supplies it too; the stub asserts it is
-// forwarded as the page limit.
-vi.mock('../api', () => ({
-    api: {listMessagesPage},
-    MESSAGE_PAGE_SIZE: 200,
-}))
+const apiSpies = vi.hoisted(() => ({listMessagesPage: vi.fn()}))
+const listMessagesPage = apiSpies.listMessagesPage
+
+// The mock is built from the real api rather than hand-listed here, so a method reached with no spy
+// fails the test by name instead of throwing a TypeError into the nearest catch and passing. The
+// afterEach below reports any that were reached. Spreading the real module also carries MESSAGE_PAGE_SIZE
+// itself, so the limit the stub asserts is forwarded cannot drift from the real one. See
+// src/test/apiMock.ts.
+const unstubbedCalls = vi.hoisted(() => new Set<string>())
+vi.mock('../api', async () => {
+    const actual = await vi.importActual<typeof import('../api')>('../api')
+    const {buildApiStubs} = await import('../test/apiMock')
+    return {...actual, api: buildApiStubs(actual, apiSpies as unknown as Record<string, unknown>, unstubbedCalls)}
+})
+
+afterEach(() => {
+    expect(unstubbedNames(unstubbedCalls), 'api methods reached with no stub: declare them in apiSpies')
+        .toEqual([])
+})
 
 // The hook reads only a message's id, so a bare id cast to Message is enough to exercise it.
 function msg(id: string): Message {
@@ -154,5 +167,15 @@ describe('useFolderPagination', () => {
         })
         expect(none).toEqual([])
         expect(listMessagesPage).not.toHaveBeenCalled()
+    })
+})
+
+// The mock covers the api in both directions: the afterEach above catches a method reached with no
+// spy; this catches the opposite, a spy declared under a name the api does not have, which binds to
+// nothing, so every test configuring it would be configuring a stub the code can never call.
+describe('the api mock', () => {
+    it('declares no spy the real api does not have', async () => {
+        const actual = await vi.importActual<typeof import('../api')>('../api')
+        expect(spiesNotInApi(actual, apiSpies as unknown as Record<string, unknown>)).toEqual([])
     })
 })

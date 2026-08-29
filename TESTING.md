@@ -241,8 +241,12 @@ npx vitest run --coverage   # enforce the pure-module coverage gate
   before; anything else records that it was reached and throws, then an `afterEach` fails the test
   naming the method. A companion test checks the other direction, that no spy is declared under a name the api
   does not have, since such a spy binds to nothing and every test configuring it passes for the wrong
-  reason. Both directions were verified by planting a violation. `App.test.tsx` uses it today; the other
-  test files that mock the api still hand-write theirs, which TECH_DEBT.md records.
+  reason. Both directions were verified by planting a violation. Every one of the 25 test files that
+  mocks the api now uses it, each carrying the `afterEach` drain and the companion check. Converting
+  them found two more holes of exactly the kind it exists to catch. `MessageBodyView.test.tsx` declared
+  a `messageInvite` spy under a name the api has never had. `Sidebar.test.tsx` spread the real `api`
+  object into its mock, so any method beyond the two it overrode reached a live Wails binding rather
+  than a stub.
 - **Characterisation-first.** The `App.tsx` and component decomposition was done test-first: each
   extraction was preceded by a characterisation test pinning the behaviour on the un-extracted code, so
   every move was behaviour-preserving by construction. `App.test.tsx` characterises App at its outer

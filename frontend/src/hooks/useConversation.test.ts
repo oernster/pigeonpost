@@ -5,9 +5,19 @@ import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 import {act, cleanup, renderHook, waitFor} from '@testing-library/react'
 import type {ConversationEntry, Message} from '../api'
 import {useConversation} from './useConversation'
+import {spiesNotInApi, unstubbedNames} from '../test/apiMock'
 
 const apiSpies = vi.hoisted(() => ({conversation: vi.fn()}))
-vi.mock('../api', () => ({api: apiSpies}))
+
+// The mock is built from the real api rather than hand-listed here, so a method this hook reaches that
+// no spy declares fails the test by name instead of throwing a TypeError into the nearest catch and
+// passing. See src/test/apiMock.ts.
+const unstubbedCalls = vi.hoisted(() => new Set<string>())
+vi.mock('../api', async () => {
+    const actual = await vi.importActual<typeof import('../api')>('../api')
+    const {buildApiStubs} = await import('../test/apiMock')
+    return {...actual, api: buildApiStubs(actual, apiSpies as unknown as Record<string, unknown>, unstubbedCalls)}
+})
 
 function makeMessage(id: string): Message {
     return {id, folderId: 'f1', subject: 'Lunch'} as Message
@@ -21,7 +31,12 @@ beforeEach(() => {
     apiSpies.conversation.mockReset().mockResolvedValue([])
 })
 
-afterEach(() => cleanup())
+afterEach(() => {
+    cleanup()
+    // Unmounting can reach the api too, so this is read after cleanup rather than before it.
+    expect(unstubbedNames(unstubbedCalls), 'api methods reached with no stub: declare them in apiSpies')
+        .toEqual([])
+})
 
 describe('useConversation', () => {
     it('loads the thread of the open message', async () => {
@@ -78,5 +93,15 @@ describe('useConversation', () => {
         apiSpies.conversation.mockRejectedValueOnce(new Error('no'))
         rerender('m2')
         await waitFor(() => expect(result.current).toEqual([]))
+    })
+})
+
+// The mock covers the api in both directions: the afterEach above catches a method reached with no
+// spy; this catches the opposite, a spy declared under a name the api does not have, which binds to
+// nothing, so every test configuring it would be configuring a stub the code can never call.
+describe('the api mock', () => {
+    it('declares no spy the real api does not have', async () => {
+        const actual = await vi.importActual<typeof import('../api')>('../api')
+        expect(spiesNotInApi(actual, apiSpies as unknown as Record<string, unknown>)).toEqual([])
     })
 })

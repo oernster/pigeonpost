@@ -11,6 +11,7 @@ import {cleanup, fireEvent, render, screen, waitFor} from '@testing-library/reac
 import type {ComponentProps} from 'react'
 import {AccountSetupModal} from './AccountSetupModal'
 import type {Account} from '../api'
+import {spiesNotInApi, unstubbedNames} from '../test/apiMock'
 
 const apiSpies = vi.hoisted(() => ({
     addAccount: vi.fn(),
@@ -19,14 +20,15 @@ const apiSpies = vi.hoisted(() => ({
     signInMicrosoft: vi.fn(),
 }))
 
-vi.mock('../api', () => ({
-    api: {
-        addAccount: apiSpies.addAccount,
-        updateAccount: apiSpies.updateAccount,
-        updateAccountProfile: apiSpies.updateAccountProfile,
-        signInMicrosoft: apiSpies.signInMicrosoft,
-    },
-}))
+// The mock is built from the real api rather than hand-listed here, so a method reached with no spy
+// fails the test by name instead of throwing a TypeError into the nearest catch and passing. The
+// afterEach below reports any that were reached. See src/test/apiMock.ts.
+const unstubbedCalls = vi.hoisted(() => new Set<string>())
+vi.mock('../api', async () => {
+    const actual = await vi.importActual<typeof import('../api')>('../api')
+    const {buildApiStubs} = await import('../test/apiMock')
+    return {...actual, api: buildApiStubs(actual, apiSpies as unknown as Record<string, unknown>, unstubbedCalls)}
+})
 
 // The tiptap stub: a fixed non-empty editor whose HTML is known, so a save carries a predictable signature
 // and the toolbar buttons have something to call. EditorContent renders nothing.
@@ -80,7 +82,12 @@ beforeEach(() => {
     apiSpies.signInMicrosoft.mockReset().mockResolvedValue('signed@outlook.com')
 })
 
-afterEach(() => cleanup())
+afterEach(() => {
+    cleanup()
+    // Unmounting can reach the api too, so this is read after cleanup rather than before it.
+    expect(unstubbedNames(unstubbedCalls), 'api methods reached with no stub: declare them in apiSpies')
+        .toEqual([])
+})
 
 describe('AccountSetupModal: provider chooser', () => {
     it('lists the providers when adding', () => {
@@ -289,5 +296,15 @@ describe('AccountSetupModal: microsoft add', () => {
         expect(await screen.findByText('consent denied')).toBeInTheDocument()
         expect(screen.getByRole('button', {name: 'Continue with Microsoft'})).toBeEnabled()
         expect(onSaved).not.toHaveBeenCalled()
+    })
+})
+
+// The mock covers the api in both directions: the afterEach above catches a method reached with no
+// spy; this catches the opposite, a spy declared under a name the api does not have, which binds to
+// nothing, so every test configuring it would be configuring a stub the code can never call.
+describe('the api mock', () => {
+    it('declares no spy the real api does not have', async () => {
+        const actual = await vi.importActual<typeof import('../api')>('../api')
+        expect(spiesNotInApi(actual, apiSpies as unknown as Record<string, unknown>)).toEqual([])
     })
 })
