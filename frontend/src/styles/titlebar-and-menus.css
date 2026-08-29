@@ -52,11 +52,11 @@
    masters are generated at four times this height (see glyphSide in tools/genicons), so they stay
    crisp under display scaling; raising this number means raising that one with it. The masters put a
    ceiling on how far that can go: the tightest of them crops to a 358px square, so four times this
-   height cannot exceed that without enlarging artwork, which is never done. At 76px there is very
-   little of that headroom left. */
+   height cannot exceed that without enlarging artwork, which is never done. That puts the largest
+   size this token can take at 89px; 76px was tried and read as too big for the bar. */
 :root {
     --titlebar-icon-size: 29px;
-    --titlebar-glyph-size: 76px;
+    --titlebar-glyph-size: 61px;
 }
 
 /* Icon buttons (compose, add account, sync, the reply trio, the theme toggle) share the same box as the
