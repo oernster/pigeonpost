@@ -716,6 +716,23 @@ place. Keep `App.css` a manifest (only `@import` lines); never inline component 
 per-component file own a shared global. Split a concern file over ~500 lines again at a top-level comment
 boundary, keeping the import order intact.
 
+The window is topped and tailed by the same bar. `TitleBar` is the header carrying the brand, the menus
+and the working controls; `BottomBar` is the footer at the foot of the window. The footer wears
+`.titlebar` itself rather than a stylesheet of its own, so the two match in height, padding and
+background by construction instead of by two sets of numbers kept in step by hand. `.bottombar` adds
+only what genuinely differs: the rule moves from the bottom edge to the top and `margin-top: auto`
+pins the bar down on a screen whose body does not take the spare height itself (the welcome screen;
+`.panes` already holds it there with its own `flex: 1`). Its one control is the donate button, which
+hands the payment page to the browser through the same `OpenExternal` scheme allowlist every link in
+a message takes, so the app makes no request of its own.
+
+A control at that corner needs its tooltip flipped. The shared `[data-tip]` tip opens downwards and
+centred, which is right everywhere above the fold and wrong in both axes here: measured against a
+720px viewport, a tip 6px below a button whose own bottom sits 8px from the foot took the document to
+742px and rendered off-screen; centred on a button held at the far left of the bar its first words
+were cut off by the window edge. The tip is positioned against the button rather than the bar, so one
+`.bottombar` rule opening it upwards and anchoring its left edge covers both.
+
 One sidebar layout rule: `.pane.sidebar` disables the pane's own overflow and scrolls an inner
 `.sidebar-scroll` region holding the folder tree alone, so the brand icon, the cross-account entries, the
 account picker and the Folders header (all inside the pinned `.sidebar-header`) stay put while the folders

@@ -196,6 +196,13 @@ bash builddmg.sh         # build the signed, notarized DMG (macOS, Apple Silicon
 bash build_flatpak.sh    # build and install the Flatpak (Linux)
 ```
 
+## Supporting the project
+
+A tray at the foot of the window carries a donate button at its left. It opens a PayPal payment page
+in your browser; the app itself sends nothing and asks for nothing. Donations support maintenance and
+continued development. Nothing in PigeonPost is withheld behind one: there is no paid tier, no licence
+key and no feature that a donation unlocks.
+
 ## Licence
 
 You are free to apply the GPL3 LICENSE below - provided that credit to the original author (Oliver Ernster) is retained in all copies and derivative works, under all circumstances. Removing or omitting this attribution is not permitted. This requirement is stated in the [LICENSE](LICENSE) file's own licensing notice as a GPLv3 section 7(b) additional term and repeated in Help > About.
