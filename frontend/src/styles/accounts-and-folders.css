@@ -1,20 +1,3 @@
-/* Welcome screen (no accounts yet): the card stays centred while a scaled-up brand icon sits in the
-   top-left of the primary background, just below the title bar. */
-.welcome {
-    position: relative;
-}
-
-.welcome-brand {
-    position: absolute;
-    top: 18px;
-    left: 18px;
-    width: 96px;
-    height: 96px;
-    opacity: 0.92;
-    user-select: none;
-    -webkit-user-drag: none;
-}
-
 .empty-card h2 {
     margin: 0 0 8px;
     font-size: 20px;
