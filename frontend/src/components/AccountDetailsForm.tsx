@@ -13,7 +13,9 @@ interface AccountDetailsFormProps {
 // AccountDetailsForm is the account-setup details step: the name, email and password fields, the server
 // settings (hidden for an OAuth account), the send-as addresses and the signature. Its state and every
 // handler live in useAccountForm; this renders the fields around them. The reduced OAuth form (a Microsoft
-// add or an OAuth-account edit) shows only the name, addresses and signature.
+// add or an OAuth-account edit) shows only the name, addresses and signature. A Microsoft add hides the
+// email too, because the sign-in supplies the address; everything else is collected the same way for every
+// provider, so a new account carries its signature without a second visit to the edit form.
 export function AccountDetailsForm({form, onClose}: AccountDetailsFormProps) {
     const dismiss = useBackdropDismiss(onClose)
     const {
@@ -108,7 +110,7 @@ export function AccountDetailsForm({form, onClose}: AccountDetailsFormProps) {
                 {oauthMode ? (
                     <p className="setup-hint">
                         {msAdd
-                            ? 'Enter the name to show on messages you send, then continue to sign in through your browser.'
+                            ? 'Enter the name to show on messages you send, add a signature if you want one, then continue to sign in through your browser.'
                             : 'Update the name shown on your messages, your signature or your send-as addresses.'}
                     </p>
                 ) : (
@@ -171,38 +173,34 @@ export function AccountDetailsForm({form, onClose}: AccountDetailsFormProps) {
                     </>
                 )}
 
-                {!msAdd && (
-                    <>
-                        <fieldset className="setup-group">
-                            <legend>Send-as addresses</legend>
-                            <p className="field-hint">Extra addresses this account may send from (for example a domain alias that shares this mailbox). They appear as From options when you compose.</p>
-                            {identities.map((identity, i) => (
-                                <div className="identity-row" key={i}>
-                                    <input
-                                        className="identity-input"
-                                        value={identity.name}
-                                        placeholder="Name (optional)"
-                                        onChange={(e) => updateIdentity(i, 'name', e.target.value)}
-                                    />
-                                    <input
-                                        className="identity-input"
-                                        value={identity.address}
-                                        placeholder="alias@example.com"
-                                        onChange={(e) => updateIdentity(i, 'address', e.target.value)}
-                                    />
-                                    <button type="button" className="btn identity-remove" onClick={() => removeIdentity(i)}>Remove</button>
-                                </div>
-                            ))}
-                            <button type="button" className="btn" onClick={addIdentity}>Add address</button>
-                        </fieldset>
+                <fieldset className="setup-group">
+                    <legend>Send-as addresses</legend>
+                    <p className="field-hint">Extra addresses this account may send from (for example a domain alias that shares this mailbox). They appear as From options when you compose.</p>
+                    {identities.map((identity, i) => (
+                        <div className="identity-row" key={i}>
+                            <input
+                                className="identity-input"
+                                value={identity.name}
+                                placeholder="Name (optional)"
+                                onChange={(e) => updateIdentity(i, 'name', e.target.value)}
+                            />
+                            <input
+                                className="identity-input"
+                                value={identity.address}
+                                placeholder="alias@example.com"
+                                onChange={(e) => updateIdentity(i, 'address', e.target.value)}
+                            />
+                            <button type="button" className="btn identity-remove" onClick={() => removeIdentity(i)}>Remove</button>
+                        </div>
+                    ))}
+                    <button type="button" className="btn" onClick={addIdentity}>Add address</button>
+                </fieldset>
 
-                        <fieldset className="setup-group">
-                            <legend>Signature</legend>
-                            <p className="field-hint">Added to new messages and above the quoted text on a reply.</p>
-                            <RichTextField editor={sigEditor}/>
-                        </fieldset>
-                    </>
-                )}
+                <fieldset className="setup-group">
+                    <legend>Signature</legend>
+                    <p className="field-hint">Added to new messages and above the quoted text on a reply.</p>
+                    <RichTextField editor={sigEditor}/>
+                </fieldset>
 
                 </div>
                 <div className="modal-actions spread">

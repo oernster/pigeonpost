@@ -60,13 +60,27 @@ func (a *App) AddAccount(req AccountSetupRequest) error {
 	return nil
 }
 
+// MicrosoftSignInRequest is the add-wizard payload for a Microsoft account. It carries no password,
+// server settings or email address: the OAuth flow supplies the address and the token. The name,
+// signature and send-as identities are collected before the browser sign-in so the account is complete
+// the moment it is added, matching every other provider.
+type MicrosoftSignInRequest struct {
+	DisplayName string          `json:"displayName"`
+	Signature   string          `json:"signature"`
+	Identities  []IdentityInput `json:"identities"`
+}
+
 // SignInMicrosoft runs the interactive Microsoft OAuth sign-in: it opens the system browser for consent,
 // receives the redirect on a loopback listener, verifies mailbox access with the returned token, stores
-// the token in the keychain and persists the account. displayName may be blank, in which case the
+// the token in the keychain and persists the account. DisplayName may be blank, in which case the
 // signed-in address is used. It starts the account's IDLE watcher on success so new mail pushes straight
 // away; it also returns the signed-in address so the front end can select the new account.
-func (a *App) SignInMicrosoft(displayName string) (string, error) {
-	account, err := a.msSetup.Configure(a.ctx, strings.TrimSpace(displayName))
+func (a *App) SignInMicrosoft(req MicrosoftSignInRequest) (string, error) {
+	identities, err := parseIdentities(req.Identities)
+	if err != nil {
+		return "", err
+	}
+	account, err := a.msSetup.Configure(a.ctx, strings.TrimSpace(req.DisplayName), req.Signature, identities)
 	if err != nil {
 		return "", err
 	}
@@ -111,7 +125,7 @@ func (a *App) UpdateAccount(req AccountSetupRequest) error {
 	if err := a.setup.Update(a.ctx, account, strings.TrimSpace(req.Password)); err != nil {
 		return err
 	}
-	// Restart the watcher so changed server settings take effect without a restart, and a switch to POP3
+	// Restart the watcher so changed server settings take effect without a restart; a switch to POP3
 	// leaves no stale IMAP watcher running.
 	a.startMailWatcher(account)
 	return nil

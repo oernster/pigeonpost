@@ -403,6 +403,15 @@ export interface AccountProfileInput {
     identities: Identity[]
 }
 
+// MicrosoftSignInInput adds a Microsoft account. It carries no password, servers or email address: the
+// OAuth flow supplies the address and the token. The name, signature and send-as addresses are collected
+// before the browser sign-in, so the account is complete the moment it is added.
+export interface MicrosoftSignInInput {
+    displayName: string
+    signature: string
+    identities: Identity[]
+}
+
 // EmailView is a parsed .eml attachment shown in the in-app viewer: its key headers and its sanitised HTML
 // and plain-text bodies.
 export interface EmailView {
@@ -424,8 +433,10 @@ export const api = {
     updateAccountProfile: (req: AccountProfileInput): Promise<void> =>
         UpdateAccountProfile(main.AccountProfileRequest.createFrom(req)),
     // signInMicrosoft runs the interactive OAuth flow (opens the browser, waits for consent) and resolves
-    // with the signed-in address so the caller can select the new account.
-    signInMicrosoft: (displayName: string): Promise<string> => SignInMicrosoft(displayName),
+    // with the signed-in address so the caller can select the new account. The name, signature and
+    // send-as addresses are collected by the wizard first, so the account is complete when it is added.
+    signInMicrosoft: (req: MicrosoftSignInInput): Promise<string> =>
+        SignInMicrosoft(main.MicrosoftSignInRequest.createFrom(req)),
     listTags: (): Promise<Tag[]> => ListTags(),
     saveTag: (req: TagInput): Promise<void> => SaveTag(main.TagRequest.createFrom(req)),
     deleteTag: (tagId: string): Promise<void> => DeleteTag(tagId),

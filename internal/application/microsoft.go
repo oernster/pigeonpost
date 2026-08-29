@@ -8,7 +8,7 @@ import (
 )
 
 // OAuthCredential is the outcome of an interactive OAuth sign-in: the signed-in address, a live access
-// token used to verify mailbox access immediately, and the opaque secret (a JSON token blob) to persist
+// token used to verify mailbox access immediately, plus the opaque secret (a JSON token blob) to persist
 // in the keychain for later silent refresh.
 type OAuthCredential struct {
 	Email       string
@@ -61,16 +61,24 @@ func NewMicrosoftSetupService(
 // Configure signs the user in, builds and verifies the account and persists it, returning the saved
 // account so the caller can start its mail watcher. The signed-in address becomes the account id, so
 // re-adding the same Microsoft account updates it in place. displayName may be empty, in which case the
-// address is used.
-func (s *MicrosoftSetupService) Configure(ctx context.Context, displayName string) (domain.Account, error) {
+// address is used. The signature and send-as identities are collected by the wizard before the browser
+// sign-in, exactly as they are for a password account, so a Microsoft account is complete when it is
+// added rather than needing a second visit to the edit form.
+func (s *MicrosoftSetupService) Configure(
+	ctx context.Context,
+	displayName string,
+	signature string,
+	identities []domain.EmailAddress,
+) (domain.Account, error) {
 	cred, err := s.authorizer.Authorize(ctx)
 	if err != nil {
 		return domain.Account{}, fmt.Errorf("microsoft sign-in: %w", err)
 	}
-	account, err := s.build(cred.Email, displayName)
+	built, err := s.build(cred.Email, displayName)
 	if err != nil {
 		return domain.Account{}, fmt.Errorf("build microsoft account: %w", err)
 	}
+	account := built.WithSignature(signature).WithIdentities(identities)
 	if err := s.verifier.Verify(ctx, account, cred.AccessToken); err != nil {
 		return domain.Account{}, fmt.Errorf("verify microsoft account %q: %w", account.ID(), err)
 	}

@@ -32,9 +32,24 @@ func newMicrosoftService(t *testing.T, build MicrosoftAccountBuilder) (
 func TestMicrosoftConfigureSuccess(t *testing.T) {
 	svc, store, creds, verifier, authorizer := newMicrosoftService(t, okBuilder(t))
 
-	account, err := svc.Configure(context.Background(), "Jane")
+	alias, err := domain.NewEmailAddress("Alias", "alias@example.com")
+	if err != nil {
+		t.Fatalf("building the alias: %v", err)
+	}
+	account, err := svc.Configure(context.Background(), "Jane", "<p>Jane</p>", []domain.EmailAddress{alias})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+	// The signature and send-as addresses are collected before the browser sign-in, so a Microsoft
+	// account is complete when it is added rather than needing a second visit to the edit form.
+	if account.Signature() != "<p>Jane</p>" {
+		t.Errorf("signature = %q, want the one given to Configure", account.Signature())
+	}
+	if len(account.Identities()) != 1 || account.Identities()[0].Address() != "alias@example.com" {
+		t.Errorf("identities = %v, want the alias given to Configure", account.Identities())
+	}
+	if len(store.saved) == 1 && store.saved[0].Signature() != "<p>Jane</p>" {
+		t.Errorf("saved signature = %q, want it persisted", store.saved[0].Signature())
 	}
 	if !authorizer.authorized {
 		t.Error("expected the authorizer to have run")
@@ -62,7 +77,7 @@ func TestMicrosoftConfigureAuthorizeError(t *testing.T) {
 	svc, store, creds, _, authorizer := newMicrosoftService(t, okBuilder(t))
 	authorizer.err = errBoom
 
-	if _, err := svc.Configure(context.Background(), "Jane"); !errors.Is(err, errBoom) {
+	if _, err := svc.Configure(context.Background(), "Jane", "", nil); !errors.Is(err, errBoom) {
 		t.Errorf("Configure error = %v, want wrapped boom", err)
 	}
 	if len(store.saved) != 0 || len(creds.passwords) != 0 {
@@ -74,7 +89,7 @@ func TestMicrosoftConfigureBuildError(t *testing.T) {
 	build := func(string, string) (domain.Account, error) { return domain.Account{}, errBoom }
 	svc, store, creds, _, _ := newMicrosoftService(t, build)
 
-	if _, err := svc.Configure(context.Background(), "Jane"); !errors.Is(err, errBoom) {
+	if _, err := svc.Configure(context.Background(), "Jane", "", nil); !errors.Is(err, errBoom) {
 		t.Errorf("Configure error = %v, want wrapped boom", err)
 	}
 	if len(store.saved) != 0 || len(creds.passwords) != 0 {
@@ -86,7 +101,7 @@ func TestMicrosoftConfigureVerifyError(t *testing.T) {
 	svc, store, creds, verifier, _ := newMicrosoftService(t, okBuilder(t))
 	verifier.verifyErr = errBoom
 
-	if _, err := svc.Configure(context.Background(), "Jane"); !errors.Is(err, errBoom) {
+	if _, err := svc.Configure(context.Background(), "Jane", "", nil); !errors.Is(err, errBoom) {
 		t.Errorf("Configure error = %v, want wrapped boom", err)
 	}
 	// Verify runs before anything is written.
@@ -99,7 +114,7 @@ func TestMicrosoftConfigureStoreTokenError(t *testing.T) {
 	svc, store, creds, _, _ := newMicrosoftService(t, okBuilder(t))
 	creds.setErr = errBoom
 
-	if _, err := svc.Configure(context.Background(), "Jane"); !errors.Is(err, errBoom) {
+	if _, err := svc.Configure(context.Background(), "Jane", "", nil); !errors.Is(err, errBoom) {
 		t.Errorf("Configure error = %v, want wrapped boom", err)
 	}
 	if len(store.saved) != 0 {
@@ -111,7 +126,7 @@ func TestMicrosoftConfigureSaveErrorRollsBack(t *testing.T) {
 	svc, store, creds, _, _ := newMicrosoftService(t, okBuilder(t))
 	store.saveErr = errBoom
 
-	if _, err := svc.Configure(context.Background(), "Jane"); !errors.Is(err, errBoom) {
+	if _, err := svc.Configure(context.Background(), "Jane", "", nil); !errors.Is(err, errBoom) {
 		t.Errorf("Configure error = %v, want wrapped boom", err)
 	}
 	if len(creds.deleted) != 1 || creds.deleted[0] != msCredential.Email {

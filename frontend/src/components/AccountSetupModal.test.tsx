@@ -267,8 +267,19 @@ describe('AccountSetupModal: microsoft add', () => {
     it('signs in through OAuth and reports the signed-in address', async () => {
         const {onSaved} = startMicrosoft()
         fireEvent.click(screen.getByRole('button', {name: 'Continue with Microsoft'}))
-        expect(apiSpies.signInMicrosoft).toHaveBeenCalledWith('MS Add')
+        expect(apiSpies.signInMicrosoft).toHaveBeenCalledWith({
+            displayName: 'MS Add', signature: '<p>My signature</p>', identities: [],
+        })
         await waitFor(() => expect(onSaved).toHaveBeenCalledWith('signed@outlook.com'))
+    })
+
+    // The signature used to be reachable only by editing the account after it was added, which made
+    // Microsoft the one provider whose add form was incomplete.
+    it('offers the signature and send-as fields before the sign-in, without the email field', () => {
+        startMicrosoft()
+        expect(screen.getByText('Signature')).toBeInTheDocument()
+        expect(screen.getByText('Send-as addresses')).toBeInTheDocument()
+        expect(screen.queryByPlaceholderText('jane@example.com')).toBeNull()
     })
 
     it('surfaces a sign-in error and re-enables the button', async () => {
