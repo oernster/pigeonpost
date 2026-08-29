@@ -38,14 +38,21 @@
     margin: 2px 2px;
 }
 
-/* --titlebar-icon-size is the one home for the size of every glyph in the title bar: the icon buttons
-   here and the menu triggers below. The tray is emoji rather than labels, so the glyph IS the control;
-   at the browser's own button size (13.3px, since a button does not inherit the body size) it painted
-   about 13 pixels of ink and read as decoration. The size drives the width the whole bar needs, so it
-   is measured rather than guessed at: about 13px of ink and 1180px of bar at the browser's own size,
-   25px and 1255px at 24px, 30px and 1330px at 29px. */
+/* --titlebar-icon-size is the one home for the size of an emoji glyph in a tray button: it is the type
+   size, so the glyph IS the control. At the browser's own button size (13.3px, since a button does not
+   inherit the body size) it painted about 13 pixels of ink and read as decoration. The size drives the
+   width the whole bar needs, so it is measured rather than guessed at: about 13px of ink and 1180px of
+   bar at the browser's own size, 25px and 1255px at 24px, 30px and 1330px at 29px. The bottom tray's
+   donate mark is the last control still sized by it.
+
+   --titlebar-glyph-size is the height of the drawn artwork the title bar now carries instead, at 1.2
+   times the emoji size. Artwork cropped to its own edges paints ink right to the box, where an emoji
+   face leaves its own margin inside the type size, so a picture at the emoji's size sat smaller in the
+   bar than the emoji it replaced. The masters are generated at four times this height (see
+   tools/genicons), so they stay crisp under display scaling. */
 :root {
     --titlebar-icon-size: 29px;
+    --titlebar-glyph-size: 35px;
 }
 
 /* Icon buttons (compose, add account, sync, the reply trio, the theme toggle) share the same box as the
@@ -63,16 +70,31 @@
     cursor: pointer;
 }
 
-/* An icon button whose glyph is artwork rather than an emoji. The image is sized by the same
-   --titlebar-icon-size the emoji buttons take their type from, so the two sit in boxes of identical
-   height; display: block drops the inline descender space that would otherwise make this box the taller
-   of the two. */
-.icon-btn-image img {
+/* A button whose glyph is artwork rather than an emoji: every control in the title bar, plus the donate
+   mark in the bottom tray. display: block drops the inline descender space that would otherwise make
+   this box the taller of any emoji button beside it. The height is the emoji size by default, which is
+   what the donate mark wants; the header overrides it below. */
+.icon-btn-image img,
+.menu-title img {
     display: block;
     height: var(--titlebar-icon-size);
     width: auto;
     user-select: none;
     -webkit-user-drag: none;
+}
+
+/* The header's own artwork, drawn larger than an emoji of the same nominal size. The selector names the
+   header element rather than .titlebar, because the bottom tray is built from .titlebar too and its
+   donate mark keeps the size above. The horizontal padding drops as the picture grows, so the bar holds
+   roughly the width it had rather than growing by the picture plus its box. */
+header.titlebar .icon-btn-image img,
+header.titlebar .menu-title img {
+    height: var(--titlebar-glyph-size);
+}
+
+header.titlebar .icon-btn-image,
+header.titlebar .menu-title {
+    padding: 2px 7px;
 }
 
 /* Immediate hover and focus tooltip for icon and emoji buttons, so their action is discoverable
@@ -194,20 +216,19 @@
     position: relative;
 }
 
-/* The menu triggers (File, Edit, View, Mail, Attach, Help) are emoji too, so they carry the same glyph
-   size as .icon-btn; their name is in the tooltip and the dropdown header rather than on the button. */
+/* The menu triggers (File, Edit, View, Mail, Help) carry artwork just as the icon buttons do, so the two
+   share a box; their name is in the tooltip and the dropdown header rather than on the button. The
+   padding is set with the picture rule above, where the two are kept in step. */
 .menu-title {
     background-color: var(--bg-elev-2);
     color: var(--text);
     border: 1px solid var(--border);
     border-radius: 6px;
-    padding: 2px 12px;
-    font-size: var(--titlebar-icon-size);
     line-height: 1;
     cursor: pointer;
 }
 
-/* Hovering a menu trigger (or holding it open) paints its rectangle teal, so the emoji tray reads
+/* Hovering a menu trigger (or holding it open) paints its rectangle teal, so the tray reads
    as live controls; the dropdown itself opens on hover too, headed with the menu's name. */
 .menu-title:hover,
 .menu-title.active {
@@ -221,7 +242,7 @@
     display: none;
 }
 
-/* The open dropdown's header row, naming the menu the emoji trigger stands for. */
+/* The open dropdown's header row, naming the menu its picture trigger stands for. */
 .menu-header {
     padding: 6px 12px 4px;
     font-size: 12px;

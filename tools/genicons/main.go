@@ -6,6 +6,13 @@
 //	build/windows/icon.ico         (multi-size PNG-in-ICO for the Windows exe and installer)
 //	build/linux/icons/pigeonpost_<size>.png (the hicolor set installed by build_flatpak.sh)
 //	frontend/src/assets/pigeonpost.png (256, used by the in-app About dialog)
+//	frontend/src/assets/icons/*.png       (the title-bar and folder-list glyphs)
+//
+// The glyph set is derived from the artwork in assets/ at the repo root, one output per master. Each is
+// cropped to its visible pixels, centred on a transparent square and scaled down to one common size, so
+// every glyph carries the same visual weight whatever the master's own framing was. Without that crop a
+// letterboxed master (the inbox tray fills a little over half its canvas) renders half the height of a
+// master drawn edge to edge beside it.
 //
 // It also derives the donate button's artwork from its own master, donate.png. That one is not an icon
 // and is handled separately: it is a wide pair of glasses drawn at a button's height, so squaring it
@@ -24,6 +31,7 @@ import (
 	"image/png"
 	"os"
 	"path/filepath"
+	"strings"
 
 	xdraw "golang.org/x/image/draw"
 )
@@ -42,6 +50,25 @@ var donateOutputs = []string{
 }
 
 const donateHeight = 116
+
+// The title-bar and folder-list glyphs: every PNG in glyphMastersDir yields one square PNG of the same
+// name in glyphOutputDir.
+const (
+	glyphMastersDir = "assets"
+	glyphOutputDir  = "frontend/src/assets/icons"
+)
+
+// glyphSide is the pixel side of each generated glyph. The largest surface that draws one is the title
+// bar at --titlebar-glyph-size (35px), so this is four times that, on the same reasoning as donateHeight:
+// crisp under display scaling without carrying a megabyte-scale master into the binary.
+const glyphSide = 140
+
+// glyphAlphaFloor is the alpha, on the usual 0 to 255 scale, at or below which a pixel is treated as
+// empty canvas when cropping. Artwork of this kind carries a soft glow fading to alpha 1 far outside the
+// drawing, which a bare "alpha is zero" test reads as content: measured across this set, that test put
+// the visible box at 96 to 99 per cent of the canvas on every master, hiding the very differences the
+// crop exists to remove.
+const glyphAlphaFloor = 8
 
 // fileAssocIconName is the base name (no extension) of the icon Wails bundles
 // for the .eml file association. It MUST match the iconName on that
@@ -103,18 +130,53 @@ func run() error {
 		}
 	}
 
-	fmt.Println("genicons: wrote appicon.png, eml.png, icon.ico, the hicolor set, the About asset and the donate artwork")
+	glyphs, err := writeGlyphs()
+	if err != nil {
+		return err
+	}
+
+	fmt.Println("genicons: wrote appicon.png, eml.png, icon.ico, the hicolor set, the About asset, the donate artwork and", glyphs, "glyphs")
 	return nil
 }
 
-// cropToArtwork returns the tight box of src's non-transparent pixels, leaving its aspect ratio alone.
-// A fully transparent image has no artwork to crop to, so it comes back unchanged.
+// writeGlyphs derives one square glyph per master in glyphMastersDir, returning how many it wrote. The
+// directory is read rather than listed here, so adding a master is enough to ship it; the front end names
+// the file it wants, so a master that goes missing fails the frontend build rather than passing silently.
+func writeGlyphs() (int, error) {
+	entries, err := os.ReadDir(glyphMastersDir)
+	if err != nil {
+		return 0, fmt.Errorf("read glyph masters %q: %w", glyphMastersDir, err)
+	}
+	written := 0
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.EqualFold(filepath.Ext(entry.Name()), ".png") {
+			continue
+		}
+		master, err := loadPNG(filepath.Join(glyphMastersDir, entry.Name()))
+		if err != nil {
+			return 0, err
+		}
+		name := strings.ToLower(entry.Name())
+		if err := writePNG(filepath.Join(glyphOutputDir, name), resize(toSquare(cropToArtwork(master)), glyphSide)); err != nil {
+			return 0, err
+		}
+		written++
+	}
+	return written, nil
+}
+
+// cropToArtwork returns the tight box of src's visible pixels, leaving its aspect ratio alone. Visible
+// means alpha above glyphAlphaFloor; see that constant for why a bare zero test does not do. A fully
+// transparent image has no artwork to crop to, so it comes back unchanged.
 func cropToArtwork(src image.Image) image.Image {
+	// At() reports alpha on the 16-bit scale, so the 8-bit floor is scaled to match.
+	const floor = glyphAlphaFloor * 0x101
+
 	b := src.Bounds()
 	minX, minY, maxX, maxY := b.Max.X, b.Max.Y, b.Min.X, b.Min.Y
 	for y := b.Min.Y; y < b.Max.Y; y++ {
 		for x := b.Min.X; x < b.Max.X; x++ {
-			if _, _, _, a := src.At(x, y).RGBA(); a == 0 {
+			if _, _, _, a := src.At(x, y).RGBA(); a <= floor {
 				continue
 			}
 			if x < minX {

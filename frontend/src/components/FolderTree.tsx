@@ -1,5 +1,6 @@
 import {useEffect, useRef, useState, type CSSProperties, type DragEvent as ReactDragEvent} from 'react'
 import {Folder} from '../api'
+import {folderIcon} from '../icons'
 import {messageDragType} from './MessageList'
 import {
     detectSeparator,
@@ -28,17 +29,6 @@ interface FolderTreeProps {
     onDropMessage: (messageId: string, folderId: string) => boolean
     // onFolderContextMenu opens the folder right-click menu (Paste and friends) at the cursor.
     onFolderContextMenu: (folder: Folder, x: number, y: number) => void
-}
-
-const folderIcon: Record<string, string> = {
-    inbox: '\u{1F4E5}',
-    sent: '\u{1F4E4}',
-    drafts: '\u{1F4DD}',
-    trash: '\u{1F5D1}\u{FE0F}',
-    junk: '\u{1F6AB}',
-    archive: '\u{1F5C3}\u{FE0F}',
-    outbox: '\u{1F4EE}',
-    custom: '\u{1F4C1}',
 }
 
 // FOLDER_INDENT_STEP_PX is the left indent added per tree depth (and the base indent of a top-level row),
@@ -394,7 +384,9 @@ export function FolderTree(props: FolderTreeProps) {
                             ) : (
                                 <span className="folder-toggle-spacer"/>
                             )}
-                            <span className="folder-icon">{folderIcon[folder.kind] ?? folderIcon.custom}</span>
+                            <span className="folder-icon">
+                                <img src={folderIcon[folder.kind] ?? folderIcon.custom} alt="" draggable={false}/>
+                            </span>
                             {leaf}
                         </span>
                         {badgeCount > 0 && (

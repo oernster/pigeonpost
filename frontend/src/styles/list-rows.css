@@ -44,8 +44,28 @@
     gap: 8px;
 }
 
+/* A folder row's mark. --folder-icon-size is the one home for its height, a little above the 14px type
+   the emoji glyphs used to be drawn at: the artwork is cropped to its own edges, so it paints ink across
+   the whole box where an emoji face left a margin inside its type size. The box is square and fixed on
+   both axes so a wide drawing and a tall one still start their labels at the same x; the picture is
+   fitted inside it rather than stretched to it. */
 .folder-icon {
+    --folder-icon-size: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+    width: var(--folder-icon-size);
+    height: var(--folder-icon-size);
     font-size: 14px;
+}
+
+.folder-icon img {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    user-select: none;
+    -webkit-user-drag: none;
 }
 
 .badge {

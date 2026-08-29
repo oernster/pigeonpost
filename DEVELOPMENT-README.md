@@ -68,7 +68,8 @@ internal/infrastructure/
     sound/                  synthesised notification chime, played through winmm on Windows (no-op stub elsewhere)
 internal/installer/         install logic used by the setup program
 installer/                  bespoke per-user setup program (Wails app: install/repair/upgrade/uninstall)
-tools/genicons/             image generator (the icon masters -> ico + png set, plus the donate artwork)
+assets/                     masters for the title-bar and folder-list glyphs, one PNG per glyph
+tools/genicons/             image generator (the masters -> ico + png set, the donate artwork and the glyphs)
 tests/structural/           architecture-enforcement tests
 frontend/                   React + TypeScript (Vite)
 docs/                       GitHub Pages landing site
@@ -88,14 +89,22 @@ Regenerate the front-end bindings after changing an `App` method:
 wails generate module
 ```
 
-Regenerate the derived image assets after changing either master at the repo root, `pigeonpost.png`
-(the app icon) or `donate.png` (the donate button's artwork):
+Regenerate the derived image assets after changing any master: `pigeonpost.png` (the app icon) or
+`donate.png` (the donate button's artwork) at the repo root; or any PNG in `assets/` (the title-bar and
+folder-list glyphs):
 
 ```
 go run ./tools/genicons
 ```
 
-It is idempotent: run on an unchanged master it rewrites the same bytes.
+It is idempotent: run on an unchanged master it rewrites the same bytes. `build.ps1`, `builddmg.sh` and
+`build_flatpak.sh` each run it before they build, so a release never ships stale artwork. Nothing it
+writes is committed; the front end imports the glyphs through `frontend/src/icons.ts`, which is the one
+home for the mapping from a name to a picture.
+
+A glyph master is cropped to its visible pixels, centred on a transparent square and scaled to one common
+size, so every glyph carries the same visual weight whatever its own framing was. Dropping a new PNG into
+`assets/` is enough to generate it; naming it in `icons.ts` is what puts it on screen.
 
 Run the tests (see [TESTING.md](TESTING.md) for detail):
 

@@ -41,7 +41,8 @@ export interface MenuItem {
 interface MenuProps {
     // title is the trigger's tooltip and accessible label (File, Edit, View, Mail, Help).
     title: string
-    // icon is the emoji shown on the trigger button.
+    // icon is the artwork shown on the trigger button: an image source from ../icons, not an emoji, so
+    // the tray reads as one drawn set whatever emoji font the platform ships.
     icon: string
     items: MenuItem[]
     // align sets which edge of the trigger the dropdown lines up with. Menus on the left of the tray open
@@ -202,8 +203,8 @@ function SubMenuItem({item, onChoose}: {item: MenuItem; onChoose: (item: MenuIte
 // back) without the menu slamming shut, short enough that the menu still feels dismissed on leave.
 export const HOVER_CLOSE_DELAY_MS = 200
 
-// Menu is a title-tray dropdown: an emoji trigger that opens a list of items. Hovering the trigger
-// opens it too (the dropdown is headed with the menu's name, since the emoji alone does not carry
+// Menu is a title-tray dropdown: a picture trigger that opens a list of items. Hovering the trigger
+// opens it too (the dropdown is headed with the menu's name, since the picture alone does not carry
 // it); it closes once the pointer has left both the trigger and the open dropdown. It also
 // closes on an outside click, on Escape and after a leaf item is chosen. It backs the File, Edit,
 // View, Mail and Help menus so they all look and behave the same. Keyboard: Down, Enter or Space on
@@ -345,7 +346,7 @@ export function Menu({title, icon, items, align = 'right'}: MenuProps) {
                 onClick={() => setOpen((v) => !v)}
                 onKeyDown={onTriggerKeyDown}
             >
-                {icon}
+                <img src={icon} alt="" draggable={false}/>
             </button>
             {open && (
                 <div

@@ -1,6 +1,7 @@
 import {useRef} from 'react'
 import icon from '../assets/pigeonpost.png'
 import {Account, Folder} from '../api'
+import {icons} from '../icons'
 import {AccountPicker} from './AccountPicker'
 import {FolderTree} from './FolderTree'
 import {useDragAutoScroll} from '../hooks/useDragAutoScroll'
@@ -101,7 +102,7 @@ function SidebarHeader(props: SidebarProps) {
                         }}
                     >
                         <span className="folder-name">
-                            <span className="folder-icon">{'\u{1F4EC}'}</span>
+                            <span className="folder-icon"><img src={icons.mail} alt="" draggable={false}/></span>
                             All inboxes
                         </span>
                         {props.unifiedUnread > 0 && <span className="badge">{props.unifiedUnread}</span>}
@@ -122,7 +123,7 @@ function SidebarHeader(props: SidebarProps) {
                         }}
                     >
                         <span className="folder-name">
-                            <span className="folder-icon">{'\u{23F0}'}</span>
+                            <span className="folder-icon"><img src={icons.snooze} alt="" draggable={false}/></span>
                             Snoozed
                         </span>
                         <span className="badge">{props.snoozedCount}</span>

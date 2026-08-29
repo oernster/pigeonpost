@@ -61,6 +61,8 @@ build/bin/
 build/appicon.png
 build/windows/icon.ico
 frontend/src/assets/pigeonpost.png
+# Title-bar and folder-list glyphs, derived from the masters in assets/ by the same command
+frontend/src/assets/icons/
 
 # macOS DMG build output
 dist-dmg/
