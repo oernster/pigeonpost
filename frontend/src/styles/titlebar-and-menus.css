@@ -277,7 +277,7 @@ header.titlebar .menu-title {
 
 /* Hovering a menu trigger (or holding it open) paints its rectangle teal, so the tray reads
    as live controls; the dropdown itself opens on hover too, headed with the menu's name. */
-.menu-title:hover,
+.menu-title:enabled:hover,
 .menu-title.active {
     background-color: var(--bg-elev-2);
     border-color: var(--accent);

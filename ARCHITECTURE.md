@@ -755,6 +755,16 @@ place. Keep `App.css` a manifest (only `@import` lines); never inline component 
 per-component file own a shared global. Split a concern file over ~500 lines again at a top-level comment
 boundary, keeping the import order intact.
 
+A `:hover` rule on a class worn by a button must also require `:enabled`;
+`frontend/src/styles/stylesheets.test.ts` fails the suite when one does not. It reads the stylesheets
+themselves rather than a rendered component, because the defect it exists for is a rule that wins on
+specificity over another rule in the same file. The app mark shipped with a rectangle drawn round it
+under the mouse this way: the mark borrows `.icon-btn` for its geometry and asks for a transparent
+border, which an ungated `.icon-btn:hover` then repainted. The comment beside the mark already said the
+hover rule was gated, so the intent was written down while the code disagreed with it. A comment cannot
+fail. The same test pins the mark's transparent border, since the gating rule alone would still pass
+with that declaration deleted.
+
 Every control in the header and every row in the folder list carries drawn artwork rather than an emoji.
 An emoji is rendered by whichever font the platform happens to ship, so neither its weight nor its
 palette can be relied on across Windows, macOS and Linux; a set of pictures the repository owns is the
