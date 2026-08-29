@@ -121,7 +121,10 @@ describe('AccountSetupModal: provider chooser', () => {
     it('warns that IMAP must be switched on before a Microsoft sign-in', () => {
         renderModal()
         fireEvent.click(screen.getByRole('button', {name: 'Microsoft'}))
-        expect(screen.getByText(/IMAP is switched off by default/)).toBeInTheDocument()
+        expect(screen.getByText(/Microsoft switches off on new Outlook.com and Hotmail accounts/)).toBeInTheDocument()
+        // The revert is the part worth pinning: on a new mailbox the switch saves and then puts itself
+        // back, so a note that omits it sends the reader to do something that appears to work.
+        expect(screen.getByText(/often reverts after saving/)).toBeInTheDocument()
         expect(screen.getByRole('link', {name: 'How to turn on IMAP'})).toBeInTheDocument()
     })
 
@@ -306,6 +309,19 @@ describe('AccountSetupModal: microsoft add', () => {
         expect(await screen.findByText('consent denied')).toBeInTheDocument()
         expect(screen.getByRole('button', {name: 'Continue with Microsoft'})).toBeEnabled()
         expect(onSaved).not.toHaveBeenCalled()
+    })
+
+    // The advance warning and the failure said nearly the same thing in two boxes stacked on each
+    // other, which is how a dialog becomes a paragraph nobody reads. Once the attempt has failed the
+    // note has been overtaken, so it goes and the error keeps the link.
+    it('drops the advance note once an error is showing, keeping its link', async () => {
+        apiSpies.signInMicrosoft.mockRejectedValueOnce('consent denied')
+        startMicrosoft()
+        expect(screen.getByText(/often reverts after saving/)).toBeInTheDocument()
+        fireEvent.click(screen.getByRole('button', {name: 'Continue with Microsoft'}))
+        expect(await screen.findByText('consent denied')).toBeInTheDocument()
+        expect(screen.queryByText(/often reverts after saving/)).toBeNull()
+        expect(screen.getByRole('link', {name: 'How to turn on IMAP'})).toBeInTheDocument()
     })
 })
 

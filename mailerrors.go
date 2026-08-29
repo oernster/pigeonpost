@@ -18,32 +18,35 @@ import (
 //lint:ignore ST1005 user-facing message shown verbatim in the UI
 var errOffline = errors.New("Can't reach the mail server. You may be offline; check your internet connection and try again.")
 
-// errIMAPDisabled is the message shown when the server accepts the sign-in and then refuses the session
-// because IMAP is switched off for the mailbox. It names the setting and the steps, because the person
-// reading it has just signed in successfully and has no reason to suspect a switch they have never seen.
-// Microsoft ships personal accounts this way, so this is the first thing a new Outlook.com or Hotmail
-// user meets.
+// errIMAPDisabled is the message shown when the server accepts the sign-in and then refuses the session,
+// which is what a mailbox with IMAP switched off does. It names the setting and the steps, because the
+// person reading it has just signed in successfully and has no reason to suspect a switch they have
+// never seen. Microsoft ships personal accounts this way, so this is the first thing a new Outlook.com
+// or Hotmail user meets.
+//
+// It says the mailbox is refusing IMAP rather than that the switch is off, because the switch being off
+// is an inference: what was actually observed is a refusal, matched on the server's own words. Stating
+// the observation keeps the message true even where the cause turns out to be another one.
 //
 // It names BOTH headings the section goes by. Microsoft's documentation says "Forwarding and IMAP" while
 // the current web interface calls it "Sync email"; a message that names only one sends half its readers
 // hunting for a heading their Outlook does not have. The gear is named too, since the interface labels
 // it with nothing.
 //
-// It also names the sign-in step that comes first, because on many accounts that page carries no
-// switches at all: it shows an advert for the mobile app and a Sign in button, which reads as the
-// instructions naming a setting that is not there. Microsoft documents this on the page for the same
-// panel: "You might be prompted to Sign in on the Forwarding and IMAP page. If so, you will need to
-// complete authentication before the ... settings become available."
+// It carries the revert warning and nothing else beyond the route, because a mailbox only a day or two
+// old accepts the switch, saves it, then quietly puts it back: Microsoft holds IMAP down on new accounts
+// while they build reputation; the only reported cure is time. Told merely to turn the switch on,
+// the reader does exactly that, watches it save, then meets this message again with nothing left to try.
+//
+// It is deliberately SHORT. An earlier draft spelled out every obstacle and ran to ninety words, which
+// nobody reads: an error nobody finishes is worth less than a shorter one they act on. The remaining
+// detail lives in the README and behind the wizard's help link, not in a red box.
 //
 //lint:ignore ST1005 user-facing message shown verbatim in the UI
 var errIMAPDisabled = errors.New(
-	"Signed in successfully; IMAP is switched off for this mailbox, which is how Microsoft ships a " +
-		"new Outlook.com or Hotmail account. Turn it on at outlook.com: open Settings (the gear, top " +
-		"right), then Mail, then either \"Sync email\" or \"Forwarding and IMAP\" depending on which " +
-		"Outlook you have. That page often shows no switches, only an advert for the Outlook mobile " +
-		"app and a Sign in button. If so, press Sign in and authenticate again: Microsoft keeps these " +
-		"settings hidden until you do. The switches then appear. Switch on \"Let devices and apps " +
-		"use IMAP\", save, then add the account again.")
+	"Microsoft is refusing IMAP for this mailbox. Turn it on at outlook.com under Settings, Mail, " +
+		"then \"Sync email\" or \"Forwarding and IMAP\". On a new account it often reverts after " +
+		"saving, so check it stayed on.")
 
 // isOffline reports whether err was caused by the mail server being unreachable (domain.ErrOffline
 // wrapped anywhere in the chain), as opposed to the server rejecting a well-formed request.

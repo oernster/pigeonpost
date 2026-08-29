@@ -13,11 +13,33 @@ local-first. A calmer, more predictable alternative to Thunderbird.
   setup wizard fills in the servers).
 - Microsoft users (Outlook.com, Hotmail, Live, Microsoft 365) who sign in through Microsoft OAuth in
   the browser; the refresh token is kept in the OS keychain. Microsoft ships a new Outlook.com or
-  Hotmail mailbox with IMAP switched off, so turn it on first at outlook.com under Settings, Mail, then
-  "Sync email" or "Forwarding and IMAP" depending on the interface version. That page often shows no
-  switches, only an advert for the Outlook mobile app and a Sign in button; press Sign in and authenticate
-  again, because Microsoft keeps these settings hidden until you do. The switches appear afterwards. The
-  wizard says all of this before you sign in and the error says it if you do not.
+  Hotmail mailbox with IMAP switched off, so turn it on first. See "Turning on IMAP for a Microsoft
+  account" below, which is worth reading before you start if the mailbox is new.
+
+## Turning on IMAP for a Microsoft account
+
+PigeonPost reads Microsoft mail over IMAP. Microsoft switches IMAP off on every new Outlook.com and
+Hotmail mailbox, so a sign-in can succeed and the account still refuse to add. Turn it on at
+outlook.com: open Settings (the gear, top right), then Mail, then either "Sync email" or "Forwarding
+and IMAP" depending on which Outlook you have, then switch on "Let devices and apps use IMAP" and
+save.
+
+A new mailbox puts two obstacles in the way of that; neither announces itself.
+
+**The page may show no switches.** Instead you get an advert for the Outlook mobile app and a Sign in
+button. Microsoft documents this for the same panel: "You might be prompted to Sign in on the
+Forwarding and IMAP page. If so, you will need to complete authentication before the ... settings
+become available." Press Sign in, authenticate, then the switches appear.
+
+**The switch may revert.** On a mailbox only a day or two old it accepts the change, saves it, then
+puts itself back to off. This is Microsoft holding IMAP down on new accounts while they build
+reputation. Nothing at your end clears it: browser changes, private windows and cache clearing are
+all reported not to help. The only reported cure is time, usually 10 to 24 hours from account
+creation and occasionally longer. Leave it, switch IMAP on again the next day, confirm it has stayed
+on, then add the account.
+
+You need only IMAP. Leave "Let devices and apps use POP" off, because PigeonPost never uses POP for a
+Microsoft account.
 
 ## Who it is not for
 

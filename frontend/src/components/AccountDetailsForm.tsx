@@ -136,7 +136,11 @@ export function AccountDetailsForm({form, onClose}: AccountDetailsFormProps) {
                         )}
                     </div>
                 )}
-                {msAdd && (
+                {/* The note is advance warning; once an error is showing it has been overtaken by
+                    events and saying nearly the same thing twice, one box above the other, is how a
+                    dialog becomes a wall of text nobody reads. The error carries the same link so the
+                    short message still has somewhere to send the reader. */}
+                {msAdd && !error && (
                     <div className="provider-note">
                         {MICROSOFT_IMAP_NOTE}
                         <a
@@ -151,7 +155,23 @@ export function AccountDetailsForm({form, onClose}: AccountDetailsFormProps) {
                         </a>
                     </div>
                 )}
-                {error && <div className="compose-error">{error}</div>}
+                {error && (
+                    <div className="compose-error">
+                        {error}
+                        {msAdd && (
+                            <a
+                                className="provider-note-link"
+                                href={MICROSOFT_IMAP_HELP_URL}
+                                onClick={(e) => {
+                                    e.preventDefault()
+                                    void api.openExternal(MICROSOFT_IMAP_HELP_URL)
+                                }}
+                            >
+                                How to turn on IMAP
+                            </a>
+                        )}
+                    </div>
+                )}
 
                 <label className="field">
                     <span>Your name</span>

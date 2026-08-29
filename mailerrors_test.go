@@ -43,14 +43,14 @@ func TestFriendlyMailErrorTranslatesIMAPDisabled(t *testing.T) {
 	}
 	// The point of the message is that it can be acted on, so the setting it names is part of the contract.
 	// Both names the section goes by, since which one the reader sees depends on their Outlook version,
-	// plus the sign-in step, because that page frequently carries no switches until it is done and a
-	// message naming only the switch then describes a screen the reader is not looking at.
+	// plus the revert warning, which is the part that saves an evening: on a new mailbox the switch
+	// saves and then puts itself back, so a message naming only the switch sends the reader to do
+	// something that appears to work and silently does not.
 	for _, want := range []string{
-		"Settings",
+		"outlook.com",
 		"Sync email",
 		"Forwarding and IMAP",
-		"Sign in",
-		"Let devices and apps use IMAP",
+		"reverts",
 	} {
 		if !strings.Contains(got.Error(), want) {
 			t.Fatalf("message %q does not name %q, so it cannot be acted on", got.Error(), want)
@@ -111,5 +111,18 @@ func TestBulkResultNoErrorIsClean(t *testing.T) {
 	result := bulkResult([]string{"a"}, []string{"a"}, map[string]string{}, nil)
 	if result.Offline || result.Error != "" {
 		t.Fatalf("bulkResult with no error = {Offline:%v Error:%q}, want clean", result.Offline, result.Error)
+	}
+}
+
+// maxIMAPMessageChars caps the IMAP-disabled message. An earlier draft of it spelled out every obstacle
+// and reached ninety words, which is a wall of text in a dialog box: nobody reads it, so the guidance it
+// carries is worth less than a shorter message they act on. The cap sits a little above the current
+// length so ordinary rewording is free while a return to a paragraph is not.
+const maxIMAPMessageChars = 280
+
+func TestIMAPDisabledMessageStaysShort(t *testing.T) {
+	t.Parallel()
+	if got := len(errIMAPDisabled.Error()); got > maxIMAPMessageChars {
+		t.Fatalf("errIMAPDisabled is %d characters, over the %d cap: shorten it or move the detail to the README", got, maxIMAPMessageChars)
 	}
 }

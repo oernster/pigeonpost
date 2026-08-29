@@ -108,13 +108,8 @@ export function domainOf(email: string): string {
 // off, so without this the first thing a new Microsoft user meets is a sign-in that succeeds and an
 // account that will not add.
 export const MICROSOFT_IMAP_NOTE =
-    'Before you sign in: IMAP is switched off by default on a new Outlook.com or Hotmail account; ' +
-    'PigeonPost needs it. Turn it on at outlook.com: open Settings (the gear, top right), then Mail, ' +
-    'then either "Sync email" or "Forwarding and IMAP" depending on which Outlook you have. That page ' +
-    'often shows no switches, only an advert for the Outlook mobile app and a Sign in button. If so, ' +
-    'press Sign in and authenticate again: Microsoft keeps these settings hidden until you do. The ' +
-    'switches appear afterwards. Switch on "Let devices and apps use IMAP" and save. An account you ' +
-    'already use with another mail app will have it on already.'
+    'PigeonPost needs IMAP, which Microsoft switches off on new Outlook.com and Hotmail accounts. Turn ' +
+    'it on at outlook.com first. On a new account it often reverts after saving, so check it stayed on.'
 
 // The page documenting that setting, opened in the user's own browser from the note. This is the
 // forwarding page rather than Microsoft's POP and IMAP page, because only this one documents the
