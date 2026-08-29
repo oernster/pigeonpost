@@ -783,6 +783,19 @@ them; it is a span rather than a button, which is what keeps it out of the tab o
 ring without any markup to exclude it. The all-accounts unread badge sits beside it. There is no
 wordmark: the window title names the application in text.
 
+The mark holds the left corner alone and every control is gathered against the right edge as one run:
+the File, Edit, View and Mail menus, then compose, add account, sync, Contacts and Calendar, then a
+rule and the app-level pair (the theme toggle and Help) closing the bar. `margin-left: auto` on
+`.titlebar-actions` is what holds that shape, taking the spare width on its left so the working group
+and the pair beyond it press together against the edge. Two `.titlebar-sep` rules already grouped the
+controls; the third marks the app pair off from them.
+
+Centring the run on the window was tried twice and neither survived. The first attempt left the menus in
+the left group and moved only the working controls, which split one sequence into two with a gap between
+them. The second moved the menus too and held the whole run dead centre with a three-column grid, which
+measured exactly centred and still read as a row floating in an empty bar. Both are recorded in
+`TitleBar.tsx` and in the stylesheet so the ground is not covered again.
+
 `BottomBar` is the footer at the foot of the window. It wears
 `.titlebar` itself rather than a stylesheet of its own, so the two match in height, padding and
 background by construction instead of by two sets of numbers kept in step by hand. `.bottombar` adds
