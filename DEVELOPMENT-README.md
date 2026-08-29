@@ -39,6 +39,11 @@ The app stores its data in a per-user directory:
 - macOS: `~/Library/Application Support/PigeonPost/pigeonpost.db`
 - Linux: `~/.config/PigeonPost/pigeonpost.db`
 
+Beside the database sits `mail-errors.log`, holding the raw text of any mail error the interface
+replaced with a message of its own, one failure per line. It is created on the first such failure, so an
+installation that never has one never grows it. It rolls over at a quarter of a megabyte keeping one
+previous generation.
+
 Passwords are never stored there; they live in the OS keychain.
 
 ## Project layout
@@ -63,6 +68,7 @@ internal/infrastructure/
     oauth/                  Microsoft OAuth token flow (authorization code + PKCE, loopback redirect)
     remoteimage/            SSRF-guarded fetcher that inlines blocked remote images and CSS backgrounds on request
     update/                 GitHub latest-release source for the update check
+    errlog/                 raw text of a mail error the facade replaces with one fit to read
     keychain/               OS keychain vault
     taskbar/                Windows taskbar unread badge, tray icon and desktop notifications (no-op stub elsewhere)
     sound/                  synthesised notification chime, played through winmm on Windows (no-op stub elsewhere)

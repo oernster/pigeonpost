@@ -8,7 +8,7 @@ The sections below the open item are the standing record of what was weighed and
 
 ## 1. Nine front-end modules are over the module-size limit
 
-The limit is 400 lines. `tests/structural/boundary_test.go` has always enforced it; it parses Go, so the React front end was never held to it by anything. Nearly all of it stayed small anyway (153 of 162 source modules are inside the limit) while nine grew past it, `App.tsx` furthest by a wide margin:
+The limit is 400 lines. `tests/structural/boundary_test.go` has always enforced it; it parses Go, so the React front end was never held to it by anything. Nearly all of it stayed small anyway while nine grew past it, `App.tsx` furthest by a wide margin:
 
 | Module | Lines |
 |---|---|

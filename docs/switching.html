@@ -39,6 +39,8 @@
              "acceptedAnswer": {"@type": "Answer", "text": "No. Workspace is OAuth-only, so an app password is refused by Google. Personal Gmail works with an app password."}},
             {"@type": "Question", "name": "Is my Microsoft password safe?",
              "acceptedAnswer": {"@type": "Answer", "text": "You sign in through Microsoft in your own browser, so PigeonPost never sees your password. It keeps your Microsoft sign-in token in your OS keychain."}},
+            {"@type": "Question", "name": "I just made an Outlook.com account and it will not connect.",
+             "acceptedAnswer": {"@type": "Answer", "text": "Microsoft holds IMAP back on a brand-new mailbox, so the sign-in succeeds and the account still refuses to add even with IMAP switched on in Outlook's own settings. That is a fault at Microsoft's end and there is nothing PigeonPost can work around. An established Outlook.com or Hotmail account is unaffected; a new one usually needs a few days."}},
             {"@type": "Question", "name": "Can opening a message track me?",
              "acceptedAnswer": {"@type": "Answer", "text": "No. HTML renders in a sandboxed frame that runs no scripts and makes no remote requests. Remote images stay blocked until you load them; the backgrounds a message styles with CSS are held back the same way, so opening a message cannot tell the sender you read it."}},
             {"@type": "Question", "name": "It is one developer. What if it stops?",
@@ -159,6 +161,14 @@
                 <p class="q">Is my Microsoft password safe?</p>
                 <p class="a">You sign in through Microsoft in your own browser, so PigeonPost never sees
                     your password. It keeps your Microsoft sign-in token in your OS keychain.</p>
+            </div>
+            <div class="item">
+                <p class="q">I just made an Outlook.com account and it will not connect.</p>
+                <p class="a">Microsoft holds IMAP back on a brand-new mailbox, so the sign-in succeeds and
+                    the account still refuses to add even with IMAP switched on in Outlook's own settings.
+                    That is a fault at Microsoft's end and there is nothing PigeonPost can work around. An
+                    established Outlook.com or Hotmail account is unaffected; a new one usually needs a few
+                    days.</p>
             </div>
             <div class="item">
                 <p class="q">Can opening a message track me?</p>

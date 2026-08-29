@@ -16,6 +16,13 @@ local-first. A calmer, more predictable alternative to Thunderbird.
   Hotmail mailbox with IMAP switched off, so turn it on first. See "Turning on IMAP for a Microsoft
   account" below, which is worth reading before you start if the mailbox is new.
 
+## Who it is not for
+
+- Webmail-only users who never want a desktop install.
+- Google Workspace (work/school) accounts: OAuth-only, so an app password will not work. Personal
+  Gmail works via an app password; only the one-click "Sign in with Google" is declined, because its
+  full-mail scope carries a paid annual assessment.
+
 ## Turning on IMAP for a Microsoft account
 
 PigeonPost reads Microsoft mail over IMAP. Microsoft switches IMAP off on every new Outlook.com and
@@ -56,13 +63,6 @@ setting and the steps, which is easier to act on but asserts a cause that can be
 copy kept so a wrong reading can be seen for what it is. It records only the errors that were
 replaced, it is created on the first one and it holds mail server responses and the address they
 concern, so read it before attaching it to anything.
-
-## Who it is not for
-
-- Webmail-only users who never want a desktop install.
-- Google Workspace (work/school) accounts: OAuth-only, so an app password will not work. Personal
-  Gmail works via an app password; only the one-click "Sign in with Google" is declined, because its
-  full-mail scope carries a paid annual assessment.
 
 ## Capabilities
 

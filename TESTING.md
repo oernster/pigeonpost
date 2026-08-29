@@ -59,11 +59,12 @@ documented here.
 | `internal/infrastructure/oauth` | unit against stubbed token endpoints (httptest) | local HTTP server |
 | `internal/infrastructure/remoteimage` | unit on the SSRF guard and the resolver for both parked images and parked CSS backgrounds, against local stub servers (httptest) and an injected fetch seam | local HTTP server |
 | `internal/infrastructure/update` | unit on the GitHub latest-release source via an injected HTTP client | none |
+| `internal/infrastructure/errlog` | unit on the append, the one-line-per-failure encoding and the rollover | temp dir |
 | `internal/infrastructure/keychain` | unit via go-keyring's in-memory mock | none |
 | `internal/infrastructure/taskbar` | unit on the pure label formatting; Win32 overlay excluded | none |
 | `internal/infrastructure/sound` | unit on the chime synthesis and WAV encoding; the winmm playback call excluded | none |
 | `internal/installer` | unit on payload extraction and paths | temp dir |
-| `main` (the Wails facade) | unit on its pure helpers only: mailto parsing, attachment decoding, the offline-error translation and the DTO wire shape | none |
+| `main` (the Wails facade) | unit on its pure helpers only: mailto parsing, attachment decoding, the offline-error translation with its recording of the error it replaces, plus the DTO wire shape | none |
 | `tests/structural` | AST scan of the source tree | file reads |
 
 ## Coverage snapshot
@@ -74,6 +75,7 @@ documented here.
 | internal/application | 100% | gated |
 | internal/infrastructure/message | 100% | the RFC 5322 MIME builder (pure): multipart assembly, the inline-image related nesting, outgoing linkify, quoted-printable text parts |
 | internal/infrastructure/mailrouter | 100% | per-protocol dispatch (pure) |
+| internal/infrastructure/errlog | 100% | the mail-error log: append, rollover, the nil case, an unwritable location and concurrent writers |
 | internal/infrastructure/keychain | 100% | account and CalDAV calendar password paths via go-keyring's in-memory mock |
 | internal/infrastructure/recurrence | ~97% | RRULE expansion and truncation; a few defensive edges uncovered |
 | internal/infrastructure/vcard | ~97% | vCard codec round-trip |

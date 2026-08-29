@@ -733,7 +733,8 @@ custom error types beyond sentinels.
 ## Quality enforcement
 
 - `internal/domain` and `internal/application` at 100% test coverage, enforced by `./test.ps1`, which
-  fails the run when either drops below it. A bare `go test ./...` does not apply the gate.
+  fails the run when either drops below it. The same script checks formatting and runs `go vet` first,
+  each failing it outright. A bare `go test ./...` applies none of the three.
 - Application use cases tested against hand-written fakes (no mock libraries).
 - Infrastructure tested against a real SQLite database in a temp directory.
 - Structural AST tests enforce layering, domain purity, the module-size limit and the composition
