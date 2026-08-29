@@ -120,6 +120,23 @@ Edit account:
    (only if good) replaces the stored one. The account is then persisted. A failed verify never
    disturbs the working account's stored password.
 
+Add a Microsoft account:
+
+1. Microsoft signs in through OAuth rather than an app password, so the wizard has no password or
+   server fields and no email field either: the sign-in supplies the address. Everything else is
+   collected exactly as it is for a password account. The details step takes the sender name, the
+   signature and the send-as addresses, then calls the facade's `SignInMicrosoft` with a
+   `MicrosoftSignInRequest` carrying all three.
+2. `MicrosoftSetupService.Configure` opens the system browser for consent, waits for the loopback
+   redirect, builds the account from the signed-in address, applies the signature and identities,
+   verifies mailbox access with the live token, stores the token through the `CredentialStore` port
+   and persists the account. The signed-in address is the account id, so re-adding the same Microsoft
+   account updates it in place.
+3. Collecting the profile before the sign-in rather than after is deliberate. The wizard once showed
+   the reduced OAuth form (name only) and left the signature to a later edit, which made Microsoft the
+   one provider whose add form produced an incomplete account. What a provider needs to authenticate
+   is a property of the provider; what an account carries is not.
+
 Remove account:
 
 1. The UI confirms the destructive action in a modal, then calls the facade's `RemoveAccount`.
@@ -254,6 +271,25 @@ original To and Cc:
    URIs, as WebKit does for Finder-copied files) plus, optionally, an existing message fetched
    as a `message/rfc822` part, bounded by a total-size cap in the facade that counts embedded images
    too.
+
+Signatures and pasted markup: an account carries an optional signature as HTML (the `account.signature`
+column, edited in the setup wizard through the same TipTap editor the composer uses). `replyDraft` seeds
+it into a new message and above the quoted original on a reply or forward; an empty editor is stored as
+the empty string rather than the `<p></p>` an empty document serialises to, so an account without a
+signature adds no block.
+
+Every rich-text surface (the composer, the template editor and the signature field) cleans clipboard
+markup before ProseMirror parses it, through `transformPastedHTML` over the gated pure `pastedHtml`
+module. Windows carries HTML on the clipboard in the CF_HTML format, which the webview reconstructs with
+newlines around the `<!--StartFragment-->` markers; those newlines are text nodes at block level, so
+ProseMirror read them as content and a signature copied from one account into another arrived with a
+blank line above it and two below, with a further blank line between lines when the markup carried any
+of its own layout. The module keeps the fragment and removes whitespace that both carries a newline and
+sits between blocks. Inline whitespace is left alone, because ProseMirror already collapses that
+correctly and a space between two words or two marks is content. The link mark is configured once,
+through `StarterKit.configure({link})` rather than a second Link extension beside it: registering the
+name twice makes TipTap keep only one of the two configurations, which can silently discard
+`openOnClick: false`.
 
 Recipient autocomplete: the To, Cc and Bcc fields suggest matching addresses from the address book
 as an address fragment is typed. The matching, ranking and text-splicing logic is the gated pure

@@ -185,7 +185,7 @@ npx vitest run --coverage   # enforce the pure-module coverage gate
 - **Pure modules gated to 100%.** The pure logic modules (`messageText`, `shortcuts`, `print`,
   `readerFormat`, `composeAddresses`, `composeAttachment`, `composeIntake`, `recipientSuggest`,
   `autoCollect`, `datePicker`, `accountProviders`, `sidebarDnd`, `calendarModel`, `replyDraft`,
-  `caldavAccount`, `unified`, `schedule`, `snooze`, `toolbarNav`, `undoStack`, `editClipboard`,
+  `caldavAccount`, `unified`, `schedule`, `snooze`, `toolbarNav`, `pastedHtml`, `undoStack`, `editClipboard`,
   `paneLayout`, `emailColors`, `dragScroll`, `optimisticList`, `autoScroll`, `draftEdit`,
   `modalDrag`)
   carry a v8 coverage gate at 100% lines, functions, statements and branches, listed in `vite.config.ts`
@@ -206,6 +206,14 @@ npx vitest run --coverage   # enforce the pure-module coverage gate
   `components/emailDarkMode.ts` and its per-region decisions go through the rendered frame in
   `EmailHtmlFrame.test.tsx`, which reads the resulting element styles rather than a stylesheet string
   because the decision depends on each element's own background.
+- **Clipboard markup is tested as shapes, not as a clipboard.** `pastedHtml.test.ts` pins the pure
+  normalisation and `signaturePaste.test.ts` drives a real editor built with the shared configuration,
+  pasting each shape a clipboard actually delivers: a plain fragment, a CF_HTML payload carrying the
+  `data-pm-slice` marker a ProseMirror copy stamps, then markup pretty-printed between its block tags.
+  Both were watched to fail with the transform removed, the CF_HTML case reproducing the reported blank
+  line above and two below. The synthetic paste is what makes this testable at all: jsdom has no
+  clipboard and no `ClipboardEvent`, so the suite stubs the constructor and calls the view's own
+  `pasteHTML`.
 - **Time and frames are driven, never waited on.** The drag auto-scroll and the self-reading help panes
   both run on a clock, so their tests replace it: `useDragAutoScroll.test.tsx` stubs
   `requestAnimationFrame` with a queue it steps one frame at a time; `useAutoScroll.test.tsx` uses
