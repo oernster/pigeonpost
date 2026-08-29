@@ -7,7 +7,7 @@ import {SNOOZED_FOLDER_ID, isSnoozedFolder} from './snooze'
 import {applyTheme, loadTheme, Theme} from './theme'
 import {Sidebar} from './components/Sidebar'
 import {ErrorBar} from './components/ErrorBar'
-import {MessageList, type SearchScope} from './components/MessageList'
+import {MessageList} from './components/MessageList'
 import {MessageContextMenu} from './components/MessageContextMenu'
 import {FolderContextMenu} from './components/FolderContextMenu'
 import {Reader} from './components/Reader'
@@ -45,6 +45,7 @@ import {useMessageStore} from './hooks/useMessageStore'
 import {useMessageExport} from './hooks/useMessageExport'
 import {useManagedCollection} from './hooks/useManagedCollection'
 import {useUndoSend} from './hooks/useUndoSend'
+import {useSearch} from './hooks/useSearch'
 import {rangeIds, toggleId, useSelection} from './hooks/useSelection'
 import {useMessageActions} from './hooks/useMessageActions'
 import {useBulkActions} from './hooks/useBulkActions'
@@ -159,15 +160,14 @@ function App() {
     const [calendarInitialEvent, setCalendarInitialEvent] = useState<string | null>(null)
     const [messageBody, setMessageBody] = useState<MessageBody | null>(null)
     const [bodyLoading, setBodyLoading] = useState<boolean>(false)
-    const [searchQuery, setSearchQuery] = useState<string>('')
-    // The search scope selector, the per-hit matched-text snippets (keyed by message id) and whether the
-    // last query degraded to plain text (its operators could not be parsed).
-    const [searchScope, setSearchScope] = useState<SearchScope>('all')
-    const [searchSnippets, setSearchSnippets] = useState<Map<string, string>>(new Map())
-    const [searchDegraded, setSearchDegraded] = useState<boolean>(false)
-    // searchInputRef lets Edit > Search (Ctrl+K) focus the search box from anywhere.
-    const searchInputRef = useRef<HTMLInputElement>(null)
-    const focusSearch = useCallback(() => searchInputRef.current?.focus(), [])
+    // The local full-text search (its query, scope, snippets, degraded hint and the debounced run) lives
+    // in useSearch. Its hits go into the shared message store, where the list reads them.
+    const {
+        query: searchQuery, setQuery: setSearchQuery,
+        scope: searchScope, setScope: setSearchScope,
+        snippets: searchSnippets, degraded: searchDegraded,
+        active: searchActive, inputRef: searchInputRef, focusSearch,
+    } = useSearch({selectedFolder, selectedAccount, setResults: setSearchResults, setError})
     const [contextMenu, setContextMenu] = useState<{message: Message; x: number; y: number} | null>(null)
     // The multi-selection built by Ctrl and Shift gestures (the marked ids and the Shift-range anchor)
     // lives in its own hook. Empty marks mean single-select mode, where selectedMessage alone is selected.
@@ -221,7 +221,6 @@ function App() {
         restoreDraft, discardDraft,
     } = useComposeLauncher({accounts, selectedAccount, setSelectedAccount, messageBody, setError})
 
-    const searchActive = searchQuery.trim() !== ''
     // undoSendSeconds is the undo-send window: how long a sent message is held (cancellable) before it
     // actually leaves. Zero disables the hold. Chosen from the Mail menu, remembered across launches.
     const [undoSendSeconds, setUndoSendSecondsState] = useState<number>(() => {
@@ -442,47 +441,6 @@ function App() {
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [selectedMessage?.id])
-
-    // A scope whose anchor disappears (the folder deselected or synthetic, the account removed) falls
-    // back to all mail visibly, so the selector never claims a narrower scope than the search actually
-    // runs with. The unified mailbox is not a real folder, so it cannot anchor a folder scope.
-    useEffect(() => {
-        if ((searchScope === 'folder' && (!selectedFolder || isUnifiedFolder(selectedFolder) || isSnoozedFolder(selectedFolder)))
-            || (searchScope === 'account' && !selectedAccount)) {
-            setSearchScope('all')
-        }
-    }, [searchScope, selectedFolder, selectedAccount])
-
-    // Debounced full-text search: results replace the folder listing while a query is active. The scope
-    // selector narrows it to the selected folder or account; changing either re-runs the live query. The
-    // stale flag discards a slow response that lands after the query has changed, so an older search can
-    // never overwrite a newer one's results.
-    useEffect(() => {
-        const q = searchQuery.trim()
-        if (q === '') {
-            setSearchResults([])
-            setSearchSnippets(new Map())
-            setSearchDegraded(false)
-            return
-        }
-        let stale = false
-        const folderId = searchScope === 'folder' ? selectedFolder : ''
-        const accountId = searchScope === 'account' ? selectedAccount : ''
-        const handle = window.setTimeout(() => {
-            void api.searchMessages(q, folderId, accountId).then((result) => {
-                if (stale) {
-                    return
-                }
-                setSearchResults(result.hits.map((hit) => hit.message))
-                setSearchSnippets(new Map(result.hits.map((hit) => [hit.message.id, hit.snippet])))
-                setSearchDegraded(result.degraded)
-            }).catch((e) => setError(String(e)))
-        }, 250)
-        return () => {
-            stale = true
-            window.clearTimeout(handle)
-        }
-    }, [searchQuery, searchScope, selectedFolder, selectedAccount])
 
     // loadFolderMessages shows a folder's cached messages immediately (so it opens instantly), then
     // refreshes it from the server and updates the list if the user is still on that folder. This is

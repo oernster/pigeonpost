@@ -1417,6 +1417,82 @@ describe('App: search', () => {
         await waitFor(() => expect(screen.getByText('Searched as plain text')).toBeInTheDocument())
     })
 
+    it('clears the results, the snippets and the hint when the query is emptied', async () => {
+        apiSpies.searchMessages.mockResolvedValue({
+            hits: [{message: makeMessage({id: 's1', subject: 'Search hit'}), snippet: 'hit'}],
+            degraded: true,
+        })
+        await renderWithInbox()
+        const box = screen.getByLabelText('Search mail')
+        fireEvent.change(box, {target: {value: 'broken "quote'}})
+        expect(await screen.findByText('Search hit')).toBeInTheDocument()
+        expect(screen.getByText('Searched as plain text')).toBeInTheDocument()
+
+        fireEvent.change(box, {target: {value: ''}})
+        await waitFor(() => expect(screen.getByText('Weekly report')).toBeInTheDocument())
+
+        // Emptying the box resets the results, the snippets and the degraded hint rather than leaving
+        // them for the next query to inherit. Typing again shows the hint only once a response says so,
+        // which is observable in the window before the debounced query has run at all.
+        apiSpies.searchMessages.mockResolvedValue({
+            hits: [{message: makeMessage({id: 's2', subject: 'Clean hit'}), snippet: 'clean'}],
+            degraded: false,
+        })
+        fireEvent.change(box, {target: {value: 'penguin'}})
+        expect(screen.queryByText('Searched as plain text')).toBeNull()
+        expect(screen.queryByText('Search hit')).toBeNull()
+        expect(await screen.findByText('Clean hit')).toBeInTheDocument()
+    })
+
+    it('falls the scope back to all mail when its folder stops being a real one', async () => {
+        await renderWithInbox()
+        const scope = screen.getByLabelText('Search scope') as HTMLSelectElement
+        fireEvent.change(scope, {target: {value: 'folder'}})
+        expect(scope.value).toBe('folder')
+        // The unified mailbox is not a real folder, so it cannot anchor a folder scope. The selector
+        // must not claim a narrower scope than the search actually runs with.
+        fireEvent.click(screen.getByRole('button', {name: 'View'}))
+        fireEvent.click(await screen.findByRole('menuitemcheckbox', {name: 'Unified mailbox'}))
+        await waitFor(() => expect((screen.getByLabelText('Search scope') as HTMLSelectElement).value).toBe('all'))
+        localStorage.removeItem('unifiedMailbox')
+    })
+
+    it('discards a slow response that lands after the query has moved on', async () => {
+        await renderWithInbox()
+        let resolveFirst: (value: {hits: unknown[]; degraded: boolean}) => void = () => undefined
+        apiSpies.searchMessages.mockImplementationOnce(() => new Promise((resolve) => {
+            resolveFirst = resolve as typeof resolveFirst
+        }))
+        const box = screen.getByLabelText('Search mail')
+        fireEvent.change(box, {target: {value: 'slow'}})
+        await waitFor(() => expect(apiSpies.searchMessages).toHaveBeenCalledWith('slow', '', ''))
+
+        apiSpies.searchMessages.mockResolvedValue({
+            hits: [{message: makeMessage({id: 's2', subject: 'Newer hit'}), snippet: 'newer'}],
+            degraded: false,
+        })
+        fireEvent.change(box, {target: {value: 'quick'}})
+        expect(await screen.findByText('Newer hit')).toBeInTheDocument()
+
+        // The first query answers late. It is stale, so it must not overwrite the newer results.
+        await act(async () => {
+            resolveFirst({
+                hits: [{message: makeMessage({id: 's1', subject: 'Stale hit'}), snippet: 'stale'}],
+                degraded: false,
+            })
+            await Promise.resolve()
+        })
+        expect(screen.queryByText('Stale hit')).toBeNull()
+        expect(screen.getByText('Newer hit')).toBeInTheDocument()
+    })
+
+    it('reports a failed search through the error bar', async () => {
+        apiSpies.searchMessages.mockRejectedValue('index unavailable')
+        await renderWithInbox()
+        fireEvent.change(screen.getByLabelText('Search mail'), {target: {value: 'penguin'}})
+        expect(await screen.findByText(/index unavailable/)).toBeInTheDocument()
+    })
+
     it('focuses the search box from Ctrl+K (Edit > Search)', async () => {
         await renderWithInbox()
         fireEvent.keyDown(document.body, {key: 'k', ctrlKey: true})
