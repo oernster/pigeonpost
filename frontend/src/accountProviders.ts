@@ -110,13 +110,16 @@ export function domainOf(email: string): string {
 export const MICROSOFT_IMAP_NOTE =
     'Before you sign in: IMAP is switched off by default on a new Outlook.com or Hotmail account; ' +
     'PigeonPost needs it. Turn it on at outlook.com: open Settings (the gear, top right), then Mail, ' +
-    'then either "Sync email" or "Forwarding and IMAP" depending on which Outlook you have. Switch on ' +
-    '"Let devices and apps use IMAP" and save. If that page offers a Sign in button instead of the ' +
-    'switches, the account is not verified yet: add and confirm a phone number under your Microsoft ' +
-    'account security info first. On a mailbox created in the last day or two the switch can also ' +
-    'refuse to stay on until Microsoft has finished preparing it. An account you already use with ' +
-    'another mail app will have it on already.'
+    'then either "Sync email" or "Forwarding and IMAP" depending on which Outlook you have. That page ' +
+    'often shows no switches, only an advert for the Outlook mobile app and a Sign in button. If so, ' +
+    'press Sign in and authenticate again: Microsoft keeps these settings hidden until you do. The ' +
+    'switches appear afterwards. Switch on "Let devices and apps use IMAP" and save. An account you ' +
+    'already use with another mail app will have it on already.'
 
-// The page documenting that setting, opened in the user's own browser from the note.
+// The page documenting that setting, opened in the user's own browser from the note. This is the
+// forwarding page rather than Microsoft's POP and IMAP page, because only this one documents the
+// obstacle people actually hit: "You might be prompted to Sign in on the Forwarding and IMAP page. If
+// so, you will need to complete authentication before the ... settings become available." The POP and
+// IMAP page describes a switch that is often not on the screen yet.
 export const MICROSOFT_IMAP_HELP_URL =
-    'https://support.microsoft.com/en-us/outlook/pop-imap-and-smtp-settings-for-outlook-com'
+    'https://support.microsoft.com/en-us/outlook/mail/turn-automatic-forwarding-on-or-off-in-outlook'

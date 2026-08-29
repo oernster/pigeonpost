@@ -14,11 +14,10 @@ local-first. A calmer, more predictable alternative to Thunderbird.
 - Microsoft users (Outlook.com, Hotmail, Live, Microsoft 365) who sign in through Microsoft OAuth in
   the browser; the refresh token is kept in the OS keychain. Microsoft ships a new Outlook.com or
   Hotmail mailbox with IMAP switched off, so turn it on first at outlook.com under Settings, Mail, then
-  "Sync email" or "Forwarding and IMAP" depending on the interface version. If that page offers a Sign in
-  button instead of the switches, the account is not verified yet: add and confirm a phone number under
-  your Microsoft account security info first. On a mailbox created in the last day or two the switch can
-  also refuse to stay on until Microsoft has finished preparing it. The wizard says all of this before you
-  sign in and the error says it if you do not.
+  "Sync email" or "Forwarding and IMAP" depending on the interface version. That page often shows no
+  switches, only an advert for the Outlook mobile app and a Sign in button; press Sign in and authenticate
+  again, because Microsoft keeps these settings hidden until you do. The switches appear afterwards. The
+  wizard says all of this before you sign in and the error says it if you do not.
 
 ## Who it is not for
 

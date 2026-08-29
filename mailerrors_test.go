@@ -43,14 +43,14 @@ func TestFriendlyMailErrorTranslatesIMAPDisabled(t *testing.T) {
 	}
 	// The point of the message is that it can be acted on, so the setting it names is part of the contract.
 	// Both names the section goes by, since which one the reader sees depends on their Outlook version,
-	// plus the verification step, because on an unverified account the switch the rest of the message
-	// names is not on the page at all and without this the instructions read as simply wrong.
+	// plus the sign-in step, because that page frequently carries no switches until it is done and a
+	// message naming only the switch then describes a screen the reader is not looking at.
 	for _, want := range []string{
 		"Settings",
 		"Sync email",
 		"Forwarding and IMAP",
+		"Sign in",
 		"Let devices and apps use IMAP",
-		"verified",
 	} {
 		if !strings.Contains(got.Error(), want) {
 			t.Fatalf("message %q does not name %q, so it cannot be acted on", got.Error(), want)
