@@ -17,6 +17,7 @@ import {SEARCH_MATCH_END, SEARCH_MATCH_START} from '../api'
 import {IDLE_REFOCUS_MS} from '../hooks/useIdleRefocus'
 import {defaultUndoSendSeconds} from '../hooks/useMenus'
 import {printFrameId, printReadyMarkerId} from '../print'
+import {spiesNotInApi, unstubbedNames} from '../test/apiMock'
 
 const apiSpies = vi.hoisted(() => ({
     version: vi.fn(), author: vi.fn(),
@@ -24,6 +25,7 @@ const apiSpies = vi.hoisted(() => ({
     draftRecovery: vi.fn(), clearDraftRecovery: vi.fn(),
     listRules: vi.fn(), listTemplates: vi.fn(), listContacts: vi.fn(), listEvents: vi.fn(),
     send: vi.fn(), markReplied: vi.fn(), markForwarded: vi.fn(), collectContacts: vi.fn(),
+    snoozedCount: vi.fn(), outboxCount: vi.fn(),
     unreadCounts: vi.fn(), listTags: vi.fn(), saveTag: vi.fn(),
     messageTags: vi.fn(), messageBody: vi.fn(), loadRemoteImages: vi.fn(), searchMessages: vi.fn(),
     setMessageTag: vi.fn(), listMessages: vi.fn(), listMessagesPage: vi.fn(), syncFolder: vi.fn(),
@@ -51,17 +53,18 @@ const runtimeSpies = vi.hoisted(() => ({
 
 // EventScope is provided with its real integer values because App imports CalendarModal (which reads the
 // enum), even though the calendar is never opened in these tests.
-// MESSAGE_PAGE_SIZE is a real runtime export of ../api (the flat view's page size), so the mock must
-// supply it too or useFolderPagination's import throws. Its value is irrelevant here: the stubbed
-// listMessagesPage ignores the limit. The search match markers are likewise real runtime exports the
-// message list splits snippets on, so they carry their real control-character values.
-vi.mock('../api', () => ({
-    api: apiSpies,
-    EventScope: {This: 0, Future: 1, All: 2},
-    MESSAGE_PAGE_SIZE: 200,
-    SEARCH_MATCH_START: '\u0001',
-    SEARCH_MATCH_END: '\u0002',
-}))
+// The api mock is built from the real module rather than hand-listed beside it, so a method the app
+// calls that no spy declares fails the test by name instead of throwing a TypeError into the nearest
+// catch and passing. See src/test/apiMock.ts for why that mattered and what it found. Spreading the
+// real module also carries its genuine value exports (the page size, the search-match markers, the
+// EventScope enum), so those cannot drift from the real ones either.
+const unstubbedCalls = vi.hoisted(() => new Set<string>())
+
+vi.mock('../api', async () => {
+    const actual = await vi.importActual<typeof import('../api')>('../api')
+    const {buildApiStubs} = await import('../test/apiMock')
+    return {...actual, api: buildApiStubs(actual, apiSpies as unknown as Record<string, unknown>, unstubbedCalls)}
+})
 // The runtime lives at frontend/wailsjs/runtime, which App reaches as ../wailsjs/runtime from src/; from
 // this test one level deeper it is ../../wailsjs/runtime, the same absolute module both App and
 // ReminderNotifications import.
@@ -127,6 +130,8 @@ beforeEach(() => {
     apiSpies.listTemplates.mockReset().mockResolvedValue([])
     apiSpies.send.mockReset().mockResolvedValue('')
     apiSpies.collectContacts.mockReset().mockResolvedValue(undefined)
+    apiSpies.snoozedCount.mockReset().mockResolvedValue(0)
+    apiSpies.outboxCount.mockReset().mockResolvedValue(0)
     apiSpies.markReplied.mockReset().mockResolvedValue(undefined)
     apiSpies.markForwarded.mockReset().mockResolvedValue(undefined)
     apiSpies.listContacts.mockReset().mockResolvedValue([])
@@ -187,6 +192,26 @@ afterEach(() => {
     cleanup()
     // The print frame is appended to document.body, which cleanup() does not own.
     document.getElementById(printFrameId)?.remove()
+    // Unmounting can reach the api too, so this is read after cleanup rather than before it.
+    expect(unstubbedNames(unstubbedCalls), 'api methods reached with no stub: declare them in apiSpies')
+        .toEqual([])
+})
+
+// The mock covers the api in both directions. The afterEach above catches a method the app reaches
+// that no spy declares; this catches the opposite, a spy declared under a name the api does not have,
+// which binds to nothing: every test configuring it would then be configuring a stub the code can
+// never call, so it would pass for the wrong reason.
+describe('App: the api mock', () => {
+    it('declares no spy the real api does not have', async () => {
+        const actual = await vi.importActual<typeof import('../api')>('../api')
+        expect(spiesNotInApi(actual, apiSpies as unknown as Record<string, unknown>)).toEqual([])
+    })
+
+    it('covers enough of the api to be worth having', async () => {
+        // Guards against a rename or a moved import turning the checks above into vacuous passes.
+        const actual = await vi.importActual<typeof import('../api')>('../api')
+        expect(Object.keys(actual.api).length).toBeGreaterThan(50)
+    })
 })
 
 describe('App: mount and splash', () => {

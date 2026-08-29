@@ -230,6 +230,19 @@ npx vitest run --coverage   # enforce the pure-module coverage gate
   both dispatch drag events by hand: jsdom drops `clientY` and `relatedTarget` from a drag event's
   init, so the fields are set as own properties on a plain `Event` (the same workaround the sidebar drop
   tests use). No test sleeps.
+- **The api mock is built from the real api.** `src/test/apiMock.ts` constructs the `../api` module
+  mock from the real module's own keys rather than from a list written beside it. A hand-written mock is
+  the wire stated twice with nothing comparing the two statements: a method the app calls that the mock
+  never declared is undefined, so the call throws a TypeError; nearly every api call site sits in a
+  try/catch that turns a failure into a message in the error bar. The test then passes while the
+  behaviour under test never ran. Five holes were found one at a time by tests that happened to reach
+  them; switching `App.test.tsx` to the built mock immediately found a sixth (`snoozedCount`, called on
+  mount by every test in the file). A declared spy is used as given, so tests configure it exactly as
+  before; anything else records that it was reached and throws, then an `afterEach` fails the test
+  naming the method. A companion test checks the other direction, that no spy is declared under a name the api
+  does not have, since such a spy binds to nothing and every test configuring it passes for the wrong
+  reason. Both directions were verified by planting a violation. `App.test.tsx` uses it today; the other
+  test files that mock the api still hand-write theirs, which TECH_DEBT.md records.
 - **Characterisation-first.** The `App.tsx` and component decomposition was done test-first: each
   extraction was preceded by a characterisation test pinning the behaviour on the un-extracted code, so
   every move was behaviour-preserving by construction. `App.test.tsx` characterises App at its outer

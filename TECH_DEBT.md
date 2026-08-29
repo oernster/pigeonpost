@@ -30,6 +30,25 @@ One candidate was tried and put back: collapsing the five localStorage-backed Vi
 
 ---
 
+## 2. The api mock is hand-written in 24 of the 25 test files that use it
+
+`src/test/apiMock.ts` builds the `../api` module mock from the real module's own keys, so a method the
+app reaches that no spy declares fails the test by name instead of throwing a TypeError into the nearest
+catch and passing silently. `App.test.tsx` uses it. The other 24 files that mock the api still list their
+stubs by hand and carry the same hole: `AccountSetupModal`, `BottomBar`, `CalendarModal`, the four
+`ComposeModal` suites, both `ContactsModal` suites, `InviteCard`, `MessageBodyView`, `Reader`,
+`RuleManagerModal`, `Sidebar`, `ThreadView`, plus the `useBulkActions`, `useComposeLauncher`,
+`useConversation`, `useFolderPagination`, `useFolders`, `useMessageActions`, `useMessageClipboard`,
+`useRemoteImages` and `useUndoRedo` hook suites.
+
+Each is a small mechanical change (swap the factory, add the `afterEach` assertion) but not a blind one:
+switching `App.test.tsx` over failed every test in the file until `snoozedCount` was stubbed, so each
+file should expect to surface its own holes and each hole needs a stub whose value is right for that
+test rather than a reflexive `undefined`. Worth doing per file as each is next touched, rather than as
+one sweep that would mix two dozen unrelated behaviour questions into a single change.
+
+---
+
 ## Looks like debt, not worth touching
 
 - The `application.MailSource.FetchBody` four-value return `(plain, html, invite, attachments, err)` could be reshaped into a body struct to save the destructure-and-re-thread; a four-value return is idiomatic Go and the port shape is fine as it stands, so it is left.
