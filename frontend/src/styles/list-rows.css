@@ -46,14 +46,14 @@
 
 /* A folder row's mark. --folder-icon-size is the one home for its height, a little above the 14px type
    the emoji glyphs used to be drawn at: the artwork is cropped to its own edges, so it paints ink across
-   the whole box where an emoji face left a margin inside its type size. It was tried at 23px and 35px
-   and read as too heavy for a list row at both; a folder mark is a label rather than a control, so it
-   wants to be smaller than the tray. The box is square and fixed on both axes so a wide drawing and a
+   the whole box where an emoji face left a margin inside its type size. The range was walked to find
+   this: 35px read as far too heavy for a list row and 18px as slightly light. A folder mark is a label
+   rather than a control, so it wants to sit well below the tray's own size. The box is square and fixed on both axes so a wide drawing and a
    tall one still start their labels at the same x; the picture is fitted inside it rather than stretched
    to it. The row grows with it, so a change here is checked against the row height rather than the icon
    alone. */
 .folder-icon {
-    --folder-icon-size: 18px;
+    --folder-icon-size: 22px;
     display: flex;
     align-items: center;
     justify-content: center;
