@@ -7,6 +7,7 @@
 // pigeonpost.png is not: a missing one fails the frontend build, which is what says the generator has
 // not been run.
 import addAccount from './assets/icons/add-account.png'
+import archive from './assets/icons/archive.png'
 import calendar from './assets/icons/calendar.png'
 import compose from './assets/icons/compose.png'
 import contacts from './assets/icons/contacts.png'
@@ -20,6 +21,7 @@ import inbox from './assets/icons/inbox.png'
 import junk from './assets/icons/junk.png'
 import lightMode from './assets/icons/light-mode.png'
 import mail from './assets/icons/mail.png'
+import outbox from './assets/icons/outbox.png'
 import sentMessages from './assets/icons/sent-messages.png'
 import snooze from './assets/icons/snooze.png'
 import sync from './assets/icons/sync.png'
@@ -27,6 +29,7 @@ import view from './assets/icons/view.png'
 
 export const icons = {
     addAccount,
+    archive,
     calendar,
     compose,
     contacts,
@@ -45,22 +48,22 @@ export const icons = {
     junk,
     lightMode,
     mail,
+    outbox,
     sentMessages,
     snooze,
     sync,
     view,
 } as const
 
-// folderIcon maps a folder's kind to the picture its row carries. Archive and Outbox have no drawing of
-// their own yet, so they take the ordinary folder mark alongside custom folders and subfolders: one drawn
-// set with two members sharing a picture reads better than six drawings with two emoji left among them.
+// folderIcon maps a folder's kind to the picture its row carries. Every named kind has a drawing of its
+// own; icons.file is the ordinary folder mark, standing for custom folders and their subfolders.
 export const folderIcon: Record<string, string> = {
     inbox: icons.inbox,
     sent: icons.sentMessages,
     drafts: icons.drafts,
     trash: icons.deletedItems,
     junk: icons.junk,
-    archive: icons.file,
-    outbox: icons.file,
+    archive: icons.archive,
+    outbox: icons.outbox,
     custom: icons.file,
 }

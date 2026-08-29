@@ -104,7 +104,9 @@ home for the mapping from a name to a picture.
 
 A glyph master is cropped to its visible pixels, centred on a transparent square and scaled to one common
 size, so every glyph carries the same visual weight whatever its own framing was. Dropping a new PNG into
-`assets/` is enough to generate it; naming it in `icons.ts` is what puts it on screen.
+`assets/` is enough to generate it; naming it in `icons.ts` is what puts it on screen. The masters are
+held at 512px on their longest side, which leaves every one of them a downscale into the generated size
+rather than an enlargement.
 
 Run the tests (see [TESTING.md](TESTING.md) for detail):
 
