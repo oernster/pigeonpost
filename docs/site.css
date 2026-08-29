@@ -161,6 +161,16 @@ a.logo {
 
 .btn:hover { border-color: var(--accent); }
 
+/* A button whose label is preceded by artwork rather than plain text. The mark is sized in em against
+   the button's own type, so the two stay in proportion if that type ever changes; .btn is already an
+   inline-flex row with a gap, so the mark needs nothing else to sit beside the label. display: block
+   drops the inline descender space that would otherwise make the button taller than its siblings. */
+.btn img {
+    display: block;
+    height: 1.5em;
+    width: auto;
+}
+
 .cue {
     margin-top: 18px;
     color: var(--text-dim);
