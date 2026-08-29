@@ -109,9 +109,13 @@ export function domainOf(email: string): string {
 // account that will not add.
 export const MICROSOFT_IMAP_NOTE =
     'Before you sign in: IMAP is switched off by default on a new Outlook.com or Hotmail account; ' +
-    'PigeonPost needs it. Turn it on at outlook.com under Settings, Mail, Forwarding and IMAP: switch on ' +
-    '"Let devices and apps use IMAP" and save. An account you already use with another mail app will ' +
-    'have it on already.'
+    'PigeonPost needs it. Turn it on at outlook.com: open Settings (the gear, top right), then Mail, ' +
+    'then either "Sync email" or "Forwarding and IMAP" depending on which Outlook you have. Switch on ' +
+    '"Let devices and apps use IMAP" and save. If that page offers a Sign in button instead of the ' +
+    'switches, the account is not verified yet: add and confirm a phone number under your Microsoft ' +
+    'account security info first. On a mailbox created in the last day or two the switch can also ' +
+    'refuse to stay on until Microsoft has finished preparing it. An account you already use with ' +
+    'another mail app will have it on already.'
 
 // The page documenting that setting, opened in the user's own browser from the note.
 export const MICROSOFT_IMAP_HELP_URL =
