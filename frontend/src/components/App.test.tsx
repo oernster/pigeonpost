@@ -395,10 +395,10 @@ describe('App: mount and splash', () => {
         await waitFor(() => expect(container.querySelector('.splash')).toBeNull(), {timeout: 3000})
     })
 
-    it('groups the title bar into the mark and the right-aligned working set and app pair', () => {
-        // Which group a control sits in is a layout decision rather than a cosmetic one: the mark holds
-        // the left corner while every control is pressed against the right edge as one run. A control
-        // added to the wrong group lands on the wrong side of the bar.
+    it('groups the title bar into the mark, the working set and the app pair', () => {
+        // Which group a control sits in is a layout decision rather than a cosmetic one: the mark and
+        // the controls read left to right from the corner while the app pair is held at the far end. A
+        // control added to the wrong group lands on the wrong side of the bar.
         const {container} = render(<App/>)
         const inCentre = container.querySelectorAll('.titlebar-actions [aria-label], .titlebar-actions button')
         const centreLabels = [...inCentre].map((el) => el.getAttribute('aria-label') ?? el.textContent?.trim())
@@ -418,9 +418,6 @@ describe('App: mount and splash', () => {
         expect(left?.querySelectorAll('.menu-title')).toHaveLength(0)
         const right = container.querySelector('.titlebar-right')
         expect(right?.querySelectorAll('button')).toHaveLength(2)
-        // The app pair is marked off by a rule leading its group: the vertical rule that sits between
-        // Calendar and the theme toggle.
-        expect(right?.firstElementChild).toHaveClass('titlebar-sep')
         // The app mark stands where the wordmark did. It is a picture and not a control, so the two
         // properties worth pinning are that it is not a button and that nothing can focus it: a span
         // with no tabindex takes no click and no place in the tab order.

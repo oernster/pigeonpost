@@ -70,10 +70,10 @@
        cover the bar as they should. */
     position: relative;
     z-index: 30;
-    /* One row: the app mark at the left, then every control gathered against the right edge. The gap
-       here is the same 8px used between buttons inside a group, so the menus, the working controls and
-       the app pair read as one continuous run rather than three islands; the .titlebar-sep rules are
-       what tell the groups apart, not stretches of empty bar. */
+    /* One row read left to right: the app mark, then the menus and the working controls carrying
+       straight on from it, with the theme toggle and Help held at the far end. The gap here is the same
+       8px used between buttons inside a group, so a group is told apart by a .titlebar-sep rule rather
+       than by a stretch of empty bar. */
     display: flex;
     gap: 8px;
 }

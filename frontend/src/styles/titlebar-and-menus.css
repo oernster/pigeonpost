@@ -1,6 +1,6 @@
-/* The left group: the app mark and the all-accounts unread badge; nothing else. Every control moved to
-   the right edge, leaving here the one thing in the bar that is not a control, standing where a window's
-   icon belongs.
+/* The left group: the app mark and the all-accounts unread badge; nothing else. The menus sit with the
+   working controls in the group after this one, so what is left here is the one thing in the bar that is
+   not a control, standing where a window's icon belongs and wearing no box of its own.
    min-width: 0 lets it shrink before the groups to its right do, which is what a narrow window should
    give up first. */
 .titlebar-left {
@@ -20,21 +20,22 @@
 }
 
 /* The working group: the File, Edit, View and Mail menus running straight on into compose, add account,
-   sync, Contacts and Calendar. margin-left: auto is what holds the shape: this group takes all the spare
-   width on its LEFT, so it and .titlebar-right beyond it are pressed together against the right edge
-   while the app mark keeps the far left. Read right to left the bar is Help, the theme toggle, a rule,
-   then Calendar back to File, which is the order the controls are reached in.
+   sync, Contacts and Calendar, as one sequence read left to right from the app mark. margin-right: auto
+   is what holds the shape: this group takes all the spare width on its RIGHT, so it stays welded to the
+   mark while .titlebar-right is pushed to the far end.
 
-   Centring the group on the window was tried twice and is not what this is. The second attempt worked
-   (a three-column grid held it dead centre whatever the sides held) but a run of controls floating in
-   the middle of an empty bar is not what the window wants; against the edge it reads as a toolbar.
+   Three other arrangements were tried and none survived a maximised window. Centring only these controls
+   split one sequence into two with a gap in the middle of it. Centring the menus with them held the run
+   dead centre, which measured exactly right and read as a row floating in empty bar. Pushing the whole
+   run to the right edge put every control a screen's width from the mark, which is worse the wider the
+   window gets. Left is where a toolbar goes.
 
    .bottombar wears this class too, where it is an ordinary flex row inside the footer's flex layout. */
 .titlebar-actions {
     display: flex;
     align-items: center;
     gap: 8px;
-    margin-left: auto;
+    margin-right: auto;
     flex-shrink: 0;
 }
 
@@ -127,6 +128,12 @@ header.titlebar .menu-title {
    The flex gap on the group provides that spacing now, so the margin is dropped rather than doubled. */
 .titlebar-mark {
     cursor: default;
+    /* No box. The mark borrows .icon-btn so it sizes and aligns with the controls beside it; it is
+       the one thing in the bar that cannot be pressed, so a frame around it says the wrong thing. The border
+       is made transparent rather than removed so the box keeps its geometry: dropping the 1px outright
+       would shrink the mark and shift everything after it by two pixels. */
+    background-color: transparent;
+    border-color: transparent;
 }
 
 .titlebar-left > .titlebar-unread {
