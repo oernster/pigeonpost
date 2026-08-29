@@ -63,6 +63,18 @@
     cursor: pointer;
 }
 
+/* An icon button whose glyph is artwork rather than an emoji. The image is sized by the same
+   --titlebar-icon-size the emoji buttons take their type from, so the two sit in boxes of identical
+   height; display: block drops the inline descender space that would otherwise make this box the taller
+   of the two. */
+.icon-btn-image img {
+    display: block;
+    height: var(--titlebar-icon-size);
+    width: auto;
+    user-select: none;
+    -webkit-user-drag: none;
+}
+
 /* Immediate hover and focus tooltip for icon and emoji buttons, so their action is discoverable
    without the slow native title. Set the label with a data-tip attribute. */
 [data-tip] {
@@ -86,6 +98,19 @@
     z-index: 50;
     pointer-events: none;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+/* In the bottom tray the same tooltip has to open upwards and to the right. Measured, both defaults
+   fall off the screen here: a tip 6px below a button whose own bottom sits 8px from the foot of the
+   window renders past the viewport; one centred on a button held at the far left of the bar has its
+   first words cut off by the window edge. The tip is positioned against the button rather than the bar,
+   so flipping it up and anchoring its left edge to the button's costs one rule. */
+.bottombar [data-tip]:hover::after,
+.bottombar [data-tip]:focus-visible::after {
+    top: auto;
+    bottom: calc(100% + 6px);
+    left: 0;
+    transform: none;
 }
 
 .icon-btn:hover {

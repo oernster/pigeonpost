@@ -15,6 +15,7 @@ import {EmailViewerModal} from './components/EmailViewerModal'
 import {ModalClose} from './components/ModalClose'
 import {useBackdropDismiss} from './components/useBackdropDismiss'
 import {TitleBar} from './components/TitleBar'
+import {BottomBar} from './components/BottomBar'
 import {WelcomeScreen} from './components/WelcomeScreen'
 import {SelectionSummary} from './components/SelectionSummary'
 import {DraftRecoveryDialog} from './components/DraftRecoveryDialog'
@@ -1419,6 +1420,7 @@ function App() {
                 <PaneSplitters control={paneWidths} showListSplitter={previewEnabled}/>
             </div>
             )}
+            <BottomBar/>
             {attachPickerOpen && (
                 <MessagePickerDialog
                     messages={displayMessages}

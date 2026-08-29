@@ -1,10 +1,14 @@
 #!/usr/bin/env python3
-"""Regenerate every PigeonPost icon from the master pigeonpost.png.
+"""Regenerate every PigeonPost image asset from its master at the repository root.
 
-The master already has a transparent surround. This crops that transparent margin down to the artwork,
-centres the artwork on a square transparent canvas with a small even margin so the pigeon fills most of
-the icon, writes the square master back, then produces every derived asset from it. Run after editing
-the artwork:
+The application icon comes from pigeonpost.png. That master already has a transparent surround. This
+crops that transparent margin down to the artwork, centres the artwork on a square transparent canvas
+with a small even margin so the pigeon fills most of the icon, writes the square master back, then
+produces every derived asset from it.
+
+The donate button's artwork comes from donate.png, handled separately because it is not an icon: it is a
+wide pair of glasses rendered at the tray's glyph height, so squaring it would spend half the height on
+empty canvas. It is cropped to its artwork and scaled by height alone. Run after editing either master:
 
     python generate_icons.py
 """
@@ -36,6 +40,13 @@ SQUARE_PNGS = [
     (Path("installer/frontend/dist/icon.png"), 256),
 ]
 
+# The donate button's artwork: its own master at the repository root and the one copy the frontend
+# bundles. DONATE_HEIGHT is four times the tray's glyph height (--titlebar-icon-size, 29px), so the
+# button stays crisp under display scaling without carrying the master's 1.7MB into the binary.
+DONATE_MASTER = Path("donate.png")
+DONATE_COPY = Path("frontend/src/assets/donate.png")
+DONATE_HEIGHT = 116
+
 # Multi-resolution Windows icons.
 ICO_TARGETS = [
     Path("build/windows/icon.ico"),
@@ -55,6 +66,21 @@ def square_master(image: Image.Image, margin_frac: float) -> Image.Image:
     canvas = Image.new("RGBA", (side, side), (0, 0, 0, 0))
     canvas.paste(art, ((side - art.width) // 2, (side - art.height) // 2), art)
     return canvas
+
+
+def cropped_to_artwork(image: Image.Image) -> Image.Image:
+    """Crop image to the tight box of its non-transparent artwork, leaving its aspect ratio alone."""
+    image = image.convert("RGBA")
+    bbox = image.getchannel("A").getbbox()
+    if bbox is None:
+        raise SystemExit("master image has no opaque artwork to crop to")
+    return image.crop(bbox)
+
+
+def scaled_to_height(image: Image.Image, height: int) -> Image.Image:
+    """Scale image to height, keeping its aspect ratio."""
+    width = max(1, round(image.width * height / image.height))
+    return image.resize((width, height), Image.LANCZOS)
 
 
 def write_png(image: Image.Image, path: Path) -> None:
@@ -83,6 +109,12 @@ def main() -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
         ico_source.save(path, format="ICO", sizes=ICO_SIZES)
         print(f"  wrote {path} (multi-size .ico)")
+
+    if not DONATE_MASTER.exists():
+        raise SystemExit(f"donate artwork {DONATE_MASTER} not found")
+    print("Donate button:")
+    donate = cropped_to_artwork(Image.open(DONATE_MASTER))
+    write_png(scaled_to_height(donate, DONATE_HEIGHT), DONATE_COPY)
 
 
 if __name__ == "__main__":

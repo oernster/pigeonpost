@@ -79,6 +79,16 @@
     gap: 8px;
 }
 
+/* The bottom tray, built from .titlebar so it matches the header's height, padding and background
+   exactly; only the edge it draws its rule on differs. margin-top: auto pins it to the foot of the
+   window on the screens whose body does not itself take the spare height (the welcome screen), while
+   the panes' own flex: 1 already holds it there everywhere else. */
+.bottombar {
+    margin-top: auto;
+    border-bottom: none;
+    border-top: 1px solid var(--border);
+}
+
 /* The wordmark yields before the controls do: in a narrow window it truncates so the centre group can
    stay on the window's centre line. min-width: 0 is what lets it: a flex item refuses to shrink below its
    own content without it, so the whole left group would have kept its full width and shoved the controls
