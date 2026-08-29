@@ -51,7 +51,7 @@
    their labels at the same x; the picture is fitted inside it rather than stretched to it. The row grows
    with it, so a change here is checked against the row height rather than the icon alone. */
 .folder-icon {
-    --folder-icon-size: 23px;
+    --folder-icon-size: 35px;
     display: flex;
     align-items: center;
     justify-content: center;

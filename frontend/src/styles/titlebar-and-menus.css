@@ -50,10 +50,13 @@
    right to the box, where an emoji face keeps a margin inside its type size, so the two do not read
    the same at the same number and the picture was sized by eye against the bar until it did. The
    masters are generated at four times this height (see glyphSide in tools/genicons), so they stay
-   crisp under display scaling; raising this number means raising that one with it. */
+   crisp under display scaling; raising this number means raising that one with it. The masters put a
+   ceiling on how far that can go: the tightest of them crops to a 358px square, so four times this
+   height cannot exceed that without enlarging artwork, which is never done. At 76px there is very
+   little of that headroom left. */
 :root {
     --titlebar-icon-size: 29px;
-    --titlebar-glyph-size: 42px;
+    --titlebar-glyph-size: 76px;
 }
 
 /* Icon buttons (compose, add account, sync, the reply trio, the theme toggle) share the same box as the
