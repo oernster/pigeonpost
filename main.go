@@ -19,6 +19,7 @@ import (
 
 	"github.com/oernster/pigeonpost/internal/application"
 	"github.com/oernster/pigeonpost/internal/infrastructure/caldav"
+	"github.com/oernster/pigeonpost/internal/infrastructure/errlog"
 	"github.com/oernster/pigeonpost/internal/infrastructure/ics"
 	"github.com/oernster/pigeonpost/internal/infrastructure/imap"
 	"github.com/oernster/pigeonpost/internal/infrastructure/keychain"
@@ -49,8 +50,11 @@ const (
 	appName     = "PigeonPost"
 	dataDirName = "PigeonPost"
 	dbFileName  = "pigeonpost.db"
-	windowW     = 1200
-	windowH     = 800
+	// mailErrorLogName sits beside the database and holds the raw text of mail errors the interface
+	// replaces with a message fit to read, so a wrong reading of a failure can still be looked up.
+	mailErrorLogName = "mail-errors.log"
+	windowW          = 1200
+	windowH          = 800
 	// oauthHTTPTimeout bounds each OAuth token endpoint request so a stalled network never hangs a
 	// sign-in or a silent token refresh indefinitely.
 	oauthHTTPTimeout = 30 * time.Second
@@ -64,11 +68,15 @@ func main() {
 }
 
 // run is the composition root. It wires concrete infrastructure adapters into the application use
-// cases by constructor injection, assembles the Wails facade, and starts the runtime.
+// cases by constructor injection, assembles the Wails facade then starts the runtime.
 func run() error {
 	ctx := context.Background()
 
 	dbPath, err := databasePath()
+	if err != nil {
+		return err
+	}
+	logPath, err := mailErrorLogPath()
 	if err != nil {
 		return err
 	}
@@ -79,6 +87,7 @@ func run() error {
 
 	vault := keychain.NewVault()
 	clock := systemClock{}
+	mailErrors := errlog.New(logPath, clock, errlog.DefaultMaxBytes)
 	// OAuth accounts (Microsoft) present a bearer token rather than a password. The token manager reads
 	// the stored token from the keychain and refreshes it silently when it has expired, so the IMAP and
 	// SMTP adapters get a live access token without the read paths knowing about OAuth. The authorizer
@@ -108,7 +117,7 @@ func run() error {
 	unifiedService := application.NewUnifiedMailboxService(store, store, clock)
 	// Snooze hides a message from the visible listings until its chosen instant; local-only state.
 	snoozeService := application.NewSnoozeService(store, clock)
-	// The tag-sync service rounds user tags onto the server as IMAP keywords, and the flag-sync service
+	// The tag-sync service rounds user tags onto the server as IMAP keywords; the flag-sync service
 	// does the same for flag changes (read, starred, answered, forwarded), guarding them against servers
 	// that apply a flag STORE lazily or drop it. The sync service drives both flush and reconcile, so
 	// each is constructed first and injected into the sync.
@@ -152,7 +161,7 @@ func run() error {
 	// server is unreachable, stamped by the same clock and id generator.
 	schedulingService := application.NewSchedulingService(ics.New(), store, store, store, transport, imapSource, store, clock, newOutboxID)
 
-	// The taskbar overlay badge reflects the total unread count, and the flasher flashes the taskbar
+	// The taskbar overlay badge reflects the total unread count; the flasher flashes the taskbar
 	// button when a reminder fires while the window is in the background. Both locate the main window by
 	// its title, so they are given the same title the Wails window uses below. The title is the bare app
 	// name (no version); the version stays discoverable in Help | About.
@@ -174,7 +183,7 @@ func run() error {
 	updateService := application.NewUpdateService(
 		update.NewGitHubReleaseSource(), version(), application.PlatformKeyFor(goruntime.GOOS))
 
-	app = NewApp(store.Close, overlay, flasher, tray, watcher, accountService, setupService, microsoftSetupService, mailboxService, unifiedService, snoozeService, syncService, composeService, tagService, tagSyncService, bodyService, actionService, folderService, folderUIStateService, ruleService, templateService, contactService, calendarService, calendarEditService, schedulingService, remoteImageService, caldavService, updateService)
+	app = NewApp(store.Close, overlay, flasher, tray, watcher, accountService, setupService, microsoftSetupService, mailboxService, unifiedService, snoozeService, syncService, composeService, tagService, tagSyncService, bodyService, actionService, folderService, folderUIStateService, ruleService, templateService, contactService, calendarService, calendarEditService, schedulingService, remoteImageService, caldavService, updateService, mailErrors)
 	app.title = windowTitle
 
 	err = wails.Run(&options.App{
@@ -217,8 +226,9 @@ func version() string {
 	return strings.TrimSpace(versionRaw)
 }
 
-// databasePath resolves the per-user database location and ensures its directory exists.
-func databasePath() (string, error) {
+// dataDir resolves the per-user data directory and ensures it exists. Everything the app writes for
+// itself lives here, so the database and the mail error log cannot drift apart.
+func dataDir() (string, error) {
 	base, err := os.UserConfigDir()
 	if err != nil {
 		return "", fmt.Errorf("resolve config dir: %w", err)
@@ -227,5 +237,23 @@ func databasePath() (string, error) {
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return "", fmt.Errorf("create data dir %q: %w", dir, err)
 	}
+	return dir, nil
+}
+
+// databasePath resolves the per-user database location and ensures its directory exists.
+func databasePath() (string, error) {
+	dir, err := dataDir()
+	if err != nil {
+		return "", err
+	}
 	return filepath.Join(dir, dbFileName), nil
+}
+
+// mailErrorLogPath resolves the per-user mail error log, beside the database.
+func mailErrorLogPath() (string, error) {
+	dir, err := dataDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(dir, mailErrorLogName), nil
 }

@@ -30,13 +30,13 @@ func (a *App) MarkForwarded(messageID string) error {
 // hold in Trash where the server reported it, so the front end can offer an undo.
 func (a *App) DeleteMessage(messageID string) (MoveResultDTO, error) {
 	newID, err := a.actions.Delete(a.ctx, messageID)
-	return MoveResultDTO{NewId: newID}, friendlyMailError(err)
+	return MoveResultDTO{NewId: newID}, a.mailError(err)
 }
 
 // DeleteMessagePermanent removes a message immediately and irreversibly, without moving it to Trash,
 // regardless of which folder it lives in. The local cache is updated to match.
 func (a *App) DeleteMessagePermanent(messageID string) error {
-	return friendlyMailError(a.actions.DeletePermanent(a.ctx, messageID))
+	return a.mailError(a.actions.DeletePermanent(a.ctx, messageID))
 }
 
 // DeleteMessages removes several messages in one batched pass per folder, far faster than a call per
@@ -56,7 +56,7 @@ func (a *App) DeleteMessagesPermanent(ids []string) BulkResultDTO {
 // bulkDelete runs the batched delete and packs its outcome into the DTO the front end reads.
 func (a *App) bulkDelete(ids []string, permanent bool) BulkResultDTO {
 	deleted, newIDs, err := a.actions.DeleteMany(a.ctx, ids, permanent)
-	return bulkResult(ids, deleted, newIDs, err)
+	return a.bulkResult(ids, deleted, newIDs, err)
 }
 
 // MoveMessages relocates several messages into one folder in a single batched pass per source folder,
@@ -65,16 +65,16 @@ func (a *App) bulkDelete(ids []string, permanent bool) BulkResultDTO {
 // exactly those, plus any error text.
 func (a *App) MoveMessages(ids []string, destFolderID string) BulkResultDTO {
 	moved, newIDs, err := a.actions.MoveMany(a.ctx, ids, destFolderID)
-	return bulkResult(ids, moved, newIDs, err)
+	return a.bulkResult(ids, moved, newIDs, err)
 }
 
 // bulkResult packs a batched action's outcome (the ids acted on, where each landed and any error)
 // into the DTO the front end reads, reporting how many of the requested ids were not processed.
-func bulkResult(requested, acted []string, newIDs map[string]string, err error) BulkResultDTO {
+func (a *App) bulkResult(requested, acted []string, newIDs map[string]string, err error) BulkResultDTO {
 	result := BulkResultDTO{Ids: acted, Failed: len(requested) - len(acted), NewIds: newIDs}
 	if err != nil {
 		result.Offline = isOffline(err)
-		result.Error = friendlyMailError(err).Error()
+		result.Error = a.mailError(err).Error()
 	}
 	return result
 }
@@ -84,7 +84,7 @@ func bulkResult(requested, acted []string, newIDs map[string]string, err error) 
 // an undo.
 func (a *App) MoveMessage(messageID, destFolderID string) (MoveResultDTO, error) {
 	newID, err := a.actions.Move(a.ctx, messageID, destFolderID)
-	return MoveResultDTO{NewId: newID}, friendlyMailError(err)
+	return MoveResultDTO{NewId: newID}, a.mailError(err)
 }
 
 // MarkJunk moves a message to the account's Junk folder, filing it out of the inbox as spam. It returns
@@ -92,7 +92,7 @@ func (a *App) MoveMessage(messageID, destFolderID string) (MoveResultDTO, error)
 // the id the message will hold in Junk where the server reported it, so the front end can offer an undo.
 func (a *App) MarkJunk(messageID string) (MoveResultDTO, error) {
 	newID, err := a.actions.MarkJunk(a.ctx, messageID)
-	return MoveResultDTO{NewId: newID}, friendlyMailError(err)
+	return MoveResultDTO{NewId: newID}, a.mailError(err)
 }
 
 // MarkNotJunk rescues a message from the account's Junk folder back to its Inbox, clearing the junk
@@ -101,7 +101,7 @@ func (a *App) MarkJunk(messageID string) (MoveResultDTO, error) {
 // reported it, so the front end can offer an undo.
 func (a *App) MarkNotJunk(messageID string) (MoveResultDTO, error) {
 	newID, err := a.actions.MarkNotJunk(a.ctx, messageID)
-	return MoveResultDTO{NewId: newID}, friendlyMailError(err)
+	return MoveResultDTO{NewId: newID}, a.mailError(err)
 }
 
 // CopyMessage duplicates a message into another folder in the same account, leaving the original.
@@ -109,5 +109,5 @@ func (a *App) MarkNotJunk(messageID string) (MoveResultDTO, error) {
 // so the front end can show the pasted copy ahead of the sync.
 func (a *App) CopyMessage(messageID, destFolderID string) (MoveResultDTO, error) {
 	newID, err := a.actions.Copy(a.ctx, messageID, destFolderID)
-	return MoveResultDTO{NewId: newID}, friendlyMailError(err)
+	return MoveResultDTO{NewId: newID}, a.mailError(err)
 }

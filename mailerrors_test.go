@@ -82,7 +82,7 @@ func TestIsOffline(t *testing.T) {
 func TestBulkResultOfflineShowsFriendlyMessage(t *testing.T) {
 	t.Parallel()
 	err := fmt.Errorf("delete 2 messages in %q on server: %w", "inbox", domain.ErrOffline)
-	result := bulkResult([]string{"a", "b"}, nil, nil, err)
+	result := (&App{}).bulkResult([]string{"a", "b"}, nil, nil, err)
 	if !result.Offline {
 		t.Fatal("bulkResult.Offline = false for an offline error, want true")
 	}
@@ -97,7 +97,7 @@ func TestBulkResultOfflineShowsFriendlyMessage(t *testing.T) {
 func TestBulkResultNonOfflineKeepsDetail(t *testing.T) {
 	t.Parallel()
 	err := errors.New("locate folder \"x\": not found")
-	result := bulkResult([]string{"a"}, []string{"a"}, nil, err)
+	result := (&App{}).bulkResult([]string{"a"}, []string{"a"}, nil, err)
 	if result.Offline {
 		t.Fatal("bulkResult.Offline = true for a non-offline error, want false")
 	}
@@ -108,7 +108,7 @@ func TestBulkResultNonOfflineKeepsDetail(t *testing.T) {
 
 func TestBulkResultNoErrorIsClean(t *testing.T) {
 	t.Parallel()
-	result := bulkResult([]string{"a"}, []string{"a"}, map[string]string{}, nil)
+	result := (&App{}).bulkResult([]string{"a"}, []string{"a"}, map[string]string{}, nil)
 	if result.Offline || result.Error != "" {
 		t.Fatalf("bulkResult with no error = {Offline:%v Error:%q}, want clean", result.Offline, result.Error)
 	}
@@ -124,5 +124,60 @@ func TestIMAPDisabledMessageStaysShort(t *testing.T) {
 	t.Parallel()
 	if got := len(errIMAPDisabled.Error()); got > maxIMAPMessageChars {
 		t.Fatalf("errIMAPDisabled is %d characters, over the %d cap: shorten it or move the detail to the README", got, maxIMAPMessageChars)
+	}
+}
+
+// recordingSpy is a hand-written mailErrorRecorder that keeps what it was handed, so a test can assert
+// on the evidence rather than on a filesystem.
+type recordingSpy struct {
+	recorded []error
+}
+
+// Record keeps err for inspection.
+func (s *recordingSpy) Record(err error) {
+	s.recorded = append(s.recorded, err)
+}
+
+func TestMailErrorRecordsTheRawErrorItReplaces(t *testing.T) {
+	t.Parallel()
+	spy := &recordingSpy{}
+	app := &App{mailErrors: spy}
+	raw := fmt.Errorf("imap: xoauth2 %q: NO User is authenticated but not connected: %w", "a@b.com", domain.ErrIMAPDisabled)
+
+	got := app.mailError(raw)
+
+	if got != errIMAPDisabled {
+		t.Fatalf("mailError returned %v, want the message fit to read", got)
+	}
+	if len(spy.recorded) != 1 || spy.recorded[0] != raw {
+		t.Fatalf("recorded %v, want exactly the raw error: replacing it is what destroys the evidence", spy.recorded)
+	}
+}
+
+func TestMailErrorDoesNotRecordAnErrorItPassesThrough(t *testing.T) {
+	t.Parallel()
+	spy := &recordingSpy{}
+	app := &App{mailErrors: spy}
+	// Nothing is asserted about this error's cause and its own detail reaches the user intact, so there
+	// is nothing to preserve. Recording it too would bury the cases that matter in ordinary noise.
+	raw := errors.New("locate folder \"x\": not found")
+
+	if got := app.mailError(raw); got != raw {
+		t.Fatalf("mailError returned %v, want the error unchanged", got)
+	}
+	if len(spy.recorded) != 0 {
+		t.Fatalf("recorded %v for a pass-through error, want nothing", spy.recorded)
+	}
+}
+
+func TestMailErrorLeavesNilAlone(t *testing.T) {
+	t.Parallel()
+	spy := &recordingSpy{}
+	app := &App{mailErrors: spy}
+	if got := app.mailError(nil); got != nil {
+		t.Fatalf("mailError(nil) = %v, want nil", got)
+	}
+	if len(spy.recorded) != 0 {
+		t.Fatalf("recorded %v for a nil error, want nothing", spy.recorded)
 	}
 }

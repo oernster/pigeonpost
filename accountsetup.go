@@ -85,7 +85,7 @@ func (a *App) SignInMicrosoft(req MicrosoftSignInRequest) (string, error) {
 	// nothing they can act on.
 	account, err := a.msSetup.Configure(a.ctx, strings.TrimSpace(req.DisplayName), req.Signature, identities)
 	if err != nil {
-		return "", friendlyMailError(err)
+		return "", a.mailError(err)
 	}
 	a.startMailWatcher(account)
 	return account.Address().Address(), nil

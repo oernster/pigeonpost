@@ -41,6 +41,13 @@ on, then add the account.
 You need only IMAP. Leave "Let devices and apps use POP" off, because PigeonPost never uses POP for a
 Microsoft account.
 
+If an account still will not add, `mail-errors.log` beside the database holds what the mail server
+actually said, one failure per line. PigeonPost replaces a server's own words with a message naming a
+setting and the steps, which is easier to act on but asserts a cause that can be wrong; the log is the
+copy kept so a wrong reading can be seen for what it is. It records only the errors that were
+replaced, it is created on the first one and it holds mail server responses and the address they
+concern, so read it before attaching it to anything.
+
 ## Who it is not for
 
 - Webmail-only users who never want a desktop install.

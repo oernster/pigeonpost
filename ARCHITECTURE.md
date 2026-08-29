@@ -41,8 +41,9 @@ enforced by a test in `tests/structural/boundary_test.go`, not by convention.
   the unread badge or a native desktop notification elsewhere), the notification chime (`sound`, a
   synthesised WAV played through `winmm` on Windows and a no-op elsewhere), the OS keychain (`keychain`), the
   calendar and contacts codecs (`ics`, `recurrence`, `vcard` and `csv`), the CalDAV sync client
-  (`caldav`), the Microsoft OAuth token flow (`oauth`) and the SSRF-guarded remote-image fetcher
-  (`remoteimage`). Never imported by Domain or Application. The
+  (`caldav`), the Microsoft OAuth token flow (`oauth`), the SSRF-guarded remote-image fetcher
+  (`remoteimage`) and the mail error log (`errlog`, which keeps the raw text of an error the facade is
+  about to replace with one fit to read). Never imported by Domain or Application. The
   separate `internal/installer` package holds the setup program's install logic and is consumed by the
   `installer/` Wails setup app.
 - **UI**: the React front end plus the thin Wails facade in package `main` (`app.go` with one binding

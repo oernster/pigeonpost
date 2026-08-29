@@ -52,6 +52,7 @@ type App struct {
 	alerter       ReminderAlerter
 	tray          *taskbar.Tray
 	watcher       MailWatcher
+	mailErrors    mailErrorRecorder             // keeps the raw text of an error the interface replaces
 	watchers      map[string]context.CancelFunc // per-account IDLE watcher cancels, keyed by account id
 	watchersMu    sync.Mutex                    // guards watchers
 	mailCheck     sync.Mutex                    // serialises checkMail so the poll and IDLE pushes do not detect concurrently
@@ -111,6 +112,7 @@ func NewApp(
 	remoteImages *application.RemoteImageService,
 	caldav *application.CalDAVService,
 	updates *application.UpdateService,
+	mailErrors mailErrorRecorder,
 ) *App {
 	return &App{
 		closer:        closer,
@@ -118,6 +120,7 @@ func NewApp(
 		alerter:       alerter,
 		tray:          tray,
 		watcher:       watcher,
+		mailErrors:    mailErrors,
 		watchers:      make(map[string]context.CancelFunc),
 		accounts:      accounts,
 		setup:         setup,
@@ -148,8 +151,8 @@ func NewApp(
 // beforeClose runs when the user clicks the window's close button. Rather than quit, it asks the front
 // end to show the close-choice dialog (the app's own dark-themed dialog, not a native one) and keeps the
 // window open by returning true; the dialog then calls MinimiseToTray or RequestQuit. An explicit Quit
-// already under way, or a platform without a restorable tray icon (every platform but Windows, where
-// hiding the window would strand it), skips the prompt and lets the close proceed.
+// already under way skips the prompt and lets the close proceed, as does a platform without a
+// restorable tray icon (every platform but Windows, where hiding the window would strand it).
 func (a *App) beforeClose(ctx context.Context) bool {
 	if a.quitting.Load() {
 		return false
@@ -266,7 +269,7 @@ func (a *App) ReorderAccounts(orderedIDs []string) error {
 	return a.accounts.Reorder(a.ctx, orderedIDs)
 }
 
-// RemoveAccount deletes an account together with its cached mail and its keychain secret, and stops its
+// RemoveAccount deletes an account together with its cached mail and its keychain secret; it also stops its
 // IDLE watcher so a removed account leaves no stale server connection behind.
 func (a *App) RemoveAccount(accountID string) error {
 	if err := a.accounts.Remove(a.ctx, accountID); err != nil {
@@ -328,22 +331,22 @@ func (a *App) GetMessageBody(messageID string) (MessageBodyDTO, error) {
 // it does nothing.
 func (a *App) SyncAccount(accountID string) error {
 	if err := a.folders.ReconcileSent(a.ctx, accountID); err != nil {
-		return friendlyMailError(err)
+		return a.mailError(err)
 	}
-	return friendlyMailError(a.sync.SyncAccount(a.ctx, accountID))
+	return a.mailError(a.sync.SyncAccount(a.ctx, accountID))
 }
 
 // SyncFolder refreshes a single folder's messages from the server, the light path used when a folder
 // is opened rather than syncing the whole account.
 func (a *App) SyncFolder(folderID string) error {
-	return friendlyMailError(a.sync.SyncFolder(a.ctx, folderID))
+	return a.mailError(a.sync.SyncFolder(a.ctx, folderID))
 }
 
 // SyncAllInboxes refreshes every account's inbox folders from their servers, the unified mailbox's
 // counterpart to SyncFolder. The arrivals SyncInboxes reports are discarded: they feed the new-mail
-// notifier's own passes, and mail fetched here is cached before that pass exactly as an opened folder's
+// notifier's own passes; mail fetched here is cached before that pass exactly as an opened folder's
 // sync caches what the user is already looking at.
 func (a *App) SyncAllInboxes() error {
 	_, err := a.sync.SyncInboxes(a.ctx)
-	return friendlyMailError(err)
+	return a.mailError(err)
 }

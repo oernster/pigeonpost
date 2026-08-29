@@ -54,10 +54,36 @@ func isOffline(err error) bool {
 	return err != nil && errors.Is(err, domain.ErrOffline)
 }
 
+// mailErrorRecorder keeps the raw text of an error that is about to be replaced. It is the seam the
+// file writing sits behind, so this layer neither opens files nor knows where they live.
+type mailErrorRecorder interface {
+	Record(err error)
+}
+
+// mailError is what every caller uses: it translates the error for the interface; where the
+// translation replaces the original it records the original first.
+//
+// The condition is the whole point. A message fit to read asserts a cause; asserting a cause is
+// exactly when the evidence for it stops being available: the reader is told to change a setting; if
+// that was the wrong reading of the failure there is nothing left to say so. This is how a mailbox
+// with IMAP already switched on came to be told, repeatedly, to switch IMAP on. An error passed through
+// unchanged still carries its own detail, so it is not recorded and the log stays a list of the cases
+// where something was hidden.
+func (a *App) mailError(err error) error {
+	friendly := friendlyMailError(err)
+	if err != nil && friendly != err && a.mailErrors != nil {
+		a.mailErrors.Record(err)
+	}
+	return friendly
+}
+
 // friendlyMailError converts an internal mail error into one fit to show the user: a connectivity
 // failure becomes the plain offline message and a mailbox with IMAP switched off becomes the message
 // naming that setting, while every other error is returned unchanged so a genuine fault still surfaces
 // its detail. A nil error stays nil.
+//
+// It is kept pure and separate from the recording above so the translation can be read and tested
+// without a filesystem anywhere near it.
 func friendlyMailError(err error) error {
 	if isOffline(err) {
 		return errOffline
