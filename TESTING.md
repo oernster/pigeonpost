@@ -193,6 +193,15 @@ npx vitest run --coverage   # enforce the pure-module coverage gate
   framework plumbing, so a blanket 100% there buys brittle tests, not correctness.
 - **Structural boundary test.** `src/test/boundary.test.ts` scans the top-level `src/*.ts` modules and
   keeps the gated pure modules pure, the front-end analogue of `boundary_test.go`.
+- **Module-size test.** `src/test/loc.test.ts` holds the 400-line limit over every front-end source
+  module, the other half of what `boundary_test.go` does for Go and what the front end previously had
+  nothing enforcing. It also holds the band beneath the limit, derived from the limit rather than
+  written as a second number so the two cannot drift: a module that creeps into the band is reduced
+  properly rather than shaved back under, since the next edit would otherwise break it again. The nine
+  modules that were already over the limit are named in an exemption list that may only shrink; a file
+  exempt while no longer over the limit fails, so an entry cannot outlive the debt it records; TECH_DEBT.md
+  tracks the split. Test files are outside the limit by design. All four rules were
+  verified by planting a violation against each.
 - **Modal layout test.** `src/components/modalLayout.test.ts` scans the dialog source and holds two
   rules: every modal carrying an action row pins it; every pinned modal has something that
   actually scrolls. Both matter because a dialog that scrolls as one block takes its buttons off a

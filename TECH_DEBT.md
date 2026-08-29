@@ -2,7 +2,27 @@
 
 A standing reference to the project's outstanding technical debt. It records what is still open, weighs whether each item is worth doing and gives the rationale. Every item is a behaviour-preserving internal refactor: nothing here proposes reverting a feature or changing any UI or UX behaviour. Scope is the whole repository (the Go core plus the React front end), read against the documented design and the structural tests.
 
-**There is no open technical debt.** The sections below are the standing record of what was weighed and deliberately left alone, so the same ground is not covered again. They carry no numbers, because a number here means an open item and a numbered heading that was not one made this file read as three open items when it held one.
+The sections below the open item are the standing record of what was weighed and deliberately left alone, so the same ground is not covered again. They carry no numbers, because a number here means an open item and a numbered heading that was not one made this file read as three open items when it held one.
+
+---
+
+## 1. Nine front-end modules are over the module-size limit
+
+The limit is 400 lines. `tests/structural/boundary_test.go` has always enforced it; it parses Go, so the React front end was never held to it by anything. Nearly all of it stayed small anyway (140 of 149 source modules are inside the limit) while nine grew past it, `App.tsx` furthest by a wide margin:
+
+| Module | Lines |
+|---|---|
+| `src/App.tsx` | 1706 |
+| `src/components/ComposeModal.tsx` | 731 |
+| `src/api.ts` | 631 |
+| `src/components/EventFormModal.tsx` | 559 |
+| `src/components/ContactsModal.tsx` | 491 |
+| `src/components/FolderTree.tsx` | 453 |
+| `src/hooks/useMenus.ts` | 450 |
+| `src/components/CalendarModal.tsx` | 436 |
+| `src/components/MessageContextMenu.tsx` | 407 |
+
+The guard now exists (`src/test/loc.test.ts`) and holds every other module, with these nine named in an exemption list that may only shrink: a file leaves it when it is split; a file that is exempt while no longer over the limit fails too, so an entry cannot outlive the debt it records. Nothing new can join it. What is open is the splitting itself. Each is a behaviour-preserving decomposition along a concern boundary rather than an arbitrary slice, taken one module at a time and characterisation-first the way the original `App.tsx` decomposition was, so the front-end suite proves each move rather than review doing it. `App.tsx` is its own unit; the four modals are alike enough to share an approach.
 
 ---
 

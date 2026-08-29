@@ -737,8 +737,9 @@ custom error types beyond sentinels.
 - Infrastructure tested against a real SQLite database in a temp directory.
 - Structural AST tests enforce layering, domain purity, the module-size limit and the composition
   root whitelist.
-- The React front end has its own Vitest and jsdom suite: a coverage gate on the pure logic modules and
-  a structural boundary test that keeps them pure.
+- The React front end has its own Vitest and jsdom suite: a coverage gate on the pure logic modules, a
+  structural boundary test that keeps them pure and a module-size test holding the same 400-line limit
+  the Go guard holds, with the modules that predate it named in a shrinking exemption list.
 
 ## Styles (frontend)
 
