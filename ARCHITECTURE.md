@@ -753,6 +753,18 @@ place. Keep `App.css` a manifest (only `@import` lines); never inline component 
 per-component file own a shared global. Split a concern file over ~500 lines again at a top-level comment
 boundary, keeping the import order intact.
 
+Every control in the header and every row in the folder list carries drawn artwork rather than an emoji.
+An emoji is rendered by whichever font the platform happens to ship, so neither its weight nor its
+palette can be relied on across Windows, macOS and Linux; a set of pictures the repository owns is the
+same set everywhere. `frontend/src/icons.ts` is the one home for the mapping from a name to a picture:
+it holds every import and the `folderIcon` map from a folder kind to its mark, so a component names a
+glyph rather than carrying a path of its own. The pictures themselves are generated from the masters in
+`assets/` by `tools/genicons` (see DEVELOPMENT-README.md), which crops each to its visible pixels and
+squares it, so a master's own framing cannot decide how large it renders beside the others. Two tokens
+carry the sizes: `--titlebar-glyph-size` for the header and `--folder-icon-size` for a folder row. The
+header's rule is scoped to the `header.titlebar` element rather than the class, because the footer wears
+`.titlebar` too and its donate mark keeps the smaller `--titlebar-icon-size`.
+
 The window is topped and tailed by the same bar. `TitleBar` is the header carrying the brand, the menus
 and the working controls; `BottomBar` is the footer at the foot of the window. The footer wears
 `.titlebar` itself rather than a stylesheet of its own, so the two match in height, padding and

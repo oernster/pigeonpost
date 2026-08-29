@@ -57,12 +57,14 @@ installer/frontend/wailsjs/
 # Wails build output
 build/bin/
 
-# Icons regenerated from pigeonpost.png by `go run ./tools/genicons` on every build
-build/appicon.png
-build/windows/icon.ico
-frontend/src/assets/pigeonpost.png
-# Title-bar and folder-list glyphs, derived from the masters in assets/ by the same command
-frontend/src/assets/icons/
+# The image assets `go run ./tools/genicons` derives are TRACKED, deliberately, and nothing here
+# ignores them. Only build.ps1, builddmg.sh and build_flatpak.sh run the generator; wails.json has no
+# hook, so `wails dev` and a bare `wails build` (both documented in DEVELOPMENT-README.md) run it
+# never. An asset the front end imports has to be in a fresh clone already or the build cannot resolve
+# it, which was measured: with the glyphs absent, vite fails on src/icons.ts. These paths were listed
+# here for a while and had no effect at all, since a rule cannot ignore a file git already tracks.
+# The single exception is genicons' flatpak hicolor set, ignored under the flatpak artefacts below:
+# nothing reads it but build_flatpak.sh, which generates it first.
 
 # macOS DMG build output
 dist-dmg/

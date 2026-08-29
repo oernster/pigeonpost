@@ -98,9 +98,18 @@ go run ./tools/genicons
 ```
 
 It is idempotent: run on an unchanged master it rewrites the same bytes. `build.ps1`, `builddmg.sh` and
-`build_flatpak.sh` each run it before they build, so a release never ships stale artwork. Nothing it
-writes is committed; the front end imports the glyphs through `frontend/src/icons.ts`, which is the one
-home for the mapping from a name to a picture.
+`build_flatpak.sh` each run it before they build, so a release never ships stale artwork.
+
+Its output is committed, which is deliberate. Those three scripts are the only things that run it:
+`wails.json` carries no hook, so `wails dev` and a bare `wails build` never generate anything. An asset
+the front end imports therefore has to be in a fresh clone already; otherwise the build cannot resolve
+it. A
+regeneration that changes an asset shows up as an ordinary modification and is committed with the
+master that caused it. The one output not committed is the flatpak hicolor set under `build/linux/`,
+which nothing but `build_flatpak.sh` reads and which that script generates itself.
+
+The front end imports the glyphs through `frontend/src/icons.ts`, which is the one home for the mapping
+from a name to a picture.
 
 A glyph master is cropped to its visible pixels, centred on a transparent square and scaled to one common
 size, so every glyph carries the same visual weight whatever its own framing was. Dropping a new PNG into

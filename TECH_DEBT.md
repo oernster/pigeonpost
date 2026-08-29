@@ -8,7 +8,7 @@ The sections below the open item are the standing record of what was weighed and
 
 ## 1. Nine front-end modules are over the module-size limit
 
-The limit is 400 lines. `tests/structural/boundary_test.go` has always enforced it; it parses Go, so the React front end was never held to it by anything. Nearly all of it stayed small anyway (152 of 161 source modules are inside the limit) while nine grew past it, `App.tsx` furthest by a wide margin:
+The limit is 400 lines. `tests/structural/boundary_test.go` has always enforced it; it parses Go, so the React front end was never held to it by anything. Nearly all of it stayed small anyway (153 of 162 source modules are inside the limit) while nine grew past it, `App.tsx` furthest by a wide margin:
 
 | Module | Lines |
 |---|---|
@@ -17,8 +17,8 @@ The limit is 400 lines. `tests/structural/boundary_test.go` has always enforced 
 | `src/api.ts` | 631 |
 | `src/components/EventFormModal.tsx` | 559 |
 | `src/components/ContactsModal.tsx` | 491 |
-| `src/components/FolderTree.tsx` | 453 |
 | `src/hooks/useMenus.ts` | 450 |
+| `src/components/FolderTree.tsx` | 445 |
 | `src/components/CalendarModal.tsx` | 436 |
 | `src/components/MessageContextMenu.tsx` | 407 |
 
