@@ -18,35 +18,34 @@ import (
 //lint:ignore ST1005 user-facing message shown verbatim in the UI
 var errOffline = errors.New("Can't reach the mail server. You may be offline; check your internet connection and try again.")
 
-// errIMAPDisabled is the message shown when the server accepts the sign-in and then refuses the session,
-// which is what a mailbox with IMAP switched off does. It names the setting and the steps, because the
-// person reading it has just signed in successfully and has no reason to suspect a switch they have
-// never seen. Microsoft ships personal accounts this way, so this is the first thing a new Outlook.com
-// or Hotmail user meets.
+// errIMAPRefused is the message shown when the server accepts the sign-in and then refuses an IMAP
+// session. It describes exactly that and no more, because the cause is not knowable from the response.
 //
-// It says the mailbox is refusing IMAP rather than that the switch is off, because the switch being off
-// is an inference: what was actually observed is a refusal, matched on the server's own words. Stating
-// the observation keeps the message true even where the cause turns out to be another one.
+// The message once said IMAP was switched off for the mailbox, which is the common cause on a new
+// Microsoft account and was wrong often enough to matter. It was measured wrong on 2026-08-29 against a
+// mailbox whose IMAP switch was demonstrably on and had stayed on: the server still answered
+// "authenticated but not connected". Two aged Hotmail accounts on the same build connected normally, so
+// the client is not at fault; a mailbox created days earlier is refused whatever its settings say. The
+// same failure with the same endpoint and the same scopes is reported publicly against consumer
+// Outlook.com and has been unanswered by Microsoft since December 2024.
+//
+// So the message states the observation, gives the check that resolves the common case, then says a new
+// mailbox may be refused regardless. Telling someone to turn on a setting that is already on is worse
+// than saying less: they change nothing, the error returns and the app looks broken rather than blocked.
 //
 // It names BOTH headings the section goes by. Microsoft's documentation says "Forwarding and IMAP" while
 // the current web interface calls it "Sync email"; a message that names only one sends half its readers
-// hunting for a heading their Outlook does not have. The gear is named too, since the interface labels
-// it with nothing.
-//
-// It carries the revert warning and nothing else beyond the route, because a mailbox only a day or two
-// old accepts the switch, saves it, then quietly puts it back: Microsoft holds IMAP down on new accounts
-// while they build reputation; the only reported cure is time. Told merely to turn the switch on,
-// the reader does exactly that, watches it save, then meets this message again with nothing left to try.
+// hunting for a heading their Outlook does not have.
 //
 // It is deliberately SHORT. An earlier draft spelled out every obstacle and ran to ninety words, which
 // nobody reads: an error nobody finishes is worth less than a shorter one they act on. The remaining
 // detail lives in the README and behind the wizard's help link, not in a red box.
 //
 //lint:ignore ST1005 user-facing message shown verbatim in the UI
-var errIMAPDisabled = errors.New(
-	"Microsoft is refusing IMAP for this mailbox. Turn it on at outlook.com under Settings, Mail, " +
-		"then \"Sync email\" or \"Forwarding and IMAP\". On a new account it often reverts after " +
-		"saving, so check it stayed on.")
+var errIMAPRefused = errors.New(
+	"Microsoft accepted the sign-in then refused an IMAP session. Check IMAP is on at outlook.com " +
+		"under Settings, Mail, then \"Sync email\" or \"Forwarding and IMAP\". A mailbox created in " +
+		"the last few days is often refused even with IMAP on, so a new account may need to wait.")
 
 // isOffline reports whether err was caused by the mail server being unreachable (domain.ErrOffline
 // wrapped anywhere in the chain), as opposed to the server rejecting a well-formed request.
@@ -88,8 +87,8 @@ func friendlyMailError(err error) error {
 	if isOffline(err) {
 		return errOffline
 	}
-	if err != nil && errors.Is(err, domain.ErrIMAPDisabled) {
-		return errIMAPDisabled
+	if err != nil && errors.Is(err, domain.ErrIMAPRefused) {
+		return errIMAPRefused
 	}
 	return err
 }

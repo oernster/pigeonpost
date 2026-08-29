@@ -109,7 +109,8 @@ export function domainOf(email: string): string {
 // account that will not add.
 export const MICROSOFT_IMAP_NOTE =
     'PigeonPost needs IMAP, which Microsoft switches off on new Outlook.com and Hotmail accounts. Turn ' +
-    'it on at outlook.com first. On a new account it often reverts after saving, so check it stayed on.'
+    'it on at outlook.com first. A mailbox created in the last few days may be refused even with IMAP ' +
+    'on, which is a fault at Microsoft\'s end; an established mailbox is unaffected.'
 
 // The page documenting that setting, opened in the user's own browser from the note. This is the
 // forwarding page rather than Microsoft's POP and IMAP page, because only this one documents the

@@ -30,27 +30,29 @@ func TestFriendlyMailErrorTranslatesOffline(t *testing.T) {
 	}
 }
 
-func TestFriendlyMailErrorTranslatesIMAPDisabled(t *testing.T) {
+func TestFriendlyMailErrorTranslatesIMAPRefused(t *testing.T) {
 	t.Parallel()
 	// The shape the Microsoft sign-in produces: the server's own refusal, wrapped by the adapter and
 	// again by the setup service, exactly as it reaches the facade.
 	wrapped := fmt.Errorf("verify microsoft account %q: %w", "a@hotmail.com",
 		fmt.Errorf("imap: xoauth2 %q: %w", "a@hotmail.com",
-			errors.Join(errors.New("imap: NO User is authenticated but not connected."), domain.ErrIMAPDisabled)))
+			errors.Join(errors.New("imap: NO User is authenticated but not connected."), domain.ErrIMAPRefused)))
 	got := friendlyMailError(wrapped)
-	if !errors.Is(got, errIMAPDisabled) {
-		t.Fatalf("friendlyMailError did not translate an IMAP-disabled error, got %v", got)
+	if !errors.Is(got, errIMAPRefused) {
+		t.Fatalf("friendlyMailError did not translate an IMAP-refused error, got %v", got)
 	}
 	// The point of the message is that it can be acted on, so the setting it names is part of the contract.
 	// Both names the section goes by, since which one the reader sees depends on their Outlook version,
-	// plus the revert warning, which is the part that saves an evening: on a new mailbox the switch
-	// saves and then puts itself back, so a message naming only the switch sends the reader to do
-	// something that appears to work and silently does not.
+	// plus the two things measurement forced into it: that the server REFUSED rather than that a setting
+	// is off, then that a new mailbox is refused anyway. A message asserting the switch is off was shown
+	// to a mailbox whose switch was verifiably on, which reads as the app being broken rather than
+	// blocked.
 	for _, want := range []string{
 		"outlook.com",
 		"Sync email",
 		"Forwarding and IMAP",
-		"reverts",
+		"refused",
+		"new account",
 	} {
 		if !strings.Contains(got.Error(), want) {
 			t.Fatalf("message %q does not name %q, so it cannot be acted on", got.Error(), want)
@@ -114,16 +116,16 @@ func TestBulkResultNoErrorIsClean(t *testing.T) {
 	}
 }
 
-// maxIMAPMessageChars caps the IMAP-disabled message. An earlier draft of it spelled out every obstacle
+// maxIMAPMessageChars caps the IMAP-refused message. An earlier draft of it spelled out every obstacle
 // and reached ninety words, which is a wall of text in a dialog box: nobody reads it, so the guidance it
 // carries is worth less than a shorter message they act on. The cap sits a little above the current
 // length so ordinary rewording is free while a return to a paragraph is not.
 const maxIMAPMessageChars = 280
 
-func TestIMAPDisabledMessageStaysShort(t *testing.T) {
+func TestIMAPRefusedMessageStaysShort(t *testing.T) {
 	t.Parallel()
-	if got := len(errIMAPDisabled.Error()); got > maxIMAPMessageChars {
-		t.Fatalf("errIMAPDisabled is %d characters, over the %d cap: shorten it or move the detail to the README", got, maxIMAPMessageChars)
+	if got := len(errIMAPRefused.Error()); got > maxIMAPMessageChars {
+		t.Fatalf("errIMAPRefused is %d characters, over the %d cap: shorten it or move the detail to the README", got, maxIMAPMessageChars)
 	}
 }
 
@@ -142,11 +144,11 @@ func TestMailErrorRecordsTheRawErrorItReplaces(t *testing.T) {
 	t.Parallel()
 	spy := &recordingSpy{}
 	app := &App{mailErrors: spy}
-	raw := fmt.Errorf("imap: xoauth2 %q: NO User is authenticated but not connected: %w", "a@b.com", domain.ErrIMAPDisabled)
+	raw := fmt.Errorf("imap: xoauth2 %q: NO User is authenticated but not connected: %w", "a@b.com", domain.ErrIMAPRefused)
 
 	got := app.mailError(raw)
 
-	if got != errIMAPDisabled {
+	if got != errIMAPRefused {
 		t.Fatalf("mailError returned %v, want the message fit to read", got)
 	}
 	if len(spy.recorded) != 1 || spy.recorded[0] != raw {

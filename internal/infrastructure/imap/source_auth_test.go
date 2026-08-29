@@ -9,7 +9,7 @@ import (
 // returns for a mailbox with IMAP switched off, then the errors that must not be mistaken for it. A false
 // positive would tell someone to change a setting that is not their problem, which is worse than the
 // unhelpful message it replaces.
-func TestIsIMAPDisabled(t *testing.T) {
+func TestIsIMAPRefused(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
 		name string
@@ -26,8 +26,8 @@ func TestIsIMAPDisabled(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
-			if got := isIMAPDisabled(c.err); got != c.want {
-				t.Fatalf("isIMAPDisabled(%v) = %v, want %v", c.err, got, c.want)
+			if got := isIMAPRefused(c.err); got != c.want {
+				t.Fatalf("isIMAPRefused(%v) = %v, want %v", c.err, got, c.want)
 			}
 		})
 	}

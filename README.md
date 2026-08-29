@@ -24,7 +24,7 @@ outlook.com: open Settings (the gear, top right), then Mail, then either "Sync e
 and IMAP" depending on which Outlook you have, then switch on "Let devices and apps use IMAP" and
 save.
 
-A new mailbox puts two obstacles in the way of that; neither announces itself.
+A new mailbox puts three obstacles in the way of that; none of them announces itself.
 
 **The page may show no switches.** Instead you get an advert for the Outlook mobile app and a Sign in
 button. Microsoft documents this for the same panel: "You might be prompted to Sign in on the
@@ -37,6 +37,15 @@ reputation. Nothing at your end clears it: browser changes, private windows and 
 all reported not to help. The only reported cure is time, usually 10 to 24 hours from account
 creation and occasionally longer. Leave it, switch IMAP on again the next day, confirm it has stayed
 on, then add the account.
+
+**A new mailbox may be refused anyway.** With IMAP on and staying on, Microsoft can still accept the
+sign-in and then refuse the session, answering "User is authenticated but not connected". This is a
+fault at Microsoft's end and there is nothing PigeonPost can do about it: the endpoint, the port and
+the scopes are the ones Microsoft documents; mailboxes more than a few days old connect normally
+on the same build. The same failure is reported publicly against consumer Outlook.com accounts with an
+identical configuration and has been unanswered by Microsoft since December 2024. If you have just
+created the mailbox, give it a few days and try again. An established Outlook.com or Hotmail account
+is unaffected.
 
 You need only IMAP. Leave "Let devices and apps use POP" off, because PigeonPost never uses POP for a
 Microsoft account.

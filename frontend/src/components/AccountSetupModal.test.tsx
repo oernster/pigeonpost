@@ -122,9 +122,10 @@ describe('AccountSetupModal: provider chooser', () => {
         renderModal()
         fireEvent.click(screen.getByRole('button', {name: 'Microsoft'}))
         expect(screen.getByText(/Microsoft switches off on new Outlook.com and Hotmail accounts/)).toBeInTheDocument()
-        // The revert is the part worth pinning: on a new mailbox the switch saves and then puts itself
-        // back, so a note that omits it sends the reader to do something that appears to work.
-        expect(screen.getByText(/often reverts after saving/)).toBeInTheDocument()
+        // The refusal caveat is the part worth pinning. A mailbox can have IMAP on and still be refused,
+        // measured against a real one, so a note promising that the switch is all it takes is a promise
+        // the product cannot keep.
+        expect(screen.getByText(/may be refused even with IMAP/)).toBeInTheDocument()
         expect(screen.getByRole('link', {name: 'How to turn on IMAP'})).toBeInTheDocument()
     })
 
@@ -317,10 +318,10 @@ describe('AccountSetupModal: microsoft add', () => {
     it('drops the advance note once an error is showing, keeping its link', async () => {
         apiSpies.signInMicrosoft.mockRejectedValueOnce('consent denied')
         startMicrosoft()
-        expect(screen.getByText(/often reverts after saving/)).toBeInTheDocument()
+        expect(screen.getByText(/may be refused even with IMAP/)).toBeInTheDocument()
         fireEvent.click(screen.getByRole('button', {name: 'Continue with Microsoft'}))
         expect(await screen.findByText('consent denied')).toBeInTheDocument()
-        expect(screen.queryByText(/often reverts after saving/)).toBeNull()
+        expect(screen.queryByText(/may be refused even with IMAP/)).toBeNull()
         expect(screen.getByRole('link', {name: 'How to turn on IMAP'})).toBeInTheDocument()
     })
 })
