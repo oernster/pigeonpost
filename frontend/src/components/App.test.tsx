@@ -26,6 +26,8 @@ const apiSpies = vi.hoisted(() => ({
     listRules: vi.fn(), listTemplates: vi.fn(), listContacts: vi.fn(), listEvents: vi.fn(),
     send: vi.fn(), markReplied: vi.fn(), markForwarded: vi.fn(), collectContacts: vi.fn(),
     snoozedCount: vi.fn(), outboxCount: vi.fn(),
+    listContactGroups: vi.fn(), listCalendars: vi.fn(), listEventInstances: vi.fn(),
+    listCalDAVAccounts: vi.fn(),
     unreadCounts: vi.fn(), listTags: vi.fn(), saveTag: vi.fn(),
     messageTags: vi.fn(), messageBody: vi.fn(), loadRemoteImages: vi.fn(), searchMessages: vi.fn(),
     setMessageTag: vi.fn(), listMessages: vi.fn(), listMessagesPage: vi.fn(), syncFolder: vi.fn(),
@@ -131,6 +133,10 @@ beforeEach(() => {
     apiSpies.send.mockReset().mockResolvedValue('')
     apiSpies.collectContacts.mockReset().mockResolvedValue(undefined)
     apiSpies.snoozedCount.mockReset().mockResolvedValue(0)
+    apiSpies.listContactGroups.mockReset().mockResolvedValue([])
+    apiSpies.listCalDAVAccounts.mockReset().mockResolvedValue([])
+    apiSpies.listCalendars.mockReset().mockResolvedValue([])
+    apiSpies.listEventInstances.mockReset().mockResolvedValue([])
     apiSpies.outboxCount.mockReset().mockResolvedValue(0)
     apiSpies.markReplied.mockReset().mockResolvedValue(undefined)
     apiSpies.markForwarded.mockReset().mockResolvedValue(undefined)
@@ -203,6 +209,63 @@ afterEach(() => {
 // never call, so it would pass for the wrong reason.
 // About and Licence are each a text loaded on demand from the Help menu, held while its dialog is open
 // and dropped when it closes. Neither had any coverage.
+// The four manager dialogs (contacts, calendar, filter rules and message templates) are the surfaces
+// over the four managed collections. Opening and closing them had no coverage, nor did the calendar's
+// one extra state, the event a clicked reminder lands it on.
+describe('App: the manager dialogs', () => {
+    it('opens contacts from the title bar and closes it', async () => {
+        render(<App/>)
+        fireEvent.click(screen.getByRole('button', {name: 'Contacts'}))
+        const dialog = await screen.findByRole('dialog', {name: 'Contacts'})
+        fireEvent.click(within(dialog).getAllByRole('button', {name: 'Close'}).slice(-1)[0])
+        await waitFor(() => expect(screen.queryByRole('dialog', {name: 'Contacts'})).toBeNull())
+    })
+
+    it('opens the calendar from the title bar and closes it', async () => {
+        render(<App/>)
+        fireEvent.click(screen.getByRole('button', {name: 'Calendar'}))
+        const dialog = await screen.findByRole('dialog', {name: 'Calendar'})
+        fireEvent.click(within(dialog).getAllByRole('button', {name: 'Close'}).slice(-1)[0])
+        await waitFor(() => expect(screen.queryByRole('dialog', {name: 'Calendar'})).toBeNull())
+    })
+
+    it('opens the filter rules from the Edit menu', async () => {
+        render(<App/>)
+        fireEvent.click(screen.getByRole('button', {name: 'Edit'}))
+        fireEvent.click(await screen.findByRole('menuitem', {name: 'Rules'}))
+        expect(await screen.findByRole('dialog', {name: 'Filter rules'})).toBeInTheDocument()
+    })
+
+    it('opens the message templates from the Edit menu', async () => {
+        render(<App/>)
+        fireEvent.click(screen.getByRole('button', {name: 'Edit'}))
+        fireEvent.click(await screen.findByRole('menuitem', {name: 'Templates'}))
+        expect(await screen.findByRole('dialog', {name: 'Message templates'})).toBeInTheDocument()
+    })
+
+    // A clicked reminder opens the calendar on the event it is about. What is pinned here is App's half,
+    // the wiring from the reminder toast to the calendar being open. The other half, the calendar landing
+    // on that event and forgetting it on close, is CalendarModal's own and is not pinned at this level:
+    // reaching it needs a fully-formed event and instance whose shapes are the calendar's business.
+    it('opens the calendar on a clicked reminder', async () => {
+        const handlers: Record<string, (arg: unknown) => void> = {}
+        runtimeSpies.EventsOn.mockImplementation((event: string, cb: (arg: unknown) => void) => {
+            handlers[event] = cb
+            return () => undefined
+        })
+        render(<App/>)
+        await waitFor(() => expect(handlers['calendar:reminder']).toBeInstanceOf(Function))
+        const loadsBefore = apiSpies.listEvents.mock.calls.length
+        act(() => handlers['calendar:reminder']({
+            eventId: 'e1', summary: 'Standup', start: '2026-08-29T09:00:00.000Z',
+        }))
+        fireEvent.click(await screen.findByText('Standup'))
+        expect(await screen.findByRole('dialog', {name: 'Calendar'})).toBeInTheDocument()
+        // The events are refreshed first, so the calendar can find the one the reminder is about.
+        await waitFor(() => expect(apiSpies.listEvents.mock.calls.length).toBeGreaterThan(loadsBefore))
+    })
+})
+
 describe('App: about and licence', () => {
     const about = {
         name: 'PigeonPost', tagline: 'Calm mail', version: '9.9.9', author: 'Oliver Ernster',

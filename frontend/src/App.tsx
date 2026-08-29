@@ -31,12 +31,9 @@ import {MessagePickerDialog} from './components/MessagePickerDialog'
 import {AccountSetupModal} from './components/AccountSetupModal'
 import {ConfirmDialog} from './components/ConfirmDialog'
 import {PromptDialog} from './components/PromptDialog'
-import {RuleManagerModal} from './components/RuleManagerModal'
-import {TemplateManagerModal} from './components/TemplateManagerModal'
-import {ContactsModal} from './components/ContactsModal'
-import {CalendarModal} from './components/CalendarModal'
 import {ReminderNotifications} from './components/ReminderNotifications'
 import {CloseChoiceDialog} from './components/CloseChoiceDialog'
+import {ManagerModals} from './components/ManagerModals'
 import {Splash} from './components/Splash'
 import {PaneSplitters} from './components/PaneSplitters'
 import {sendersFor} from './replyDraft'
@@ -153,14 +150,16 @@ function App() {
     const licence = licencePanel.value
     // The four backend-backed collections the menus manage share one shape (load on mount, reload after
     // the manager dialog changes them, a flag for whether that dialog is open), so they share one hook.
-    const {items: rules, reload: loadRules, managing: managingRules, setManaging: setManagingRules} =
-        useManagedCollection<Rule>(api.listRules, setError)
-    const {items: templates, reload: loadTemplates, managing: managingTemplates, setManaging: setManagingTemplates} =
-        useManagedCollection<Template>(api.listTemplates, setError)
-    const {items: contacts, reload: loadContacts, managing: managingContacts, setManaging: setManagingContacts} =
-        useManagedCollection<Contact>(api.listContacts, setError)
-    const {items: events, reload: loadEvents, managing: managingCalendar, setManaging: setManagingCalendar} =
-        useManagedCollection<CalendarEvent>(api.listEvents, setError)
+    const rulesCollection = useManagedCollection<Rule>(api.listRules, setError)
+    const templatesCollection = useManagedCollection<Template>(api.listTemplates, setError)
+    const contactsCollection = useManagedCollection<Contact>(api.listContacts, setError)
+    const calendarCollection = useManagedCollection<CalendarEvent>(api.listEvents, setError)
+    // The menus and the focus-ring gating still read the loose names; ManagerModals takes the whole
+    // collections, so a manager dialog needs nothing threaded through App.
+    const {managing: managingRules, setManaging: setManagingRules} = rulesCollection
+    const {managing: managingTemplates, setManaging: setManagingTemplates} = templatesCollection
+    const {managing: managingContacts, setManaging: setManagingContacts} = contactsCollection
+    const {reload: loadEvents, managing: managingCalendar, setManaging: setManagingCalendar} = calendarCollection
     // calendarInitialEvent is the event whose dialog the calendar opens with, set when a reminder toast is
     // clicked so it lands on that event. Null for a normal calendar open from the menu.
     const [calendarInitialEvent, setCalendarInitialEvent] = useState<string | null>(null)
@@ -1294,42 +1293,18 @@ function App() {
                     onSaved={(email) => void onAccountSaved(email)}
                 />
             )}
-            {managingContacts && (
-                <ContactsModal
-                    contacts={contacts}
-                    onChanged={() => void loadContacts()}
-                    onClose={() => setManagingContacts(false)}
-                />
-            )}
-            {managingCalendar && (
-                <CalendarModal
-                    events={events}
-                    accountId={selectedAccount}
-                    accountEmail={activeAccount?.email ?? ''}
-                    accountName={activeAccount?.displayName ?? ''}
-                    initialEventId={calendarInitialEvent ?? undefined}
-                    onChanged={() => void loadEvents()}
-                    onClose={() => {
-                        setManagingCalendar(false)
-                        setCalendarInitialEvent(null)
-                    }}
-                />
-            )}
-            {managingRules && (
-                <RuleManagerModal
-                    accounts={accounts}
-                    rules={rules}
-                    onChanged={() => void loadRules()}
-                    onClose={() => setManagingRules(false)}
-                />
-            )}
-            {managingTemplates && (
-                <TemplateManagerModal
-                    templates={templates}
-                    onChanged={() => void loadTemplates()}
-                    onClose={() => setManagingTemplates(false)}
-                />
-            )}
+            <ManagerModals
+                contacts={contactsCollection}
+                calendar={calendarCollection}
+                rules={rulesCollection}
+                templates={templatesCollection}
+                accounts={accounts}
+                accountId={selectedAccount}
+                accountEmail={activeAccount?.email ?? ''}
+                accountName={activeAccount?.displayName ?? ''}
+                calendarInitialEvent={calendarInitialEvent}
+                onCalendarClosed={() => setCalendarInitialEvent(null)}
+            />
             {messageToCancelSend && (
                 <ConfirmDialog
                     title="Cancel send"
