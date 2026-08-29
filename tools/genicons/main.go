@@ -7,6 +7,11 @@
 //	build/linux/icons/pigeonpost_<size>.png (the hicolor set installed by build_flatpak.sh)
 //	frontend/src/assets/pigeonpost.png (256, used by the in-app About dialog)
 //
+// It also derives the donate button's artwork from its own master, donate.png. That one is not an icon
+// and is handled separately: it is a wide pair of glasses drawn at the tray's glyph height, so squaring
+// it would spend half the height on empty canvas. It is cropped to its opaque artwork and scaled by
+// height alone, into frontend/src/assets/donate.png.
+//
 // Run from the repo root: go run ./tools/genicons
 package main
 
@@ -24,10 +29,19 @@ import (
 
 const masterFile = "pigeonpost.png"
 
+// The donate button's own master and the single copy the front end bundles. donateHeight is four times
+// the tray's glyph height (--titlebar-icon-size, 29px), so the button stays crisp under display scaling
+// without carrying the master's 1.7MB into the binary.
+const donateMasterFile = "donate.png"
+
+var donateOutput = filepath.Join("frontend", "src", "assets", "donate.png")
+
+const donateHeight = 116
+
 // fileAssocIconName is the base name (no extension) of the icon Wails bundles
 // for the .eml file association. It MUST match the iconName on that
 // fileAssociation in wails.json: the darwin packager reads
-// build/<fileAssocIconName>.png, and an empty iconName makes it open ".png"
+// build/<fileAssocIconName>.png; an empty iconName makes it open ".png"
 // and abort packaging.
 const fileAssocIconName = "eml"
 
@@ -73,8 +87,60 @@ func run() error {
 			return err
 		}
 	}
-	fmt.Println("genicons: wrote appicon.png, eml.png, icon.ico, the hicolor set and the About asset")
+	donate, err := loadPNG(donateMasterFile)
+	if err != nil {
+		return err
+	}
+	if err := writePNG(donateOutput, scaleToHeight(cropToArtwork(donate), donateHeight)); err != nil {
+		return err
+	}
+
+	fmt.Println("genicons: wrote appicon.png, eml.png, icon.ico, the hicolor set, the About asset and the donate artwork")
 	return nil
+}
+
+// cropToArtwork returns the tight box of src's non-transparent pixels, leaving its aspect ratio alone.
+// A fully transparent image has no artwork to crop to, so it comes back unchanged.
+func cropToArtwork(src image.Image) image.Image {
+	b := src.Bounds()
+	minX, minY, maxX, maxY := b.Max.X, b.Max.Y, b.Min.X, b.Min.Y
+	for y := b.Min.Y; y < b.Max.Y; y++ {
+		for x := b.Min.X; x < b.Max.X; x++ {
+			if _, _, _, a := src.At(x, y).RGBA(); a == 0 {
+				continue
+			}
+			if x < minX {
+				minX = x
+			}
+			if y < minY {
+				minY = y
+			}
+			if x >= maxX {
+				maxX = x + 1
+			}
+			if y >= maxY {
+				maxY = y + 1
+			}
+		}
+	}
+	if minX >= maxX || minY >= maxY {
+		return src
+	}
+	dst := image.NewRGBA(image.Rect(0, 0, maxX-minX, maxY-minY))
+	xdraw.Draw(dst, dst.Bounds(), src, image.Pt(minX, minY), xdraw.Src)
+	return dst
+}
+
+// scaleToHeight scales src to height, keeping its aspect ratio.
+func scaleToHeight(src image.Image, height int) *image.RGBA {
+	b := src.Bounds()
+	width := b.Dx() * height / b.Dy()
+	if width < 1 {
+		width = 1
+	}
+	dst := image.NewRGBA(image.Rect(0, 0, width, height))
+	xdraw.CatmullRom.Scale(dst, dst.Bounds(), src, b, xdraw.Over, nil)
+	return dst
 }
 
 func loadPNG(path string) (image.Image, error) {
