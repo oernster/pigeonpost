@@ -30,15 +30,18 @@ export interface TitleBarProps {
 }
 
 // TitleBar is the header in three groups: the app mark with the all-accounts unread badge held at the
-// left, then everything that acts on mail centred on the window (the File/Edit/View/Mail menus running
-// straight into compose, add account, sync, Contacts and Calendar), then the app-level pair held at the
-// far end (the theme toggle and Help).
+// left, then every control gathered against the right edge as one run (the File/Edit/View/Mail menus
+// running straight into compose, add account, sync, Contacts and Calendar), then the app-level pair
+// closing the bar behind a rule of its own (the theme toggle and Help).
 //
-// The mark is alone on the left deliberately. It is the one thing in the bar that is not a control, so
-// leaving it where a window's icon belongs and gathering the controls in the middle puts the working set
-// under the eye rather than trailing off one edge. Centring was tried once before and reverted, when the
-// menus stayed left and only the working controls moved: that split one sequence into two with a gap
-// between them. Moving the menus into the centre with them is what makes it one run again.
+// The mark is alone on the left deliberately: it is the one thing in the bar that is not a control, so it
+// keeps the corner a window's icon belongs in while everything that acts on mail sits together at the
+// other end. Read right to left the bar is Help, the theme toggle, a rule, then Calendar back to File.
+//
+// Centring the controls was tried twice and is not what this is. The first attempt left the menus on the
+// left and moved only the working controls, which split one sequence into two with a gap between them.
+// The second moved the menus too and held the whole run dead centre; it was correct and still read as a
+// row floating in an empty bar. Against the edge it reads as a toolbar.
 //
 // The mark wears an icon button's box so it sits in the row of controls as one of them; it is a span
 // rather than a button, because there is nothing to press. That is what keeps it out of the tab order
@@ -128,6 +131,11 @@ export function TitleBar(props: TitleBarProps) {
                     </button>
                 </div>
                 <div className="titlebar-right">
+                    {/* The rule between Calendar and the theme toggle, marking the app-level pair off
+                        from the working controls. It leads this group rather than trailing the one
+                        before it so that it belongs to the pair it introduces; either position renders
+                        identically, since the two groups sit flush against each other. */}
+                    <span className="titlebar-sep" aria-hidden="true"/>
                     <button
                         className="icon-btn icon-btn-image theme-toggle"
                         data-tip={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}

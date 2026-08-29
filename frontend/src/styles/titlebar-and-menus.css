@@ -1,6 +1,6 @@
-/* The left group: the app mark and the all-accounts unread badge; nothing else. The menus moved into
-   the centre group so the whole working set reads as one run under the eye; what is left here is the one
-   thing in the bar that is not a control, standing where a window's icon belongs.
+/* The left group: the app mark and the all-accounts unread badge; nothing else. Every control moved to
+   the right edge, leaving here the one thing in the bar that is not a control, standing where a window's
+   icon belongs.
    min-width: 0 lets it shrink before the groups to its right do, which is what a narrow window should
    give up first. */
 .titlebar-left {
@@ -20,18 +20,21 @@
 }
 
 /* The working group: the File, Edit, View and Mail menus running straight on into compose, add account,
-   sync, Contacts and Calendar, as one sequence read left to right. The header's grid centres it on the
-   window; it needs no margin of its own. The auto margin it once carried would fight the grid track.
+   sync, Contacts and Calendar. margin-left: auto is what holds the shape: this group takes all the spare
+   width on its LEFT, so it and .titlebar-right beyond it are pressed together against the right edge
+   while the app mark keeps the far left. Read right to left the bar is Help, the theme toggle, a rule,
+   then Calendar back to File, which is the order the controls are reached in.
 
-   Centring was tried once before and reverted, on a different arrangement: the menus stayed in the
-   left group and only these controls moved, which split one sequence into two with a gap between them.
-   The menus now travel with them, so it is one run again and the gap has nowhere to open.
+   Centring the group on the window was tried twice and is not what this is. The second attempt worked
+   (a three-column grid held it dead centre whatever the sides held) but a run of controls floating in
+   the middle of an empty bar is not what the window wants; against the edge it reads as a toolbar.
 
    .bottombar wears this class too, where it is an ordinary flex row inside the footer's flex layout. */
 .titlebar-actions {
     display: flex;
     align-items: center;
     gap: 8px;
+    margin-left: auto;
     flex-shrink: 0;
 }
 

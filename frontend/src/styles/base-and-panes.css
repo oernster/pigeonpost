@@ -70,24 +70,12 @@
        cover the bar as they should. */
     position: relative;
     z-index: 30;
-    /* One row in three groups. The gap here separates them; it is wider than the 8px between buttons
-       inside a group and the seam between the menus and the working controls carries a .titlebar-sep
-       rule, so those two are told apart by a mark rather than by a stretch of empty bar. */
+    /* One row: the app mark at the left, then every control gathered against the right edge. The gap
+       here is the same 8px used between buttons inside a group, so the menus, the working controls and
+       the app pair read as one continuous run rather than three islands; the .titlebar-sep rules are
+       what tell the groups apart, not stretches of empty bar. */
     display: flex;
     gap: 8px;
-}
-
-/* The header centres its working group on the WINDOW, which flex cannot do: with three flex children the
-   middle one sits between its neighbours, so it drifts as either side changes width and the unread badge
-   appearing would shove it. A three-column grid whose outer tracks are equal fractions pins the middle
-   track to the centre of the bar whatever the sides hold. The outer tracks are minmax(0, 1fr) rather than
-   1fr so a narrow window shrinks them instead of overflowing the row.
-
-   Scoped to the ELEMENT, not the class: .bottombar is built from .titlebar and has one control, so it
-   keeps the flex row above. This is the same scoping the glyph-size rule below already needs. */
-header.titlebar {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
 }
 
 /* The bottom tray, built from .titlebar so it matches the header's height, padding and background
