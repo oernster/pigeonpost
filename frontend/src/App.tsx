@@ -44,6 +44,7 @@ import {focusRingElements, focusRingRoot} from './focusRing'
 import {useMessageStore} from './hooks/useMessageStore'
 import {useMessageExport} from './hooks/useMessageExport'
 import {useManagedCollection} from './hooks/useManagedCollection'
+import {useUndoSend} from './hooks/useUndoSend'
 import {rangeIds, toggleId, useSelection} from './hooks/useSelection'
 import {useMessageActions} from './hooks/useMessageActions'
 import {useBulkActions} from './hooks/useBulkActions'
@@ -224,8 +225,12 @@ function App() {
     // undoSendSeconds is the undo-send window: how long a sent message is held (cancellable) before it
     // actually leaves. Zero disables the hold. Chosen from the Mail menu, remembered across launches.
     const [undoSendSeconds, setUndoSendSecondsState] = useState<number>(() => {
-        const stored = Number(localStorage.getItem('undoSendSeconds'))
-        return (undoSendChoices as readonly number[]).includes(stored) ? stored : defaultUndoSendSeconds
+        // An absent or blank key is not a choice of zero. Number(null) and Number('') are both 0, which is
+        // itself a legal choice (Off), so reading the value straight through Number made every fresh
+        // install accept it and put the default out of reach: undo send shipped off.
+        const stored = localStorage.getItem('undoSendSeconds')
+        const chosen = stored === null || stored.trim() === '' ? Number.NaN : Number(stored)
+        return (undoSendChoices as readonly number[]).includes(chosen) ? chosen : defaultUndoSendSeconds
     })
     const setUndoSendSeconds = useCallback((seconds: number) => {
         setUndoSendSecondsState(seconds)
@@ -376,56 +381,20 @@ function App() {
         undo: undoRedo.recorder,
     })
 
-    // undoToast is the live undo-send window: the queued item to cancel, when the window ends and the
-    // compose state to restore on undo. One send at a time: a new held send replaces the toast (the
-    // previous message's window keeps running in the backend, it just loses its button; the Outbox
-    // folder still offers Cancel send).
-    const millisecondsPerSecond = 1000
-    const [undoToast, setUndoToast] = useState<{outboxId: string; expiresAt: number; reopen: ComposeInitial} | null>(null)
-
-    const onHeldSend = useCallback((outboxId: string, reopen: ComposeInitial) => {
-        setUndoToast({outboxId, expiresAt: Date.now() + undoSendSeconds * millisecondsPerSecond, reopen})
-    }, [undoSendSeconds])
-
-    // undoHeldSend stops the queued send and reopens the composer exactly as it was. When the cancel
-    // loses the race (the message left in the same instant), it says so instead of pretending.
-    const undoHeldSend = useCallback(async () => {
-        if (!undoToast) {
-            return
-        }
-        const toast = undoToast
-        setUndoToast(null)
-        try {
-            const stopped = await api.cancelOutboxItem(toast.outboxId)
-            await refreshOutbox()
-            if (!stopped) {
-                setError('That message had already been sent.')
-                return
-            }
-            setComposeInitial(toast.reopen)
+    // The undo-send window (the queued item, its countdown, the cancel and the marking deferred to its
+    // expiry) lives in useUndoSend. Reopening the composer is the one thing it hands back here, since
+    // the compose state belongs to this component.
+    const {held: undoToast, onHeldSend, undoHeldSend, heldSendElapsed} = useUndoSend({
+        holdSeconds: undoSendSeconds,
+        refreshOutbox,
+        setError,
+        reopenCompose: (initial) => {
+            setComposeInitial(initial)
             setComposing(true)
-        } catch (e) {
-            setError(String(e))
-        }
-    }, [undoToast, refreshOutbox])
-
-    // heldSendElapsed drops the toast once the window ends and applies the deferred reply/forward
-    // marking: the message is now leaving, so the original's glyph becomes true the way an immediate
-    // send's would have been.
-    const heldSendElapsed = useCallback(() => {
-        if (!undoToast) {
-            return
-        }
-        const {reopen} = undoToast
-        setUndoToast(null)
-        if (reopen.inReplyToId) {
-            if (reopen.replyKind === 'reply') {
-                void markReplied(reopen.inReplyToId)
-            } else if (reopen.replyKind === 'forward') {
-                void markForwarded(reopen.inReplyToId)
-            }
-        }
-    }, [undoToast, markReplied, markForwarded])
+        },
+        markReplied,
+        markForwarded,
+    })
 
     // The backend dispatcher announces a held send leaving, so the outbox count and views refresh the
     // moment it goes rather than on the next manual action.
