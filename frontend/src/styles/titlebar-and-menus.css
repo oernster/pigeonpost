@@ -178,7 +178,11 @@ header.titlebar .menu-title {
     transform: none;
 }
 
-.icon-btn:hover {
+/* Gated on :enabled exactly as the focus ring below is. A span never matches it, so the app mark keeps
+   the transparent border it asks for instead of being handed a rectangle by this rule; a disabled button
+   is left alone for the same reason. The base already paints this border, so a genuine enabled button
+   sees no change either way. */
+.icon-btn:enabled:hover {
     border-color: var(--border);
 }
 
