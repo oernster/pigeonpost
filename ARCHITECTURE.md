@@ -760,13 +760,28 @@ same set everywhere. `frontend/src/icons.ts` is the one home for the mapping fro
 it holds every import and the `folderIcon` map from a folder kind to its mark, so a component names a
 glyph rather than carrying a path of its own. The pictures themselves are generated from the masters in
 `assets/` by `tools/genicons` (see DEVELOPMENT-README.md), which crops each to its visible pixels and
-squares it, so a master's own framing cannot decide how large it renders beside the others. Two tokens
-carry the sizes: `--titlebar-glyph-size` for the header and `--folder-icon-size` for a folder row. The
-header's rule is scoped to the `header.titlebar` element rather than the class, because the footer wears
-`.titlebar` too and its donate mark keeps the smaller `--titlebar-icon-size`.
+scales it to one common ink height, its width following the artwork. A glyph file therefore carries ink
+and no padding, which is what lets each surface normalise as it wants; the two want different things.
+The folder list sizes by height (`--folder-icon-size`), so a column of marks reads as one optical height;
+a fixed slot beside it holds every label at the same x while the marks themselves differ in width. The
+title bar fits each into an explicit square box (`--titlebar-glyph-size` on both axes with `object-fit`),
+which normalises on the longer side and is what keeps every button identical.
 
-The window is topped and tailed by the same bar. `TitleBar` is the header carrying the brand, the menus
-and the working controls; `BottomBar` is the footer at the foot of the window. The footer wears
+Squaring in the generator was tried first and is the thing to avoid: it bakes the padding into the file,
+so both surfaces are forced to normalise the same way and a wide drawing pays for its width in height.
+Measured across this set the ink aspect runs from 0.93 to 1.46, which put the snooze mark at 15px in a
+row of 22px ones, with sent and inbox close behind.
+
+The header's size rule is scoped to the `header.titlebar` element rather than the class, because the
+footer is built from `.titlebar` too and its donate mark keeps the smaller `--titlebar-icon-size`.
+
+The window is topped and tailed by the same bar. `TitleBar` is the header carrying the app mark, the
+menus and the working controls. The mark wears an icon button's box so it sits in that row as one of
+them; it is a span rather than a button, which is what keeps it out of the tab order and off the focus
+ring without any markup to exclude it. The all-accounts unread badge sits beside it. There is no
+wordmark: the window title names the application in text.
+
+`BottomBar` is the footer at the foot of the window. It wears
 `.titlebar` itself rather than a stylesheet of its own, so the two match in height, padding and
 background by construction instead of by two sets of numbers kept in step by hand. `.bottombar` adds
 only what genuinely differs: the rule moves from the bottom edge to the top and `margin-top: auto`
@@ -783,9 +798,9 @@ were cut off by the window edge. The tip is positioned against the button rather
 `.bottombar` rule opening it upwards and anchoring its left edge covers both.
 
 One sidebar layout rule: `.pane.sidebar` disables the pane's own overflow and scrolls an inner
-`.sidebar-scroll` region holding the folder tree alone, so the brand icon, the cross-account entries, the
-account picker and the Folders header (all inside the pinned `.sidebar-header`) stay put while the folders
-scroll beneath them. The accounts section is one dropdown rather than a list precisely so the folders keep
+`.sidebar-scroll` region holding the folder tree alone, so the cross-account entries, the account picker
+and the Folders header (all inside the pinned `.sidebar-header`) stay put while the folders scroll
+beneath them. The accounts section is one dropdown rather than a list precisely so the folders keep
 that space. A new sidebar section belongs in `.sidebar-header` unless it is meant to scroll with the
 folders. `Sidebar.test.tsx` pins this structure.
 

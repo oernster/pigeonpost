@@ -103,19 +103,23 @@ It is idempotent: run on an unchanged master it rewrites the same bytes. `build.
 Its output is committed, which is deliberate. Those three scripts are the only things that run it:
 `wails.json` carries no hook, so `wails dev` and a bare `wails build` never generate anything. An asset
 the front end imports therefore has to be in a fresh clone already; otherwise the build cannot resolve
-it. A
-regeneration that changes an asset shows up as an ordinary modification and is committed with the
+it. A regeneration that changes an asset shows up as an ordinary modification and is committed with the
 master that caused it. The one output not committed is the flatpak hicolor set under `build/linux/`,
 which nothing but `build_flatpak.sh` reads and which that script generates itself.
 
 The front end imports the glyphs through `frontend/src/icons.ts`, which is the one home for the mapping
 from a name to a picture.
 
-A glyph master is cropped to its visible pixels, centred on a transparent square and scaled to one common
-size, so every glyph carries the same visual weight whatever its own framing was. Dropping a new PNG into
-`assets/` is enough to generate it; naming it in `icons.ts` is what puts it on screen. The masters are
-held at 512px on their longest side, which leaves every one of them a downscale into the generated size
-rather than an enlargement.
+A glyph master is cropped to its visible pixels and scaled to one common ink height, its width following
+the artwork, so the file carries ink and no padding. That is deliberate: it leaves each surface free to
+size the glyph as it needs, the folder list by height and the title bar inside a square box (see
+ARCHITECTURE.md). Dropping a new PNG into `assets/` is enough to generate it; naming it in `icons.ts` is
+what puts it on screen.
+
+The masters are held at 512px on their longest side. What actually bounds the generated height is the
+shortest ink height among them, which is `inbox` at 283px, since artwork is only ever reduced and never
+enlarged. Raising `--titlebar-glyph-size` means raising `glyphHeight` with it; 283px is the number it must
+stay under.
 
 Run the tests (see [TESTING.md](TESTING.md) for detail):
 
