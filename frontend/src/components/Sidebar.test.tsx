@@ -150,13 +150,10 @@ describe('Sidebar: shell', () => {
         expect(accountOptionLabels()).toEqual(['Alice (alice@x.com)', 'Bob (bob@x.com)'])
     })
 
-    it('scrolls the folders alone, with the brand, the picker and the Folders header pinned', () => {
+    it('scrolls the folders alone, with the picker and the Folders header pinned', () => {
         const {container, accountTrigger, folderRow} = renderSidebar({
             folders: [makeFolder('inbox', 'Inbox', 'inbox')],
         })
-        const brand = container.querySelector('.sidebar-brand')!
-        expect(brand.parentElement!.classList.contains('sidebar')).toBe(true)
-        expect(brand.closest('.sidebar-scroll')).toBeNull()
         expect(accountTrigger().closest('.sidebar-scroll')).toBeNull()
         expect(container.querySelector('.section-header')!.closest('.sidebar-scroll')).toBeNull()
         expect(folderRow('inbox')!.closest('.sidebar-scroll')).not.toBeNull()

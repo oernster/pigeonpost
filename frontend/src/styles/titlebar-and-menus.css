@@ -1,6 +1,7 @@
-/* The left group: the brand and the File, Edit, View and Mail menus, sitting next to the wordmark. It
-   may shrink (min-width: 0, the wordmark truncating) before the buttons do, so a narrow window loses
-   letters of the wordmark rather than the controls. */
+/* The left group: the app mark, the all-accounts unread badge and the File, Edit, View and Mail menus.
+   min-width: 0 lets it shrink before the groups to its right do, which is what a narrow window should
+   give up first. It once held the wordmark, which is what that shrinking was for; the mark replaced it,
+   so nothing here truncates any more and the group simply holds its content. */
 .titlebar-left {
     display: flex;
     align-items: center;
@@ -106,6 +107,23 @@ header.titlebar .menu-title img {
 header.titlebar .icon-btn-image,
 header.titlebar .menu-title {
     padding: 2px 7px;
+}
+
+/* The app mark: the application's own icon in the corner of the window, wearing an icon button's box so
+   it sits in the row of controls as one of them. It is a span rather than a button and deliberately so:
+   there is nothing to press. That is what keeps it out of the tab order and off the focus ring, with no
+   markup needed to exclude it; the hover and focus rules beside it are gated on :enabled, which a span
+   never matches, so it stays inert under the mouse as well. The cursor is reset because .icon-btn asks
+   for a pointer.
+
+   The unread badge sits next to it and carries its own left margin for the wordmark it used to follow.
+   The flex gap on the group provides that spacing now, so the margin is dropped rather than doubled. */
+.titlebar-mark {
+    cursor: default;
+}
+
+.titlebar-left > .titlebar-unread {
+    margin-left: 0;
 }
 
 /* Immediate hover and focus tooltip for icon and emoji buttons, so their action is discoverable

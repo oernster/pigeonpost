@@ -1,5 +1,4 @@
 import {useRef} from 'react'
-import icon from '../assets/pigeonpost.png'
 import {Account, Folder} from '../api'
 import {icons} from '../icons'
 import {AccountPicker} from './AccountPicker'
@@ -63,7 +62,6 @@ export function Sidebar(props: SidebarProps) {
     useDragAutoScroll(scrollRef)
     return (
         <aside className="pane sidebar">
-            <img className="sidebar-brand" src={icon} alt="" aria-hidden="true"/>
             {props.accounts.length === 0 ? (
                 <div className="empty-state">
                     <div className="empty-title">No accounts yet</div>

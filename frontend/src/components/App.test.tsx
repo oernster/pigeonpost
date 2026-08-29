@@ -409,7 +409,13 @@ describe('App: mount and splash', () => {
         expect(centreLabels.some((l) => l?.includes('Calendar'))).toBe(true)
         const right = container.querySelector('.titlebar-right')
         expect(right?.querySelectorAll('button')).toHaveLength(2)
-        expect(container.querySelector('.titlebar-left .brand')).toBeInTheDocument()
+        // The app mark stands where the wordmark did. It is a picture and not a control, so the two
+        // properties worth pinning are that it is not a button and that nothing can focus it: a span
+        // with no tabindex takes no click and no place in the tab order.
+        const mark = container.querySelector('.titlebar-left .titlebar-mark')
+        expect(mark).toBeInTheDocument()
+        expect(mark!.tagName).toBe('SPAN')
+        expect(mark!.hasAttribute('tabindex')).toBe(false)
     })
 
     it('shows the welcome empty-state after the splash when there are no accounts', async () => {

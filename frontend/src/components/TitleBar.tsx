@@ -1,5 +1,6 @@
 import {Dispatch, SetStateAction} from 'react'
 import {UnreadCountsResult} from '../api'
+import appMark from '../assets/pigeonpost.png'
 import {icons} from '../icons'
 import {Theme} from '../theme'
 import {ComposeInitial} from './ComposeModal'
@@ -28,9 +29,14 @@ export interface TitleBarProps {
     setTheme: Dispatch<SetStateAction<Theme>>
 }
 
-// TitleBar is the header in three groups: the brand with the all-accounts unread badge plus the
+// TitleBar is the header in three groups: the app mark with the all-accounts unread badge plus the
 // File/Edit/View/Mail menus, then the working controls carrying on from them (compose, add account,
 // sync, Contacts, Calendar), then the app-level pair held at the far end (the theme toggle and Help).
+//
+// The mark wears an icon button's box so it sits in the row of controls as one of them; it is a span
+// rather than a button, because there is nothing to press. That is what keeps it out of the tab order
+// and off the focus ring, with no markup needed to exclude it. It stands where the wordmark used to;
+// the window title names the application in text.
 // It is presentational: every action is a prop.
 //
 // Every control in the tray carries drawn artwork from ../icons rather than an emoji, so the whole bar is
@@ -51,14 +57,14 @@ export function TitleBar(props: TitleBarProps) {
     return (
             <header className="titlebar">
                 <div className="titlebar-left">
-                    <span className="brand">
-                        PigeonPost
-                        {unreadCounts.total > 0 && (
-                            <span className="titlebar-unread" title={`${unreadCounts.total} unread across all accounts`}>
-                                {unreadCounts.total}
-                            </span>
-                        )}
+                    <span className="icon-btn icon-btn-image titlebar-mark" aria-hidden="true">
+                        <img src={appMark} alt="" draggable={false}/>
                     </span>
+                    {unreadCounts.total > 0 && (
+                        <span className="titlebar-unread" title={`${unreadCounts.total} unread across all accounts`}>
+                            {unreadCounts.total}
+                        </span>
+                    )}
                     <Menu title="File" icon={icons.file} items={fileMenu} align="left"/>
                     <Menu title="Edit" icon={icons.edit} items={editMenu} align="left"/>
                     <Menu title="View" icon={icons.view} items={viewMenu} align="left"/>
