@@ -1,15 +1,14 @@
-import {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties} from 'react'
+import {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from 'react'
 import './App.css'
 import {AboutInfo, api, CalendarEvent, Contact, Folder, Message, MessageBody, Rule, Template, UnreadCountsResult} from './api'
 import {OUTBOX_FOLDER_ID, isOutboxMessage, outboxItemToMessage} from './outbox'
 import {UNIFIED_FOLDER_ID, accountChips, isUnifiedFolder} from './unified'
 import {SNOOZED_FOLDER_ID, isSnoozedFolder} from './snooze'
 import {applyTheme, loadTheme, Theme} from './theme'
-import {Sidebar} from './components/Sidebar'
 import {ErrorBar} from './components/ErrorBar'
+import {ContextMenus} from './components/ContextMenus'
+import {Panes} from './components/Panes'
 import {MessageList} from './components/MessageList'
-import {MessageContextMenu} from './components/MessageContextMenu'
-import {FolderContextMenu} from './components/FolderContextMenu'
 import {Reader} from './components/Reader'
 import {EmailViewerModal} from './components/EmailViewerModal'
 import {ModalClose} from './components/ModalClose'
@@ -35,7 +34,6 @@ import {ReminderNotifications} from './components/ReminderNotifications'
 import {CloseChoiceDialog} from './components/CloseChoiceDialog'
 import {ManagerModals} from './components/ManagerModals'
 import {Splash} from './components/Splash'
-import {PaneSplitters} from './components/PaneSplitters'
 import {sendersFor} from './replyDraft'
 import {focusRingElements, focusRingRoot} from './focusRing'
 import {useMessageStore} from './hooks/useMessageStore'
@@ -1026,11 +1024,6 @@ function App() {
     // paneWidths drives the draggable splitters between the sidebar, the message list and the reader:
     // the widths land on the .panes grid as CSS variables and persist across restarts.
     const paneWidths = usePaneWidths()
-    const paneStyle = {
-        ['--sidebar-w']: `${paneWidths.widths.sidebar}px`,
-        ['--list-w']: `${paneWidths.widths.list}px`,
-    } as CSSProperties
-
     // conversation is the open message's whole thread, gathered across the account's folders so the
     // reader can offer the messages the list cannot show beside it.
     const conversation = useConversation(conversationView && selectedMessage ? selectedMessage.id : null)
@@ -1202,47 +1195,35 @@ function App() {
             {accounts.length === 0 && !splashVisible ? (
                 <WelcomeScreen setSettingUp={setSettingUp}/>
             ) : (
-            <div className={'panes' + (previewEnabled ? '' : ' no-preview')} style={paneStyle}>
-                <Sidebar
-                    accounts={accounts}
-                    selectedAccount={selectedAccount}
-                    unifiedEnabled={unifiedMailbox}
-                    unifiedSelected={unifiedSelected}
-                    unifiedUnread={unreadCounts.total}
-                    onSelectUnified={() => void selectFolder(UNIFIED_FOLDER_ID)}
-                    snoozedCount={snoozedCount}
-                    snoozedSelected={snoozedSelected}
-                    onSelectSnoozed={() => void selectFolder(SNOOZED_FOLDER_ID)}
-                    syncingAccountIds={syncingAccounts}
-                    unreadByAccount={unreadCounts.byAccount}
-                    elsewhereCue={elsewhereMail}
-                    folders={sidebarFolders}
-                    selectedFolder={selectedFolder}
-                    onSelectAccount={(id) => void selectAccount(id)}
-                    onSelectFolder={(id) => void selectFolder(id)}
-                    onEditAccount={(account) => setAccountToEdit(account)}
-                    onDeleteAccount={(account) => setAccountToDelete(account)}
-                    onNewFolder={() => setFolderPrompt({mode: 'create'})}
-                    onRenameFolder={(folder) => setFolderPrompt({mode: 'rename', folder})}
-                    onNewSubfolder={(folder) => setFolderPrompt({mode: 'create', parent: folder})}
-                    onReparentFolder={(folderId, newParentId) => void reparentFolder(folderId, newParentId)}
-                    onDeleteFolder={(folder) => setFolderToDelete(folder)}
-                    onDropMessage={dropMessageOnFolder}
-                    onFolderContextMenu={(folder, x, y) => setFolderContextMenu({folder, x, y})}
-                    canManageFolders={!isPop3}
-                />
-                {previewEnabled ? (
-                    <>
-                        {messageListEl}
-                        {readerEl}
-                    </>
-                ) : readingFull && (selectedMessage || (threadHeadId && conversationView)) ? (
-                    readerEl
-                ) : (
-                    messageListEl
-                )}
-                <PaneSplitters control={paneWidths} showListSplitter={previewEnabled}/>
-            </div>
+            <Panes
+                previewEnabled={previewEnabled}
+                paneWidths={paneWidths}
+                readingFull={readingFull}
+                readerAvailable={Boolean(selectedMessage || (threadHeadId && conversationView))}
+                messageListEl={messageListEl}
+                readerEl={readerEl}
+                accounts={accounts}
+                selectedAccount={selectedAccount}
+                unifiedEnabled={unifiedMailbox}
+                unifiedSelected={unifiedSelected}
+                unreadCounts={unreadCounts}
+                snoozedCount={snoozedCount}
+                snoozedSelected={snoozedSelected}
+                syncingAccountIds={syncingAccounts}
+                elsewhereCue={elsewhereMail}
+                folders={sidebarFolders}
+                selectedFolder={selectedFolder}
+                canManageFolders={!isPop3}
+                selectAccount={selectAccount}
+                selectFolder={selectFolder}
+                setAccountToEdit={setAccountToEdit}
+                setAccountToDelete={setAccountToDelete}
+                setFolderPrompt={setFolderPrompt}
+                setFolderToDelete={setFolderToDelete}
+                setFolderContextMenu={setFolderContextMenu}
+                reparentFolder={reparentFolder}
+                dropMessageOnFolder={dropMessageOnFolder}
+            />
             )}
             <BottomBar/>
             {attachPickerOpen && (
@@ -1327,62 +1308,47 @@ function App() {
                 onCalendarClosed={() => setCalendarInitialEvent(null)}
             />
             <ConfirmStack confirmations={confirmations}/>
-            {contextMenu && (
-                <MessageContextMenu
-                    message={contextMenu.message}
-                    x={contextMenu.x}
-                    y={contextMenu.y}
-                    folders={folders}
-                    tags={tags}
-                    selection={menuSelection}
-                    onClose={closeContextMenu}
-                    onReply={openReply}
-                    onReplyAll={openReplyAll}
-                    onForward={openForward}
-                    onSetRead={(m, read) => void setReadState(m, read)}
-                    onToggleFlag={(m) => void toggleFlag(m)}
-                    onMove={(m, dest) => void moveMessage(m, dest)}
-                    onCopy={(m, dest) => void copyMessage(m, dest)}
-                    canMoveCopy={canMoveCopy}
-                    onSetTag={(id, tagId, assigned) => void setMessageTagById(id, tagId, assigned)}
-                    onCutMessages={(msgs) => messageClipboard.cutMessages(msgs.filter((m) => !isOutboxMessage(m)))}
-                    onCopyMessages={(msgs) => messageClipboard.copyMessages(msgs.filter((m) => !isOutboxMessage(m)))}
-                    onPaste={pasteMessages}
-                    canPaste={messageClipboard.hasClip && pasteFolderId !== ''}
-                    onOpenInNewTab={openInNewTab}
-                    onSaveAs={(m) => void saveMessageAs(m)}
-                    onPrint={(m) => void printMessage(m)}
-                    onAttachToNew={attachToNewMessage}
-                    onMarkJunk={(m) => void markJunk(m)}
-                    onMarkNotJunk={(m) => void markNotJunk(m)}
-                    isJunk={(m) => isJunkFolderMessage(m, folders)}
-                    onSnooze={(m, at) => void snoozeTo(m, at)}
-                    onSnoozeCustom={(m) => setSnoozePickerFor(m)}
-                    onUnsnooze={(m) => void unsnooze(m)}
-                    onDelete={requestDelete}
-                    onDeletePermanent={(m) => setMessageToPurge(m)}
-                    onCancelSend={(m) => setMessageToCancelSend(m)}
-                    onBulkSetRead={(msgs, read) => void bulkSetRead(msgs, read)}
-                    onBulkSetFlag={(msgs, flagged) => void bulkSetFlag(msgs, flagged)}
-                    onBulkMove={(msgs, dest) => void bulkMove(msgs, dest)}
-                    onBulkDelete={(msgs) => setBulkToDelete(msgs)}
-                    onBulkDeletePermanent={(msgs) => setBulkToPurge(msgs)}
-                />
-            )}
-            {folderContextMenu && (
-                <FolderContextMenu
-                    folder={folderContextMenu.folder}
-                    x={folderContextMenu.x}
-                    y={folderContextMenu.y}
-                    canPaste={messageClipboard.hasClip}
-                    onPaste={(folder) => void messageClipboard.pasteInto(folder.id)}
-                    canManageFolders={!isPop3}
-                    onNewSubfolder={(folder) => setFolderPrompt({mode: 'create', parent: folder})}
-                    onRenameFolder={(folder) => setFolderPrompt({mode: 'rename', folder})}
-                    onDeleteFolder={(folder) => setFolderToDelete(folder)}
-                    onClose={() => setFolderContextMenu(null)}
-                />
-            )}
+            <ContextMenus
+                contextMenu={contextMenu}
+                folderContextMenu={folderContextMenu}
+                closeContextMenu={closeContextMenu}
+                setFolderContextMenu={setFolderContextMenu}
+                menuSelection={menuSelection}
+                folders={folders}
+                tags={tags}
+                canMoveCopy={canMoveCopy}
+                canManageFolders={!isPop3}
+                pasteFolderId={pasteFolderId}
+                clipboard={messageClipboard}
+                pasteMessages={pasteMessages}
+                openReply={openReply}
+                openReplyAll={openReplyAll}
+                openForward={openForward}
+                attachToNewMessage={attachToNewMessage}
+                openInNewTab={openInNewTab}
+                saveMessageAs={saveMessageAs}
+                printMessage={printMessage}
+                setReadState={setReadState}
+                toggleFlag={toggleFlag}
+                moveMessage={moveMessage}
+                copyMessage={copyMessage}
+                markJunk={markJunk}
+                markNotJunk={markNotJunk}
+                setMessageTagById={setMessageTagById}
+                snoozeTo={snoozeTo}
+                unsnooze={unsnooze}
+                setSnoozePickerFor={setSnoozePickerFor}
+                requestDelete={requestDelete}
+                setMessageToPurge={setMessageToPurge}
+                setMessageToCancelSend={setMessageToCancelSend}
+                setBulkToDelete={setBulkToDelete}
+                setBulkToPurge={setBulkToPurge}
+                bulkSetRead={bulkSetRead}
+                bulkSetFlag={bulkSetFlag}
+                bulkMove={bulkMove}
+                setFolderPrompt={setFolderPrompt}
+                setFolderToDelete={setFolderToDelete}
+            />
             {folderPrompt && (
                 <PromptDialog
                     title={folderPromptTitle(folderPrompt)}

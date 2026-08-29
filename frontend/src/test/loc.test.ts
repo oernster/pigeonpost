@@ -20,7 +20,7 @@ const DANGER_TARGET = 350
 
 // Files over the limit when this guard was written, with the length each held at that point.
 const EXEMPT: Record<string, number> = {
-    'src/App.tsx': 1429,
+    'src/App.tsx': 1395,
     'src/components/ComposeModal.tsx': 731,
     'src/api.ts': 631,
     'src/components/EventFormModal.tsx': 559,

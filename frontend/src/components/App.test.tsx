@@ -622,6 +622,134 @@ describe('App: reading a message', () => {
     })
 })
 
+// The panes region decides which of the three panes are on screen and what the splitters span. It is one
+// block of App's JSX with a three-way choice in it: both panes with the reading pane on, the reader alone
+// when a message is open full-width with the pane off, otherwise the list alone. Nothing pinned that choice
+// directly, so these tests state it before the block moves.
+describe('App: the panes layout', () => {
+    // Standing arrangement for every case here: one account, one folder, one message.
+    const arrange = () => {
+        apiSpies.listAccounts.mockResolvedValue([makeAccount()])
+        apiSpies.listFolders.mockResolvedValue([makeFolder('inbox', 'Inbox', 'inbox')])
+        apiSpies.listMessages.mockResolvedValue([makeMessage({subject: 'Weekly report'})])
+    }
+
+    // turnReadingPaneOff drives the real gesture rather than reaching into state, so the test exercises the
+    // same path a user does.
+    const turnReadingPaneOff = async (container: HTMLElement) => {
+        fireEvent.click(screen.getByRole('button', {name: 'View'}))
+        fireEvent.click(screen.getByRole('menuitemcheckbox', {name: 'Reading pane'}))
+        await waitFor(() => expect(container.querySelector('.panes.no-preview')).toBeInTheDocument())
+    }
+
+    it('shows both panes and the list splitter with the reading pane on', async () => {
+        arrange()
+        const {container} = render(<App/>)
+        fireEvent.click(await screen.findByText('Weekly report'))
+        await waitFor(() => expect(container.querySelector('.pane.reader')).toBeInTheDocument())
+        expect(container.querySelector('.pane.message-list')).toBeInTheDocument()
+        // Two panes means a list|reader boundary, so that splitter is drawn alongside the sidebar one.
+        expect(screen.getByRole('separator', {name: 'Resize message list'})).toBeInTheDocument()
+        expect(screen.getByRole('separator', {name: 'Resize sidebar'})).toBeInTheDocument()
+    })
+
+    it('shows the list alone and drops the list splitter with the reading pane off', async () => {
+        arrange()
+        const {container} = render(<App/>)
+        fireEvent.click(await screen.findByText('Weekly report'))
+        await turnReadingPaneOff(container)
+        expect(container.querySelector('.pane.message-list')).toBeInTheDocument()
+        expect(container.querySelector('.pane.reader')).not.toBeInTheDocument()
+        // No list|reader boundary with one pane, so only the sidebar handle remains.
+        expect(screen.queryByRole('separator', {name: 'Resize message list'})).not.toBeInTheDocument()
+        expect(screen.getByRole('separator', {name: 'Resize sidebar'})).toBeInTheDocument()
+    })
+
+    it('shows the reader alone when a message is opened with the reading pane off', async () => {
+        arrange()
+        const {container} = render(<App/>)
+        fireEvent.click(await screen.findByText('Weekly report'))
+        await turnReadingPaneOff(container)
+        // Open in new tab is the gesture that opens a message full-width while the pane is off.
+        fireEvent.click(screen.getByRole('button', {name: 'Mail'}))
+        fireEvent.click(screen.getByRole('menuitem', {name: 'Open in new tab'}))
+        await waitFor(() => expect(container.querySelector('.pane.reader')).toBeInTheDocument())
+        // The reader takes the whole width, so the list is not rendered beside it.
+        expect(container.querySelector('.pane.message-list')).not.toBeInTheDocument()
+    })
+})
+
+// The two right-click menus are App's last conditional JSX blocks. Both components have their own tests
+// covering what they render; what nothing covered is App's wiring of them, which is what these pin: the
+// gesture that opens each menu, one representative entry reaching the right handler and the dismissal
+// that puts the menu away.
+describe('App: the right-click menus', () => {
+    const arrange = () => {
+        apiSpies.listAccounts.mockResolvedValue([makeAccount()])
+        apiSpies.listFolders.mockResolvedValue([
+            makeFolder('inbox', 'Inbox', 'inbox'),
+            makeFolder('f2', 'Projects', 'custom'),
+        ])
+        apiSpies.listMessages.mockResolvedValue([makeMessage({subject: 'Weekly report'})])
+    }
+
+    // The message menu nests submenus, each its own role=menu, so the outer menu is found by its class
+    // rather than by role. Both menus render as .context-menu, so one helper serves them both.
+    const findContextMenu = async (container: HTMLElement): Promise<HTMLElement> => {
+        await waitFor(() => expect(container.querySelector('.context-menu')).toBeInTheDocument())
+        return container.querySelector('.context-menu') as HTMLElement
+    }
+
+    it('opens the message menu on a right-click and routes Save as to the api', async () => {
+        arrange()
+        const {container} = render(<App/>)
+        fireEvent.contextMenu(await screen.findByText('Weekly report'))
+        const menu = await findContextMenu(container)
+        fireEvent.click(within(menu).getByRole('menuitem', {name: /Save as/}))
+        await waitFor(() => expect(apiSpies.saveMessageAs).toHaveBeenCalledWith('m1', 'Weekly report.eml'))
+    })
+
+    it('routes the message menu Delete to the delete confirmation rather than deleting', async () => {
+        arrange()
+        const {container} = render(<App/>)
+        fireEvent.contextMenu(await screen.findByText('Weekly report'))
+        const menu = await findContextMenu(container)
+        fireEvent.click(within(menu).getByRole('menuitem', {name: 'Delete'}))
+        // onDelete is wired to requestDelete, so the menu asks rather than acting.
+        expect(await screen.findByRole('alertdialog', {name: 'Delete message'})).toBeInTheDocument()
+        expect(apiSpies.deleteMessage).not.toHaveBeenCalled()
+    })
+
+    it('dismisses the message menu on Escape', async () => {
+        arrange()
+        const {container} = render(<App/>)
+        fireEvent.contextMenu(await screen.findByText('Weekly report'))
+        await findContextMenu(container)
+        fireEvent.keyDown(document, {key: 'Escape'})
+        await waitFor(() => expect(container.querySelector('.context-menu')).not.toBeInTheDocument())
+    })
+
+    it('opens the folder menu on a right-click and routes Rename to the folder prompt', async () => {
+        arrange()
+        const {container} = render(<App/>)
+        fireEvent.contextMenu(await screen.findByText('Projects'))
+        const menu = await findContextMenu(container)
+        fireEvent.click(within(menu).getByRole('menuitem', {name: /Rename folder/}))
+        // onRenameFolder opens the same prompt the row's pencil does, seeded with the folder's name.
+        const prompt = await screen.findByRole('dialog')
+        expect(within(prompt).getByDisplayValue('Projects')).toBeInTheDocument()
+    })
+
+    it('dismisses the folder menu on Escape', async () => {
+        arrange()
+        const {container} = render(<App/>)
+        fireEvent.contextMenu(await screen.findByText('Projects'))
+        await findContextMenu(container)
+        fireEvent.keyDown(document, {key: 'Escape'})
+        await waitFor(() => expect(container.querySelector('.context-menu')).not.toBeInTheDocument())
+    })
+})
+
 describe('App: deleting a message', () => {
     it('confirms before deleting the selected message, then calls the delete api', async () => {
         apiSpies.listAccounts.mockResolvedValue([makeAccount()])

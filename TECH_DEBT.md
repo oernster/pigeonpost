@@ -12,7 +12,7 @@ The limit is 400 lines. `tests/structural/boundary_test.go` has always enforced 
 
 | Module | Lines |
 |---|---|
-| `src/App.tsx` | 1429 |
+| `src/App.tsx` | 1395 |
 | `src/components/ComposeModal.tsx` | 731 |
 | `src/api.ts` | 631 |
 | `src/components/EventFormModal.tsx` | 559 |
@@ -32,7 +32,11 @@ The seven `ConfirmDialog` blocks have gone the same way, though not by lifting t
 
 One claim made when this was proposed turned out to be wrong and is withdrawn: it would not make the confirm-before-destroy rule checkable in one place. `ConfirmDialog` is used directly by nine other components (the compose discard, the contacts and rules and templates managers, the calendar's own editors), each a local confirmation belonging to its own dialog, so the list covers the main window's confirmations rather than the application's.
 
-What is left in `App.tsx` is composition, the panes and the remaining overlays, none of which is one shape repeated. Further reduction means moving whole regions (the panes block, the message and folder context menus) rather than collapsing duplication, so the next unit should be judged on whether the boundary it creates is narrower than the lines it saves.
+The panes block has moved to `Panes`, which now owns the three-column grid, its CSS variables, the choice between the panes and the splitters that sit on their boundaries. It was taken with the cost measured and accepted rather than on a claim that it was cheap: it takes 18 lines out of `App.tsx` behind a 27-value interface and adds an 88-line module to the tree. It buys cohesion instead of length, since the grid and the splitters were previously stated in two places; it also takes the sidebar wiring out of `App` by passing the underlying values rather than a props object the caller would have to write out again.
+
+Both right-click menus have gone the same way, into `ContextMenus`. The wiring of the two was untested at the `App` level before this, so five characterisation tests now hold it: the gesture that opens each menu, an entry reaching its handler and each menu's dismissal. It takes 16 lines out of `App.tsx` behind a 38-value interface and adds a 138-line module. The gain is that the whole right-click surface is in one place, including the message clipboard both menus read, which is now passed as the one object the hook already returns rather than as four separate values.
+
+What is left in `App.tsx` is composition and the remaining overlays, none of which is one shape repeated. Every collapse-the-duplication move is spent and the two region moves have now been taken, each trading a wide interface for a modest reduction. There is no further unit here worth proposing: what remains is either one-of-a-kind wiring or a move that costs more in interface than it saves in lines. Anyone returning to this should start by asking what the boundary is for rather than what the line count would become.
 
 One candidate was tried and put back: collapsing the five localStorage-backed View preferences onto one hook. The reduction was around fifteen lines and it would have changed three toggles from a functional state updater to a closed-over read; it would also have given `useMenus` a toggle whose identity changes every render where the current one is stable. That is a behaviour change traded for very little, so the characterisation tests for those preferences were kept and the collapse was not made. Anyone returning to it should either keep each toggle's updater form or pin the identity first.
 
