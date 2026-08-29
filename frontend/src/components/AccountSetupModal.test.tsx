@@ -115,6 +115,16 @@ describe('AccountSetupModal: provider chooser', () => {
         expect(screen.queryByText('Password')).toBeNull()
     })
 
+    // The prerequisite has to be stated before the sign-in, not after it fails: Microsoft ships a new
+    // mailbox with IMAP off, so without this the first thing a new user meets is a sign-in that succeeds
+    // and an account that will not add.
+    it('warns that IMAP must be switched on before a Microsoft sign-in', () => {
+        renderModal()
+        fireEvent.click(screen.getByRole('button', {name: 'Microsoft'}))
+        expect(screen.getByText(/IMAP is switched off by default/)).toBeInTheDocument()
+        expect(screen.getByRole('link', {name: 'How to turn on IMAP'})).toBeInTheDocument()
+    })
+
     it('goes to an empty manual form', () => {
         renderModal()
         fireEvent.click(screen.getByRole('button', {name: /Set up manually/}))

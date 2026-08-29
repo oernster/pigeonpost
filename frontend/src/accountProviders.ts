@@ -101,3 +101,18 @@ export function domainOf(email: string): string {
     const at = email.indexOf('@')
     return at >= 0 ? email.slice(at + 1).trim() : ''
 }
+
+// Microsoft is not in PROVIDERS: it signs in through OAuth rather than an app password, so it has no
+// server preset to carry. It still needs saying out loud, for the same reason the app-password providers
+// do and more urgently: Microsoft ships every new Outlook.com and Hotmail mailbox with IMAP switched
+// off, so without this the first thing a new Microsoft user meets is a sign-in that succeeds and an
+// account that will not add.
+export const MICROSOFT_IMAP_NOTE =
+    'Before you sign in: IMAP is switched off by default on a new Outlook.com or Hotmail account; ' +
+    'PigeonPost needs it. Turn it on at outlook.com under Settings, Mail, Forwarding and IMAP: switch on ' +
+    '"Let devices and apps use IMAP" and save. An account you already use with another mail app will ' +
+    'have it on already.'
+
+// The page documenting that setting, opened in the user's own browser from the note.
+export const MICROSOFT_IMAP_HELP_URL =
+    'https://support.microsoft.com/en-us/outlook/pop-imap-and-smtp-settings-for-outlook-com'

@@ -80,9 +80,12 @@ func (a *App) SignInMicrosoft(req MicrosoftSignInRequest) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	// Through friendlyMailError, not raw: a new Microsoft mailbox has IMAP switched off, so the common
+	// outcome here is a server refusal whose own words ("authenticated but not connected") tell the user
+	// nothing they can act on.
 	account, err := a.msSetup.Configure(a.ctx, strings.TrimSpace(req.DisplayName), req.Signature, identities)
 	if err != nil {
-		return "", err
+		return "", friendlyMailError(err)
 	}
 	a.startMailWatcher(account)
 	return account.Address().Address(), nil

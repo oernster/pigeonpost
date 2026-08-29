@@ -79,3 +79,10 @@ var (
 // connection failures with it so the application layer can queue the operation for later rather than
 // surfacing it as a hard error. Callers match with errors.Is.
 var ErrOffline = errors.New("mail server is unreachable")
+
+// ErrIMAPDisabled marks a mailbox that accepted the credential and then refused the session because IMAP
+// is not switched on for it. Microsoft ships Outlook.com and Hotmail mailboxes with IMAP off, so this is
+// what a correct sign-in to a new personal Microsoft account looks like until the owner turns it on.
+// Infrastructure adapters wrap the server's refusal with it so the interface can say what to do about it
+// rather than quoting the protocol. Callers match with errors.Is.
+var ErrIMAPDisabled = errors.New("imap is not enabled for this mailbox")

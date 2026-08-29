@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/oernster/pigeonpost/internal/domain"
@@ -26,6 +27,25 @@ func TestFriendlyMailErrorTranslatesOffline(t *testing.T) {
 	}
 	if got.Error() != errOffline.Error() {
 		t.Fatalf("friendlyMailError message = %q, want the plain offline message", got.Error())
+	}
+}
+
+func TestFriendlyMailErrorTranslatesIMAPDisabled(t *testing.T) {
+	t.Parallel()
+	// The shape the Microsoft sign-in produces: the server's own refusal, wrapped by the adapter and
+	// again by the setup service, exactly as it reaches the facade.
+	wrapped := fmt.Errorf("verify microsoft account %q: %w", "a@hotmail.com",
+		fmt.Errorf("imap: xoauth2 %q: %w", "a@hotmail.com",
+			errors.Join(errors.New("imap: NO User is authenticated but not connected."), domain.ErrIMAPDisabled)))
+	got := friendlyMailError(wrapped)
+	if !errors.Is(got, errIMAPDisabled) {
+		t.Fatalf("friendlyMailError did not translate an IMAP-disabled error, got %v", got)
+	}
+	// The point of the message is that it can be acted on, so the setting it names is part of the contract.
+	for _, want := range []string{"Settings", "Forwarding", "IMAP"} {
+		if !strings.Contains(got.Error(), want) {
+			t.Fatalf("message %q does not name %q, so it cannot be acted on", got.Error(), want)
+		}
 	}
 }
 

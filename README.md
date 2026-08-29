@@ -12,7 +12,9 @@ local-first. A calmer, more predictable alternative to Thunderbird.
 - Gmail, iCloud, Yahoo, Zoho, Fastmail and StartMail users who connect with an app password (the
   setup wizard fills in the servers).
 - Microsoft users (Outlook.com, Hotmail, Live, Microsoft 365) who sign in through Microsoft OAuth in
-  the browser; the refresh token is kept in the OS keychain.
+  the browser; the refresh token is kept in the OS keychain. Microsoft ships a new Outlook.com or
+  Hotmail mailbox with IMAP switched off, so turn it on first at outlook.com under Settings, Mail,
+  Forwarding and IMAP; the wizard says so before you sign in and the error says so if you do not.
 
 ## Who it is not for
 

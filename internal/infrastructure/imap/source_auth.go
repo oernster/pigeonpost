@@ -2,7 +2,9 @@ package imap
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/emersion/go-imap/v2/imapclient"
 
@@ -22,8 +24,8 @@ type TokenProvider interface {
 	AccessToken(ctx context.Context, account domain.Account) (string, error)
 }
 
-// connect dials and authenticates using the account's stored credential (a keychain password, or a
-// silently-refreshed OAuth access token for an OAuth account). It is used by the operations that run
+// connect dials and authenticates using the account's stored credential. That is a keychain password
+// for a password account; for an OAuth account it is a silently-refreshed access token. It is used by the operations that run
 // against a saved account.
 func (s *Source) connect(ctx context.Context, account domain.Account) (*imapclient.Client, error) {
 	secret, err := s.secret(ctx, account)
@@ -60,8 +62,8 @@ func credentialFor(ctx context.Context, passwords PasswordProvider, tokens Token
 
 // authWith dials the account's incoming server and authenticates with the given secret, using XOAUTH2 for
 // an OAuth account (the secret is the bearer access token) and LOGIN otherwise (the secret is the
-// password). It is shared by connect, which reads the stored credential, and Verify, which is handed a
-// candidate secret before anything is persisted.
+// password). It is shared by two callers: connect, which reads the stored credential, then Verify,
+// which is handed a candidate secret before anything is persisted.
 func (s *Source) authWith(account domain.Account, secret string) (*imapclient.Client, error) {
 	client, err := dial(account.Incoming(), nil)
 	if err != nil {
@@ -80,6 +82,9 @@ func (s *Source) authWith(account domain.Account, secret string) (*imapclient.Cl
 func authenticate(client *imapclient.Client, account domain.Account, secret string) error {
 	if account.Auth() == domain.AuthOAuth2 {
 		if err := client.Authenticate(oauth.NewXOAUTH2Client(account.Address().Address(), secret)); err != nil {
+			if isIMAPDisabled(err) {
+				return fmt.Errorf("imap: xoauth2 %q: %w", account.ID(), errors.Join(err, domain.ErrIMAPDisabled))
+			}
 			return fmt.Errorf("imap: xoauth2 %q: %w", account.ID(), err)
 		}
 		return nil
@@ -88,6 +93,20 @@ func authenticate(client *imapclient.Client, account domain.Account, secret stri
 		return fmt.Errorf("imap: login %q: %w", account.ID(), err)
 	}
 	return nil
+}
+
+// imapDisabledResponse is the text Microsoft's IMAP front end returns when it has accepted the
+// credential and then refused to attach a session, which is what a mailbox with IMAP switched off looks
+// like. It is matched as a substring because it arrives inside the server's own tagged response rather
+// than as a code: IMAP has no status code for this, so the words are all there is to go on. Matching
+// case-insensitively costs nothing and removes one way for the match to lapse silently.
+const imapDisabledResponse = "authenticated but not connected"
+
+// isIMAPDisabled reports whether err is the server refusing a session to an authenticated user. A false
+// negative here only means the old, unhelpful message is shown, so the match is kept narrow rather than
+// clever: a wrong positive would tell someone to change a setting that is not their problem.
+func isIMAPDisabled(err error) bool {
+	return err != nil && strings.Contains(strings.ToLower(err.Error()), imapDisabledResponse)
 }
 
 // Verify proves a candidate secret against the account's incoming server by authenticating and logging

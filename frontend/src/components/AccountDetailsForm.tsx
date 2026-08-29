@@ -1,7 +1,7 @@
 import {useBackdropDismiss} from './useBackdropDismiss'
 import {ModalClose} from './ModalClose'
 import {RichTextField} from './RichTextField'
-import {PROTOCOL_OPTIONS, SECURITY_OPTIONS} from '../accountProviders'
+import {MICROSOFT_IMAP_HELP_URL, MICROSOFT_IMAP_NOTE, PROTOCOL_OPTIONS, SECURITY_OPTIONS} from '../accountProviders'
 import {api} from '../api'
 import type {AccountForm} from '../hooks/useAccountForm'
 
@@ -134,6 +134,21 @@ export function AccountDetailsForm({form, onClose}: AccountDetailsFormProps) {
                                 Create an app password
                             </a>
                         )}
+                    </div>
+                )}
+                {msAdd && (
+                    <div className="provider-note">
+                        {MICROSOFT_IMAP_NOTE}
+                        <a
+                            className="provider-note-link"
+                            href={MICROSOFT_IMAP_HELP_URL}
+                            onClick={(e) => {
+                                e.preventDefault()
+                                void api.openExternal(MICROSOFT_IMAP_HELP_URL)
+                            }}
+                        >
+                            How to turn on IMAP
+                        </a>
                     </div>
                 )}
                 {error && <div className="compose-error">{error}</div>}
