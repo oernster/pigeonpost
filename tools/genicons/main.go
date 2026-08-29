@@ -59,9 +59,11 @@ const (
 )
 
 // glyphSide is the pixel side of each generated glyph. The largest surface that draws one is the title
-// bar at --titlebar-glyph-size (35px), so this is four times that, on the same reasoning as donateHeight:
-// crisp under display scaling without carrying a megabyte-scale master into the binary.
-const glyphSide = 140
+// bar at --titlebar-glyph-size (42px), so this is four times that, on the same reasoning as donateHeight:
+// crisp under display scaling without carrying a megabyte-scale master into the binary. Raising that CSS
+// token means raising this with it; the two are kept in step by hand, since neither language can read
+// the other's constant.
+const glyphSide = 168
 
 // glyphAlphaFloor is the alpha, on the usual 0 to 255 scale, at or below which a pixel is treated as
 // empty canvas when cropping. Artwork of this kind carries a soft glow fading to alpha 1 far outside the

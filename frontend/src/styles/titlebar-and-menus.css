@@ -45,14 +45,15 @@
    bar at the browser's own size, 25px and 1255px at 24px, 30px and 1330px at 29px. The bottom tray's
    donate mark is the last control still sized by it.
 
-   --titlebar-glyph-size is the height of the drawn artwork the title bar now carries instead, at 1.2
-   times the emoji size. Artwork cropped to its own edges paints ink right to the box, where an emoji
-   face leaves its own margin inside the type size, so a picture at the emoji's size sat smaller in the
-   bar than the emoji it replaced. The masters are generated at four times this height (see
-   tools/genicons), so they stay crisp under display scaling. */
+   --titlebar-glyph-size is the height of the drawn artwork the title bar carries instead. It is not a
+   multiple of the emoji size and is not derived from it: artwork cropped to its own edges paints ink
+   right to the box, where an emoji face keeps a margin inside its type size, so the two do not read
+   the same at the same number and the picture was sized by eye against the bar until it did. The
+   masters are generated at four times this height (see glyphSide in tools/genicons), so they stay
+   crisp under display scaling; raising this number means raising that one with it. */
 :root {
     --titlebar-icon-size: 29px;
-    --titlebar-glyph-size: 35px;
+    --titlebar-glyph-size: 42px;
 }
 
 /* Icon buttons (compose, add account, sync, the reply trio, the theme toggle) share the same box as the
