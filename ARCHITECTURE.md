@@ -778,23 +778,26 @@ The header's size rule is scoped to the `header.titlebar` element rather than th
 footer is built from `.titlebar` too and its donate mark keeps the smaller `--titlebar-icon-size`.
 
 The window is topped and tailed by the same bar. `TitleBar` is the header carrying the app mark, the
-menus and the working controls. The mark wears an icon button's box so it sits in that row as one of
-them; it is a span rather than a button, which is what keeps it out of the tab order and off the focus
-ring without any markup to exclude it. The all-accounts unread badge sits beside it. There is no
-wordmark: the window title names the application in text.
+menus and the working controls. The mark borrows an icon button's geometry so it sits in that row as one
+of them while painting no box of its own; the border is made transparent rather than dropped, so the box
+keeps its size and nothing after it shifts. It is a span rather than a button, which is what keeps it out
+of the tab order and off the focus ring without any markup to exclude it. The all-accounts unread badge
+sits beside it. There is no wordmark: the window title names the application in text.
 
-The mark holds the left corner alone and every control is gathered against the right edge as one run:
-the File, Edit, View and Mail menus, then compose, add account, sync, Contacts and Calendar, then a
-rule and the app-level pair (the theme toggle and Help) closing the bar. `margin-left: auto` on
-`.titlebar-actions` is what holds that shape, taking the spare width on its left so the working group
-and the pair beyond it press together against the edge. Two `.titlebar-sep` rules already grouped the
-controls; the third marks the app pair off from them.
+The mark holds the left corner alone and the controls read left to right from it: the File, Edit, View
+and Mail menus, then compose, add account and sync, then Contacts and Calendar. The theme toggle and Help
+close the bar at the far end. `margin-right: auto` on `.titlebar-actions` is what holds that shape,
+taking the spare width on its right so the working group stays welded to the mark while
+`.titlebar-right` is pushed to the edge. Two `.titlebar-sep` rules group the working controls; no rule
+stands before the theme toggle, because the width between the two groups already separates them.
 
-Centring the run on the window was tried twice and neither survived. The first attempt left the menus in
-the left group and moved only the working controls, which split one sequence into two with a gap between
-them. The second moved the menus too and held the whole run dead centre with a three-column grid, which
-measured exactly centred and still read as a row floating in an empty bar. Both are recorded in
-`TitleBar.tsx` and in the stylesheet so the ground is not covered again.
+Three other arrangements were tried and none survived a maximised window. The first left the menus in the
+left group and moved only the working controls to the centre, which split one sequence into two with a
+gap in the middle of it. The second moved the menus too and held the whole run dead centre with a
+three-column grid, which measured exactly centred and still read as a row floating in an empty bar. The
+third gathered every control against the right edge, which put the whole run a screen's width from the
+mark and grew worse the wider the window got. All three are recorded in `TitleBar.tsx` and in the
+stylesheet so the ground is not covered again.
 
 `BottomBar` is the footer at the foot of the window. It wears
 `.titlebar` itself rather than a stylesheet of its own, so the two match in height, padding and
