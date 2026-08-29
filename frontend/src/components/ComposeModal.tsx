@@ -2,9 +2,9 @@ import {Fragment, useRef, useState} from 'react'
 import {useBackdropDismiss} from './useBackdropDismiss'
 import {EditorContent, useEditor} from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
-import Link from '@tiptap/extension-link'
 import Image from '@tiptap/extension-image'
 import {api, ComposeInput, Template} from '../api'
+import {EDITOR_LINK_OPTIONS, EDITOR_PASTE_PROPS} from '../richText'
 import {DataAttachment} from '../composeIntake'
 import {AUTO_COLLECT_KEY, collectableRecipients, shouldAutoCollect} from '../autoCollect'
 import {useComposeIntake} from '../hooks/useComposeIntake'
@@ -139,8 +139,7 @@ export function ComposeModal({accountId, senders, initial, canSaveDraft, onMarkR
 
     const editor = useEditor({
         extensions: [
-            StarterKit,
-            Link.configure({openOnClick: false, autolink: true, linkOnPaste: true}),
+            StarterKit.configure({link: EDITOR_LINK_OPTIONS}),
             // allowBase64 keeps a pasted image's data: URI in the document; the backend lifts it into a
             // proper inline MIME part at send time.
             Image.configure({allowBase64: true}),
@@ -151,6 +150,7 @@ export function ComposeModal({accountId, senders, initial, canSaveDraft, onMarkR
         autofocus: 'start',
         onUpdate: () => noteEditRef.current(),
         editorProps: {
+            ...EDITOR_PASTE_PROPS,
             // Ctrl+Enter (Cmd+Enter on macOS) sends. Returning true stops TipTap from also inserting its
             // default Mod-Enter hard break.
             handleKeyDown: (_view, event) => {

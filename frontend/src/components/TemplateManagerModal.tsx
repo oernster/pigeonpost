@@ -1,9 +1,9 @@
 import {useState} from 'react'
 import {useEditor} from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
-import Link from '@tiptap/extension-link'
 import {useBackdropDismiss} from './useBackdropDismiss'
 import {api, Template, TemplateInput} from '../api'
+import {EDITOR_LINK_OPTIONS, EDITOR_PASTE_PROPS} from '../richText'
 import {ModalClose} from './ModalClose'
 import {ConfirmDialog} from './ConfirmDialog'
 import {RichTextField} from './RichTextField'
@@ -18,20 +18,21 @@ interface TemplateManagerModalProps {
 // {name, subject, body} skeleton (the body is HTML), inserted into a new message while composing.
 export function TemplateManagerModal({templates, onChanged, onClose}: TemplateManagerModalProps) {
     const dismiss = useBackdropDismiss(onClose)
-    // editingId is the id of the template being edited, or empty when composing a new one.
+    // editingId is the id of the template being edited; empty when composing a new one.
     const [editingId, setEditingId] = useState('')
     const [name, setName] = useState('')
     const [subject, setSubject] = useState('')
     const [error, setError] = useState('')
     const [busy, setBusy] = useState(false)
-    // pendingDelete is the template awaiting delete confirmation, or null when no prompt is open.
+    // pendingDelete is the template awaiting delete confirmation; null when no prompt is open.
     const [pendingDelete, setPendingDelete] = useState<Template | null>(null)
 
     // The body is edited as rich text (HTML), matching the composer. The editor is created once; loading a
-    // template for editing sets its content through setContent, and the reset clears it.
+    // template for editing sets its content through setContent; the reset clears it.
     const editor = useEditor({
-        extensions: [StarterKit, Link.configure({openOnClick: false, autolink: true, linkOnPaste: true})],
+        extensions: [StarterKit.configure({link: EDITOR_LINK_OPTIONS})],
         content: '',
+        editorProps: EDITOR_PASTE_PROPS,
     })
 
     const reset = () => {
