@@ -1118,7 +1118,10 @@ Locked product decisions:
   not yet been exercised against a live server, so its per-provider edges (ETag and href formats,
   whether 412 is the conflict status, whether a server accepts a client-chosen object name, CTag
   support) are unproven until a first real account exercises them.
-- Compose: light TipTap rich-text plus a plain-text toggle; no full HTML-editor parity.
+- Compose: light TipTap rich text, with no full HTML-editor parity. There is no plain-text composing
+  mode and no toggle for one: every message carries a plain-text part regardless, because the MIME
+  builder emits `multipart/alternative` (plain first, HTML second) whenever an HTML body is present.
+  A composer left empty of text sends no HTML alternative at all.
 - Inboxes: each account keeps its own separate inbox in storage; the unified mailbox is a read-side
   merge of the cached inboxes (a synthetic folder in the UI, aggregation in gated application code),
   never a storage-level combination. Move, copy and junk stay per-account actions, so the combined view

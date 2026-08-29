@@ -185,9 +185,9 @@ npx vitest run --coverage   # enforce the pure-module coverage gate
 - **Pure modules gated to 100%.** The pure logic modules (`messageText`, `shortcuts`, `print`,
   `readerFormat`, `composeAddresses`, `composeAttachment`, `composeIntake`, `recipientSuggest`,
   `autoCollect`, `datePicker`, `accountProviders`, `sidebarDnd`, `calendarModel`, `replyDraft`,
-  `caldavAccount`, `unified`, `schedule`, `snooze`, `toolbarNav`, `pastedHtml`, `undoStack`, `editClipboard`,
-  `paneLayout`, `emailColors`, `dragScroll`, `optimisticList`, `autoScroll`, `draftEdit`,
-  `modalDrag`)
+  `caldavAccount`, `unified`, `schedule`, `snooze`, `toolbarNav`, `pastedHtml`, `confirmations`,
+  `undoStack`, `editClipboard`, `paneLayout`, `emailColors`, `dragScroll`, `optimisticList`,
+  `autoScroll`, `draftEdit`, `modalDrag`)
   carry a v8 coverage gate at 100% lines, functions, statements and branches, listed in `vite.config.ts`
   under `coverage.include`. Hooks and components are tested but not gated: a React hook fuses logic with
   framework plumbing, so a blanket 100% there buys brittle tests, not correctness.
