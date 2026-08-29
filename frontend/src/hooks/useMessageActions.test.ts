@@ -1,7 +1,7 @@
 // The instant replied/forwarded row update lives here: marking records the flag through the backend, then
 // flips the answered/forwarded field in place across every list so the glyph shows on the row at once,
 // without reopening the folder. It is best-effort, so a backend failure leaves the message untouched. ../api
-// is mocked (the Wails seam), and the real message store is wired to the actions the way App does.
+// is mocked (the Wails seam); the real message store is wired to the actions the way App does.
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 import {act, cleanup, renderHook} from '@testing-library/react'
 import type {Message} from '../api'
@@ -35,7 +35,7 @@ function makeMessage(overrides: Partial<Message> = {}): Message {
     } as Message
 }
 
-// harness wires the real message store to the actions under test, the way App does, and exposes both so a
+// harness wires the real message store to the actions under test, the way App does, exposing both so a
 // test can seed the lists and read them back after an action, plus the badge-refresher spies so a test
 // can assert an action refreshed the unread badges.
 const badgeSpies = {
@@ -57,6 +57,8 @@ function harness() {
             store,
             displayMessages: store.messages,
             searchActive: false,
+            // The account under test is IMAP, so its delete confirmation says Trash rather than gone.
+            isPop3: () => false,
             folders: [],
             loadUnread: badgeSpies.loadUnread,
             refreshFolders: badgeSpies.refreshFolders,

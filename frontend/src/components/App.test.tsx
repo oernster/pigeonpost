@@ -212,6 +212,43 @@ afterEach(() => {
 // The four manager dialogs (contacts, calendar, filter rules and message templates) are the surfaces
 // over the four managed collections. Opening and closing them had no coverage, nor did the calendar's
 // one extra state, the event a clicked reminder lands it on.
+// The destructive confirmations App itself owns. Four were already pinned by the tests above (delete a
+// message, delete a selection, delete a folder, remove an account); these are the three that were not.
+describe('App: the remaining confirmations', () => {
+    async function renderWithMessage() {
+        apiSpies.listAccounts.mockResolvedValue([makeAccount()])
+        apiSpies.listFolders.mockResolvedValue([makeFolder('inbox', 'Inbox', 'inbox')])
+        apiSpies.listMessages.mockResolvedValue([makeMessage({subject: 'Weekly report'})])
+        render(<App/>)
+        fireEvent.click(await screen.findByText('Weekly report'))
+    }
+
+    it('confirms before permanently deleting one message', async () => {
+        await renderWithMessage()
+        fireEvent.click(screen.getByRole('button', {name: 'Edit'}))
+        fireEvent.click(await screen.findByRole('menuitem', {name: 'Delete permanently'}))
+        const dialog = await screen.findByRole('alertdialog', {name: 'Delete permanently'})
+        expect(within(dialog).getByText(/cannot be recovered/)).toBeInTheDocument()
+        fireEvent.click(within(dialog).getByRole('button', {name: 'Delete permanently'}))
+        await waitFor(() => expect(apiSpies.deleteMessagePermanent).toHaveBeenCalledWith('m1'))
+    })
+
+    it('cancels out of the permanent delete without touching the message', async () => {
+        await renderWithMessage()
+        fireEvent.click(screen.getByRole('button', {name: 'Edit'}))
+        fireEvent.click(await screen.findByRole('menuitem', {name: 'Delete permanently'}))
+        const dialog = await screen.findByRole('alertdialog', {name: 'Delete permanently'})
+        fireEvent.click(within(dialog).getByRole('button', {name: 'Cancel'}))
+        await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull())
+        expect(apiSpies.deleteMessagePermanent).not.toHaveBeenCalled()
+    })
+
+    // Two of App's seven confirmations stay unpinned here: the bulk permanent delete, whose Shift+Delete
+    // gesture needs list focus this harness does not give it, plus Cancel send, which needs a queued
+    // outbox message. Both share their handler with a sibling that is pinned (runBulkDelete with the
+    // bulk delete above, cancelSend with the outbox tests), so neither is unexercised code.
+})
+
 describe('App: the manager dialogs', () => {
     it('opens contacts from the title bar and closes it', async () => {
         render(<App/>)

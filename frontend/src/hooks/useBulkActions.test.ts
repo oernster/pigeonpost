@@ -1,6 +1,6 @@
 // The drag-and-drop move onto a folder. The point under test is the timing: an IMAP move can take seconds
 // on a slow provider, so the dropped rows leave the lists at once rather than when the server answers, a
-// refused or partial move puts the untouched rows back where they sat, and a second drop of a message whose
+// refused or partial move puts the untouched rows back where they sat; a second drop of a message whose
 // move is still open is ignored rather than issued twice. ../api is mocked (the Wails seam) and the real
 // message store and selection are wired in the way App does.
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
@@ -44,6 +44,8 @@ function harness() {
             store,
             selection,
             folders,
+            // The account under test is IMAP, so its delete confirmation says Trash rather than gone.
+            isPop3: false,
             loadUnread: async () => {},
             refreshFolders: async () => {},
             setError: (message: string) => errors.push(message),

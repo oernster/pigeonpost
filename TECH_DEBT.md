@@ -12,7 +12,7 @@ The limit is 400 lines. `tests/structural/boundary_test.go` has always enforced 
 
 | Module | Lines |
 |---|---|
-| `src/App.tsx` | 1485 |
+| `src/App.tsx` | 1429 |
 | `src/components/ComposeModal.tsx` | 731 |
 | `src/api.ts` | 631 |
 | `src/components/EventFormModal.tsx` | 559 |
@@ -28,7 +28,11 @@ The guard now exists (`src/test/loc.test.ts`) and holds every other module, with
 
 The JSX split has started with `ManagerModals`, the four dialogs over the four managed collections. It works because the collections pass whole: a manager dialog needs nothing threaded through `App`; a fifth would be one entry there plus one `useManagedCollection` call.
 
-The rest of the overlay stack does not pass whole, which is the open question rather than the remaining lines. Seven `ConfirmDialog` blocks are one shape repeated, yet each draws its gate, its busy flag and its action from a different hook, so lifting them behind one component would thread twenty-odd values across a new boundary and buy a shorter file for a wider interface. The move that pays is the other direction: each of `useMessageActions`, `useBulkActions`, `useFolders`, `useAccounts` and `useOutbox` exposing its own confirmation descriptor, so `App` renders a list it does not assemble. That also makes the house rule that every destructive action carries a confirmation checkable in one place rather than by reading the JSX. It touches five hooks and should be its own unit.
+The seven `ConfirmDialog` blocks have gone the same way, though not by lifting them behind a component: each of `useMessageActions`, `useBulkActions`, `useFolders`, `useAccounts` and `useOutbox` now returns its own confirmation descriptor, built beside the action it describes; `ConfirmStack` renders the list `App` assembles but does not write. The wording lives in the pure `src/confirmations.ts` under the coverage gate, so it is testable without opening a dialog.
+
+One claim made when this was proposed turned out to be wrong and is withdrawn: it would not make the confirm-before-destroy rule checkable in one place. `ConfirmDialog` is used directly by nine other components (the compose discard, the contacts and rules and templates managers, the calendar's own editors), each a local confirmation belonging to its own dialog, so the list covers the main window's confirmations rather than the application's.
+
+What is left in `App.tsx` is composition, the panes and the remaining overlays, none of which is one shape repeated. Further reduction means moving whole regions (the panes block, the message and folder context menus) rather than collapsing duplication, so the next unit should be judged on whether the boundary it creates is narrower than the lines it saves.
 
 One candidate was tried and put back: collapsing the five localStorage-backed View preferences onto one hook. The reduction was around fifteen lines and it would have changed three toggles from a functional state updater to a closed-over read; it would also have given `useMenus` a toggle whose identity changes every render where the current one is stable. That is a behaviour change traded for very little, so the characterisation tests for those preferences were kept and the collapse was not made. Anyone returning to it should either keep each toggle's updater form or pin the identity first.
 

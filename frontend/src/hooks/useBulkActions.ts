@@ -4,6 +4,7 @@ import {OUTBOX_FOLDER_ID, isOutboxMessage} from '../outbox'
 import {putBack, takeOut, type Lifted} from '../optimisticList'
 import type {MoveItem} from '../undoStack'
 import type {MessageStore} from './useMessageStore'
+import {Confirmation, deleteManyConfirmation, purgeManyConfirmation} from '../confirmations'
 import type {Selection} from './useSelection'
 import type {UndoRecorder} from './useUndoRedo'
 
@@ -19,9 +20,14 @@ export interface BulkActionsDeps {
     refreshFolders: () => Promise<void>
     setError: (message: string) => void
     undo: UndoRecorder
+    // isPop3 is whether the selected account has no Trash, which the bulk delete confirmation has to say.
+    isPop3: boolean
 }
 
 export interface BulkActions {
+    // The two pending confirmations this hook owns, each null when nothing is pending.
+    deleteConfirmation: Confirmation | null
+    purgeConfirmation: Confirmation | null
     bulkToDelete: Message[] | null
     setBulkToDelete: Dispatch<SetStateAction<Message[] | null>>
     bulkDeleting: boolean
@@ -48,10 +54,10 @@ interface MoveSnapshot {
 
 // useBulkActions owns the actions over a multi-selection (bulk delete, permanent delete, move, read, flag)
 // and the drag-and-drop-onto-folder handler, plus the bulk-delete and bulk-purge confirm state. Every list
-// change goes through the message store, so it shows wherever a message appears, and the selection is
+// change goes through the message store, so it shows wherever a message appears; the selection is
 // cleared after a delete or move. The single-message actions live in useMessageActions.
 export function useBulkActions(deps: BulkActionsDeps): BulkActions {
-    const {store, selection, folders, loadUnread, refreshFolders, setError, undo} = deps
+    const {store, selection, folders, loadUnread, refreshFolders, setError, undo, isPop3} = deps
     const {
         messages, searchResults, tabs, selectedMessage,
         setMessages, setSearchResults, setTabs, setSelectedMessage,
@@ -70,7 +76,7 @@ export function useBulkActions(deps: BulkActionsDeps): BulkActions {
     const inFlightIds = useRef<Set<string>>(new Set())
 
     // removeIdsFromLists drops a set of message ids from every on-screen list and the selection after a
-    // bulk delete or move, and clears the active message if it was among them. All the setters are stable,
+    // bulk delete or move, then clears the active message if it was among them. All the setters are stable,
     // so it needs no dependencies.
     const removeIdsFromLists = useCallback((ids: Set<string>) => {
         removeFromAllLists(ids)
@@ -79,7 +85,7 @@ export function useBulkActions(deps: BulkActionsDeps): BulkActions {
     }, [removeFromAllLists])
 
     // liftFromLists removes the ids from every on-screen list at once and returns what it took. It is what
-    // makes a drop visible immediately: an IMAP move can take seconds on a slow provider, and a list that
+    // makes a drop visible immediately: an IMAP move can take seconds on a slow provider; a list that
     // does not change reads as a drop that missed, so the user drags again and again. The rows leave now and
     // come back only if the server refuses.
     const liftFromLists = useCallback((ids: Set<string>): MoveSnapshot => {
@@ -153,7 +159,7 @@ export function useBulkActions(deps: BulkActionsDeps): BulkActions {
         setError('')
         // The source folders are read before the move: afterwards the rows are gone from the lists.
         const sources = new Map(ids.map((id) => [id, sourceFolderOf(id)]))
-        // The rows leave the lists now, not when the server answers, and the ids are marked in flight so a
+        // The rows leave the lists now, not when the server answers; the ids are marked in flight so a
         // repeat drop of the same message while the first is still open is not issued twice.
         for (const id of ids) {
             inFlightIds.current.add(id)
@@ -322,7 +328,26 @@ export function useBulkActions(deps: BulkActionsDeps): BulkActions {
         void bulkMoveIds(ids, destFolderId)
     }, [bulkMoveIds])
 
+    const deleteConfirmation = bulkToDelete === null ? null : deleteManyConfirmation(
+        bulkToDelete.length,
+        isPop3,
+        {
+            busy: bulkDeleting,
+            onConfirm: () => void runBulkDelete(bulkToDelete, false),
+            onCancel: () => setBulkToDelete(null),
+        },
+    )
+    const purgeConfirmation = bulkToPurge === null ? null : purgeManyConfirmation(
+        bulkToPurge.length,
+        {
+            busy: bulkPurging,
+            onConfirm: () => void runBulkDelete(bulkToPurge, true),
+            onCancel: () => setBulkToPurge(null),
+        },
+    )
+
     return {
+        deleteConfirmation, purgeConfirmation,
         bulkToDelete, setBulkToDelete, bulkDeleting,
         bulkToPurge, setBulkToPurge, bulkPurging,
         runBulkDelete, bulkSetRead, bulkSetFlag, bulkMove, dropMessageOnFolder,

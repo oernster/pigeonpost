@@ -29,7 +29,7 @@ import {UndoSendToast} from './components/UndoSendToast'
 import {EventsOn} from '../wailsjs/runtime'
 import {MessagePickerDialog} from './components/MessagePickerDialog'
 import {AccountSetupModal} from './components/AccountSetupModal'
-import {ConfirmDialog} from './components/ConfirmDialog'
+import {ConfirmStack} from './components/ConfirmStack'
 import {PromptDialog} from './components/PromptDialog'
 import {ReminderNotifications} from './components/ReminderNotifications'
 import {CloseChoiceDialog} from './components/CloseChoiceDialog'
@@ -124,6 +124,7 @@ function App() {
         folders, setFolders, selectedFolder, setSelectedFolder, selectedFolderRef,
         selectedAccountRef, applyFolders,
         folderPrompt, setFolderPrompt, folderToDelete, setFolderToDelete, folderBusy,
+        confirmation: foldersConfirmation,
         refreshFolders, submitFolderPrompt, confirmDeleteFolder, reparentFolder,
     } = useFolders({selectedAccount, store, setError})
     // The outbox queue (surfaced as a per-account synthetic Outbox folder), the cancel-send confirm flow
@@ -132,6 +133,7 @@ function App() {
     const {
         outbox, outboxForAccount, refreshOutbox, sidebarFolders,
         messageToCancelSend, setMessageToCancelSend, cancellingSend, cancelSend,
+        confirmation: outboxConfirmation,
     } = useOutbox({selectedAccount, folders, setError})
     // The account list, the add/edit/remove dialog state and the load/remove operations live in
     // useAccounts. selectAccount and the auto-select effect stay in App (below): account selection cascades
@@ -139,8 +141,19 @@ function App() {
     const {
         accounts, settingUp, setSettingUp, accountToEdit, setAccountToEdit,
         accountToDelete, setAccountToDelete, deleting,
+        confirmation: accountsConfirmation,
         loadAccounts, removeAccount,
     } = useAccounts({selectedAccount, setSelectedAccount, store, setFolders, setSelectedFolder, setError})
+    // The account in view, plus whether mail here has a Trash to go to. Both sit above the action hooks
+    // because a delete confirmation has to say honestly where the message goes. messagePop3 resolves a
+    // message's OWN account (a unified row can belong to any account, other rows fall back to the
+    // selected one) rather than assuming the one in view.
+    const activeAccount = accounts.find((a) => a.id === selectedAccount)
+    const isPop3 = activeAccount?.protocol === 'pop3'
+    const messagePop3 = (message: Message): boolean => {
+        const owner = accounts.find((a) => a.id === (message.accountId || selectedAccount))
+        return owner?.protocol === 'pop3'
+    }
     const [theme, setTheme] = useState<Theme>(loadTheme())
     // About and the licence text are the Help menu's two read-only panels: each is fetched when its menu
     // item is chosen and dropped when its dialog closes.
@@ -363,12 +376,14 @@ function App() {
     // The single-message actions (delete, move, flag, read, junk, copy) and their single-delete confirm
     // state live in useMessageActions, wired to the message store and the loaders they need.
     const {
+        deleteConfirmation, purgeConfirmation,
         messageToDelete, setMessageToDelete, deletingMessage,
         messageToPurge, setMessageToPurge, purgingMessage,
         requestDelete, deleteMessage, deletePermanent, toggleFlag, moveMessage, markJunk, markNotJunk, copyMessage,
         setReadState, toggleRead, markReadOnView, markReplied, markForwarded,
     } = useMessageActions({
         store, displayMessages, searchActive, folders, loadUnread, refreshFolders, setError,
+        isPop3: messagePop3,
         undo: undoRedo.recorder,
     })
 
@@ -807,10 +822,11 @@ function App() {
     // drag-and-drop-onto-folder handler and the bulk-delete confirm state live in useBulkActions, wired to
     // the message store, the selection and the loaders they need.
     const {
+        deleteConfirmation: bulkDeleteConfirmation, purgeConfirmation: bulkPurgeConfirmation,
         bulkToDelete, setBulkToDelete, bulkDeleting,
         bulkToPurge, setBulkToPurge, bulkPurging,
         runBulkDelete, bulkSetRead, bulkSetFlag, bulkMove, dropMessageOnFolder,
-    } = useBulkActions({store, selection, folders, loadUnread, refreshFolders, setError, undo: undoRedo.recorder})
+    } = useBulkActions({store, selection, folders, loadUnread, refreshFolders, setError, undo: undoRedo.recorder, isPop3})
 
     // The message-level half of Edit > Cut / Copy / Paste: cut or copy takes the selected messages
     // onto an internal clipboard and paste files them into the folder being viewed (a cut moves
@@ -888,20 +904,12 @@ function App() {
 
     // A POP3 account has a single downloaded inbox with no server-side folders, message moves or draft
     // mailbox, so those actions are hidden and a delete is permanent rather than a move to Trash.
-    const activeAccount = accounts.find((a) => a.id === selectedAccount)
-    const isPop3 = activeAccount?.protocol === 'pop3'
     // The unified mailbox and the Snoozed view span accounts. Move and Copy (and Junk) are unavailable
     // in both: the folder targets belong to one account while the rows span them all, so those actions
     // live in the message's real folder instead.
     const unifiedSelected = isUnifiedFolder(selectedFolder)
     const snoozedSelected = isSnoozedFolder(selectedFolder)
     const canMoveCopy = !isPop3 && !unifiedSelected && !snoozedSelected
-    // messagePop3 resolves a message's own account (a unified row can belong to any account, other rows
-    // fall back to the selected one) to word its delete confirmation honestly: POP3 has no Trash.
-    const messagePop3 = (message: Message | null): boolean => {
-        const owner = accounts.find((a) => a.id === (message?.accountId || selectedAccount))
-        return owner?.protocol === 'pop3'
-    }
     // supersedeDraft drops the stored draft a compose window was reopened from, once its replacement has
     // been sent or saved. The row goes at once, then the copy itself. The delete is permanent by design: the
     // copy is stale the moment its replacement exists and routing every intermediate save through Trash
@@ -1109,6 +1117,19 @@ function App() {
     // the window live in useMenus. It takes the derived gating flags (shared with the titlebar) plus every
     // action handler, then returns the arrays the Menu components render. mailMoveTargets and the applied-tag
     // set are computed inside it.
+    // Every destructive confirmation the main window owns, each built by the hook that owns the action.
+    // App assembles the list but writes none of it, so a new destructive action adds a confirmation to
+    // its own hook and one entry here rather than another block of dialog markup.
+    const confirmations = [
+        outboxConfirmation,
+        deleteConfirmation,
+        purgeConfirmation,
+        bulkDeleteConfirmation,
+        bulkPurgeConfirmation,
+        accountsConfirmation,
+        foldersConfirmation,
+    ]
+
     const {fileMenu, editMenu, viewMenu, mailMenu, helpMenu} = useMenus({
         activeMessage, activeOutbox, canMailAct, canReplyAll, canMoveCopy, selectedAccount, accountSyncing,
         isWindows, conversationView, previewEnabled, autoLoadImages, unifiedMailbox, undoSendSeconds, setUndoSendSeconds,
@@ -1305,64 +1326,7 @@ function App() {
                 calendarInitialEvent={calendarInitialEvent}
                 onCalendarClosed={() => setCalendarInitialEvent(null)}
             />
-            {messageToCancelSend && (
-                <ConfirmDialog
-                    title="Cancel send"
-                    message={`Cancel sending "${messageToCancelSend.subject || '(no subject)'}"? The queued email is discarded and will not be sent.`}
-                    confirmLabel="Cancel send"
-                    busy={cancellingSend}
-                    onConfirm={() => void cancelSend()}
-                    onCancel={() => setMessageToCancelSend(null)}
-                />
-            )}
-            {messageToDelete && (
-                <ConfirmDialog
-                    title="Delete message"
-                    message={messagePop3(messageToDelete)
-                        ? `Delete "${messageToDelete.subject || '(no subject)'}"? POP3 has no Trash, so it is permanently removed from the server and cannot be recovered.`
-                        : `Delete "${messageToDelete.subject || '(no subject)'}"? It is moved to Trash; it is deleted permanently if it is already in Trash or the account has no Trash folder.`}
-                    confirmLabel="Delete"
-                    busy={deletingMessage}
-                    defaultConfirm
-                    onConfirm={() => void deleteMessage()}
-                    onCancel={() => setMessageToDelete(null)}
-                />
-            )}
-            {messageToPurge && (
-                <ConfirmDialog
-                    title="Delete permanently"
-                    message={`Permanently delete "${messageToPurge.subject || '(no subject)'}"? It is removed from the server and cannot be recovered.`}
-                    confirmLabel="Delete permanently"
-                    busy={purgingMessage}
-                    defaultConfirm
-                    onConfirm={() => void deletePermanent()}
-                    onCancel={() => setMessageToPurge(null)}
-                />
-            )}
-            {bulkToDelete && (
-                <ConfirmDialog
-                    title="Delete messages"
-                    message={isPop3
-                        ? `Delete ${bulkToDelete.length} messages? POP3 has no Trash, so they are permanently removed from the server and cannot be recovered.`
-                        : `Delete ${bulkToDelete.length} messages? They are moved to Trash; where the account has no Trash folder they are deleted permanently.`}
-                    confirmLabel={`Delete ${bulkToDelete.length}`}
-                    busy={bulkDeleting}
-                    defaultConfirm
-                    onConfirm={() => void runBulkDelete(bulkToDelete, false)}
-                    onCancel={() => setBulkToDelete(null)}
-                />
-            )}
-            {bulkToPurge && (
-                <ConfirmDialog
-                    title="Delete permanently"
-                    message={`Permanently delete ${bulkToPurge.length} messages? They are removed from the server and cannot be recovered.`}
-                    confirmLabel={`Delete ${bulkToPurge.length} permanently`}
-                    busy={bulkPurging}
-                    defaultConfirm
-                    onConfirm={() => void runBulkDelete(bulkToPurge, true)}
-                    onCancel={() => setBulkToPurge(null)}
-                />
-            )}
+            <ConfirmStack confirmations={confirmations}/>
             {contextMenu && (
                 <MessageContextMenu
                     message={contextMenu.message}
@@ -1419,16 +1383,6 @@ function App() {
                     onClose={() => setFolderContextMenu(null)}
                 />
             )}
-            {accountToDelete && (
-                <ConfirmDialog
-                    title="Remove account"
-                    message={`Remove ${accountToDelete.email}? Its cached mail is deleted from this device and its password is removed from the keychain. Mail on the server is not affected.`}
-                    confirmLabel="Remove account"
-                    busy={deleting}
-                    onConfirm={() => void removeAccount()}
-                    onCancel={() => setAccountToDelete(null)}
-                />
-            )}
             {folderPrompt && (
                 <PromptDialog
                     title={folderPromptTitle(folderPrompt)}
@@ -1451,16 +1405,6 @@ function App() {
                         void snoozeTo(target, at)
                     }}
                     onCancel={() => setSnoozePickerFor(null)}
-                />
-            )}
-            {folderToDelete && (
-                <ConfirmDialog
-                    title="Delete folder"
-                    message={`Delete the folder "${folderToDelete.name}" on the server? Its messages are removed from this device. This cannot be undone.`}
-                    confirmLabel="Delete folder"
-                    busy={folderBusy}
-                    onConfirm={() => void confirmDeleteFolder()}
-                    onCancel={() => setFolderToDelete(null)}
                 />
             )}
             {/* The close choice renders after every other overlay, so it surfaces on top of whatever

@@ -39,6 +39,7 @@ export default defineConfig({
         'src/snooze.ts',
         'src/toolbarNav.ts',
         'src/pastedHtml.ts',
+        'src/confirmations.ts',
         'src/undoStack.ts',
         'src/editClipboard.ts',
         'src/paneLayout.ts',

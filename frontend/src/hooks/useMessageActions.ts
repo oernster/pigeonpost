@@ -3,13 +3,14 @@ import {api, Folder, Message} from '../api'
 import {neighbourAfterRemoval} from '../messageText'
 import type {MoveFlavour} from '../undoStack'
 import type {MessageStore} from './useMessageStore'
+import {Confirmation, deleteMessageConfirmation, purgeMessageConfirmation} from '../confirmations'
 import type {UndoRecorder} from './useUndoRedo'
 
 // MessageActionsDeps is what the single-message actions need from the rest of App: the message store they
 // mutate, the visible list and the search flag (used to pick the next selection after a removal), the
 // two badge refreshers and the error sink. loadUnread refreshes the per-account and titlebar unread
 // badges; refreshFolders reloads the folder tree, whose rows carry the per-folder unread badge. Every
-// action that can change a folder's unread count must refresh both, or the folder badge goes stale.
+// action that can change a folder's unread count must refresh both; otherwise the folder badge goes stale.
 export interface MessageActionsDeps {
     store: MessageStore
     displayMessages: Message[]
@@ -22,9 +23,16 @@ export interface MessageActionsDeps {
     setError: (message: string) => void
     // undo records each completed action so Edit > Undo can unwind it.
     undo: UndoRecorder
+    // isPop3 answers whether a message's own account has no Trash, which is what its delete confirmation
+    // has to say honestly. A unified row can belong to any account, so it is asked per message.
+    isPop3: (message: Message) => boolean
 }
 
 export interface MessageActions {
+    // deleteConfirmation and purgeConfirmation are the two pending confirmations this hook owns, each
+    // null when nothing is pending. They are built here so the wording and the action stay together.
+    deleteConfirmation: Confirmation | null
+    purgeConfirmation: Confirmation | null
     messageToDelete: Message | null
     setMessageToDelete: Dispatch<SetStateAction<Message | null>>
     deletingMessage: boolean
@@ -51,7 +59,7 @@ export interface MessageActions {
 // it shows wherever the message appears. Bulk actions, tag actions and the outbox cancel live in their own
 // hooks.
 export function useMessageActions(deps: MessageActionsDeps): MessageActions {
-    const {store, displayMessages, searchActive, folders, loadUnread, refreshFolders, setError, undo} = deps
+    const {store, displayMessages, searchActive, folders, loadUnread, refreshFolders, setError, undo, isPop3} = deps
     const {
         searchResults, setMessages, setSearchResults, setTabs, setSelectedMessage,
         applyToAllLists, removeFromAllLists,
@@ -151,7 +159,7 @@ export function useMessageActions(deps: MessageActionsDeps): MessageActions {
     }, [messageToPurge, searchActive, searchResults, displayMessages, refreshBadges])
 
     // requestDelete always asks for confirmation before deleting. The confirmed delete moves the message to
-    // Trash where the account has one, or removes it permanently otherwise (the dialog says which). Shared
+    // Trash where the account has one; it removes it permanently otherwise (the dialog says which). Shared
     // by the Delete key and the context menu.
     const requestDelete = useCallback((message: Message) => {
         setMessageToDelete(message)
@@ -306,7 +314,26 @@ export function useMessageActions(deps: MessageActionsDeps): MessageActions {
         }
     }, [setReadState])
 
+    const deleteConfirmation = messageToDelete === null ? null : deleteMessageConfirmation(
+        messageToDelete.subject,
+        isPop3(messageToDelete),
+        {
+            busy: deletingMessage,
+            onConfirm: () => void deleteMessage(),
+            onCancel: () => setMessageToDelete(null),
+        },
+    )
+    const purgeConfirmation = messageToPurge === null ? null : purgeMessageConfirmation(
+        messageToPurge.subject,
+        {
+            busy: purgingMessage,
+            onConfirm: () => void deletePermanent(),
+            onCancel: () => setMessageToPurge(null),
+        },
+    )
+
     return {
+        deleteConfirmation, purgeConfirmation,
         messageToDelete, setMessageToDelete, deletingMessage,
         messageToPurge, setMessageToPurge, purgingMessage,
         requestDelete, deleteMessage, deletePermanent, toggleFlag, moveMessage, markJunk, markNotJunk, copyMessage,

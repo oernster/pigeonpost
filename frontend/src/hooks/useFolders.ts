@@ -1,6 +1,7 @@
 import {Dispatch, MutableRefObject, SetStateAction, useCallback, useEffect, useRef, useState} from 'react'
 import {Folder, api} from '../api'
 import type {MessageStore} from './useMessageStore'
+import {Confirmation, deleteFolderConfirmation} from '../confirmations'
 
 // FolderPrompt is the create-or-rename dialog state: which mode, the folder being renamed, plus the
 // folder a new subfolder goes under. A create naming no parent lands at the top level.
@@ -20,6 +21,9 @@ export interface FoldersDeps {
 }
 
 export interface Folders {
+    // confirmation is the pending destructive confirmation this hook owns; null when none is pending.
+    // It is built here rather than by the caller, so the wording and the action it describes stay together.
+    confirmation: Confirmation | null
     folders: Folder[]
     setFolders: Dispatch<SetStateAction<Folder[]>>
     selectedFolder: string
@@ -149,10 +153,20 @@ export function useFolders(deps: FoldersDeps): Folders {
         }
     }, [refreshFolders])
 
+    // The confirmation for deleting a folder, built beside the deletion it describes.
+    const confirmation = folderToDelete === null ? null : deleteFolderConfirmation(
+        folderToDelete.name,
+        {
+            busy: folderBusy,
+            onConfirm: () => void confirmDeleteFolder(),
+            onCancel: () => setFolderToDelete(null),
+        },
+    )
+
     return {
         folders, setFolders, selectedFolder, setSelectedFolder, selectedFolderRef,
         selectedAccountRef, applyFolders,
         folderPrompt, setFolderPrompt, folderToDelete, setFolderToDelete, folderBusy,
-        refreshFolders, submitFolderPrompt, confirmDeleteFolder, reparentFolder,
+        refreshFolders, submitFolderPrompt, confirmDeleteFolder, reparentFolder, confirmation,
     }
 }

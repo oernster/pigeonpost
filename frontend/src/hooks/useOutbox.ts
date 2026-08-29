@@ -1,6 +1,7 @@
 import {Dispatch, SetStateAction, useCallback, useEffect, useMemo, useState} from 'react'
 import {Folder, Message, OutboxItem, api} from '../api'
 import {OUTBOX_FOLDER_ID} from '../outbox'
+import {Confirmation, cancelSendConfirmation} from '../confirmations'
 
 // OutboxDeps is what the outbox needs from the rest of App: the selected account (whose queue is shown),
 // the account's real folders (to append the synthetic Outbox folder to) and the error sink.
@@ -11,6 +12,9 @@ export interface OutboxDeps {
 }
 
 export interface Outbox {
+    // confirmation is the pending destructive confirmation this hook owns; null when none is pending.
+    // It is built here rather than by the caller, so the wording and the action it describes stay together.
+    confirmation: Confirmation | null
     // outbox is the whole queue across accounts; outboxForAccount is just the selected account's items,
     // shown under its Outbox folder.
     outbox: OutboxItem[]
@@ -25,7 +29,7 @@ export interface Outbox {
 }
 
 // useOutbox owns the queue of outgoing operations waiting to be sent, surfaced as a per-account synthetic
-// Outbox folder, and the cancel-send confirm flow. The queue is loaded on mount and reloaded after a sync,
+// Outbox folder, plus the cancel-send confirm flow. The queue is loaded on mount and reloaded after a sync,
 // a send or a cancel. The effect that keeps the open Outbox VIEW in step with the queue stays in App,
 // because it drives folder navigation (falling back to the inbox once the queue empties).
 export function useOutbox(deps: OutboxDeps): Outbox {
@@ -91,8 +95,19 @@ export function useOutbox(deps: OutboxDeps): Outbox {
         }
     }, [messageToCancelSend, refreshOutbox])
 
+    // The confirmation for cancelling a queued send is built here, beside the cancel it describes, so
+    // the sentence and the action cannot drift apart. Null when nothing is pending.
+    const confirmation = messageToCancelSend === null ? null : cancelSendConfirmation(
+        messageToCancelSend.subject,
+        {
+            busy: cancellingSend,
+            onConfirm: () => void cancelSend(),
+            onCancel: () => setMessageToCancelSend(null),
+        },
+    )
+
     return {
         outbox, outboxForAccount, refreshOutbox, sidebarFolders,
-        messageToCancelSend, setMessageToCancelSend, cancellingSend, cancelSend,
+        messageToCancelSend, setMessageToCancelSend, cancellingSend, cancelSend, confirmation,
     }
 }
