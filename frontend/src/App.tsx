@@ -39,11 +39,11 @@ import {ReminderNotifications} from './components/ReminderNotifications'
 import {CloseChoiceDialog} from './components/CloseChoiceDialog'
 import {Splash} from './components/Splash'
 import {PaneSplitters} from './components/PaneSplitters'
-import {emlFilename, escapeHtml} from './messageText'
 import {sendersFor} from './replyDraft'
-import {printDocument, printFrameId, printFrameStyle, printReadyMarkerId} from './print'
 import {focusRingElements, focusRingRoot} from './focusRing'
 import {useMessageStore} from './hooks/useMessageStore'
+import {useMessageExport} from './hooks/useMessageExport'
+import {useManagedCollection} from './hooks/useManagedCollection'
 import {rangeIds, toggleId, useSelection} from './hooks/useSelection'
 import {useMessageActions} from './hooks/useMessageActions'
 import {useBulkActions} from './hooks/useBulkActions'
@@ -143,14 +143,16 @@ function App() {
     const [theme, setTheme] = useState<Theme>(loadTheme())
     const [about, setAbout] = useState<AboutInfo | null>(null)
     const [licence, setLicence] = useState<string | null>(null)
-    const [rules, setRules] = useState<Rule[]>([])
-    const [managingRules, setManagingRules] = useState<boolean>(false)
-    const [templates, setTemplates] = useState<Template[]>([])
-    const [managingTemplates, setManagingTemplates] = useState<boolean>(false)
-    const [contacts, setContacts] = useState<Contact[]>([])
-    const [managingContacts, setManagingContacts] = useState<boolean>(false)
-    const [events, setEvents] = useState<CalendarEvent[]>([])
-    const [managingCalendar, setManagingCalendar] = useState<boolean>(false)
+    // The four backend-backed collections the menus manage share one shape (load on mount, reload after
+    // the manager dialog changes them, a flag for whether that dialog is open), so they share one hook.
+    const {items: rules, reload: loadRules, managing: managingRules, setManaging: setManagingRules} =
+        useManagedCollection<Rule>(api.listRules, setError)
+    const {items: templates, reload: loadTemplates, managing: managingTemplates, setManaging: setManagingTemplates} =
+        useManagedCollection<Template>(api.listTemplates, setError)
+    const {items: contacts, reload: loadContacts, managing: managingContacts, setManaging: setManagingContacts} =
+        useManagedCollection<Contact>(api.listContacts, setError)
+    const {items: events, reload: loadEvents, managing: managingCalendar, setManaging: setManagingCalendar} =
+        useManagedCollection<CalendarEvent>(api.listEvents, setError)
     // calendarInitialEvent is the event whose dialog the calendar opens with, set when a reminder toast is
     // clicked so it lands on that event. Null for a normal calendar open from the menu.
     const [calendarInitialEvent, setCalendarInitialEvent] = useState<string | null>(null)
@@ -303,59 +305,11 @@ function App() {
         }
     }, [])
 
-    const loadRules = useCallback(async () => {
-        try {
-            setRules(await api.listRules())
-        } catch (e) {
-            setError(String(e))
-        }
-    }, [])
-
-    useEffect(() => {
-        void loadRules()
-    }, [loadRules])
-
-    const loadTemplates = useCallback(async () => {
-        try {
-            setTemplates(await api.listTemplates())
-        } catch (e) {
-            setError(String(e))
-        }
-    }, [])
-
-    useEffect(() => {
-        void loadTemplates()
-    }, [loadTemplates])
-
-    const loadContacts = useCallback(async () => {
-        try {
-            setContacts(await api.listContacts())
-        } catch (e) {
-            setError(String(e))
-        }
-    }, [])
-
-    useEffect(() => {
-        void loadContacts()
-    }, [loadContacts])
-
-    const loadEvents = useCallback(async () => {
-        try {
-            setEvents(await api.listEvents())
-        } catch (e) {
-            setError(String(e))
-        }
-    }, [])
-
     // openReminderEvent opens the calendar with the reminder's event dialog on top, so a clicked reminder
     // shows what it is about. Events are refreshed first so the calendar can find and jump to the event.
     const openReminderEvent = useCallback((eventId: string) => {
         setCalendarInitialEvent(eventId)
         setManagingCalendar(true)
-        void loadEvents()
-    }, [loadEvents])
-
-    useEffect(() => {
         void loadEvents()
     }, [loadEvents])
 
@@ -907,63 +861,9 @@ function App() {
         setContextMenu({message, x, y})
     }, [])
 
-    // saveMessageAs exports the message as a .eml file via a native save dialog, named from its subject.
-    const saveMessageAs = useCallback(async (message: Message) => {
-        try {
-            await api.saveMessageAs(message.id, emlFilename(message.subject || ''))
-        } catch (e) {
-            setError(String(e))
-        }
-    }, [])
-
-    // printMessage prints one message by rendering it into a hidden, page-sized iframe parked off-screen and
-    // invoking the browser's print dialog on that frame, so only the message (not the whole app window) is
-    // printed. Remote images, parked in the reader for privacy, are restored for the printed copy. The frame
-    // is given real off-screen dimensions (a zero-size frame prints blank) and is pinned to a light colour
-    // scheme (it otherwise inherits the app's dark scheme) so the message prints as dark text on white paper.
-    const printMessage = useCallback(async (message: Message) => {
-        try {
-            const body = await api.messageBody(message.id)
-            const html = body.html?.trim() ? body.html.replace(/data-pp-src=/g, 'src=') : ''
-            const content = html || `<pre>${escapeHtml(body.plain || message.snippet || '')}</pre>`
-            const sender = escapeHtml(message.fromName || message.fromAddress || '(unknown sender)')
-            const when = message.date ? escapeHtml(new Date(message.date).toLocaleString()) : ''
-            const doc = printDocument(escapeHtml(message.subject || '(no subject)'), sender, when, content)
-
-            document.getElementById(printFrameId)?.remove()
-            const frame = document.createElement('iframe')
-            frame.id = printFrameId
-            frame.setAttribute('aria-hidden', 'true')
-            frame.style.cssText = printFrameStyle
-            frame.onload = () => {
-                const win = frame.contentWindow
-                // Ignore the empty about:blank document a fresh iframe momentarily holds: print only once the
-                // real print document (which carries the print-ready marker) has loaded, so the dialog never
-                // captures a blank page.
-                if (!win || !frame.contentDocument?.getElementById(printReadyMarkerId)) {
-                    return
-                }
-                win.onafterprint = () => frame.remove()
-                win.focus()
-                win.print()
-            }
-            // The print document is written into the frame rather than set through srcdoc: WebKit (WKWebView
-            // on macOS, WebKitGTK on Linux) does not reliably fire load for a srcdoc navigation (the same
-            // failure that broke the reader frame's click interception), while open()/write()/close() fires
-            // load on every engine once the written document has parsed. The frame must be in the DOM before
-            // writing, since a detached iframe has no document; the print-ready marker check above keeps a
-            // stray about:blank load from printing a blank page.
-            document.body.appendChild(frame)
-            const contentDocument = frame.contentDocument
-            if (contentDocument) {
-                contentDocument.open()
-                contentDocument.write(doc)
-                contentDocument.close()
-            }
-        } catch (e) {
-            setError(String(e))
-        }
-    }, [])
+    // Saving a message as .eml and printing one both live in useMessageExport: message in, document
+    // out, with no state here beyond an error to report.
+    const {saveMessageAs, printMessage} = useMessageExport({setError})
 
     const showAbout = useCallback(async () => {
         try {

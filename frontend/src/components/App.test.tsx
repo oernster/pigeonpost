@@ -15,12 +15,13 @@ import App from '../App'
 import type {Account, Folder, Message, OutboxItem} from '../api'
 import {SEARCH_MATCH_END, SEARCH_MATCH_START} from '../api'
 import {IDLE_REFOCUS_MS} from '../hooks/useIdleRefocus'
+import {printFrameId, printReadyMarkerId} from '../print'
 
 const apiSpies = vi.hoisted(() => ({
     version: vi.fn(), author: vi.fn(),
     listAccounts: vi.fn(),
     draftRecovery: vi.fn(), clearDraftRecovery: vi.fn(),
-    listRules: vi.fn(), listContacts: vi.fn(), listEvents: vi.fn(),
+    listRules: vi.fn(), listTemplates: vi.fn(), listContacts: vi.fn(), listEvents: vi.fn(),
     unreadCounts: vi.fn(), listTags: vi.fn(), saveTag: vi.fn(),
     messageTags: vi.fn(), messageBody: vi.fn(), loadRemoteImages: vi.fn(), searchMessages: vi.fn(),
     setMessageTag: vi.fn(), listMessages: vi.fn(), listMessagesPage: vi.fn(), syncFolder: vi.fn(),
@@ -121,6 +122,7 @@ beforeEach(() => {
     })
     apiSpies.clearDraftRecovery.mockReset().mockResolvedValue(undefined)
     apiSpies.listRules.mockReset().mockResolvedValue([])
+    apiSpies.listTemplates.mockReset().mockResolvedValue([])
     apiSpies.listContacts.mockReset().mockResolvedValue([])
     apiSpies.listEvents.mockReset().mockResolvedValue([])
     apiSpies.unreadCounts.mockReset().mockResolvedValue({total: 0, byAccount: {}})
@@ -175,7 +177,11 @@ beforeEach(() => {
     runtimeSpies.EventsOn.mockReset().mockReturnValue(() => undefined)
 })
 
-afterEach(() => cleanup())
+afterEach(() => {
+    cleanup()
+    // The print frame is appended to document.body, which cleanup() does not own.
+    document.getElementById(printFrameId)?.remove()
+})
 
 describe('App: mount and splash', () => {
     it('renders the titlebar and shows the splash on launch', () => {
@@ -969,6 +975,76 @@ describe('App: menus', () => {
         expect(await screen.findByRole('dialog', {name: 'New message'})).toBeInTheDocument()
     })
 
+    // Printing had no coverage above the pure print.ts document builder: the frame lifecycle, the
+    // load guard and the remote-image restore all lived unpinned in App. These characterise them at
+    // App's outer interface, so the behaviour is held whichever module ends up owning it.
+    it('prints the selected message into an off-screen frame (print)', async () => {
+        apiSpies.listAccounts.mockResolvedValue([makeAccount()])
+        apiSpies.listFolders.mockResolvedValue([makeFolder('inbox', 'Inbox', 'inbox')])
+        apiSpies.listMessages.mockResolvedValue([makeMessage({subject: 'Weekly report'})])
+        apiSpies.messageBody.mockResolvedValue({
+            plain: '', html: '<p><img data-pp-src="https://example.com/a.png"/>Body</p>',
+            hasInvite: false, attachments: [],
+        })
+        render(<App/>)
+        fireEvent.click(await screen.findByText('Weekly report'))
+        fireEvent.click(screen.getByRole('button', {name: 'File'}))
+        fireEvent.click(screen.getByRole('menuitem', {name: 'Print...'}))
+        await waitFor(() => expect(document.getElementById(printFrameId)).not.toBeNull())
+        const frame = document.getElementById(printFrameId) as HTMLIFrameElement
+        expect(frame.getAttribute('aria-hidden')).toBe('true')
+        // The parked remote images are restored for the printed copy; the document is written into the
+        // frame rather than set through srcdoc.
+        await waitFor(() => expect(frame.contentDocument?.documentElement.innerHTML ?? '').toContain('Weekly report'))
+        const written = frame.contentDocument?.documentElement.innerHTML ?? ''
+        expect(written).toContain('src="https://example.com/a.png"')
+        expect(written).not.toContain('data-pp-src=')
+        expect(frame.getAttribute('srcdoc')).toBeNull()
+    })
+
+    it('does not print a frame that has not loaded the print document (print)', async () => {
+        apiSpies.listAccounts.mockResolvedValue([makeAccount()])
+        apiSpies.listFolders.mockResolvedValue([makeFolder('inbox', 'Inbox', 'inbox')])
+        apiSpies.listMessages.mockResolvedValue([makeMessage({subject: 'Weekly report'})])
+        render(<App/>)
+        fireEvent.click(await screen.findByText('Weekly report'))
+        fireEvent.click(screen.getByRole('button', {name: 'File'}))
+        fireEvent.click(screen.getByRole('menuitem', {name: 'Print...'}))
+        await waitFor(() => expect(document.getElementById(printFrameId)).not.toBeNull())
+        const frame = document.getElementById(printFrameId) as HTMLIFrameElement
+        // The empty about:blank document a fresh frame momentarily holds carries no print-ready marker,
+        // so a load fired against it must not reach print and take a blank page.
+        const printed = vi.fn()
+        Object.defineProperty(frame.contentWindow, 'print', {value: printed, configurable: true})
+        frame.contentDocument?.getElementById(printReadyMarkerId)?.remove()
+        frame.onload?.(new Event('load'))
+        expect(printed).not.toHaveBeenCalled()
+    })
+
+    it('reports a failed print through the error bar (print)', async () => {
+        apiSpies.listAccounts.mockResolvedValue([makeAccount()])
+        apiSpies.listFolders.mockResolvedValue([makeFolder('inbox', 'Inbox', 'inbox')])
+        apiSpies.listMessages.mockResolvedValue([makeMessage({subject: 'Weekly report'})])
+        apiSpies.messageBody.mockRejectedValueOnce('printer on fire')
+        render(<App/>)
+        fireEvent.click(await screen.findByText('Weekly report'))
+        fireEvent.click(screen.getByRole('button', {name: 'File'}))
+        fireEvent.click(screen.getByRole('menuitem', {name: 'Print...'}))
+        expect(await screen.findByText(/printer on fire/)).toBeInTheDocument()
+    })
+
+    it('reports a failed save-as through the error bar (useMenus)', async () => {
+        apiSpies.listAccounts.mockResolvedValue([makeAccount()])
+        apiSpies.listFolders.mockResolvedValue([makeFolder('inbox', 'Inbox', 'inbox')])
+        apiSpies.listMessages.mockResolvedValue([makeMessage({subject: 'Weekly report'})])
+        apiSpies.saveMessageAs.mockRejectedValueOnce('disk full')
+        render(<App/>)
+        fireEvent.click(await screen.findByText('Weekly report'))
+        fireEvent.click(screen.getByRole('button', {name: 'File'}))
+        fireEvent.click(screen.getByRole('menuitem', {name: 'Save as...'}))
+        expect(await screen.findByText(/disk full/)).toBeInTheDocument()
+    })
+
     it('saves the selected message as .eml from the File menu (useMenus)', async () => {
         apiSpies.listAccounts.mockResolvedValue([makeAccount()])
         apiSpies.listFolders.mockResolvedValue([makeFolder('inbox', 'Inbox', 'inbox')])
@@ -980,6 +1056,67 @@ describe('App: menus', () => {
         fireEvent.click(screen.getByRole('menuitem', {name: 'Save as...'}))
         await waitFor(() => expect(apiSpies.saveMessageAs).toHaveBeenCalledWith('m1', expect.any(String)))
     })
+})
+
+// The View-menu preferences are each a boolean read from localStorage on mount and written back when
+// toggled. Only the reading half of one of them was pinned, so these characterise both halves of each
+// before they are collapsed onto one hook.
+describe('App: persisted view preferences', () => {
+    const flags = [
+        {label: 'Conversation view', key: 'conversationView'},
+        {label: 'Unified mailbox', key: 'unifiedMailbox'},
+        {label: 'Load images by default', key: 'autoLoadImages'},
+    ] as const
+
+    afterEach(() => flags.forEach((f) => localStorage.removeItem(f.key)))
+
+    for (const {label, key} of flags) {
+        it(`persists ${label} when it is toggled on`, async () => {
+            apiSpies.listAccounts.mockResolvedValue([makeAccount()])
+            apiSpies.listFolders.mockResolvedValue([makeFolder('inbox', 'Inbox', 'inbox')])
+            render(<App/>)
+            await screen.findByText('Inbox')
+            fireEvent.click(screen.getByRole('button', {name: 'View'}))
+            fireEvent.click(await screen.findByRole('menuitemcheckbox', {name: label}))
+            await waitFor(() => expect(localStorage.getItem(key)).toBe('1'))
+        })
+
+        it(`reads ${label} back from storage on mount`, async () => {
+            localStorage.setItem(key, '1')
+            apiSpies.listAccounts.mockResolvedValue([makeAccount()])
+            apiSpies.listFolders.mockResolvedValue([makeFolder('inbox', 'Inbox', 'inbox')])
+            render(<App/>)
+            await screen.findByText('Inbox')
+            fireEvent.click(screen.getByRole('button', {name: 'View'}))
+            // A ticked preference renders its item checked; that tick is how the stored value shows.
+            const item = await screen.findByRole('menuitemcheckbox', {name: label})
+            expect(item).toHaveAttribute('aria-checked', 'true')
+        })
+    }
+})
+
+// The four backend-backed collections the menus manage (rules, templates, contacts and calendar events)
+// were loaded by four hand-written copies of one shape with nothing pinning any of them. These
+// characterise the shape at App's outer interface before it is collapsed into one hook.
+describe('App: managed collections', () => {
+    it('loads every managed collection on mount', async () => {
+        render(<App/>)
+        await waitFor(() => expect(apiSpies.listRules).toHaveBeenCalled())
+        expect(apiSpies.listTemplates).toHaveBeenCalled()
+        expect(apiSpies.listContacts).toHaveBeenCalled()
+        expect(apiSpies.listEvents).toHaveBeenCalled()
+    })
+
+    for (const [name, spy] of [
+        ['rules', 'listRules'], ['templates', 'listTemplates'],
+        ['contacts', 'listContacts'], ['events', 'listEvents'],
+    ] as const) {
+        it(`reports a failed ${name} load through the error bar`, async () => {
+            apiSpies[spy].mockRejectedValueOnce(`${name} unavailable`)
+            render(<App/>)
+            expect(await screen.findByText(new RegExp(`${name} unavailable`))).toBeInTheDocument()
+        })
+    }
 })
 
 // The header that Phase 3.14 moves into TitleBar.tsx. The Sync button (already covered by the syncing test)
