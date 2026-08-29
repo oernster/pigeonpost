@@ -26,3 +26,23 @@ Object.defineProperty(HTMLElement.prototype, 'offsetHeight', {
 if (typeof Element.prototype.scrollTo !== 'function') {
     Element.prototype.scrollTo = () => undefined
 }
+
+// ProseMirror scrolls its caret into view after a transaction, which measures a Range (see singleRect
+// in prosemirror-view). jsdom runs no layout and implements neither Range.getClientRects nor
+// Range.getBoundingClientRect, so that measurement throws. It happens in the editor's own scroll pass
+// rather than under a test's await, so the throw escapes as an unhandled error and fails the whole run
+// instead of one test, intermittently, depending on whether it lands before the run ends. Give a Range
+// the empty measurements a document with no layout honestly has: singleRect then finds no rects, falls
+// back to the bounding box and scrolls nowhere, which is what jsdom can support.
+const EMPTY_RECT: DOMRect = {
+    x: 0, y: 0, width: 0, height: 0, top: 0, right: 0, bottom: 0, left: 0, toJSON: () => ({}),
+}
+if (typeof Range.prototype.getClientRects !== 'function') {
+    Range.prototype.getClientRects = function (): DOMRectList {
+        const rects: DOMRect[] = []
+        return Object.assign(rects, {item: () => null}) as unknown as DOMRectList
+    }
+}
+if (typeof Range.prototype.getBoundingClientRect !== 'function') {
+    Range.prototype.getBoundingClientRect = (): DOMRect => EMPTY_RECT
+}

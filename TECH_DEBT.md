@@ -12,7 +12,7 @@ The limit is 400 lines. `tests/structural/boundary_test.go` has always enforced 
 
 | Module | Lines |
 |---|---|
-| `src/App.tsx` | 1533 |
+| `src/App.tsx` | 1510 |
 | `src/components/ComposeModal.tsx` | 731 |
 | `src/api.ts` | 631 |
 | `src/components/EventFormModal.tsx` | 559 |
@@ -24,7 +24,9 @@ The limit is 400 lines. `tests/structural/boundary_test.go` has always enforced 
 
 The guard now exists (`src/test/loc.test.ts`) and holds every other module, with these nine named in an exemption list that may only shrink: a file leaves it when it is split; a file that is exempt while no longer over the limit fails too, so an entry cannot outlive the debt it records. Nothing new can join it. What is open is the splitting itself. Each is a behaviour-preserving decomposition along a concern boundary rather than an arbitrary slice, taken one module at a time and characterisation-first the way the original `App.tsx` decomposition was, so the front-end suite proves each move rather than review doing it. The four modals are alike enough to share an approach.
 
-`App.tsx` is its own unit and is under way. Four concerns have left it: `useMessageExport`, the four managed collections collapsed onto `useManagedCollection`, `useUndoSend` and `useSearch`. Each is pinned by characterisation tests written against the un-extracted code and proved by planting a violation. The pattern is set: what remains inside `App.tsx` is mostly composition, so the next candidates are the concerns that never became hooks. In rough order of size, the splash with the About and Licence loads; then the JSX itself, whose dialog stack and reader assembly are each large enough to be their own component.
+`App.tsx` is its own unit and is under way. Six concerns have left it: `useMessageExport`, the four managed collections collapsed onto `useManagedCollection`, `useUndoSend`, `useSearch`, `useSplash` and the About and licence panels collapsed onto `useLoadedPanel`. Each is pinned by characterisation tests written against the un-extracted code and proved by planting a violation.
+
+What remains is composition rather than concerns, so the hook-shaped moves are done and the next one is not: the JSX is around 380 lines, whose dialog stack and reader assembly are each large enough to be their own component. That is a prop-threading exercise rather than a lift, so it wants its own session and its own characterisation of what each dialog is gated on.
 
 One candidate was tried and put back: collapsing the five localStorage-backed View preferences onto one hook. The reduction was around fifteen lines and it would have changed three toggles from a functional state updater to a closed-over read; it would also have given `useMenus` a toggle whose identity changes every render where the current one is stable. That is a behaviour change traded for very little, so the characterisation tests for those preferences were kept and the collapse was not made. Anyone returning to it should either keep each toggle's updater form or pin the identity first.
 

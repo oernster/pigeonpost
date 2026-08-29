@@ -201,6 +201,51 @@ afterEach(() => {
 // that no spy declares; this catches the opposite, a spy declared under a name the api does not have,
 // which binds to nothing: every test configuring it would then be configuring a stub the code can
 // never call, so it would pass for the wrong reason.
+// About and Licence are each a text loaded on demand from the Help menu, held while its dialog is open
+// and dropped when it closes. Neither had any coverage.
+describe('App: about and licence', () => {
+    const about = {
+        name: 'PigeonPost', tagline: 'Calm mail', version: '9.9.9', author: 'Oliver Ernster',
+        copyright: '', licence: 'GPL-3.0', attribution: '', credits: [],
+    }
+
+    async function openHelp(item: string) {
+        render(<App/>)
+        fireEvent.click(screen.getByRole('button', {name: 'Help'}))
+        fireEvent.click(await screen.findByRole('menuitem', {name: item}))
+    }
+
+    it('opens About from the Help menu and drops it on close', async () => {
+        apiSpies.about.mockResolvedValue(about)
+        await openHelp('About PigeonPost')
+        const dialog = await screen.findByRole('dialog', {name: 'About PigeonPost'})
+        expect(within(dialog).getByText('Calm mail')).toBeInTheDocument()
+        // The dialog carries both a corner cross and a footer Close, so pick the footer one.
+        fireEvent.click(within(dialog).getAllByRole('button', {name: 'Close'})[1])
+        await waitFor(() => expect(screen.queryByRole('dialog', {name: 'About PigeonPost'})).toBeNull())
+    })
+
+    it('opens the licence text from the Help menu', async () => {
+        apiSpies.licence.mockResolvedValue('GNU GENERAL PUBLIC LICENSE')
+        await openHelp('Licence')
+        const dialog = await screen.findByRole('dialog', {name: 'Licence'})
+        expect(within(dialog).getByText(/GNU GENERAL PUBLIC LICENSE/)).toBeInTheDocument()
+    })
+
+    it('reports a failed About read through the error bar', async () => {
+        apiSpies.about.mockRejectedValue('about unavailable')
+        await openHelp('About PigeonPost')
+        expect(await screen.findByText(/about unavailable/)).toBeInTheDocument()
+        expect(screen.queryByRole('dialog', {name: 'About PigeonPost'})).toBeNull()
+    })
+
+    it('reports a failed licence read through the error bar', async () => {
+        apiSpies.licence.mockRejectedValue('licence unavailable')
+        await openHelp('Licence')
+        expect(await screen.findByText(/licence unavailable/)).toBeInTheDocument()
+    })
+})
+
 describe('App: the api mock', () => {
     it('declares no spy the real api does not have', async () => {
         const actual = await vi.importActual<typeof import('../api')>('../api')
@@ -220,6 +265,34 @@ describe('App: mount and splash', () => {
         expect(container.querySelector('.splash')).toBeInTheDocument()
         expect(screen.getByRole('button', {name: 'Mail'})).toBeInTheDocument()
         expect(apiSpies.listAccounts).toHaveBeenCalled()
+    })
+
+    it('names the version and author on the splash once they load', async () => {
+        apiSpies.version.mockResolvedValue('9.9.9')
+        apiSpies.author.mockResolvedValue('Oliver Ernster')
+        const {container} = render(<App/>)
+        expect(await screen.findByText('v9.9.9')).toBeInTheDocument()
+        expect(screen.getByText('by Oliver Ernster')).toBeInTheDocument()
+        expect(container.querySelector('.splash')).toBeInTheDocument()
+    })
+
+    it('still shows the splash when the version and author cannot be read', async () => {
+        apiSpies.version.mockRejectedValue('no version')
+        apiSpies.author.mockRejectedValue('no author')
+        const {container} = render(<App/>)
+        await waitFor(() => expect(apiSpies.author).toHaveBeenCalled())
+        // Neither failure is worth an error bar on launch; the splash simply carries no line for them.
+        expect(container.querySelector('.splash')).toBeInTheDocument()
+        expect(container.querySelector('.splash-version')).toBeNull()
+        expect(container.querySelector('.splash-author')).toBeNull()
+        expect(container.querySelector('.error-bar')).toBeNull()
+    })
+
+    it('fades the splash before it goes', async () => {
+        const {container} = render(<App/>)
+        expect(container.querySelector('.splash.fading')).toBeNull()
+        await waitFor(() => expect(container.querySelector('.splash.fading')).not.toBeNull(), {timeout: 3000})
+        await waitFor(() => expect(container.querySelector('.splash')).toBeNull(), {timeout: 3000})
     })
 
     it('groups the title bar into brand-and-menus, the working controls and the app pair', () => {

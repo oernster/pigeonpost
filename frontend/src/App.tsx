@@ -46,6 +46,8 @@ import {useMessageExport} from './hooks/useMessageExport'
 import {useManagedCollection} from './hooks/useManagedCollection'
 import {useUndoSend} from './hooks/useUndoSend'
 import {useSearch} from './hooks/useSearch'
+import {useSplash} from './hooks/useSplash'
+import {useLoadedPanel} from './hooks/useLoadedPanel'
 import {rangeIds, toggleId, useSelection} from './hooks/useSelection'
 import {useMessageActions} from './hooks/useMessageActions'
 import {useBulkActions} from './hooks/useBulkActions'
@@ -143,8 +145,12 @@ function App() {
         loadAccounts, removeAccount,
     } = useAccounts({selectedAccount, setSelectedAccount, store, setFolders, setSelectedFolder, setError})
     const [theme, setTheme] = useState<Theme>(loadTheme())
-    const [about, setAbout] = useState<AboutInfo | null>(null)
-    const [licence, setLicence] = useState<string | null>(null)
+    // About and the licence text are the Help menu's two read-only panels: each is fetched when its menu
+    // item is chosen and dropped when its dialog closes.
+    const aboutPanel = useLoadedPanel<AboutInfo>(api.about, setError)
+    const licencePanel = useLoadedPanel<string>(api.licence, setError)
+    const about = aboutPanel.value
+    const licence = licencePanel.value
     // The four backend-backed collections the menus manage share one shape (load on mount, reload after
     // the manager dialog changes them, a flag for whether that dialog is open), so they share one hook.
     const {items: rules, reload: loadRules, managing: managingRules, setManaging: setManagingRules} =
@@ -287,27 +293,14 @@ function App() {
             : {ordered: sortByDate(messages, sortAscending), heads: new Map()}),
         [conversationView, searchActive, messages, sortAscending],
     )
-    const [appVersion, setAppVersion] = useState<string>('')
-    const [appAuthor, setAppAuthor] = useState<string>('')
-    const [splashVisible, setSplashVisible] = useState<boolean>(true)
-    const [splashFading, setSplashFading] = useState<boolean>(false)
+    // The launch splash names the app and how long it stays, both owned by useSplash.
+    const {version: appVersion, author: appAuthor, visible: splashVisible, fading: splashFading} = useSplash()
 
     // Apply the theme before the browser paints, so a toggle changes the emoji and the colours in the
     // same frame rather than repainting twice (the flash).
     useLayoutEffect(() => {
         applyTheme(theme)
     }, [theme])
-
-    useEffect(() => {
-        void api.version().then(setAppVersion).catch(() => undefined)
-        void api.author().then(setAppAuthor).catch(() => undefined)
-        const fade = window.setTimeout(() => setSplashFading(true), 1600)
-        const hide = window.setTimeout(() => setSplashVisible(false), 2000)
-        return () => {
-            window.clearTimeout(fade)
-            window.clearTimeout(hide)
-        }
-    }, [])
 
     // openReminderEvent opens the calendar with the reminder's event dialog on top, so a clicked reminder
     // shows what it is about. Events are refreshed first so the calendar can find and jump to the event.
@@ -792,22 +785,6 @@ function App() {
     // out, with no state here beyond an error to report.
     const {saveMessageAs, printMessage} = useMessageExport({setError})
 
-    const showAbout = useCallback(async () => {
-        try {
-            setAbout(await api.about())
-        } catch (e) {
-            setError(String(e))
-        }
-    }, [])
-
-    const showLicence = useCallback(async () => {
-        try {
-            setLicence(await api.licence())
-        } catch (e) {
-            setError(String(e))
-        }
-    }, [])
-
     // The update check: an automatic pass shortly after launch and daily thereafter surfaces the
     // modal only for a newer, non-skipped release; checkUpdates is the manual Help menu path and
     // reports every outcome.
@@ -822,7 +799,7 @@ function App() {
         isWindows,
         closeChoice, setCloseChoice,
     } = useAppEvents({
-        showAbout, showLicence, checkUpdates,
+        showAbout: aboutPanel.open, showLicence: licencePanel.open, checkUpdates,
         selectedFolder, reloadFolder: loadFolderMessages, refreshFolders,
         loadUnread, loadEvents, setError,
     })
@@ -1148,7 +1125,7 @@ function App() {
         attachFiles, setAttachPickerOpen, displayMessages,
         moveMessage, copyMessage, markJunk, markNotJunk, snoozeTo, unsnooze, setSnoozePickerFor,
         setMessageToCancelSend, requestDelete, setMessageToPurge,
-        showAbout, showLicence, checkUpdates,
+        showAbout: aboutPanel.open, showLicence: licencePanel.open, checkUpdates,
     })
 
     return (
@@ -1255,14 +1232,14 @@ function App() {
                     onCancel={() => setAttachPickerOpen(false)}
                 />
             )}
-            <AboutModal about={about} onClose={() => setAbout(null)}/>
+            <AboutModal about={about} onClose={aboutPanel.close}/>
             <UpdateModal
                 status={updateStatus}
                 onClose={() => setUpdateStatus(null)}
                 onDownload={(url) => void api.openExternal(url)}
                 onSkip={skipUpdate}
             />
-            <LicenceModal text={licence} onClose={() => setLicence(null)}/>
+            <LicenceModal text={licence} onClose={licencePanel.close}/>
             {launchedEmail && <EmailViewerModal email={launchedEmail} autoLoadImages={autoLoadImages} dark={theme === 'dark'} onClose={() => setLaunchedEmail(null)}/>}
             {popoutOpen && selectedMessage && !multiSelected && (
                 <div className="modal-backdrop" {...popoutDismiss}>
