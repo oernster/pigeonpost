@@ -167,7 +167,7 @@ a.logo {
    drops the inline descender space that would otherwise make the button taller than its siblings. */
 .btn img {
     display: block;
-    height: 1.5em;
+    height: 2.7em;
     width: auto;
 }
 
