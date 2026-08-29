@@ -897,6 +897,8 @@ type fakeMailActions struct {
 	moveNewUID      string
 	moveManyNewUIDs map[string]string
 	copyNewUID      string
+	// deleteManyErrOnCall fails that call of DeleteMany (1-based) and no other; 0 fails none.
+	deleteManyErrOnCall int
 }
 
 func (f *fakeMailActions) SetSeen(_ context.Context, _ domain.Account, _ domain.Folder, _ string, seen bool) error {
@@ -921,6 +923,11 @@ func (f *fakeMailActions) Delete(_ context.Context, _ domain.Account, _ domain.F
 func (f *fakeMailActions) DeleteMany(_ context.Context, _ domain.Account, _ domain.Folder, uids []string, trashPath string) (map[string]string, error) {
 	if f.deleteManyErr != nil {
 		return nil, f.deleteManyErr
+	}
+	// The purge-through-Trash route calls this twice: once to move and once to expunge in the Trash.
+	// deleteManyErrOnCall fails one of the two on its own, which deleteManyErr cannot express.
+	if f.deleteManyErrOnCall == len(f.deleteManyBatches)+1 {
+		return nil, errors.New("deletemany refused this call")
 	}
 	f.deleteManyBatches = append(f.deleteManyBatches, uids)
 	f.deleteManyTrash = append(f.deleteManyTrash, trashPath)

@@ -187,6 +187,22 @@ func (a Account) SavesSentServerSide() bool {
 	return savesSentServerSideHosts[strings.ToLower(a.outgoing.Host())]
 }
 
+// expungeArchivesHosts are the incoming (IMAP) servers whose provider does not delete a message that is
+// marked \Deleted and expunged. Gmail treats its mailboxes as labels: an expunge removes the label the
+// message was expunged from and then applies the account's own IMAP setting, which defaults to archiving
+// the message rather than deleting it, so it survives in All Mail. A permanent delete there has to move
+// the message to the Bin first and expunge it from the Bin, which Gmail does honour as a deletion.
+var expungeArchivesHosts = map[string]bool{
+	"imap.gmail.com": true,
+}
+
+// ExpungeArchivesInPlace reports whether an in-place expunge on the account's provider archives the
+// message rather than deleting it, so a permanent delete must go through the Trash folder instead. The
+// host is matched case-insensitively.
+func (a Account) ExpungeArchivesInPlace() bool {
+	return expungeArchivesHosts[strings.ToLower(a.incoming.Host())]
+}
+
 // Auth returns the authentication method.
 func (a Account) Auth() AuthMethod { return a.auth }
 

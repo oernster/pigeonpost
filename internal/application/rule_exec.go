@@ -166,12 +166,20 @@ func (e *RuleExecutor) groupOutcomes(ctx context.Context, account domain.Account
 	return destroy, moves
 }
 
-// destroy expunges a batch from the server outright. The empty trash path is what makes it permanent:
-// the messages are marked deleted and expunged where they stand, never copied to Trash first.
+// destroy removes a batch from the server outright. The empty trash path is what makes it permanent on an
+// ordinary server: the messages are marked deleted and expunged where they stand, never copied to Trash
+// first. A provider that archives on an expunge instead needs the Trash hop, which purgeViaTrash takes and
+// reports; without it a destroying rule kept every message it claimed to destroy.
 func (e *RuleExecutor) destroy(ctx context.Context, account domain.Account, folder domain.Folder,
 	batch ruleBatch, removed map[string]struct{}) error {
-	if _, err := e.remote.DeleteMany(ctx, account, folder, batch.uids, ""); err != nil {
+	handled, err := purgeViaTrash(ctx, e.remote, e.store, account, folder, batch.uids)
+	if err != nil {
 		return fmt.Errorf("rules: destroy %d message(s) in %q: %w", len(batch.uids), folder.Path(), err)
+	}
+	if !handled {
+		if _, err := e.remote.DeleteMany(ctx, account, folder, batch.uids, ""); err != nil {
+			return fmt.Errorf("rules: destroy %d message(s) in %q: %w", len(batch.uids), folder.Path(), err)
+		}
 	}
 	markRemoved(batch.ids, removed)
 	return nil

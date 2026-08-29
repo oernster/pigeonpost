@@ -138,8 +138,11 @@ concern, so read it before attaching it to anything.
   unread badges per folder, account and total. On-arrival rules combine several conditions (all fields at
   once; or From, To, Cc, any recipient, Subject, sender domain) with all-or-any matching and a per-condition
   match-case switch, then mark read, flag, move to a folder of your choice or delete permanently. A rule
-  runs on every account unless you limit it to the ones you pick. Delete permanently means exactly that: expunged on the server,
-  never sent to Trash and never cached, so there is nothing left to tidy up. Rules run on the Inbox and
+  runs on every account unless you limit it to the ones you pick. Delete permanently means exactly that: removed on the server,
+  never cached and not recoverable. On most providers the message is expunged where it stands and never
+  touches Trash. Gmail is the exception: it treats its folders as labels and answers an expunge by
+  archiving rather than deleting, so there PigeonPost moves the message to the Bin and empties it from
+  the Bin, which is the only route Gmail honours as a deletion. Rules run on the Inbox and
   only on mail arriving after the rule exists, so adding one never reaches back over the mail you have.
 - **Read**: an optional reading pane (mark-on-view, F8 toggle) whose attachments stay pinned at the
   foot of the message, so Open and Save are one click away however long the thread is rather than below
@@ -248,6 +251,9 @@ key and no feature that a donation unlocks.
 
 ## Licence
 
-You are free to apply the GPL3 LICENSE below - provided that credit to the original author (Oliver Ernster) is retained in all copies and derivative works, under all circumstances. Removing or omitting this attribution is not permitted. This requirement is stated in the [LICENSE](LICENSE) file's own licensing notice as a GPLv3 section 7(b) additional term and repeated in Help > About.
+GPL-3.0. See [LICENSE](LICENSE); the full text is also in the app under Help > Licence.
 
-GPL-3.0. See [LICENSE](LICENSE). The full text is also available in the app under Help > Licence.
+Credit to the original author (Oliver Ernster) must be retained in all copies and derivative works,
+under all circumstances. Removing or omitting this attribution is not permitted. The requirement is
+stated in the LICENSE file's own licensing notice as a GPLv3 section 7(b) additional term and repeated
+in Help > About.

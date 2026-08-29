@@ -15,8 +15,11 @@ const (
 	// RuleMoveTo moves a matching message into the action's destination folder. The destination names
 	// one concrete folder, so the action applies only to messages in that folder's own account.
 	RuleMoveTo
-	// RuleDestroy deletes a matching message outright: it is expunged from the server and never enters
-	// the local cache. There is no Trash hop and nothing to tidy up afterwards, so it is irreversible.
+	// RuleDestroy deletes a matching message outright: it is removed from the server and never enters the
+	// local cache, so it is irreversible. On an ordinary server that is one step, an expunge where the
+	// message stands. A provider that archives on an expunge instead (see Account.ExpungeArchivesInPlace)
+	// needs the message moved to Trash and expunged from there, since expunging it in place would leave it
+	// on the server under another name.
 	RuleDestroy
 )
 

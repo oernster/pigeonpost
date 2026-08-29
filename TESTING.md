@@ -210,6 +210,16 @@ npx vitest run --coverage   # enforce the pure-module coverage gate
   exempt while no longer over the limit fails, so an entry cannot outlive the debt it records; TECH_DEBT.md
   tracks the split. Test files are outside the limit by design. All four rules were
   verified by planting a violation against each.
+- **Stylesheet test.** `src/styles/stylesheets.test.ts` holds a rule the stylesheets state about
+  themselves: a `:hover` rule on a class worn by a button must also require `:enabled`. The app mark
+  borrows `.icon-btn` for its geometry and asks for a transparent border, which an ungated
+  `.icon-btn:hover` repainted on specificity, so hovering the mark drew a rectangle round it; the
+  comment beside the mark already claimed the gate that no test held. It also asserts every class it
+  names still appears in the stylesheets, so a rename cannot empty the list into a sweep of nothing;
+  it also pins the mark's transparent border, which the gating rule alone would not miss. Unlike the
+  boundary and module-size tests it reads the files through `node:fs` rather than Vite's glob: measured,
+  a raw glob of the stylesheets finds every file and returns an empty string for each, because Vitest
+  does not process CSS. All four rules were verified by planting a violation against each.
 - **Modal layout test.** `src/components/modalLayout.test.ts` scans the dialog source and holds two
   rules: every modal carrying an action row pins it; every pinned modal has something that
   actually scrolls. Both matter because a dialog that scrolls as one block takes its buttons off a

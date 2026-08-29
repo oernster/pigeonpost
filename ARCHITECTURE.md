@@ -462,6 +462,23 @@ moves the message to the account's Trash folder when one exists or deletes it pe
 `\Deleted` and expunge) when the message is already in Trash or the account has no Trash folder. The
 cached message and everything derived from it (body, tags, index row) are then removed locally.
 
+Permanent deletion: a purge, whether the user asks for one or a rule's destroy action does, is one step on
+an ordinary IMAP server: mark `\Deleted` and expunge where the message stands. That is not a deletion on
+every provider. Gmail's mailboxes are labels, so an expunge removes the label the message was expunged
+from and then applies the account's own IMAP setting, which defaults to archiving; the message survives in
+All Mail. This was not theoretical: a rule named for destroying LinkedIn mail was found to have kept all
+30 of the messages it reported destroying.
+
+`domain.Account.ExpungeArchivesInPlace` names the providers this applies to, matched on the incoming host
+exactly as `SavesSentServerSide` matches the outgoing one; `application.purgeViaTrash` takes the route
+Gmail does honour: move the messages to the Trash, then expunge them from the Trash. It reports whether it
+handled the deletion, so the three permanent-delete callers (the single delete, the batched one and the
+rule executor's destroy) keep their original single-step route on every other provider and no port changed
+shape to carry it. The hop is skipped where it cannot help: inside Trash, where an expunge already
+deletes; also on an account with no Trash folder, where there is nowhere to hop to. A message the server moves
+without reporting where it landed cannot be addressed in the Trash afterwards, so it is left there and
+named in the error rather than counted as destroyed: recoverable and stated.
+
 Move a message: the UI offers the account's other folders; choosing one routes through the
 `MessageActionService`, which checks the destination is in the same account, moves the message on the
 server via the `MailActions` port and removes the local copy (the destination folder re-lists it, with
@@ -676,6 +693,9 @@ move wins, a destroy ends evaluation for that message and `StopProcessing` ends 
 `RuleExecutor` executes the outcomes during the sync, on messages just fetched and not yet cached, so a
 destroyed message never enters the local store: `MailActions.DeleteMany` with an empty trash path marks
 `\Deleted` and expunges where the message stands, with no Trash copy and nothing to tidy up afterwards.
+That single step is wrong on a provider that archives on an expunge rather than deleting, where it left
+every message a destroying rule claimed to remove sitting in Gmail's All Mail; `purgeViaTrash` takes the
+two-step route there instead (see Permanent deletion below).
 Moves are batched per destination through `MoveMany`. Three guards bound the destruction, each pinned by
 a test: rules run on the **Inbox only**, so mail the user has already filed by hand is never touched;
 they act on **arrivals only** (an id the local store does not hold), so adding a rule never reaches back
@@ -741,7 +761,9 @@ custom error types beyond sentinels.
   root whitelist.
 - The React front end has its own Vitest and jsdom suite: a coverage gate on the pure logic modules, a
   structural boundary test that keeps them pure and a module-size test holding the same 400-line limit
-  the Go guard holds, with the modules that predate it named in a shrinking exemption list.
+  the Go guard holds, with the modules that predate it named in a shrinking exemption list. Two further
+  structural tests read source rather than behaviour: one holds every dialog's action row and scrolling
+  body, the other holds the stylesheets' hover gating (see Styles below).
 
 ## Styles (frontend)
 

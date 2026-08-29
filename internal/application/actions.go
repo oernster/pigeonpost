@@ -11,8 +11,8 @@ import (
 // MessageActionService is the use-case boundary for actions that change a message on the server as
 // well as in the local cache. Flag changes (read, starred, answered, forwarded) are applied to the
 // cache first, together with a pending intent recorded in the same transaction, then pushed to the
-// server best-effort: a push that fails (offline, or a server that drops the STORE) leaves the intent
-// for the sync to replay, and the sync's reconcile guards the local value against a stale fetch until
+// server best-effort: a push that fails (offline; or a server that drops the STORE) leaves the intent
+// for the sync to replay, while the sync's reconcile guards the local value against a stale fetch until
 // the server confirms it (see FlagSyncService). Destructive actions (delete, move) still talk to the
 // server first, because they cannot be overlaid onto a later fetch.
 type MessageActionService struct {
@@ -52,7 +52,7 @@ func (s *MessageActionService) MarkForwarded(ctx context.Context, messageID stri
 // markFlag is the shared body of the four mark actions. The cache write and the pending intent land in
 // one transaction (the intent is recorded for server-flagged accounts only: POP3 has no server flags, so
 // its read state is purely local and preserveFlags carries it across syncs). The server push that
-// follows is best-effort: a failure (offline, or a server that accepts the STORE and drops it) leaves
+// follows is best-effort: a failure (offline; or a server that accepts the STORE and drops it) leaves
 // the intent for the sync to replay and the reconcile to guard, so the local change survives either way.
 func (s *MessageActionService) markFlag(ctx context.Context, messageID string, flag domain.Flag, value bool) error {
 	msg, folder, account, err := resolveMessageContext(ctx, s.store, s.accounts, messageID)
@@ -80,8 +80,8 @@ func (s *MessageActionService) markFlag(ctx context.Context, messageID string, f
 }
 
 // Delete removes a message from the server and the local cache. It moves the message to the account's
-// Trash folder when one exists; if the message already lives in Trash, or the account has no Trash
-// folder, it is deleted permanently. When the message moved to Trash and the server reported where it
+// Trash folder when one exists. Two cases are deleted permanently instead: a message already living in
+// Trash; a message whose account has no Trash folder to go to. When the message moved to Trash and the server reported where it
 // landed (COPYUID), the returned id is the one it will carry there, so the caller can undo the delete
 // by moving it back; a permanent deletion (or a server that reports nothing) returns an empty id.
 func (s *MessageActionService) Delete(ctx context.Context, messageID string) (string, error) {
@@ -96,7 +96,7 @@ func (s *MessageActionService) DeletePermanent(ctx context.Context, messageID st
 }
 
 // delete is the shared core of Delete and DeletePermanent. When permanent is false the destination is
-// resolved from the account's Trash folder (move to Trash, or permanent when no Trash applies); when
+// resolved from the account's Trash folder (move to Trash; permanent when no Trash applies); when
 // permanent is true the trash path is always empty, forcing an immediate permanent deletion.
 func (s *MessageActionService) delete(ctx context.Context, messageID string, permanent bool) (string, error) {
 	msg, folder, account, err := resolveMessageContext(ctx, s.store, s.accounts, messageID)
@@ -111,6 +111,18 @@ func (s *MessageActionService) delete(ctx context.Context, messageID string, per
 		}
 		if ok {
 			trashPath, trashFolderID = trash.Path(), trash.ID()
+		}
+	}
+	if permanent {
+		handled, err := purgeViaTrash(ctx, s.remote, s.store, account, folder, []string{msg.UID()})
+		if err != nil {
+			return "", fmt.Errorf("delete message %q on server: %w", messageID, err)
+		}
+		if handled {
+			if err := s.store.DeleteMessage(ctx, messageID); err != nil {
+				return "", fmt.Errorf("delete cached message %q: %w", messageID, err)
+			}
+			return "", nil
 		}
 	}
 	newUID, err := s.remote.Delete(ctx, account, folder, msg.UID(), trashPath)
@@ -184,8 +196,27 @@ func (s *MessageActionService) DeleteMany(ctx context.Context, messageIDs []stri
 	}
 	deleted := make([]string, 0, len(messageIDs))
 	newIDs := map[string]string{}
+	dropCached := func(ids []string) {
+		for _, id := range ids {
+			if err := s.store.DeleteMessage(ctx, id); err != nil {
+				errs = append(errs, fmt.Errorf("delete cached message %q: %w", id, err))
+			}
+			deleted = append(deleted, id)
+		}
+	}
 	for _, folderID := range order {
 		b := batches[folderID]
+		if permanent {
+			handled, err := purgeViaTrash(ctx, s.remote, s.store, b.account, b.folder, b.uids)
+			if err != nil {
+				errs = append(errs, fmt.Errorf("delete %d messages in %q on server: %w", len(b.uids), folderID, err))
+				continue
+			}
+			if handled {
+				dropCached(b.ids)
+				continue
+			}
+		}
 		movedUIDs, err := s.remote.DeleteMany(ctx, b.account, b.folder, b.uids, b.trashPath)
 		if err != nil {
 			errs = append(errs, fmt.Errorf("delete %d messages in %q on server: %w", len(b.uids), folderID, err))
@@ -338,8 +369,8 @@ func (s *MessageActionService) Copy(ctx context.Context, messageID, destFolderID
 	return domain.MessageIDFor(destFolderID, newUID), nil
 }
 
-// trashFolder returns the destination folder for a delete: the account's Trash folder, or false
-// (meaning permanent deletion) when the message is already in Trash or no Trash folder exists.
+// trashFolder returns the destination folder for a delete: the account's Trash folder; else false,
+// meaning permanent deletion, when the message is already in Trash or no Trash folder exists.
 func (s *MessageActionService) trashFolder(ctx context.Context, current domain.Folder) (domain.Folder, bool, error) {
 	if current.Kind() == domain.FolderTrash {
 		return domain.Folder{}, false, nil

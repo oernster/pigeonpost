@@ -256,3 +256,30 @@ func TestAccountSavesSentServerSide(t *testing.T) {
 		t.Error("a non-gmail host should not save sent server-side")
 	}
 }
+
+func TestAccountExpungeArchivesInPlace(t *testing.T) {
+	build := func(incomingHost string) Account {
+		in, err := NewServerConfig(incomingHost, 993, SecurityTLS)
+		if err != nil {
+			t.Fatalf("incoming: %v", err)
+		}
+		out, err := NewServerConfig("smtp.example.com", 465, SecurityTLS)
+		if err != nil {
+			t.Fatalf("outgoing: %v", err)
+		}
+		account, err := NewAccount("id", "Me", mustAddr(t, "me@example.com"), ProtocolIMAP, in, out, AuthPassword)
+		if err != nil {
+			t.Fatalf("account: %v", err)
+		}
+		return account
+	}
+	if !build("imap.gmail.com").ExpungeArchivesInPlace() {
+		t.Error("gmail archives on an expunge rather than deleting")
+	}
+	if !build("IMAP.GMAIL.COM").ExpungeArchivesInPlace() {
+		t.Error("the host match should be case-insensitive")
+	}
+	if build("imap.fastmail.com").ExpungeArchivesInPlace() {
+		t.Error("an ordinary IMAP server deletes on an expunge")
+	}
+}
