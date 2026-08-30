@@ -610,6 +610,12 @@ roles settle on the next one. All Mail also holds a copy of every labelled messa
 there as well as in its label's folder. That is Gmail's model rather than a fault; it is also why a delete
 in one place leaves the copy in the other visible until the folder is synced again.
 
+The two copies are one message; its flags are shared. Measured on a live account: of two messages
+unread in both INBOX and All Mail, one was marked read in the INBOX alone; on the next sync the All Mail
+copy came back read while the untouched message stayed unread in both. So a bulk mark-as-read over the
+archive would mark the whole mailbox read, the inbox included. It must never be offered: on Gmail the
+archive is not a subset of the mail, it is all of it.
+
 Mark read/unread and star/flag: the UI calls the facade, which routes through the
 `MessageActionService`. It writes the flag (`\Seen` or `\Flagged`) to the IMAP server first (via the
 `MailActions` port) and only then updates the local cache, so the change is durable: a later sync
@@ -622,6 +628,15 @@ date (`NewestUnreadByAccount`, the same snooze-aware visible set); the front end
 to per-account "last looked" watermarks it keeps in localStorage (`newMail.ts`, stamped on every
 account switch) to light the account picker's elsewhere badge only for mail that arrived after you
 last had that account open, so a standing unread backlog never lights a permanent cue.
+
+Both account-level aggregates leave the archive out, while `ListFolders` still counts it so the archive
+badges its own row. Archiving is the act of putting a message out of the way, so it should not keep
+demanding attention at account level; on Gmail the exclusion is load-bearing rather than a preference,
+since the archive there is All Mail and holds a copy of every labelled message, so one unread message
+counted twice, once where it is filed and once in the archive. Deduplicating the aggregate by Message-ID
+was the obvious alternative and was measured and rejected: across two real accounts more than 900
+messages each shared a Message-ID with another row, 601 of them inside a single folder, so it is not an
+identity key and deduplicating would have undercounted every account.
 
 Search: local, offline, operator-grammar full-text search over the cached mail. The grammar is a
 domain concept: `domain.ParseSearchQuery` turns raw input into a modelled `SearchQuery` (bare prefix

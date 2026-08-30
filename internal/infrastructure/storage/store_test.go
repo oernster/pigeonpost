@@ -295,8 +295,10 @@ func TestUnreadByAccount(t *testing.T) {
 	store := openTestStore(t)
 	ctx := context.Background()
 
-	// Three accounts: a1 has 2 unread across two folders, a2 has 1, a3 has none (so it is absent from
-	// the returned map).
+	// Three accounts: a1 has one unread in its inbox and one in its archive, a2 has 1, a3 has none (so it
+	// is absent from the returned map). The archived one does not count: archiving puts a message out of
+	// the way, so it must not badge the account. On Gmail the archive also holds a copy of every labelled
+	// message, which would otherwise count each of them twice.
 	a1inbox, _ := domain.NewFolder("f1", "a1", "INBOX", domain.FolderInbox, 0, 0)
 	a1arch, _ := domain.NewFolder("f2", "a1", "Archive", domain.FolderArchive, 0, 0)
 	a2inbox, _ := domain.NewFolder("f3", "a2", "INBOX", domain.FolderInbox, 0, 0)
@@ -324,8 +326,8 @@ func TestUnreadByAccount(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unread by account: %v", err)
 	}
-	if counts["a1"] != 2 {
-		t.Errorf("a1 unread = %d, want 2", counts["a1"])
+	if counts["a1"] != 1 {
+		t.Errorf("a1 unread = %d, want 1 (the archived message must not count)", counts["a1"])
 	}
 	if counts["a2"] != 1 {
 		t.Errorf("a2 unread = %d, want 1", counts["a2"])
@@ -1240,5 +1242,52 @@ func TestSnoozeExcludedFromUnreadAndSweptWithItsMessage(t *testing.T) {
 	}
 	if _, ok, _ := store.NextSnooze(ctx); ok {
 		t.Error("an orphaned snooze must be swept with its message")
+	}
+}
+
+// TestArchiveIsExcludedFromAccountTotalsButKeepsItsOwnBadge pins both halves of the archive exclusion at
+// once, because they are easy to confuse: the account roll-up leaves the archive out while the folder
+// itself still reports what it holds. Splitting them would let a change satisfy one and quietly break the
+// other. The newest-unread date follows the same rule, so a message sitting only in the archive must not
+// drive the attention cue either.
+func TestArchiveIsExcludedFromAccountTotalsButKeepsItsOwnBadge(t *testing.T) {
+	store := openTestStore(t)
+	ctx := context.Background()
+
+	inbox, _ := domain.NewFolder("f1", "a1", "INBOX", domain.FolderInbox, 0, 0)
+	archive, _ := domain.NewFolder("f2", "a1", "[Gmail]/All Mail", domain.FolderArchive, 0, 0)
+	if err := store.SaveFolders(ctx, "a1", []domain.Folder{inbox, archive}); err != nil {
+		t.Fatalf("save folders: %v", err)
+	}
+	if err := store.SaveMessages(ctx, "f2", []domain.MessageSummary{
+		buildMessageIn(t, "m1", "f2", false), buildMessageIn(t, "m2", "f2", false),
+	}); err != nil {
+		t.Fatalf("save archive messages: %v", err)
+	}
+
+	counts, err := store.UnreadByAccount(ctx, time.Now())
+	if err != nil {
+		t.Fatalf("unread by account: %v", err)
+	}
+	if n, ok := counts["a1"]; ok {
+		t.Errorf("an account whose only unread mail is archived should be absent, got %d", n)
+	}
+
+	newest, err := store.NewestUnreadByAccount(ctx, time.Now())
+	if err != nil {
+		t.Fatalf("newest unread: %v", err)
+	}
+	if when, ok := newest["a1"]; ok {
+		t.Errorf("archived mail must not drive the attention cue, got %d", when)
+	}
+
+	folders, err := store.ListFolders(ctx, "a1")
+	if err != nil {
+		t.Fatalf("list folders: %v", err)
+	}
+	for _, f := range folders {
+		if f.ID() == "f2" && f.Unread() != 2 {
+			t.Errorf("the archive should still badge its own 2 unread, got %d", f.Unread())
+		}
 	}
 }
