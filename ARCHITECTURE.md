@@ -366,28 +366,19 @@ message on its own rather than wrapping it in a "N of M could not be ..." line. 
 an error surfaces in the main window's `ErrorBar` (a banner under the toolbar carrying an explicit
 dismiss control), where it persists until dismissed or replaced by a later action's error.
 
-Undo send: every send passes through `ComposeService.HoldSend` with the user's undo window (a Mail-menu
-choice of 0 to 30 seconds, default 10, persisted locally). A positive window queues the message in the
-same outbox with a hold instant (`hold_until_ms`) and returns the queued id; the front end
-shows a countdown toast whose Undo cancels the item and reopens the composer exactly as it was, with a
-reply's answered-flag marking deferred to the window's expiry so an undone reply never flags its
-original. A held item is invisible to the ordinary replay (no path may send it early); once the hold
-elapses, a small dispatcher goroutine in the composition root (`runOutboxDispatcher`, woken by a short
-tick and gated on the store's earliest hold) sends it and announces the change over the `outbox:changed`
-event. An undo that loses the race is told so: cancel reports whether the item was still queued. A due
-item that finds the server unreachable has its hold cleared, degrading it to an ordinary offline-queued
-item for the next sync rather than being retried every tick; a hold outlasting an app restart sends
-on the next launch.
-
-Send later: a scheduled send is the same hold with a chosen instant. The composer's Send later control
-(presets plus a date-time field) passes `sendAtMs` on the compose request; `ComposeService.ScheduleSend`
-validates the instant is in the future and queues the message exactly as an undo hold, so everything
-above carries over: the Outbox shows it with its send time and offers Cancel send, no replay may send it
-early, the dispatcher delivers it when due, a due-but-offline item degrades to the ordinary queue and a
-schedule outlasting a restart sends on the next launch. There is no undo toast (the Outbox is the
-cancel surface) and a scheduled reply does not flag its original (a schedule cancelled days later must
-not have already marked it); the composer states the local-first constraint plainly: the message leaves
-while the app runs or at the next launch after the chosen time.
+Send later: a send can be held rather than delivered. The composer's Send later control (presets plus a
+date-time field) passes `sendAtMs` on the compose request; `ComposeService.ScheduleSend` validates the
+instant is in the future and queues the message in the same outbox with a hold instant
+(`hold_until_ms`), returning the queued id. A held item is invisible to the ordinary replay (no path may
+send it early); once the hold elapses, a small dispatcher goroutine in the composition root
+(`runOutboxDispatcher`, woken by a short tick and gated on the store's earliest hold) sends it and
+announces the change over the `outbox:changed` event. The Outbox shows the item with its send time and
+offers Cancel send, which reports whether the item was still queued so a cancel that lost the race is
+told so. A due item that finds the server unreachable has its hold cleared, degrading it to an ordinary
+offline-queued item for the next sync rather than being retried every tick; a hold outlasting an app
+restart sends on the next launch. A scheduled reply does not flag its original (a schedule cancelled
+days later must not have already marked it); the composer states the local-first constraint plainly: the
+message leaves while the app runs or at the next launch after the chosen time.
 
 Snooze: a message can be hidden until a chosen moment (context-menu or Mail-menu presets or a
 pick-a-time dialog). Snooze is local-only state, one row per message in `message_snooze`:

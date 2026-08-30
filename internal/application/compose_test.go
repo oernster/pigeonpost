@@ -637,73 +637,10 @@ func TestComposeClearDraftRecovery(t *testing.T) {
 	})
 }
 
-// heldItem builds a queued send carrying an undo-send hold ending at holdUntil.
+// heldItem builds a queued send carrying a hold ending at holdUntil.
 func heldItem(t *testing.T, id string, holdUntil time.Time) domain.OutboxItem {
 	t.Helper()
 	return outboxItem(t, id, "a1", domain.OutboxSend).WithHoldUntil(holdUntil)
-}
-
-func TestComposeHoldSend(t *testing.T) {
-	epoch := time.Unix(0, 0).UTC()
-
-	t.Run("queues the send behind the window and returns its id", func(t *testing.T) {
-		d := newComposeDeps().withAccount(t)
-		id, err := d.service().HoldSend(context.Background(), "a1", draftTo(t, "f@example.com"), 10*time.Second)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if id != "queued-id" {
-			t.Errorf("id = %q, want queued-id", id)
-		}
-		if len(d.transport.sent) != 0 {
-			t.Error("a held send must not reach the transport yet")
-		}
-		if len(d.outbox.items) != 1 {
-			t.Fatalf("queued items = %d, want 1", len(d.outbox.items))
-		}
-		item := d.outbox.items[0]
-		if item.Kind() != domain.OutboxSend || !item.HoldUntil().Equal(epoch.Add(10*time.Second)) {
-			t.Errorf("queued item wrong: kind=%v hold=%v", item.Kind(), item.HoldUntil())
-		}
-	})
-
-	t.Run("a zero window sends immediately", func(t *testing.T) {
-		d := newComposeDeps().withAccount(t)
-		id, err := d.service().HoldSend(context.Background(), "a1", draftTo(t, "f@example.com"), 0)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if id != "" {
-			t.Errorf("id = %q, want empty for an immediate send", id)
-		}
-		if len(d.transport.sent) != 1 || len(d.outbox.items) != 0 {
-			t.Errorf("expected a direct send, got sent=%d queued=%d", len(d.transport.sent), len(d.outbox.items))
-		}
-	})
-
-	t.Run("wraps an unknown account", func(t *testing.T) {
-		d := newComposeDeps()
-		if _, err := d.service().HoldSend(context.Background(), "missing", draftTo(t, "f@example.com"), 10*time.Second); err == nil {
-			t.Error("expected an error for an unknown account")
-		}
-	})
-
-	t.Run("wraps an enqueue failure", func(t *testing.T) {
-		d := newComposeDeps().withAccount(t)
-		d.outbox.enqueueErr = errBoom
-		if _, err := d.service().HoldSend(context.Background(), "a1", draftTo(t, "f@example.com"), 10*time.Second); !errors.Is(err, errBoom) {
-			t.Errorf("error = %v, want wrapped boom", err)
-		}
-	})
-
-	t.Run("wraps an id generator yielding no id", func(t *testing.T) {
-		d := newComposeDeps().withAccount(t)
-		svc := NewComposeService(d.accounts, d.store, d.transport, d.drafts, d.sent, d.outbox, d.recovery,
-			fakeClock{now: epoch}, func() string { return "" })
-		if _, err := svc.HoldSend(context.Background(), "a1", draftTo(t, "f@example.com"), 10*time.Second); !errors.Is(err, domain.ErrEmptyOutboxID) {
-			t.Errorf("error = %v, want ErrEmptyOutboxID", err)
-		}
-	})
 }
 
 func TestComposeReplayDueHeld(t *testing.T) {
@@ -882,6 +819,15 @@ func TestComposeScheduleSend(t *testing.T) {
 		d.outbox.enqueueErr = errBoom
 		if _, err := d.service().ScheduleSend(context.Background(), "a1", draftTo(t, "f@example.com"), epoch.Add(time.Hour)); !errors.Is(err, errBoom) {
 			t.Errorf("error = %v, want wrapped boom", err)
+		}
+	})
+
+	t.Run("wraps an id generator yielding no id", func(t *testing.T) {
+		d := newComposeDeps().withAccount(t)
+		svc := NewComposeService(d.accounts, d.store, d.transport, d.drafts, d.sent, d.outbox, d.recovery,
+			fakeClock{now: epoch}, func() string { return "" })
+		if _, err := svc.ScheduleSend(context.Background(), "a1", draftTo(t, "f@example.com"), epoch.Add(time.Hour)); !errors.Is(err, domain.ErrEmptyOutboxID) {
+			t.Errorf("error = %v, want ErrEmptyOutboxID", err)
 		}
 	})
 }

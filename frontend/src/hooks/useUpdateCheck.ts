@@ -2,7 +2,7 @@ import {useCallback, useEffect, useState} from 'react'
 import {api, UpdateStatus} from '../api'
 
 // The localStorage key holding the release the user chose to skip. Stored front-side with the
-// other presentation preferences (conversationView, undoSendSeconds); the backend stays stateless
+// other presentation preferences (conversationView, previewEnabled); the backend stays stateless
 // about it and receives the skipped tag with each automatic check.
 export const SKIPPED_UPDATE_KEY = 'skippedUpdateVersion'
 

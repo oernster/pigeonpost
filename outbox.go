@@ -4,8 +4,8 @@ import "github.com/oernster/pigeonpost/internal/domain"
 
 // OutboxItemDTO is the front-end view of one queued outgoing operation waiting to be sent. The account
 // id lets the front end show the queue as a per-account Outbox folder; the body lets it preview the
-// queued message without a separate fetch. HoldMs is the end of the item's undo-send window in Unix
-// milliseconds, or 0 when the item carries no hold.
+// queued message without a separate fetch. HoldMs is the end of the item's send hold in Unix
+// milliseconds; 0 means the item carries no hold.
 type OutboxItemDTO struct {
 	ID        string   `json:"id"`
 	AccountID string   `json:"accountId"`
@@ -48,7 +48,7 @@ func (a *App) ListOutbox() ([]OutboxItemDTO, error) {
 	return out, nil
 }
 
-// holdUntilMillisDTO maps an item's undo-send hold to its wire form: 0 for none.
+// holdUntilMillisDTO maps an item's send hold to its wire form: 0 for none.
 func holdUntilMillisDTO(item domain.OutboxItem) int64 {
 	if item.HoldUntil().IsZero() {
 		return 0

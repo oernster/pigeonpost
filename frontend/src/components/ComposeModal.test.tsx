@@ -70,13 +70,10 @@ function renderCompose(overrides: Partial<ComposeProps> = {}) {
     const onClose = vi.fn()
     const onMarkReplied = vi.fn()
     const onMarkForwarded = vi.fn()
-    const onHeld = vi.fn()
     const props: ComposeProps = {
         accountId: 'acc1',
         senders: [{name: 'Me', address: 'me@x.com'}],
         canSaveDraft: true,
-        holdSeconds: 0,
-        onHeld,
         onClose,
         onMarkReplied,
         onMarkForwarded,
@@ -85,7 +82,7 @@ function renderCompose(overrides: Partial<ComposeProps> = {}) {
     }
     const view = render(<ComposeModal {...props}/>)
     const toInput = () => screen.getByPlaceholderText(TO_PLACEHOLDER)
-    return {...view, onClose, onMarkReplied, onMarkForwarded, onHeld, toInput}
+    return {...view, onClose, onMarkReplied, onMarkForwarded, toInput}
 }
 
 beforeEach(() => {
@@ -133,8 +130,6 @@ describe('ComposeModal: basics', () => {
                 accountId="acc1"
                 senders={[{name: 'Me', address: 'me@x.com'}, {name: 'Alias', address: 'alias@x.com'}]}
                 canSaveDraft
-                holdSeconds={0}
-                onHeld={vi.fn()}
                 onMarkReplied={vi.fn()}
                 onMarkForwarded={vi.fn()}
                 onDraftSuperseded={vi.fn()}
@@ -178,22 +173,6 @@ describe('ComposeModal: send', () => {
         await waitFor(() => expect(onClose).toHaveBeenCalled())
         expect(onMarkReplied).not.toHaveBeenCalled()
         expect(onMarkForwarded).not.toHaveBeenCalled()
-    })
-
-    it('reports a held send with the queued id and the compose state, deferring the reply mark', async () => {
-        apiSpies.send.mockResolvedValue('ob-1')
-        const {onClose, onHeld, onMarkReplied} = renderCompose({
-            holdSeconds: 10,
-            initial: {to: 'x@y.com', subject: 'Hi', inReplyToId: 'orig1', replyKind: 'reply'},
-        })
-        fireEvent.click(screen.getByRole('button', {name: 'Send'}))
-        await waitFor(() => expect(onClose).toHaveBeenCalled())
-        expect(apiSpies.send).toHaveBeenCalledWith(expect.objectContaining({holdSeconds: 10}))
-        expect(onHeld).toHaveBeenCalledWith('ob-1', expect.objectContaining({
-            to: 'x@y.com', subject: 'Hi', inReplyToId: 'orig1', replyKind: 'reply',
-        }))
-        // The reply mark is deferred to the undo window's expiry: an undone send must not flag the original.
-        expect(onMarkReplied).not.toHaveBeenCalled()
     })
 
     it('keeps Send disabled until there is a recipient', () => {
@@ -326,19 +305,17 @@ describe('ComposeModal: draft autosave', () => {
 describe('ComposeModal: send later', () => {
     const MS_PER_HOUR = 60 * 60 * 1000
 
-    it('schedules a preset moment and closes without the undo toast or the reply mark', async () => {
+    it('schedules a preset moment and closes without marking the reply', async () => {
         apiSpies.send.mockResolvedValue('ob-9')
-        const {onClose, onHeld, onMarkReplied} = renderCompose({
-            holdSeconds: 10,
+        const {onClose, onMarkReplied} = renderCompose({
             initial: {to: 'x@y.com', subject: 'Hi', inReplyToId: 'orig1', replyKind: 'reply'},
         })
         fireEvent.click(screen.getByRole('button', {name: 'Send later'}))
         fireEvent.click(screen.getByRole('menuitem', {name: 'Tomorrow morning (09:00)'}))
         await waitFor(() => expect(onClose).toHaveBeenCalled())
         expect(apiSpies.send.mock.calls[0][0].sendAtMs).toBeGreaterThan(Date.now())
-        // A scheduled send waits in the Outbox: no undo toast; the reply mark stays honest (the
-        // schedule may yet be cancelled), so neither callback fires.
-        expect(onHeld).not.toHaveBeenCalled()
+        // A scheduled send waits in the Outbox, where it may yet be cancelled, so the reply mark stays
+        // honest and never fires.
         expect(onMarkReplied).not.toHaveBeenCalled()
     })
 

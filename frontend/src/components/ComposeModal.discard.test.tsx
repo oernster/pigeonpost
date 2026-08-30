@@ -67,8 +67,6 @@ function renderCompose(overrides: Partial<ComposeProps> = {}) {
         accountId: 'acc1',
         senders: [{name: 'Me', address: 'me@x.com'}],
         canSaveDraft: true,
-        holdSeconds: 0,
-        onHeld: vi.fn(),
         onClose,
         onMarkReplied: vi.fn(),
         onMarkForwarded: vi.fn(),

@@ -339,12 +339,8 @@ export interface ComposeInput {
     // name and bytes but no filesystem path. content is base64 (AttachmentDataEntry in send.go).
     attachmentData: {name: string; contentType: string; content: string}[]
     attachmentMessageIds: string[]
-    // holdSeconds is the undo-send window: greater than zero queues the send for that long (send returns
-    // the queued item's id, cancellable until it elapses) and zero sends immediately (send returns '').
-    holdSeconds: number
     // sendAtMs is send-later: a Unix-millisecond instant queues the send held until then (cancellable
-    // from the Outbox; send returns the queued id) and takes precedence over holdSeconds. Zero means no
-    // schedule.
+    // from the Outbox; send returns the queued id). Zero means no schedule; send returns ''.
     sendAtMs: number
 }
 

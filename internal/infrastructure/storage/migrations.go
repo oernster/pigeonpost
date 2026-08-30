@@ -197,8 +197,8 @@ INSERT INTO message_search (message_id, subject, snippet, sender, recipients, bo
     SELECT message_id, subject, snippet, sender, recipients, body, filenames FROM message_searchable_text;
 `
 
-// schemaV43 adds the undo-send hold to queued outbox items: hold_until_ms is the instant (Unix
-// milliseconds) an item may leave, or 0 for an ordinary offline-queued item with no hold. While the
+// schemaV43 adds the send hold to queued outbox items: hold_until_ms is the instant (Unix
+// milliseconds) an item may leave; 0 marks an ordinary offline-queued item with no hold. While the
 // hold is in the future the item is cancellable; the dispatcher sends it once the hold elapses.
 // Existing rows default to 0, keeping their replay-on-reconnect behaviour.
 const schemaV43 = `

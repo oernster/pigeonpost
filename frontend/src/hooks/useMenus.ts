@@ -8,10 +8,6 @@ import {snoozeChoices} from '../schedule'
 import {isJunkFolderMessage} from '../folderPaths'
 import {isTextEntry} from '../editClipboard'
 
-// undoSendChoices are the offered undo-send windows in seconds; 0 turns the hold off and sends
-// immediately. defaultUndoSendSeconds is the out-of-the-box window.
-export const undoSendChoices = [0, 5, 10, 20, 30] as const
-export const defaultUndoSendSeconds = 10
 
 // MenusDeps is the full action surface the menu bar projects. It is large because the menus touch nearly
 // everything; each field is used verbatim by the item that names it. The derived gating flags (canMailAct and
@@ -34,9 +30,6 @@ export interface MenusDeps {
     autoLoadImages: boolean
     // unifiedMailbox is the View tick that shows the combined all-inboxes entry in the sidebar.
     unifiedMailbox: boolean
-    // The undo-send window in seconds (0 = off) and its setter, shown as a Mail-menu submenu of ticks.
-    undoSendSeconds: number
-    setUndoSendSeconds: (seconds: number) => void
     // The folder list (Move/Copy targets) and the open message's tags (the applied ticks).
     folders: Folder[]
     messageTags: Tag[]
@@ -122,7 +115,7 @@ export interface Menus {
 export function useMenus(deps: MenusDeps): Menus {
     const {
         activeMessage, activeOutbox, canMailAct, canReplyAll, canMoveCopy, selectedAccount, accountSyncing,
-        isWindows, conversationView, previewEnabled, autoLoadImages, unifiedMailbox, undoSendSeconds, setUndoSendSeconds,
+        isWindows, conversationView, previewEnabled, autoLoadImages, unifiedMailbox,
         folders, messageTags,
         saveMessageAs, printMessage,
         undoText, redoText, undoAction, redoAction, canCutNow, canCopyNow, canPasteNow, cut, copy, paste, selectAll, canSelectAll,
@@ -308,15 +301,6 @@ export function useMenus(deps: MenusDeps): Menus {
             shortcut: 'F9',
             disabled: !selectedAccount || accountSyncing,
             onClick: () => void sync(),
-        },
-        {
-            label: 'Undo send',
-            icon: '\u{23F3}',
-            submenu: undoSendChoices.map((seconds) => ({
-                label: seconds === 0 ? 'Off' : `${seconds} seconds`,
-                checked: undoSendSeconds === seconds,
-                onClick: () => setUndoSendSeconds(seconds),
-            })),
         },
         ...(isWindows
             ? [{

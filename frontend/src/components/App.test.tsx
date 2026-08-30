@@ -15,7 +15,6 @@ import App from '../App'
 import type {Account, Folder, Message, OutboxItem} from '../api'
 import {SEARCH_MATCH_END, SEARCH_MATCH_START} from '../api'
 import {IDLE_REFOCUS_MS} from '../hooks/useIdleRefocus'
-import {defaultUndoSendSeconds} from '../hooks/useMenus'
 import {printFrameId, printReadyMarkerId} from '../print'
 import {spiesNotInApi, unstubbedNames} from '../test/apiMock'
 
@@ -1405,112 +1404,20 @@ describe('App: menus', () => {
     })
 })
 
-// Undo send: a send with a hold window queues the message and shows a countdown whose Undo cancels it
-// and reopens the composer. Only the toast component was tested; everything App does around it (opening
-// the toast, cancelling, the lost race, then the reply marking deferred to the window's expiry) was
-// unpinned. These characterise it at App's outer interface before it moves into a hook.
-describe('App: undo send', () => {
-    // The out-of-the-box window, long enough that a real clock cannot reach it inside a test.
-    const undoWindowMs = defaultUndoSendSeconds * 1000
-
-    // The same handler capture the backend-event tests use, which is scoped to their own describe.
-    function captureEvents(): Record<string, (arg: unknown) => void> {
-        const handlers: Record<string, (arg: unknown) => void> = {}
-        runtimeSpies.EventsOn.mockImplementation((event: string, cb: (arg: unknown) => void) => {
-            handlers[event] = cb
-            return () => undefined
-        })
-        return handlers
-    }
-
-    async function sendHeld(): Promise<Record<string, (data: unknown) => void>> {
-        const handlers = captureEvents()
-        apiSpies.listAccounts.mockResolvedValue([makeAccount()])
-        apiSpies.send.mockResolvedValue('ob1')
-        render(<App/>)
-        await waitFor(() => expect(handlers['mailto:open']).toBeInstanceOf(Function))
-        act(() => handlers['mailto:open']({
-            to: ['jane@example.org'], cc: null, bcc: null, subject: 'Chess move', body: 'Knight takes.',
-        }))
-        const dialog = await screen.findByRole('dialog', {name: 'New message'})
-        fireEvent.click(within(dialog).getByRole('button', {name: 'Send'}))
-        return handlers
-    }
-
-    it('shows the undo countdown for a held send', async () => {
-        await sendHeld()
-        // eslint-disable-next-line no-console
-        expect(await screen.findByRole('status')).toHaveTextContent(/Sending in \d+s/)
-        expect(screen.getByRole('button', {name: 'Undo'})).toBeInTheDocument()
-    })
-
-    it('cancels the queued send and reopens the composer as it was', async () => {
-        // A cancel that stopped the message reports true; the shared reset leaves it undefined, which is
-        // the lost-race reading covered by the test below.
-        apiSpies.cancelOutboxItem.mockResolvedValue(true)
-        await sendHeld()
-        const undo = await screen.findByRole('button', {name: 'Undo'})
-        // The queue is reloaded by the undo itself, so the Outbox loses the cancelled item at once
-        // rather than on the next action. Counted from before the click, since it is also loaded on mount.
-        const outboxLoadsBefore = apiSpies.listOutbox.mock.calls.length
-        fireEvent.click(undo)
-        await waitFor(() => expect(apiSpies.cancelOutboxItem).toHaveBeenCalledWith('ob1'))
-        await waitFor(() => expect(apiSpies.listOutbox.mock.calls.length).toBeGreaterThan(outboxLoadsBefore))
-        const reopened = await screen.findByRole('dialog', {name: 'New message'})
-        expect(within(reopened).getByDisplayValue('jane@example.org')).toBeInTheDocument()
-        expect(within(reopened).getByDisplayValue('Chess move')).toBeInTheDocument()
-    })
-
-    it('says so when the cancel loses the race', async () => {
-        apiSpies.cancelOutboxItem.mockResolvedValue(false)
-        await sendHeld()
-        fireEvent.click(await screen.findByRole('button', {name: 'Undo'}))
-        expect(await screen.findByText('That message had already been sent.')).toBeInTheDocument()
-        expect(screen.queryByRole('dialog', {name: 'New message'})).toBeNull()
-    })
-
-    it('reports a failed cancel through the error bar', async () => {
-        apiSpies.cancelOutboxItem.mockRejectedValue('outbox locked')
-        await sendHeld()
-        fireEvent.click(await screen.findByRole('button', {name: 'Undo'}))
-        expect(await screen.findByText(/outbox locked/)).toBeInTheDocument()
-    })
-
-    it('marks a reply answered only once its undo window has elapsed', async () => {
+// Sending a reply flags its original answered. ComposeModal reports which original was acted on; this
+// pins App's half of it, that the report reaches the message action and so the server flag.
+describe('App: reply marking', () => {
+    it('marks a reply answered as it is sent', async () => {
         apiSpies.listAccounts.mockResolvedValue([makeAccount()])
         apiSpies.listFolders.mockResolvedValue([makeFolder('inbox', 'Inbox', 'inbox')])
         apiSpies.listMessages.mockResolvedValue([makeMessage({subject: 'Weekly report'})])
-        apiSpies.send.mockResolvedValue('ob1')
+        apiSpies.send.mockResolvedValue('')
         render(<App/>)
         fireEvent.click(await screen.findByText('Weekly report'))
         fireEvent.keyDown(document.body, {key: 'r', ctrlKey: true})
         const dialog = await screen.findByRole('dialog', {name: 'New message'})
-
-        // The clock is faked before the send, because the toast starts its countdown interval as it
-        // mounts and an interval created against the real clock is not adopted by a later fake one.
-        vi.useFakeTimers()
-        try {
-            fireEvent.click(within(dialog).getByRole('button', {name: 'Send'}))
-            await act(async () => { await vi.advanceTimersByTimeAsync(0) })
-            expect(screen.getByRole('button', {name: 'Undo'})).toBeInTheDocument()
-            // The original is not flagged while the message can still be pulled back.
-            expect(apiSpies.markReplied).not.toHaveBeenCalled()
-            // Once the window elapses the toast reports it; the deferred marking runs then, so the
-            // glyph becomes true exactly when an immediate send's would have.
-            await act(async () => { await vi.advanceTimersByTimeAsync(undoWindowMs) })
-            expect(apiSpies.markReplied).toHaveBeenCalledWith('m1')
-            expect(apiSpies.markForwarded).not.toHaveBeenCalled()
-        } finally {
-            vi.useRealTimers()
-        }
-    })
-
-    it('does not mark the original when the send is undone', async () => {
-        apiSpies.cancelOutboxItem.mockResolvedValue(true)
-        await sendHeld()
-        fireEvent.click(await screen.findByRole('button', {name: 'Undo'}))
-        await waitFor(() => expect(apiSpies.cancelOutboxItem).toHaveBeenCalled())
-        expect(apiSpies.markReplied).not.toHaveBeenCalled()
+        fireEvent.click(within(dialog).getByRole('button', {name: 'Send'}))
+        await waitFor(() => expect(apiSpies.markReplied).toHaveBeenCalledWith('m1'))
         expect(apiSpies.markForwarded).not.toHaveBeenCalled()
     })
 })

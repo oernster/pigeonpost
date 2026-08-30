@@ -24,7 +24,6 @@ import {LicenceModal} from './components/LicenceModal'
 import {arrangeByConversation, sortByDate} from './threads'
 import {isJunkFolderMessage} from './folderPaths'
 import {ComposeModal, type ComposeInitial} from './components/ComposeModal'
-import {UndoSendToast} from './components/UndoSendToast'
 import {EventsOn} from '../wailsjs/runtime'
 import {MessagePickerDialog} from './components/MessagePickerDialog'
 import {AccountSetupModal} from './components/AccountSetupModal'
@@ -39,7 +38,6 @@ import {focusRingElements, focusRingRoot} from './focusRing'
 import {useMessageStore} from './hooks/useMessageStore'
 import {useMessageExport} from './hooks/useMessageExport'
 import {useManagedCollection} from './hooks/useManagedCollection'
-import {useUndoSend} from './hooks/useUndoSend'
 import {useSearch} from './hooks/useSearch'
 import {useSplash} from './hooks/useSplash'
 import {useLoadedPanel} from './hooks/useLoadedPanel'
@@ -57,7 +55,7 @@ import {useTags} from './hooks/useTags'
 import {useComposeLauncher} from './hooks/useComposeLauncher'
 import {useAppEvents} from './hooks/useAppEvents'
 import {useUpdateCheck} from './hooks/useUpdateCheck'
-import {defaultUndoSendSeconds, undoSendChoices, useMenus} from './hooks/useMenus'
+import {useMenus} from './hooks/useMenus'
 import {useMessageListKeyboard} from './hooks/useMessageListKeyboard'
 import {usePaneWidths} from './hooks/usePaneWidths'
 import {useFolderPagination} from './hooks/useFolderPagination'
@@ -237,20 +235,6 @@ function App() {
         restoreDraft, discardDraft,
     } = useComposeLauncher({accounts, selectedAccount, setSelectedAccount, messageBody, setError})
 
-    // undoSendSeconds is the undo-send window: how long a sent message is held (cancellable) before it
-    // actually leaves. Zero disables the hold. Chosen from the Mail menu, remembered across launches.
-    const [undoSendSeconds, setUndoSendSecondsState] = useState<number>(() => {
-        // An absent or blank key is not a choice of zero. Number(null) and Number('') are both 0, which is
-        // itself a legal choice (Off), so reading the value straight through Number made every fresh
-        // install accept it and put the default out of reach: undo send shipped off.
-        const stored = localStorage.getItem('undoSendSeconds')
-        const chosen = stored === null || stored.trim() === '' ? Number.NaN : Number(stored)
-        return (undoSendChoices as readonly number[]).includes(chosen) ? chosen : defaultUndoSendSeconds
-    })
-    const setUndoSendSeconds = useCallback((seconds: number) => {
-        setUndoSendSecondsState(seconds)
-        localStorage.setItem('undoSendSeconds', String(seconds))
-    }, [])
     // conversationView groups the folder's messages into conversations; it does not apply to search
     // results, which stay ranked by relevance. The choice is remembered across launches.
     const [conversationView, setConversationView] = useState<boolean>(() => localStorage.getItem('conversationView') === '1')
@@ -383,21 +367,6 @@ function App() {
         store, displayMessages, searchActive, folders, loadUnread, refreshFolders, setError,
         isPop3: messagePop3,
         undo: undoRedo.recorder,
-    })
-
-    // The undo-send window (the queued item, its countdown, the cancel and the marking deferred to its
-    // expiry) lives in useUndoSend. Reopening the composer is the one thing it hands back here, since
-    // the compose state belongs to this component.
-    const {held: undoToast, onHeldSend, undoHeldSend, heldSendElapsed} = useUndoSend({
-        holdSeconds: undoSendSeconds,
-        refreshOutbox,
-        setError,
-        reopenCompose: (initial) => {
-            setComposeInitial(initial)
-            setComposing(true)
-        },
-        markReplied,
-        markForwarded,
     })
 
     // The backend dispatcher announces a held send leaving, so the outbox count and views refresh the
@@ -1125,7 +1094,7 @@ function App() {
 
     const {fileMenu, editMenu, viewMenu, mailMenu, helpMenu} = useMenus({
         activeMessage, activeOutbox, canMailAct, canReplyAll, canMoveCopy, selectedAccount, accountSyncing,
-        isWindows, conversationView, previewEnabled, autoLoadImages, unifiedMailbox, undoSendSeconds, setUndoSendSeconds,
+        isWindows, conversationView, previewEnabled, autoLoadImages, unifiedMailbox,
         folders, messageTags,
         saveMessageAs, printMessage,
         undoText: undoRedo.undoText, redoText: undoRedo.redoText,
@@ -1165,13 +1134,6 @@ function App() {
             />
             {splashVisible && <Splash version={appVersion} author={appAuthor} fading={splashFading}/>}
             <ReminderNotifications onOpen={openReminderEvent}/>
-            {undoToast && (
-                <UndoSendToast
-                    expiresAt={undoToast.expiresAt}
-                    onUndo={() => void undoHeldSend()}
-                    onExpired={heldSendElapsed}
-                />
-            )}
             <TitleBar
                 unreadCounts={unreadCounts}
                 fileMenu={fileMenu}
@@ -1267,8 +1229,6 @@ function App() {
                     onMarkReplied={(id) => void markReplied(id)}
                     onMarkForwarded={(id) => void markForwarded(id)}
                     onDraftSuperseded={supersedeDraft}
-                    holdSeconds={undoSendSeconds}
-                    onHeld={onHeldSend}
                     onClose={() => {
                         setComposing(false)
                         setComposeInitial(undefined)

@@ -91,8 +91,7 @@ interface ComposeModalProps {
     // onMarkReplied / onMarkForwarded record a sent reply or forward on its original message (by id), so the
     // row shows the replied / forwarded glyph at once. They own the server flag, the local cache and the
     // in-memory list update; the composer just reports which original was acted on. Called best-effort after a
-    // successful send, so a failure never disrupts the send. For a held send that marking moves to the
-    // undo toast's expiry (via onHeld), so undoing a reply never leaves a wrong answered flag.
+    // successful send, so a failure never disrupts the send.
     onMarkReplied: (id: string) => void
     onMarkForwarded: (id: string) => void
     // onDraftSuperseded reports the stored draft this compose was reopened from (initial.draftId) once its
@@ -100,16 +99,11 @@ interface ComposeModalProps {
     // above, the composer only says which draft was superseded; the handler owns the server delete, the
     // in-memory list and the folder counts.
     onDraftSuperseded: (id: string) => void
-    // holdSeconds is the user's undo-send window, passed through to the send request; zero sends
-    // immediately. onHeld reports a held send: the queued item's id (for Undo) and the full compose
-    // state, so an undone send reopens exactly as it was.
-    holdSeconds: number
-    onHeld: (outboxId: string, reopen: ComposeInitial) => void
     onClose: () => void
 }
 
 
-export function ComposeModal({accountId, senders, initial, canSaveDraft, onMarkReplied, onMarkForwarded, onDraftSuperseded, holdSeconds, onHeld, onClose}: ComposeModalProps) {
+export function ComposeModal({accountId, senders, initial, canSaveDraft, onMarkReplied, onMarkForwarded, onDraftSuperseded, onClose}: ComposeModalProps) {
     // The chosen From address. It defaults to the reply's delivered-to address when given, otherwise the
     // account's primary (first) sender. The backend validates it against the account's owned addresses.
     const [from, setFrom] = useState(initial?.from || senders[0]?.address || '')
@@ -217,8 +211,8 @@ export function ComposeModal({accountId, senders, initial, canSaveDraft, onMarkR
     }
     const dismiss = useBackdropDismiss(requestClose)
 
-    // buildRequest packs the compose state for the backend. at is the send-later instant (null for an
-    // immediate or undo-held send); it takes precedence over the undo window server-side.
+    // buildRequest packs the compose state for the backend. at is the send-later instant, null for an
+    // immediate send.
     const buildRequest = (at: Date | null = null): ComposeInput => {
         const text = editor?.getText() ?? ''
         const html = editor?.getHTML() ?? ''
@@ -235,27 +229,9 @@ export function ComposeModal({accountId, senders, initial, canSaveDraft, onMarkR
             attachmentPaths: attachments,
             attachmentData: intake.dataAttachments,
             attachmentMessageIds: messageAttachments.map((m) => m.id),
-            holdSeconds,
             sendAtMs: at === null ? 0 : at.getTime(),
         }
     }
-
-    // reopenInitial captures the whole compose state, so an undone send reopens exactly as it was,
-    // including the reply/forward marking intent the toast applies once the window elapses.
-    const reopenInitial = (): ComposeInitial => ({
-        accountId,
-        from,
-        to,
-        cc,
-        bcc,
-        subject,
-        bodyHtml: editor?.getHTML() ?? '',
-        attachmentPaths: attachments,
-        attachmentData: intake.dataAttachments,
-        messageAttachments,
-        inReplyToId: initial?.inReplyToId,
-        replyKind: initial?.replyKind,
-    })
 
     const removeMessageAttachment = (id: string) => {
         setMessageAttachments((prev) => prev.filter((m) => m.id !== id))
@@ -303,9 +279,8 @@ export function ComposeModal({accountId, senders, initial, canSaveDraft, onMarkR
     }
 
     // send delivers the message now (at null) or schedules it for the chosen instant. A scheduled send
-    // waits in the Outbox with Cancel send: it shows no undo toast; it does not mark a reply or
-    // forward's original (a schedule cancelled days later must not have already flagged it; the glyph is
-    // an accepted gap for scheduled sends).
+    // waits in the Outbox with Cancel send; it does not mark a reply or forward's original (a schedule
+    // cancelled days later must not have already flagged it; the glyph is an accepted gap there).
     // maybeCollectContacts adds the message's recipients to the address book after a successful
     // send, when the automatic setting (on by default, toggled on the Contacts page) allows. The
     // sender's own addresses are never collected. Fire-and-forget: collection must never disturb a
@@ -325,17 +300,10 @@ export function ComposeModal({accountId, senders, initial, canSaveDraft, onMarkR
         setSending(true)
         setError('')
         try {
-            const outboxId = await api.send(buildRequest(at))
+            await api.send(buildRequest(at))
             maybeCollectContacts()
             if (at === null) {
-                if (outboxId === '') {
-                    // Sent immediately: mark the original now, exactly as before undo-send existed.
-                    markOriginalOnSend()
-                } else {
-                    // Held behind the undo window: hand the queued id and the compose state to the toast,
-                    // which marks the original only if the window elapses without an undo.
-                    onHeld(outboxId, reopenInitial())
-                }
+                markOriginalOnSend()
             }
             supersedeDraft()
             void api.clearDraftRecovery()

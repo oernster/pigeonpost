@@ -70,8 +70,6 @@ function renderCompose() {
         accountId="acc1"
         senders={[{name: 'Me', address: 'me@x.com'}]}
         canSaveDraft={true}
-        holdSeconds={0}
-        onHeld={vi.fn()}
         onClose={vi.fn()}
         onMarkReplied={vi.fn()}
         onMarkForwarded={vi.fn()}

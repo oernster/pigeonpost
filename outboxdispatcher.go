@@ -15,7 +15,7 @@ const outboxDispatchTick = 2 * time.Second
 // unread surfaces refresh without polling.
 const outboxChangedEvent = "outbox:changed"
 
-// runOutboxDispatcher sends held outbox items as their undo-send windows elapse. It wakes on a short
+// runOutboxDispatcher sends held outbox items as their holds elapse. It wakes on a short
 // tick, asks for the earliest hold and replays only when one is actually due, so the plain offline
 // queue is never touched here (that waits for a sync) and an idle app does no send work at all. It
 // runs until the application context is cancelled.

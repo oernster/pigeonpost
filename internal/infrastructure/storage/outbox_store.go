@@ -99,7 +99,7 @@ func (s *Store) DeleteOutbox(ctx context.Context, id string) (bool, error) {
 	return affected > 0, nil
 }
 
-// ClearOutboxHold removes an item's undo-send hold, degrading it to an ordinary queued operation that
+// ClearOutboxHold removes an item's hold, degrading it to an ordinary queued operation that
 // the next replay sends. Used when a due item's send attempt finds the server unreachable, so the
 // dispatcher does not retry it on every tick.
 func (s *Store) ClearOutboxHold(ctx context.Context, id string) error {
@@ -109,7 +109,7 @@ func (s *Store) ClearOutboxHold(ctx context.Context, id string) error {
 	return nil
 }
 
-// NextOutboxHold returns the earliest undo-send hold among unfailed queued items and reports whether
+// NextOutboxHold returns the earliest hold among unfailed queued items and reports whether
 // one exists, so the dispatcher can wake exactly when the next held item comes due.
 func (s *Store) NextOutboxHold(ctx context.Context) (time.Time, bool, error) {
 	var holdMS int64

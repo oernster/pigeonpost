@@ -1,7 +1,7 @@
 package application
 
 // The outbox half of ComposeService: the queue of outgoing operations (offline sends and drafts plus
-// undo-send holds), its replay paths and the dispatcher's queries. Kept apart from the compose and
+// send-later holds), its replay paths and the dispatcher's queries. Kept apart from the compose and
 // draft flows in compose.go so each file stays within the module-size limit.
 
 import (
@@ -47,8 +47,8 @@ func (s *ComposeService) CancelOutbox(ctx context.Context, id string) (bool, err
 // the queue. If the server is still unreachable, replay stops and the remaining items stay queued. An
 // operation that fails for any other reason (the account is gone, the message is rejected) is kept in
 // the queue and stamped with its failure reason, so it surfaces in the outbox for the user to see and
-// act on rather than vanishing. An item already marked failed is skipped, not retried, and so is an
-// item still inside its undo-send hold: the user may yet cancel it, so no replay may send it early.
+// act on rather than vanishing. An item already marked failed is skipped rather than retried; so is an
+// item still inside its hold: the user may yet cancel it, so no replay may send it early.
 // Its error is also collected and returned. It returns how many operations succeeded.
 func (s *ComposeService) ReplayOutbox(ctx context.Context) (int, error) {
 	items, err := s.outbox.ListOutbox(ctx)
@@ -80,7 +80,7 @@ func (s *ComposeService) ReplayOutbox(ctx context.Context) (int, error) {
 	return replayed, errors.Join(failures...)
 }
 
-// ReplayDueHeld sends the held items whose undo-send window has elapsed, returning how many were
+// ReplayDueHeld sends the held items whose hold has elapsed, returning how many were
 // sent. It is the dispatcher's entry point, so it touches only held-and-due items: never the plain
 // offline queue (which waits for a sync) and never an item still inside its window. A due item whose
 // send finds the server unreachable has its hold cleared instead of being retried on every tick,
@@ -119,7 +119,7 @@ func (s *ComposeService) ReplayDueHeld(ctx context.Context) (int, error) {
 	return sent, errors.Join(failures...)
 }
 
-// NextHold returns when the earliest undo-send hold elapses and whether any held item exists, so the
+// NextHold returns when the earliest hold elapses and whether any held item exists, so the
 // dispatcher can sleep until something is actually due.
 func (s *ComposeService) NextHold(ctx context.Context) (time.Time, bool, error) {
 	next, ok, err := s.outbox.NextOutboxHold(ctx)
