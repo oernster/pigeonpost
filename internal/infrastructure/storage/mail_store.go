@@ -18,9 +18,17 @@ import (
 var (
 	// unreadCountExpr counts a folder's unread messages: those whose Seen bit is clear. The bit value
 	// is taken from the domain flag so the query can never drift from the domain definition of "read".
+	//
+	// The archive always reports none. Archiving is the act of putting a message out of the way, so it
+	// does not go on demanding attention, which is the same rule the account-level totals apply. On Gmail
+	// the count would also be untrue rather than merely unwanted: the archive there is All Mail, which
+	// holds a copy of every labelled message, so the number would be the whole mailbox's unread dressed
+	// up as the archive's. Worse, the copies drift: reading a message in the inbox updates that row alone,
+	// so the archive's twin stays unread in the cache and the badge stays lit until the archive is opened
+	// and synced. A count nobody can trust is worth less than no count.
 	unreadCountExpr = fmt.Sprintf(
-		"(SELECT COUNT(*) FROM message m WHERE m.folder_id = f.id AND (m.flags & %d) = 0)",
-		int(domain.FlagSeen))
+		"(SELECT COUNT(*) FROM message m WHERE m.folder_id = f.id AND (m.flags & %d) = 0 AND f.kind != %d)",
+		int(domain.FlagSeen), int(domain.FolderArchive))
 	// totalCountExpr counts all of a folder's cached messages.
 	totalCountExpr = "(SELECT COUNT(*) FROM message m WHERE m.folder_id = f.id)"
 )

@@ -14,10 +14,32 @@ import (
 // intended state is also recorded as a pending flag operation in the same transaction, so the local
 // change and the intent to land it on the server cannot drift apart (mirroring AssignMessageTag): a
 // change with no intent would be silently undone by the next sync mirroring the server's stale view.
+//
+// The change is applied to every cached copy of the same message in that account, not just the row the
+// caller named. A server can present one message in several mailboxes: Gmail does it for every label,
+// where a message with the Work label sits in Work, in the Inbox and in All Mail as three rows with three
+// UIDs. Reading it in one place used to leave the others bold in the cache until each folder happened to
+// be opened and synced, so the app showed mail as unread that the user had just read.
+//
+// Sameness is (message_id, date_ms, from_address, subject) within the one account. Message-ID alone is
+// not enough: measured across two real accounts, more than 900 messages share one with another row. Those
+// collisions were checked rather than assumed and they are the same message stored twice, differing only
+// in UID and stored size, so updating each of them is right. An empty Message-ID matches nothing, since
+// otherwise every message lacking one would be treated as the same message.
+//
+// Only the cache is propagated, never the pending intent: the intent belongs to the message the caller
+// named. Where a server does share flags between the copies, as Gmail does, its own push covers them all;
+// where one does not, the next sync of that folder replaces its rows and the server's truth wins.
 func (s *Store) SetFlag(ctx context.Context, messageID string, flag domain.Flag, value bool, recordPending bool) error {
 	return s.inTx(ctx, func(tx *sql.Tx) error {
-		var raw int
-		err := tx.QueryRowContext(ctx, "SELECT flags FROM message WHERE id = ?;", messageID).Scan(&raw)
+		var (
+			raw                                 int
+			dateMS                              int64
+			msgID, fromAddress, subject, folder string
+		)
+		err := tx.QueryRowContext(ctx,
+			"SELECT flags, message_id, date_ms, from_address, subject, folder_id FROM message WHERE id = ?;",
+			messageID).Scan(&raw, &msgID, &dateMS, &fromAddress, &subject, &folder)
 		if errors.Is(err, sql.ErrNoRows) {
 			return fmt.Errorf("set flag: message %q not found", messageID)
 		}
@@ -32,6 +54,17 @@ func (s *Store) SetFlag(ctx context.Context, messageID string, flag domain.Flag,
 		}
 		if _, err := tx.ExecContext(ctx, "UPDATE message SET flags = ? WHERE id = ?;", int(flags.Raw()), messageID); err != nil {
 			return fmt.Errorf("set flag: update %q: %w", messageID, err)
+		}
+		if msgID != "" {
+			if _, err := tx.ExecContext(ctx,
+				`UPDATE message SET flags = ?
+				 WHERE id != ?
+				   AND message_id = ? AND date_ms = ? AND from_address = ? AND subject = ?
+				   AND folder_id IN (SELECT id FROM folder WHERE account_id =
+				         (SELECT account_id FROM folder WHERE id = ?));`,
+				int(flags.Raw()), messageID, msgID, dateMS, fromAddress, subject, folder); err != nil {
+				return fmt.Errorf("set flag: update other copies of %q: %w", messageID, err)
+			}
 		}
 		if recordPending {
 			if _, err := tx.ExecContext(ctx,

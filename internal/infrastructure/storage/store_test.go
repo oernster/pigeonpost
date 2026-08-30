@@ -1245,12 +1245,12 @@ func TestSnoozeExcludedFromUnreadAndSweptWithItsMessage(t *testing.T) {
 	}
 }
 
-// TestArchiveIsExcludedFromAccountTotalsButKeepsItsOwnBadge pins both halves of the archive exclusion at
-// once, because they are easy to confuse: the account roll-up leaves the archive out while the folder
-// itself still reports what it holds. Splitting them would let a change satisfy one and quietly break the
-// other. The newest-unread date follows the same rule, so a message sitting only in the archive must not
-// drive the attention cue either.
-func TestArchiveIsExcludedFromAccountTotalsButKeepsItsOwnBadge(t *testing.T) {
+// TestArchiveReportsNoUnreadAnywhere pins every surface at once, because they are easy to fix one at a
+// time and leave the others lit: the account roll-up, the newest-unread attention cue and the folder's own
+// badge all report nothing for the archive. The folder badge matters most in practice. It is the one
+// visible without opening the archive; it is also the one that goes stale, since reading a message in the
+// inbox updates that row alone and leaves the archive's twin unread in the cache.
+func TestArchiveReportsNoUnreadAnywhere(t *testing.T) {
 	store := openTestStore(t)
 	ctx := context.Background()
 
@@ -1286,8 +1286,127 @@ func TestArchiveIsExcludedFromAccountTotalsButKeepsItsOwnBadge(t *testing.T) {
 		t.Fatalf("list folders: %v", err)
 	}
 	for _, f := range folders {
-		if f.ID() == "f2" && f.Unread() != 2 {
-			t.Errorf("the archive should still badge its own 2 unread, got %d", f.Unread())
+		if f.ID() == "f2" {
+			if f.Unread() != 0 {
+				t.Errorf("the archive must not badge its own unread, got %d", f.Unread())
+			}
+			if f.Total() != 2 {
+				t.Errorf("the archive should still report what it holds, got %d", f.Total())
+			}
 		}
+	}
+}
+
+// buildTwinOf builds a second cached row for the same underlying message in another folder: a different
+// row id and UID, the same Message-ID, subject and date. That is what a server presenting one message in
+// several mailboxes produces, which Gmail does for every label.
+func buildTwinOf(t *testing.T, id, folderID, twinOf string) domain.MessageSummary {
+	t.Helper()
+	msg, err := domain.NewMessageSummary(domain.MessageSummaryInput{
+		ID: id, FolderID: folderID, UID: id, MessageID: "<" + twinOf + "@x>",
+		Subject: "Subject " + twinOf, Date: time.Date(2026, time.July, 1, 0, 0, 0, 0, time.UTC),
+		Size: 1024, Flags: domain.NewFlags(0), Snippet: "snippet " + id,
+	})
+	if err != nil {
+		t.Fatalf("twin message: %v", err)
+	}
+	return msg
+}
+
+// TestSetFlagReachesEveryCopyOfTheMessage covers the Gmail shape: one message presented in three
+// mailboxes as three rows. Reading it in one used to leave the others bold until each was opened and
+// synced, so the app showed as unread mail the user had just read. The last two assertions are the
+// guards: another account's identical message is untouched; the intent belongs to the named row only.
+func TestSetFlagReachesEveryCopyOfTheMessage(t *testing.T) {
+	store := openTestStore(t)
+	ctx := context.Background()
+
+	inbox, _ := domain.NewFolder("f1", "a1", "INBOX", domain.FolderInbox, 0, 0)
+	work, _ := domain.NewFolder("f2", "a1", "Work", domain.FolderCustom, 0, 0)
+	archive, _ := domain.NewFolder("f3", "a1", "[Gmail]/All Mail", domain.FolderArchive, 0, 0)
+	other, _ := domain.NewFolder("f4", "a2", "INBOX", domain.FolderInbox, 0, 0)
+	if err := store.SaveFolders(ctx, "a1", []domain.Folder{inbox, work, archive}); err != nil {
+		t.Fatalf("save a1 folders: %v", err)
+	}
+	if err := store.SaveFolders(ctx, "a2", []domain.Folder{other}); err != nil {
+		t.Fatalf("save a2 folders: %v", err)
+	}
+	save := func(folderID string, msgs ...domain.MessageSummary) {
+		if err := store.SaveMessages(ctx, folderID, msgs); err != nil {
+			t.Fatalf("save in %q: %v", folderID, err)
+		}
+	}
+	save("f1", buildMessageIn(t, "m1", "f1", false))
+	save("f2", buildTwinOf(t, "m1work", "f2", "m1"))
+	save("f3", buildTwinOf(t, "m1arch", "f3", "m1"))
+	// The same message in a different account, which must stay untouched.
+	save("f4", buildTwinOf(t, "m1else", "f4", "m1"))
+
+	if err := store.SetFlag(ctx, "m1", domain.FlagSeen, true, true); err != nil {
+		t.Fatalf("set flag: %v", err)
+	}
+
+	read := func(id string) bool {
+		var raw int
+		if err := store.db.QueryRowContext(ctx, "SELECT flags FROM message WHERE id = ?;", id).Scan(&raw); err != nil {
+			t.Fatalf("read flags for %q: %v", id, err)
+		}
+		return domain.NewFlags(domain.Flag(raw)).IsSeen()
+	}
+	for _, id := range []string{"m1", "m1work", "m1arch"} {
+		if !read(id) {
+			t.Errorf("%s should have been marked read with its other copies", id)
+		}
+	}
+	if read("m1else") {
+		t.Error("a copy in another account must not be touched")
+	}
+	if pending, _ := store.PendingFlagOps(ctx, "m1arch"); len(pending) != 0 {
+		t.Errorf("the intent belongs to the named message only, got %v", pending)
+	}
+	if pending, _ := store.PendingFlagOps(ctx, "m1"); len(pending) != 1 {
+		t.Errorf("the named message should carry its intent, got %v", pending)
+	}
+}
+
+// TestSetFlagDoesNotTreatMissingMessageIDsAsTheSameMessage guards the degenerate case: without the empty
+// check every message lacking a Message-ID would match every other one, so reading any of them would mark
+// the lot read.
+func TestSetFlagDoesNotTreatMissingMessageIDsAsTheSameMessage(t *testing.T) {
+	store := openTestStore(t)
+	ctx := context.Background()
+
+	inbox, _ := domain.NewFolder("f1", "a1", "INBOX", domain.FolderInbox, 0, 0)
+	archive, _ := domain.NewFolder("f2", "a1", "Archive", domain.FolderArchive, 0, 0)
+	if err := store.SaveFolders(ctx, "a1", []domain.Folder{inbox, archive}); err != nil {
+		t.Fatalf("save folders: %v", err)
+	}
+	blank := func(id, folderID string) domain.MessageSummary {
+		msg, err := domain.NewMessageSummary(domain.MessageSummaryInput{
+			ID: id, FolderID: folderID, UID: id, MessageID: "",
+			Subject: "same subject", Date: time.Date(2026, time.July, 1, 0, 0, 0, 0, time.UTC),
+			Size: 1024, Flags: domain.NewFlags(0), Snippet: id,
+		})
+		if err != nil {
+			t.Fatalf("message: %v", err)
+		}
+		return msg
+	}
+	if err := store.SaveMessages(ctx, "f1", []domain.MessageSummary{blank("n1", "f1")}); err != nil {
+		t.Fatalf("save inbox: %v", err)
+	}
+	if err := store.SaveMessages(ctx, "f2", []domain.MessageSummary{blank("n2", "f2")}); err != nil {
+		t.Fatalf("save archive: %v", err)
+	}
+
+	if err := store.SetFlag(ctx, "n1", domain.FlagSeen, true, false); err != nil {
+		t.Fatalf("set flag: %v", err)
+	}
+	var raw int
+	if err := store.db.QueryRowContext(ctx, "SELECT flags FROM message WHERE id = 'n2';").Scan(&raw); err != nil {
+		t.Fatalf("read flags: %v", err)
+	}
+	if domain.NewFlags(domain.Flag(raw)).IsSeen() {
+		t.Error("messages with no Message-ID must not be treated as the same message")
 	}
 }

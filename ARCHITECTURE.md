@@ -620,7 +620,19 @@ Mark read/unread and star/flag: the UI calls the facade, which routes through th
 `MessageActionService`. It writes the flag (`\Seen` or `\Flagged`) to the IMAP server first (via the
 `MailActions` port) and only then updates the local cache, so the change is durable: a later sync
 mirrors server state back and preserves it rather than overwriting a local-only flag. The unread
-(bold) state and the star follow the cached flags. `UnreadCounts` is the single derived-total choke
+(bold) state and the star follow the cached flags. A flag change is applied to every cached copy of that
+message in the account rather than to the named row alone. A server can present one message in several
+mailboxes, which Gmail does for every label: a message labelled Work sits in Work, in the Inbox and in All
+Mail as three rows with three UIDs, so reading it in one left the others bold until each folder happened
+to be opened and synced, showing as unread mail the user had just read. Sameness is
+`(message_id, date_ms, from_address, subject)` within the one account; an empty Message-ID matches
+nothing, since otherwise every message without one would be treated as the same message. Message-ID alone
+is not enough; the alternative was measured rather than assumed: across two real accounts more than
+900 messages share one with another row. Those collisions were then inspected and are the same message
+stored twice, differing only in UID and stored size, so updating each of them is correct. Only the cache
+is propagated, never the pending intent, which belongs to the message the caller named: where a server
+shares flags between the copies its own push covers them all. Where one does not, the next sync of
+that folder replaces its rows and the server's truth wins. `UnreadCounts` is the single derived-total choke
 point: it reflects the cross-account total onto both the taskbar overlay badge and the tray icon (the
 tray icon composites the app icon with the same red count badge, so the count stays visible even when
 the window is hidden to the tray). Beside the counts it carries each account's newest unread message
@@ -629,9 +641,10 @@ to per-account "last looked" watermarks it keeps in localStorage (`newMail.ts`, 
 account switch) to light the account picker's elsewhere badge only for mail that arrived after you
 last had that account open, so a standing unread backlog never lights a permanent cue.
 
-Both account-level aggregates leave the archive out, while `ListFolders` still counts it so the archive
-badges its own row. Archiving is the act of putting a message out of the way, so it should not keep
-demanding attention at account level; on Gmail the exclusion is load-bearing rather than a preference,
+Both account-level aggregates leave the archive out; `ListFolders` reports it as having no unread
+either, so nothing anywhere badges archived mail; the archive still reports its total, so the folder says
+what it holds. Archiving is the act of putting a message out of the way, so it should not keep
+demanding attention; on Gmail the exclusion is load-bearing rather than a preference,
 since the archive there is All Mail and holds a copy of every labelled message, so one unread message
 counted twice, once where it is filed and once in the archive. Deduplicating the aggregate by Message-ID
 was the obvious alternative and was measured and rejected: across two real accounts more than 900

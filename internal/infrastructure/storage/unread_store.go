@@ -19,8 +19,8 @@ import (
 // rejected: across two real accounts over 900 messages each share a Message-ID with another row, 601 of
 // them inside a single folder, so it is not an identity key and deduplicating would undercount everywhere.
 //
-// The per-folder badges come from ListFolders, which counts each folder on its own, so the archive still
-// shows its own unread count; only the account-level roll-up leaves it out.
+// The archive reports no unread on its own row either (see unreadCountExpr), so the rule is the same
+// wherever a count is shown. It still reports its total, so the folder says what it holds.
 
 // UnreadByAccount returns each account's unread message count summed across its folders other than the
 // archive, keyed by account id. An account with no unread messages is absent from the map. Unread means
