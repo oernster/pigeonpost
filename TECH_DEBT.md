@@ -12,19 +12,19 @@ The limit is 400 lines. `tests/structural/boundary_test.go` has always enforced 
 
 | Module | Lines |
 |---|---|
-| `src/App.tsx` | 1395 |
-| `src/components/ComposeModal.tsx` | 731 |
-| `src/api.ts` | 631 |
+| `src/App.tsx` | 1355 |
+| `src/components/ComposeModal.tsx` | 699 |
+| `src/api.ts` | 627 |
 | `src/components/EventFormModal.tsx` | 559 |
 | `src/components/ContactsModal.tsx` | 491 |
-| `src/hooks/useMenus.ts` | 450 |
 | `src/components/FolderTree.tsx` | 445 |
 | `src/components/CalendarModal.tsx` | 436 |
+| `src/hooks/useMenus.ts` | 434 |
 | `src/components/MessageContextMenu.tsx` | 407 |
 
-The guard now exists (`src/test/loc.test.ts`) and holds every other module, with these nine named in an exemption list that may only shrink: a file leaves it when it is split; a file that is exempt while no longer over the limit fails too, so an entry cannot outlive the debt it records. Nothing new can join it. What is open is the splitting itself. Each is a behaviour-preserving decomposition along a concern boundary rather than an arbitrary slice, taken one module at a time and characterisation-first the way the original `App.tsx` decomposition was, so the front-end suite proves each move rather than review doing it. The four modals are alike enough to share an approach.
+The lengths above are what each module holds now; the guard records the length each held when it was written, which is the ceiling an exempt module may not exceed. The guard now exists (`src/test/loc.test.ts`) and holds every other module, with these nine named in an exemption list that may only shrink: a file leaves it when it is split; a file that is exempt while no longer over the limit fails too, so an entry cannot outlive the debt it records. Nothing new can join it. What is open is the splitting itself. Each is a behaviour-preserving decomposition along a concern boundary rather than an arbitrary slice, taken one module at a time and characterisation-first the way the original `App.tsx` decomposition was, so the front-end suite proves each move rather than review doing it. The four modals are alike enough to share an approach.
 
-`App.tsx` is its own unit and is under way. Six concerns have left it: `useMessageExport`, the four managed collections collapsed onto `useManagedCollection`, `useUndoSend`, `useSearch`, `useSplash` and the About and licence panels collapsed onto `useLoadedPanel`. Each is pinned by characterisation tests written against the un-extracted code and proved by planting a violation.
+`App.tsx` is its own unit and is under way. Five concerns have left it: `useMessageExport`, the four managed collections collapsed onto `useManagedCollection`, `useSearch`, `useSplash` and the About and licence panels collapsed onto `useLoadedPanel`. Each is pinned by characterisation tests written against the un-extracted code and proved by planting a violation.
 
 The JSX split has started with `ManagerModals`, the four dialogs over the four managed collections. It works because the collections pass whole: a manager dialog needs nothing threaded through `App`; a fifth would be one entry there plus one `useManagedCollection` call.
 
