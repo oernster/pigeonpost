@@ -49,7 +49,7 @@ Passwords are never stored there; they live in the OS keychain.
 ## Project layout
 
 ```
-main.go + app.go + one binding file per feature surface (accounts, mail, folders, send, draft recovery, outbox, snooze, tags, rules, templates, calendar, CalDAV, contacts, scheduling, export, .eml files, updates) + the background goroutines (mailnotifier.go, alarmscheduler.go, outboxdispatcher.go, the snooze scheduler) + dto.go + clock.go   composition root + Wails facade (package main)
+main.go + app.go + one binding file per feature surface (accounts, mail, folders, send, draft recovery, outbox, snooze, tags, rules, templates, calendar, CalDAV, contacts, scheduling, export, .eml files, updates, About) + the background goroutines (mailnotifier.go, alarmscheduler.go, outboxdispatcher.go, the snooze scheduler) + mailerrors.go (turns a mail server's own words into a message fit to read, recording the original through errlog) + dto.go + clock.go   composition root + Wails facade (package main)
 internal/domain/            pure value objects, no IO (100% test gate)
 internal/application/        use cases + port interfaces (100% test gate)
 internal/infrastructure/

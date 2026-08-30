@@ -3,7 +3,7 @@
 > The triaged feature backlog: net-new candidates beyond what has shipped and beyond
 > the committed roadmap (the README's Planned line). Verdict taxonomy
 > (**Do** / **Design** / **Defer** / **Park**), read against the domain / application
-> / adapter split, the coverage gate and the RFC-mirrored conformance tests. Ordering
+> / adapter split, the coverage gate and the structural tests that enforce it. Ordering
 > protects the paid-down debt: expose built value and confirm the trust boundary
 > first, hold the platform-scale items until their prerequisites exist so nothing
 > lands as new debt.
