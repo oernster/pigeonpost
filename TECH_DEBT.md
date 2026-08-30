@@ -42,6 +42,18 @@ One candidate was tried and put back: collapsing the five localStorage-backed Vi
 
 ---
 
+## 2. Cached copies of one message are matched by a composite key rather than a real identity
+
+A server can present one message in several mailboxes, which Gmail does for every label: a message labelled Work sits in Work, in the Inbox and in All Mail as three rows with three UIDs. `Store.SetFlag` keeps those rows in step so reading a message in one place does not leave it bold in another; it decides which rows are the same message by `(message_id, date_ms, from_address, subject)` within the one account.
+
+That is an approximation of an identity rather than an identity. Message-ID alone is definitely not one: measured across two real accounts, more than 900 messages share one with another row. Those collisions were inspected rather than assumed and are the same message stored twice, differing only in UID and stored size, so the composite key has not been observed to be wrong on real data. It could still be wrong in principle, with nothing to detect it if it is.
+
+Gmail publishes the exact answer, `X-GM-MSGID`, which is one value per message and identical across every label. It is blocked upstream rather than merely unwritten: `go-imap` v2 has no Gmail extension support, its `beginCommand` is unexported so a custom fetch item cannot be sent, while its FETCH parser returns `unsupported msg-att name` for any attribute it does not recognise, so a response carrying one would fail the whole fetch. Adopting it means patching or forking the mail library, then a schema column and a migration to store it.
+
+Blocked on that library work being worth doing. Until then the composite key stands; the risk it carries is stated here rather than hidden.
+
+---
+
 ## Looks like debt, not worth touching
 
 - The `application.MailSource.FetchBody` four-value return `(plain, html, invite, attachments, err)` could be reshaped into a body struct to save the destructure-and-re-thread; a four-value return is idiomatic Go and the port shape is fine as it stands, so it is left.

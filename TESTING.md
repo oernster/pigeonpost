@@ -87,7 +87,7 @@ documented here.
 | internal/infrastructure/remoteimage | ~92% | the SSRF guard and the resolver for parked images and parked CSS backgrounds against stub servers; the live-wired constructor excluded |
 | internal/infrastructure/csv | ~95% | Outlook CSV codec round-trip |
 | internal/infrastructure/caldav | ~82% | request and parse logic against a stub server; live-server edges and the live-wired writer factory excluded |
-| internal/infrastructure/storage | ~79% | logic and error paths covered, including keyset message pagination, the atomic tag-keyword and flag-pending sync writes and the folder-baseline mark; see exclusions |
+| internal/infrastructure/storage | ~79% | logic and error paths covered, including keyset message pagination, the atomic tag-keyword and flag-pending sync writes, the folder-baseline mark, the archive reporting no unread on any surface and a flag change reaching every cached copy of its message; see exclusions |
 | internal/infrastructure/pop3 | ~40% | response and UIDL parsing covered; the live dial and download excluded |
 | internal/installer | ~22% | extract and paths covered; Win32 side effects excluded |
 | internal/infrastructure/imap | ~27% | the source adapter's pure helpers; the wire-to-domain and HTML logic now lives in `mailparse`; live fetch/append plus the IDLE watcher are excluded |

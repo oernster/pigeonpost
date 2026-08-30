@@ -135,7 +135,11 @@ concern, so read it before attaching it to anything.
   tree by dragging a folder to nest it, move it out or reorder its siblings; the order you choose and
   the folders you keep collapsed are remembered per account and survive an update or reinstall.
   One folder each holds Inbox, Sent, Drafts, Trash, Junk and Archive, leading a collapsible tree with
-  unread badges per folder, account and total. On-arrival rules combine several conditions (all fields at
+  unread badges per folder, account and total. The archive is the one folder that never badges: archiving
+  puts a message out of the way, so it stops asking for attention. On Gmail the archive is All Mail, which
+  holds a copy of every message you have, so a count there would be the whole mailbox rather than anything
+  about archived mail. Reading a message marks it read everywhere it appears, which on Gmail is every
+  label it carries. On-arrival rules combine several conditions (all fields at
   once; or From, To, Cc, any recipient, Subject, sender domain) with all-or-any matching and a per-condition
   match-case switch, then mark read, flag, move to a folder of your choice or delete permanently. A rule
   runs on every account unless you limit it to the ones you pick. Delete permanently means exactly that: removed on the server,
