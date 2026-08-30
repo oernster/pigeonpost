@@ -28,8 +28,8 @@ func makeMessageID(folderID, uid string) string {
 }
 
 // folderKindByLeafName classifies well-known mailboxes by their leaf name, for servers that do not
-// advertise the RFC 6154 special-use attributes (so a delete still finds Trash, a sent copy Sent, and
-// so on). Keys are lowercased leaf names.
+// advertise the RFC 6154 special-use attributes, so a delete still finds Trash, a sent copy Sent and so
+// on. Keys are lowercased leaf names.
 var folderKindByLeafName = map[string]domain.FolderKind{
 	"sent":             domain.FolderSent,
 	"sent items":       domain.FolderSent,
@@ -50,9 +50,11 @@ var folderKindByLeafName = map[string]domain.FolderKind{
 	"archives":         domain.FolderArchive,
 }
 
-// specialRoleFor returns the well-known role a mailbox's RFC 6154 special-use attributes declare, and
+// specialRoleFor returns the well-known role a mailbox's RFC 6154 special-use attributes declare, plus
 // whether it declared one. INBOX is always the inbox. A server's declaration is authoritative, so a role
-// it flags is never also given to a folder that merely shares a well-known name.
+// it flags is never also given to a folder that merely shares a well-known name. \All is read as the
+// archive: it is what Gmail flags All Mail with and Gmail declares no \Archive, so the two never compete
+// on that server.
 func specialRoleFor(mailbox string, attrs []imap.MailboxAttr) (domain.FolderKind, bool) {
 	if strings.EqualFold(mailbox, "INBOX") {
 		return domain.FolderInbox, true
@@ -69,12 +71,19 @@ func specialRoleFor(mailbox string, attrs []imap.MailboxAttr) (domain.FolderKind
 			return domain.FolderJunk, true
 		case imap.MailboxAttrArchive:
 			return domain.FolderArchive, true
+		case imap.MailboxAttrAll:
+			// Gmail's All Mail, which is the archive rather than a folder of its own: removing a message's
+			// Inbox label archives it and All Mail is where it is then found. Gmail advertises no \Archive
+			// of its own, so without this the archive role fell to any folder merely NAMED Archive while All
+			// Mail read as an ordinary folder. It holds a copy of every labelled message too, so a message
+			// appears there as well as in its label's folder; that is Gmail's model rather than a fault.
+			return domain.FolderArchive, true
 		}
 	}
 	return domain.FolderCustom, false
 }
 
-// namedRoleFor returns the well-known role a mailbox's leaf name matches, and whether it matched one. It
+// namedRoleFor returns the well-known role a mailbox's leaf name matches, plus whether it matched one. It
 // is the fallback for servers that do not advertise special-use.
 func namedRoleFor(leaf string) (domain.FolderKind, bool) {
 	kind, ok := folderKindByLeafName[strings.ToLower(strings.TrimSpace(leaf))]
@@ -96,7 +105,7 @@ func isNonInboxWellKnown(k domain.FolderKind) bool {
 // exactly one folder. RFC 6154 special-use attributes are authoritative: a role the server flags is given
 // only to the flagged folder, so other folders that merely share a well-known name stay Custom. A role the
 // server does not flag falls back to the well-known leaf names; among several name matches the shallowest
-// (then the first listed) wins, and a name match nested under a different well-known folder is rejected,
+// (then the first listed) wins; a name match nested under a different well-known folder is rejected,
 // so a stray "Sent" under Drafts never becomes the account Sent. Every other mailbox is Custom.
 func buildFolders(accountID string, list []*imap.ListData) ([]domain.Folder, error) {
 	infos, barrier := classifyList(list)
@@ -123,7 +132,7 @@ func buildFolders(accountID string, list []*imap.ListData) ([]domain.Folder, err
 
 // folderInfo is one mailbox's classification during buildFolders' whole-list pass: its path and
 // separator, the role its RFC 6154 special-use attributes declare and the role its leaf name matches
-// (each with a found flag), and its nesting depth (for the shallowest-wins tie-break).
+// (each with a found flag), plus its nesting depth for the shallowest-wins tie-break.
 type folderInfo struct {
 	mailbox   string
 	separator string
@@ -310,8 +319,8 @@ func buildMessage(folderID string, buf *imapclient.FetchMessageBuffer) (domain.M
 // hasAttachment reports whether a message's body structure carries a saveable attachment, so the list can
 // show the paperclip. A part counts when its content disposition is "attachment", matching what the body
 // parser later extracts as a saveable file. A text/calendar part is excluded because the reader surfaces
-// it as a meeting invite rather than an attachment. A nil structure (not fetched, or a bodyless message)
-// yields false.
+// it as a meeting invite rather than an attachment. A nil structure, whether unfetched or a bodyless
+// message, yields false.
 func hasAttachment(bs imap.BodyStructure) bool {
 	if bs == nil {
 		return false

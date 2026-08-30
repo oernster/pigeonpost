@@ -601,6 +601,15 @@ authoritative, otherwise the well-known leaf name is used; a name match nested u
 special folder is rejected, so a stray "Sent" under Drafts never becomes the account Sent. Any stray sent
 folders are reconciled into one top-level Sent at the start of each sync.
 
+`\All` is read as the archive, which is what it means on Gmail: All Mail is where a message is found once
+its Inbox label is removed; Gmail declares no `\Archive` of its own, so the two never compete there.
+Without it the archive role fell to any folder merely named Archive while All Mail read as an ordinary
+folder, which left one account pointing its archive at a folder that had never been synced. Nothing is
+migrated for this: `SaveFolders` clears and rewrites every folder for an account on each sync, so the
+roles settle on the next one. All Mail also holds a copy of every labelled message, so a message appears
+there as well as in its label's folder. That is Gmail's model rather than a fault; it is also why a delete
+in one place leaves the copy in the other visible until the folder is synced again.
+
 Mark read/unread and star/flag: the UI calls the facade, which routes through the
 `MessageActionService`. It writes the flag (`\Seen` or `\Flagged`) to the IMAP server first (via the
 `MailActions` port) and only then updates the local cache, so the change is durable: a later sync

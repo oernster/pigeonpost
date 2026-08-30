@@ -37,6 +37,7 @@ func TestSpecialRoleFor(t *testing.T) {
 		{"trash", "Trash", []imap.MailboxAttr{imap.MailboxAttrTrash}, domain.FolderTrash, true},
 		{"junk", "Spam", []imap.MailboxAttr{imap.MailboxAttrJunk}, domain.FolderJunk, true},
 		{"archive", "Archive", []imap.MailboxAttr{imap.MailboxAttrArchive}, domain.FolderArchive, true},
+		{"all mail is the archive", "[Gmail]/All Mail", []imap.MailboxAttr{imap.MailboxAttrAll}, domain.FolderArchive, true},
 		{"custom no attrs", "Work", nil, domain.FolderCustom, false},
 		{"custom other attr", "Work", []imap.MailboxAttr{imap.MailboxAttrHasChildren}, domain.FolderCustom, false},
 	}
@@ -77,9 +78,9 @@ func TestNamedRoleFor(t *testing.T) {
 }
 
 func TestBuildFolders(t *testing.T) {
-	// StartMail-shaped: the server flags the real top-level Sent, and there are strays that only match by
-	// name (a "Sent Messages" left by an old client and a "Sent" nested under Drafts). Exactly one folder
-	// must end up as Sent, and it must be the flagged top-level one.
+	// StartMail-shaped: the server flags the real top-level Sent, with strays that only match by name (a
+	// "Sent Messages" left by an old client and a "Sent" nested under Drafts). Exactly one folder must end
+	// up as Sent; it must be the flagged top-level one.
 	list := []*imap.ListData{
 		{Mailbox: "INBOX", Delim: '.'},
 		{Mailbox: "Drafts", Delim: '.', Attrs: []imap.MailboxAttr{imap.MailboxAttrDrafts}},
@@ -376,5 +377,35 @@ func TestBuildMessageUIDIsDecimalString(t *testing.T) {
 	}
 	if msg.UID() != "123" {
 		t.Errorf("UID = %q, want the decimal string 123", msg.UID())
+	}
+}
+
+// TestBuildFoldersGivesGmailArchiveToAllMail pins the classification against a real Gmail folder list. All
+// Mail is the archive there; a folder merely named Archive is not, because the server's own declaration
+// wins. Before \All was read, the role went to the name match and All Mail was an ordinary folder, which
+// is how an account ended up with its archive pointing at a folder that had never been synced.
+func TestBuildFoldersGivesGmailArchiveToAllMail(t *testing.T) {
+	list := []*imap.ListData{
+		{Mailbox: "INBOX", Delim: '/'},
+		{Mailbox: "INBOX/Archive", Delim: '/'},
+		{Mailbox: "[Gmail]/All Mail", Delim: '/', Attrs: []imap.MailboxAttr{imap.MailboxAttrAll}},
+		{Mailbox: "[Gmail]/Bin", Delim: '/', Attrs: []imap.MailboxAttr{imap.MailboxAttrTrash}},
+	}
+	folders, err := buildFolders("a1", list)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	byPath := map[string]domain.FolderKind{}
+	for _, f := range folders {
+		byPath[f.Path()] = f.Kind()
+	}
+	if byPath["[Gmail]/All Mail"] != domain.FolderArchive {
+		t.Errorf("All Mail should be the archive, got %v", byPath["[Gmail]/All Mail"])
+	}
+	if byPath["INBOX/Archive"] != domain.FolderCustom {
+		t.Errorf("a name-only Archive must not take the role from the flagged folder, got %v", byPath["INBOX/Archive"])
+	}
+	if byPath["[Gmail]/Bin"] != domain.FolderTrash {
+		t.Errorf("Bin should still be the trash, got %v", byPath["[Gmail]/Bin"])
 	}
 }
