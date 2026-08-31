@@ -1035,14 +1035,21 @@ outside the window: it flashes the taskbar button through an injected `ReminderA
 package's `Flasher`, a build-tagged no-op off Windows) and raises a notification through the `taskbar`
 package's `Tray`. The tray notification is a Windows balloon on the tray icon or a native desktop
 notification off Windows (a freedesktop D-Bus notification on Linux, an `osascript` notification on
-macOS, a no-op on any other platform). Both alerts skip when the window is already in the foreground, so
-an in-view reminder relies on its banner alone.
+macOS, a no-op on any other platform). The taskbar flash and the balloon both skip when the window is
+already in the foreground, since the in-window banner already shows the reminder there. The chime does
+not skip: see below.
 
 **The notification sound.** On Windows a balloon raised through `Shell_NotifyIconW` plays the shell's
 one default notification sound, which is the same sound every other app and tool raising a stock
 notification gets, so a PigeonPost alert cannot be told apart by ear from anything else on the machine.
 The tray therefore sets `NIIF_NOSOUND` to silence the shell and plays its own chime through
-`infrastructure/sound`. The chimes are synthesised from named constants rather than shipped as assets,
+`infrastructure/sound`. `Notify` sounds it before deciding whether to raise the balloon, so an
+announcement is heard whether or not the balloon is shown. The two were one call for a release, with
+`sound.Play` inside `showBalloon`: the rule that withholds a balloon over a focused window then
+silenced the chime with it, so a reminder falling due while the user was looking at the window arrived
+with no noise at all. Nothing in the window makes a sound, so there is no audible duplicate for that
+rule to defer to; `balloonSuppressed` is named for what it governs and `chime_placement_test.go` scans
+the source to keep the call where it belongs, the Win32 half being outside unit testing. The chimes are synthesised from named constants rather than shipped as assets,
 so there is no binary in the repository and nothing to resolve at runtime across the dev, Wails and
 packaged builds; the synthesis is a pure function and is unit tested, leaving only the `winmm`
 `PlaySound` call itself outside coverage. Playback is asynchronous and reads the buffer after the call

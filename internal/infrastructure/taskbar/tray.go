@@ -21,6 +21,19 @@ func BalloonText(summaries []string) (title, body string) {
 	}
 }
 
+// balloonSuppressed reports whether the shell balloon should be withheld. A reminder passes force
+// false because the in-window banner already shows it, so a second copy over a window the user is
+// looking at is noise. New mail and a returning snoozed message pass force true, having no in-window
+// duplicate to defer to.
+//
+// It governs the BALLOON and nothing else. The chime is deliberately outside it: nothing inside the
+// window makes a sound, so there is no audible duplicate for a focused window to defer to; silencing
+// the chime here left a reminder arriving with no noise at all precisely when the user was at the
+// machine to hear it. Naming the rule for what it suppresses is what keeps the two apart.
+func balloonSuppressed(force, windowFocused bool) bool {
+	return !force && windowFocused
+}
+
 // MailSummary is one newly arrived message reduced to the fields a notification shows.
 type MailSummary struct {
 	Subject string
@@ -58,7 +71,7 @@ func mailLine(m MailSummary) string {
 // TrayActions holds the callbacks a tray context menu invokes. They are supplied by the composition
 // root, which owns the Wails runtime, so this package stays free of any UI-framework dependency. On
 // Windows the persistent tray icon calls them; off Windows there is no tray menu, so they are never
-// invoked, but the type exists so the composition root compiles and wires identically everywhere.
+// invoked; the type exists so the composition root compiles and wires identically everywhere.
 type TrayActions struct {
 	Open         func()
 	About        func()

@@ -61,7 +61,7 @@ documented here.
 | `internal/infrastructure/update` | unit on the GitHub latest-release source via an injected HTTP client | none |
 | `internal/infrastructure/errlog` | unit on the append, the one-line-per-failure encoding and the rollover | temp dir |
 | `internal/infrastructure/keychain` | unit via go-keyring's in-memory mock | none |
-| `internal/infrastructure/taskbar` | unit on the pure label formatting; Win32 overlay excluded | none |
+| `internal/infrastructure/taskbar` | unit on the pure label formatting and the balloon-suppression rule, plus a source scan holding the chime call in `Notify` rather than in the balloon; Win32 overlay excluded | none |
 | `internal/infrastructure/sound` | unit on the three chimes' synthesis and WAV encoding, including that they are scored with different note counts and render to different audio; the winmm playback call excluded | none |
 | `internal/installer` | unit on payload extraction and paths | temp dir |
 | `main` (the Wails facade) | unit on its pure helpers only: mailto parsing, attachment decoding, the offline-error translation with its recording of the error it replaces, the resurfaced-snooze notification text with its wire mapping, plus the DTO wire shape | none |
@@ -91,7 +91,7 @@ documented here.
 | internal/infrastructure/pop3 | ~40% | response and UIDL parsing covered; the live dial and download excluded |
 | internal/installer | ~22% | extract and paths covered; Win32 side effects excluded |
 | internal/infrastructure/imap | ~27% | the source adapter's pure helpers; the wire-to-domain and HTML logic now lives in `mailparse`; live fetch/append plus the IDLE watcher are excluded |
-| internal/infrastructure/taskbar | ~17% | the pure label formatting and no-op stub covered; the Windows-only Win32 overlay excluded |
+| internal/infrastructure/taskbar | ~17% | the pure label formatting, the balloon-suppression rule and the no-op stub covered; the Windows-only Win32 overlay excluded, with a source scan standing in for the chime's placement inside it |
 | internal/infrastructure/smtp | 0% | transport is live `Send` only; MIME building lives in `message` |
 | main package | ~7% | composition root and the Wails facade, excluded; the covered statements are the package's own pure helpers, which carry unit tests of their own (mailto parsing, attachment decoding, the offline-error translation, the resurfaced-snooze announcement text with its wire mapping, plus the rule DTO's wire shape) |
 | installer app, tools/genicons | 0% | GUI and one-shot tooling, excluded |

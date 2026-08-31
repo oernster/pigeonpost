@@ -66,3 +66,24 @@ func TestMailBalloonTextManyMessagesSummarise(t *testing.T) {
 		t.Errorf("body = %q, want the first message and a remainder count", body)
 	}
 }
+
+// TestBalloonSuppressedGovernsTheBalloonOnly pins the rule that a focused window withholds. A reminder
+// (force false) defers to its in-window banner while the window is in front; every other case shows.
+func TestBalloonSuppressedGovernsTheBalloonOnly(t *testing.T) {
+	cases := []struct {
+		name          string
+		force         bool
+		windowFocused bool
+		want          bool
+	}{
+		{"a reminder over the focused window is withheld", false, true, true},
+		{"a reminder with the window elsewhere shows", false, false, false},
+		{"new mail shows over the focused window", true, true, false},
+		{"new mail with the window elsewhere shows", true, false, false},
+	}
+	for _, c := range cases {
+		if got := balloonSuppressed(c.force, c.windowFocused); got != c.want {
+			t.Errorf("%s: balloonSuppressed(%t, %t) = %t, want %t", c.name, c.force, c.windowFocused, got, c.want)
+		}
+	}
+}

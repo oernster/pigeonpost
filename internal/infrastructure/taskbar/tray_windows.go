@@ -30,10 +30,7 @@ type Tray struct {
 	unread   atomic.Int32   // latest unread total reflected onto the tray icon badge
 }
 
-type balloonMsg struct {
-	title, body string
-	chime       sound.Kind
-}
+type balloonMsg struct{ title, body string }
 
 // activeTray is the single tray instance the window procedure dispatches to. The tray is a process-wide
 // singleton (one notification icon); a Win32 window procedure is a C callback that cannot carry a Go
@@ -79,30 +76,41 @@ func (t *Tray) Stop() {
 	}
 }
 
-// Notify raises a balloon notification, sounded with the chime for what is being announced. Unless force
-// is set it is suppressed while the main window is in the foreground (a reminder's in-app banner covers
-// that case); new mail sets force so it shows even when the window is focused, the way a mail client
-// alerts regardless. It hands the text to the tray thread, which owns the icon.
+// Notify sounds the chime for what is being announced, then raises a balloon carrying the text.
+//
+// The chime always sounds. The balloon does not: unless force is set it is withheld while the main
+// window is in the foreground, since a reminder's in-window banner already shows it there. Sounding
+// first is what keeps that rule to the balloon it is about. Playing the chime from inside the balloon
+// made the two one decision, so a reminder falling due while the user was looking at the window
+// arrived in silence, which is exactly when they were there to hear it.
 func (t *Tray) Notify(title, body string, force bool, chime sound.Kind) {
 	if title == "" && body == "" {
 		return
 	}
-	if !force {
-		if hwnd := findMainWindow(t.title); hwnd != 0 {
-			if fg, _, _ := procGetForegroundWindow.Call(); windows.HWND(fg) == hwnd {
-				return
-			}
-		}
+	sound.Play(chime)
+	if balloonSuppressed(force, t.mainWindowIsForeground()) {
+		return
 	}
 	h := t.hwnd.Load()
 	if h == 0 {
 		return
 	}
 	select {
-	case t.balloons <- balloonMsg{title: title, body: body, chime: chime}:
+	case t.balloons <- balloonMsg{title: title, body: body}:
 		procPostMessage.Call(h, wmShowBalloon, 0, 0)
 	default:
 	}
+}
+
+// mainWindowIsForeground reports whether the application's own main window is the one the user is
+// looking at. A window that cannot be found is not the foreground one.
+func (t *Tray) mainWindowIsForeground() bool {
+	hwnd := findMainWindow(t.title)
+	if hwnd == 0 {
+		return false
+	}
+	fg, _, _ := procGetForegroundWindow.Call()
+	return windows.HWND(fg) == hwnd
 }
 
 // run owns the tray thread: it registers a window class, creates the hidden owner window, adds the icon
@@ -248,7 +256,7 @@ func (t *Tray) drainBalloons() {
 	for {
 		select {
 		case b := <-t.balloons:
-			t.showBalloon(b.title, b.body, b.chime)
+			t.showBalloon(b.title, b.body)
 		default:
 			return
 		}
@@ -279,19 +287,18 @@ func (t *Tray) addIcon() {
 }
 
 // showBalloon raises a balloon notification on the existing tray icon by modifying the tray entry with
-// the info flags and the title and body text set, then sounds PigeonPost's own chime for what is being
-// announced. The shell's default notification sound is suppressed with niifNoSound: it is the same sound
-// every other app and tool raising a stock notification gets, so leaving it in place would make new mail
-// indistinguishable by ear from anything else on the machine; it would also sound the same for all three
-// of the things PigeonPost announces.
-func (t *Tray) showBalloon(title, body string, chime sound.Kind) {
+// the info flags and the title and body text set. The shell's default notification sound is suppressed
+// with niifNoSound: it is the same sound every other app and tool raising a stock notification gets, so
+// leaving it in place would make new mail indistinguishable by ear from anything else on the machine;
+// it would also sound the same for all three of the things PigeonPost announces. The chime that
+// replaces it is sounded by Notify, so an announcement is heard whether or not the balloon is shown.
+func (t *Tray) showBalloon(title, body string) {
 	n := t.baseNID()
 	n.uFlags = nifInfo
 	n.dwInfoFlags = niifInfo | niifNoSound
 	copyUTF16(n.szInfo[:], body)
 	copyUTF16(n.szInfoTitle[:], title)
 	procShellNotifyIcon.Call(nimModify, uintptr(unsafe.Pointer(&n)))
-	sound.Play(chime)
 }
 
 // deleteIcon removes the tray icon.
