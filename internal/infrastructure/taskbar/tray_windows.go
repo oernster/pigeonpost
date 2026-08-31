@@ -106,11 +106,7 @@ func (t *Tray) Notify(title, body string, force bool, chime sound.Kind) {
 // looking at. A window that cannot be found is not the foreground one.
 func (t *Tray) mainWindowIsForeground() bool {
 	hwnd := findMainWindow(t.title)
-	if hwnd == 0 {
-		return false
-	}
-	fg, _, _ := procGetForegroundWindow.Call()
-	return windows.HWND(fg) == hwnd
+	return hwnd != 0 && isForeground(hwnd)
 }
 
 // run owns the tray thread: it registers a window class, creates the hidden owner window, adds the icon

@@ -8,8 +8,8 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-// Taskbar-flash flags from winuser.h: flash both the caption and the taskbar button, and keep flashing
-// until the window is brought to the foreground.
+// Taskbar-flash flags from winuser.h: flash both the caption and the taskbar button, then keep
+// flashing until the window is brought to the foreground.
 const (
 	flashwAll       = 0x00000003 // FLASHW_ALL: caption plus taskbar button
 	flashwTimerNoFG = 0x0000000C // FLASHW_TIMERNOFG: flash until the window comes to the foreground
@@ -19,6 +19,15 @@ var (
 	procFlashWindowEx       = moduser32.NewProc("FlashWindowEx")
 	procGetForegroundWindow = moduser32.NewProc("GetForegroundWindow")
 )
+
+// isForeground reports whether the given window is the one the user is looking at. Both attention
+// signals need this comparison, the taskbar flash and the tray balloon, so it is stated once here.
+// Each caller keeps its own handling of a window that cannot be found, because those differ: a flash
+// has nothing to flash, while a balloon simply is not being raised over a focused window.
+func isForeground(hwnd windows.HWND) bool {
+	fg, _, _ := procGetForegroundWindow.Call()
+	return windows.HWND(fg) == hwnd
+}
 
 // flashInfo mirrors the Win32 FLASHWINFO structure passed to FlashWindowEx.
 type flashInfo struct {
@@ -48,7 +57,7 @@ func (f *Flasher) Flash() {
 	if hwnd == 0 {
 		return
 	}
-	if fg, _, _ := procGetForegroundWindow.Call(); windows.HWND(fg) == hwnd {
+	if isForeground(hwnd) {
 		return
 	}
 	info := flashInfo{

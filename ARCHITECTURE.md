@@ -1035,25 +1035,31 @@ outside the window: it flashes the taskbar button through an injected `ReminderA
 package's `Flasher`, a build-tagged no-op off Windows) and raises a notification through the `taskbar`
 package's `Tray`. The tray notification is a Windows balloon on the tray icon or a native desktop
 notification off Windows (a freedesktop D-Bus notification on Linux, an `osascript` notification on
-macOS, a no-op on any other platform). The taskbar flash and the balloon both skip when the window is
-already in the foreground, since the in-window banner already shows the reminder there. The chime does
-not skip: see below.
+macOS, a no-op on any other platform). The taskbar flash and the balloon both skip while the window is
+in the foreground, since the in-window banner already shows the reminder there; each makes that check
+through the shared `isForeground`, keeping its own handling of a window it cannot find. The chime is
+outside that rule (see The notification sound below), because nothing in the window makes a noise.
 
 **The notification sound.** On Windows a balloon raised through `Shell_NotifyIconW` plays the shell's
 one default notification sound, which is the same sound every other app and tool raising a stock
 notification gets, so a PigeonPost alert cannot be told apart by ear from anything else on the machine.
 The tray therefore sets `NIIF_NOSOUND` to silence the shell and plays its own chime through
-`infrastructure/sound`. `Notify` sounds it before deciding whether to raise the balloon, so an
-announcement is heard whether or not the balloon is shown. The two were one call for a release, with
-`sound.Play` inside `showBalloon`: the rule that withholds a balloon over a focused window then
-silenced the chime with it, so a reminder falling due while the user was looking at the window arrived
-with no noise at all. Nothing in the window makes a sound, so there is no audible duplicate for that
-rule to defer to; `balloonSuppressed` is named for what it governs and `chime_placement_test.go` scans
-the source to keep the call where it belongs, the Win32 half being outside unit testing. The chimes are synthesised from named constants rather than shipped as assets,
-so there is no binary in the repository and nothing to resolve at runtime across the dev, Wails and
-packaged builds; the synthesis is a pure function and is unit tested, leaving only the `winmm`
-`PlaySound` call itself outside coverage. Playback is asynchronous and reads the buffer after the call
-returns, which is safe because each kind's rendering is cached once for the life of the process.
+`infrastructure/sound`.
+
+The chime is not tied to the balloon. `Notify` sounds it first, then decides whether to raise the
+balloon at all. The two were one call for a release, with `sound.Play` inside `showBalloon`: the rule
+that withholds a balloon over a focused window silenced the chime with it, so a reminder falling due
+while the user was looking at the window arrived with no noise. Nothing in the window makes a sound, so
+that rule had no audible duplicate to defer to. `balloonSuppressed` is now named for what it governs
+and takes the two facts it decides on, while `chime_placement_test.go` scans the source to keep the
+call in `Notify`; the Win32 half around them is outside unit testing, so where the call sits is what
+can be asserted.
+
+The chimes are synthesised from named constants rather than shipped as assets, so there is no binary in
+the repository and nothing to resolve at runtime across the dev, Wails and packaged builds; the
+synthesis is a pure function and is unit tested, leaving only the `winmm` `PlaySound` call itself
+outside coverage. Playback is asynchronous and reads the buffer after the call returns, which is safe
+because each kind's rendering is cached once for the life of the process.
 
 Each of the three things PigeonPost announces has its own voice (`sound.Kind`), passed to `Notify` by
 the caller that raised it: new mail is three short wooden notes climbing a triad, a due reminder is two
