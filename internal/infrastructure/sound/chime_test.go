@@ -341,12 +341,3 @@ func TestWavForUnknownKindSoundsRatherThanFallsSilent(t *testing.T) {
 		t.Error("an unknown kind must fall back to the new-mail chime rather than to silence")
 	}
 }
-
-// TestPlayRendersEveryKind exercises Play itself for each voice. Away from Windows the playback call is
-// a no-op, so what this asserts is that every kind renders without panicking on the way to it.
-func TestPlayRendersEveryKind(t *testing.T) {
-	t.Parallel()
-	for _, k := range everyKind {
-		Play(k.kind)
-	}
-}

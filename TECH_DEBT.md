@@ -12,7 +12,7 @@ The limit is 400 lines. `tests/structural/boundary_test.go` has always enforced 
 
 | Module | Lines |
 |---|---|
-| `src/App.tsx` | 1355 |
+| `src/App.tsx` | 1371 |
 | `src/components/ComposeModal.tsx` | 699 |
 | `src/api.ts` | 627 |
 | `src/components/EventFormModal.tsx` | 559 |

@@ -62,9 +62,9 @@ documented here.
 | `internal/infrastructure/errlog` | unit on the append, the one-line-per-failure encoding and the rollover | temp dir |
 | `internal/infrastructure/keychain` | unit via go-keyring's in-memory mock | none |
 | `internal/infrastructure/taskbar` | unit on the pure label formatting; Win32 overlay excluded | none |
-| `internal/infrastructure/sound` | unit on the chime synthesis and WAV encoding; the winmm playback call excluded | none |
+| `internal/infrastructure/sound` | unit on the three chimes' synthesis and WAV encoding, including that they are scored with different note counts and render to different audio; the winmm playback call excluded | none |
 | `internal/installer` | unit on payload extraction and paths | temp dir |
-| `main` (the Wails facade) | unit on its pure helpers only: mailto parsing, attachment decoding, the offline-error translation with its recording of the error it replaces, plus the DTO wire shape | none |
+| `main` (the Wails facade) | unit on its pure helpers only: mailto parsing, attachment decoding, the offline-error translation with its recording of the error it replaces, the resurfaced-snooze notification text with its wire mapping, plus the DTO wire shape | none |
 | `tests/structural` | AST scan of the source tree | file reads |
 
 ## Coverage snapshot
@@ -79,7 +79,7 @@ documented here.
 | internal/infrastructure/keychain | 100% | account and CalDAV calendar password paths via go-keyring's in-memory mock |
 | internal/infrastructure/recurrence | ~97% | RRULE expansion and truncation; a few defensive edges uncovered |
 | internal/infrastructure/vcard | ~97% | vCard codec round-trip |
-| internal/infrastructure/sound | ~97% | the notification chime's synthesis, normalisation and WAV encoding (pure); only the winmm playback call is excluded |
+| internal/infrastructure/sound | ~97% | the three notification chimes' synthesis, normalisation and WAV encoding (pure); only the winmm playback call is excluded |
 | internal/infrastructure/oauth | ~95% | token flow against stubbed endpoints; real-network edges excluded |
 | internal/infrastructure/update | ~88% | the GitHub latest-release source against an injected fake client; the live-wired constructor and defensive request/read branches excluded |
 | internal/infrastructure/mailparse | ~94% | MIME body parsing, HTML sanitising, URL linkifying, image and CSS-background parking (including the font-source exception) and hidden-preheader removal that keeps MJML layout wrappers and mso-hide content (pure); a few defensive decode branches uncovered |
@@ -93,7 +93,7 @@ documented here.
 | internal/infrastructure/imap | ~27% | the source adapter's pure helpers; the wire-to-domain and HTML logic now lives in `mailparse`; live fetch/append plus the IDLE watcher are excluded |
 | internal/infrastructure/taskbar | ~17% | the pure label formatting and no-op stub covered; the Windows-only Win32 overlay excluded |
 | internal/infrastructure/smtp | 0% | transport is live `Send` only; MIME building lives in `message` |
-| main package | ~5% | composition root and the Wails facade, excluded; the covered statements are the package's own pure helpers, which carry unit tests of their own (mailto parsing, attachment decoding, the offline-error translation and the rule DTO's wire shape) |
+| main package | ~7% | composition root and the Wails facade, excluded; the covered statements are the package's own pure helpers, which carry unit tests of their own (mailto parsing, attachment decoding, the offline-error translation, the resurfaced-snooze announcement text with its wire mapping, plus the rule DTO's wire shape) |
 | installer app, tools/genicons | 0% | GUI and one-shot tooling, excluded |
 
 ## Documented exclusions (and why)

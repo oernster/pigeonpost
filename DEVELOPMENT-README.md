@@ -71,7 +71,7 @@ internal/infrastructure/
     errlog/                 raw text of a mail error the facade replaces with one fit to read
     keychain/               OS keychain vault
     taskbar/                Windows taskbar unread badge, tray icon and desktop notifications (no-op stub elsewhere)
-    sound/                  synthesised notification chime, played through winmm on Windows (no-op stub elsewhere)
+    sound/                  synthesised notification chimes, one per announcement kind, played through winmm on Windows (no-op stub elsewhere)
 internal/installer/         install logic used by the setup program
 installer/                  bespoke per-user setup program (Wails app: install/repair/upgrade/uninstall)
 assets/                     masters for the title-bar and folder-list glyphs, one PNG per glyph

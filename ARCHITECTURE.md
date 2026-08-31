@@ -38,8 +38,8 @@ enforced by a test in `tests/structural/boundary_test.go`, not by convention.
   (`mailrouter`, which routes reads, verification and actions to the IMAP or POP3 adapter by account
   protocol), the reminder and unread surfaces (`taskbar`: the Windows taskbar unread-overlay badge and
   reminder flash, no-ops off Windows, plus the notification tray, a Windows tray icon that also carries
-  the unread badge or a native desktop notification elsewhere), the notification chime (`sound`, a
-  synthesised WAV played through `winmm` on Windows and a no-op elsewhere), the OS keychain (`keychain`), the
+  the unread badge or a native desktop notification elsewhere), the notification chimes (`sound`, one
+  synthesised WAV per announcement kind, played through `winmm` on Windows and a no-op elsewhere), the OS keychain (`keychain`), the
   calendar and contacts codecs (`ics`, `recurrence`, `vcard` and `csv`), the CalDAV sync client
   (`caldav`), the Microsoft OAuth token flow (`oauth`), the SSRF-guarded remote-image fetcher
   (`remoteimage`) and the mail error log (`errlog`, which keeps the raw text of an error the facade is
