@@ -10,7 +10,7 @@ import (
 
 // SnoozeService is the use-case boundary for hiding a message until a chosen instant and bringing it
 // back. Snooze is local-only state: nothing reaches the server, the message's read and flag state are
-// never touched, and a hidden message simply drops out of the visible listings until it comes due.
+// never touched; a hidden message simply drops out of the visible listings until it comes due.
 type SnoozeService struct {
 	snoozes SnoozeStore
 	clock   domain.Clock
@@ -53,13 +53,18 @@ func (s *SnoozeService) Snoozed(ctx context.Context) ([]SnoozedMessage, error) {
 }
 
 // PopDue removes every snooze whose instant has passed and returns the messages that just resurfaced,
-// for the scheduler to announce. Idempotent: a second call finds nothing left to pop.
-func (s *SnoozeService) PopDue(ctx context.Context) ([]domain.MessageSummary, error) {
-	resurfaced, err := s.snoozes.PopDueSnoozed(ctx, s.clock.Now())
+// for the scheduler to announce, alongside the total number of snoozes cleared. Idempotent: a second
+// call finds nothing left to pop.
+//
+// The count is what the caller acts on to decide that something happened. It exceeds the returned
+// messages when a due snooze has outlived the message it hid. A caller keying off the messages
+// alone would then treat a real expiry as a no-op: the hidden state is gone and nothing is shown.
+func (s *SnoozeService) PopDue(ctx context.Context) ([]SnoozedMessage, int, error) {
+	resurfaced, cleared, err := s.snoozes.PopDueSnoozed(ctx, s.clock.Now())
 	if err != nil {
-		return nil, fmt.Errorf("snooze: pop due: %w", err)
+		return nil, 0, fmt.Errorf("snooze: pop due: %w", err)
 	}
-	return resurfaced, nil
+	return resurfaced, cleared, nil
 }
 
 // NextDue returns the earliest pending snooze instant and whether one exists, so the resurface

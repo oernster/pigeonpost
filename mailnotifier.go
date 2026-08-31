@@ -7,6 +7,7 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 
 	"github.com/oernster/pigeonpost/internal/domain"
+	"github.com/oernster/pigeonpost/internal/infrastructure/sound"
 	"github.com/oernster/pigeonpost/internal/infrastructure/taskbar"
 )
 
@@ -26,7 +27,7 @@ const calendarChangedEventName = "calendar:changed"
 // runMailNotifier watches every account's inbox and raises a desktop notification for newly arrived mail,
 // so the user is alerted even when the window is hidden to the tray and whatever folder is on screen. IMAP
 // accounts are watched by an IDLE push for instant detection; a backstop poll covers POP3 and a missed
-// push. It primes a baseline first so an existing inbox is not announced, and stops when the runtime
+// push. It primes a baseline first so an existing inbox is not announced; it stops when the runtime
 // context is cancelled at shutdown.
 func (a *App) runMailNotifier() {
 	runtime.LogDebugf(a.ctx, "mail-notifier: starting, poll backstop %s, tray=%t", mailPollInterval, a.tray != nil)
@@ -72,7 +73,7 @@ func (a *App) startMailWatchers() {
 
 // startMailWatcher starts an IMAP account's IDLE watcher, replacing any watcher already running for that
 // account so a freshly added or reconfigured account gets instant push without a restart. It first stops an
-// existing watcher for the id (so changed server settings take effect, and a switch to POP3 leaves no stale
+// existing watcher for the id (so changed server settings take effect; a switch to POP3 leaves no stale
 // IMAP watcher), then starts a new one only for an IMAP account. A nil watcher or a non-IMAP account leaves
 // the backstop poll as the only mechanism. Each watcher runs under a child of the app context, so shutdown
 // stops them all and stopMailWatcher can stop one on its own.
@@ -97,7 +98,7 @@ func (a *App) startMailWatcher(account domain.Account) {
 }
 
 // stopMailWatcher stops the IDLE watcher for an account, if one is running, so a removed account leaves no
-// stale server connection. It is safe to call for an account that has no watcher (a POP3 account, or one
+// stale server connection. It is safe to call for an account that has no watcher (a POP3 account, one
 // added before the watcher existed).
 func (a *App) stopMailWatcher(accountID string) {
 	a.watchersMu.Lock()
@@ -108,7 +109,7 @@ func (a *App) stopMailWatcher(accountID string) {
 	}
 }
 
-// checkMail syncs every inbox and, for any newly arrived mail, applies its scheduling, refreshes the front
+// checkMail syncs every inbox; for any newly arrived mail it applies the scheduling, refreshes the front
 // end and raises a notification. It is serialised so a backstop poll and an IDLE push cannot run
 // concurrently and double-notify; trigger names what invoked it, for the log.
 func (a *App) checkMail(trigger string) {
@@ -127,9 +128,9 @@ func (a *App) checkMail(trigger string) {
 	if a.tray != nil {
 		title, body := taskbar.MailBalloonText(mailSummaries(fresh))
 		// force: show the new-mail notification even when PigeonPost is focused, the way a mail client
-		// alerts regardless. A reminder suppresses when focused because its in-app banner covers it, but
+		// alerts regardless. A reminder suppresses when focused because its in-app banner covers it;
 		// new mail has no such in-window cue.
-		a.tray.Notify(title, body, true)
+		a.tray.Notify(title, body, true, sound.NewMail)
 	}
 }
 
@@ -137,10 +138,10 @@ func (a *App) checkMail(trigger string) {
 // calendar, so an attendee's reply updates the organiser's meeting, a cancellation removes the
 // withdrawn one and an organiser's updated invitation refreshes the other attendees' statuses, all
 // without the user opening each message. It fetches each body first so the scheduling decode can read
-// its calendar part, and asks the front end to reload the calendar when anything changed. Only a fully
+// its calendar part, then asks the front end to reload the calendar when anything changed. Only a fully
 // resolved message (a reply or cancellation, which needs nothing from the user) is marked read; an
 // updated invitation stays unread because it may carry changes the user must still look at. A message
-// that is not a meeting, or whose body cannot be fetched, contributes nothing.
+// contributes nothing unless it is a meeting whose body can be fetched.
 func (a *App) applyIncomingScheduling(messages []domain.MessageSummary) {
 	anyChanged := false
 	for _, m := range messages {

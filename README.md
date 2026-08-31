@@ -118,8 +118,9 @@ concern, so read it before attaching it to anything.
   moves back to the inbox with the server told the verdict), instant offline full-text search with
   operators (from:, to:, has:attachment, dates and more) and colour tags
   that sync across devices as IMAP keywords. Snooze hides a message until a chosen time then returns it
-  untouched with a desktop notification (while the app is running or at the next launch); hidden
-  messages wait in a Snoozed view with their due times and an Unsnooze. Move or copy messages by menu or by dragging onto a folder:
+  untouched, announced in the window as a banner you can click to open it and on the desktop as a
+  notification (while the app is running or at the next launch); hidden messages wait in a Snoozed view
+  with their due times and an Unsnooze. Move or copy messages by menu or by dragging onto a folder:
   drag one message or a whole selection, however you picked it (Ctrl-click for scattered rows, Shift-click
   for a run); dragging any row of that selection takes all of it. A
   dragged message leaves the list the moment you drop it rather than when the server has finished, the
@@ -173,9 +174,11 @@ concern, so read it before attaching it to anything.
   compose window. Print a message through the system print dialog.
 - **Notifications**: new mail raises a native desktop notification and updates a Windows taskbar badge.
   Each IMAP account is watched by a persistent IDLE connection with a 60-second poll backstop (and for
-  POP3); an account's first sync is silent. On Windows the notification sounds PigeonPost's own chime
-  rather than the shell's default, so a new message is recognisable by ear and is not confused with
-  every other app's notification; elsewhere the sound is the one your desktop theme chooses.
+  POP3); an account's first sync is silent. On Windows PigeonPost sounds its own chimes rather than the
+  shell's default; each of the three things it announces has its own: new mail, a calendar reminder
+  and a snoozed message coming back. They differ in how many notes sound and in their rhythm, so they
+  are told apart by ear from each other and from every other app's notification; elsewhere the sound is
+  the one your desktop theme chooses.
 - **Calendar**: month, week and day views (a multi-day event is drawn as one bar across its days), recurring events with per-event time zones, nine
   emoji-labelled event categories, on-screen reminders at a lead you choose (from the moment the event
   starts out to a week before) and ICS import/export (RFC 5545) that round-trips

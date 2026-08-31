@@ -30,10 +30,13 @@ type Tray struct {
 	unread   atomic.Int32   // latest unread total reflected onto the tray icon badge
 }
 
-type balloonMsg struct{ title, body string }
+type balloonMsg struct {
+	title, body string
+	chime       sound.Kind
+}
 
 // activeTray is the single tray instance the window procedure dispatches to. The tray is a process-wide
-// singleton (one notification icon), and a Win32 window procedure is a C callback that cannot carry a Go
+// singleton (one notification icon); a Win32 window procedure is a C callback that cannot carry a Go
 // receiver, so the instance is reached through this package variable, set before the window is created.
 var activeTray *Tray
 
@@ -76,11 +79,11 @@ func (t *Tray) Stop() {
 	}
 }
 
-// Notify raises a balloon notification. Unless force is set it is suppressed while the main window is in
-// the foreground (a reminder's in-app banner covers that case); new mail sets force so it shows even when
-// the window is focused, the way a mail client alerts regardless. It hands the text to the tray thread,
-// which owns the icon.
-func (t *Tray) Notify(title, body string, force bool) {
+// Notify raises a balloon notification, sounded with the chime for what is being announced. Unless force
+// is set it is suppressed while the main window is in the foreground (a reminder's in-app banner covers
+// that case); new mail sets force so it shows even when the window is focused, the way a mail client
+// alerts regardless. It hands the text to the tray thread, which owns the icon.
+func (t *Tray) Notify(title, body string, force bool, chime sound.Kind) {
 	if title == "" && body == "" {
 		return
 	}
@@ -96,7 +99,7 @@ func (t *Tray) Notify(title, body string, force bool) {
 		return
 	}
 	select {
-	case t.balloons <- balloonMsg{title: title, body: body}:
+	case t.balloons <- balloonMsg{title: title, body: body, chime: chime}:
 		procPostMessage.Call(h, wmShowBalloon, 0, 0)
 	default:
 	}
@@ -245,7 +248,7 @@ func (t *Tray) drainBalloons() {
 	for {
 		select {
 		case b := <-t.balloons:
-			t.showBalloon(b.title, b.body)
+			t.showBalloon(b.title, b.body, b.chime)
 		default:
 			return
 		}
@@ -276,18 +279,19 @@ func (t *Tray) addIcon() {
 }
 
 // showBalloon raises a balloon notification on the existing tray icon by modifying the tray entry with
-// the info flags and the title and body text set, then sounds PigeonPost's own chime. The shell's
-// default notification sound is suppressed with niifNoSound: it is the same sound every other app and
-// tool raising a stock notification gets, so leaving it in place makes new mail indistinguishable by
-// ear from anything else on the machine.
-func (t *Tray) showBalloon(title, body string) {
+// the info flags and the title and body text set, then sounds PigeonPost's own chime for what is being
+// announced. The shell's default notification sound is suppressed with niifNoSound: it is the same sound
+// every other app and tool raising a stock notification gets, so leaving it in place would make new mail
+// indistinguishable by ear from anything else on the machine; it would also sound the same for all three
+// of the things PigeonPost announces.
+func (t *Tray) showBalloon(title, body string, chime sound.Kind) {
 	n := t.baseNID()
 	n.uFlags = nifInfo
 	n.dwInfoFlags = niifInfo | niifNoSound
 	copyUTF16(n.szInfo[:], body)
 	copyUTF16(n.szInfoTitle[:], title)
 	procShellNotifyIcon.Call(nimModify, uintptr(unsafe.Pointer(&n)))
-	sound.Play()
+	sound.Play(chime)
 }
 
 // deleteIcon removes the tray icon.

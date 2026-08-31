@@ -122,9 +122,10 @@ type SnoozeStore interface {
 	// ListSnoozed returns every snoozed message with its due instant, soonest first.
 	ListSnoozed(ctx context.Context) ([]SnoozedMessage, error)
 	// PopDueSnoozed removes every snooze whose instant has passed and returns the messages that just
-	// resurfaced, for the caller to announce. A snooze orphaned by its message's deletion is removed
-	// without being returned.
-	PopDueSnoozed(ctx context.Context, now time.Time) ([]domain.MessageSummary, error)
+	// resurfaced, alongside the total number of snoozes cleared. The count exceeds the messages when a
+	// due snooze has outlived the message it hid, which is the one case where a snooze expires with
+	// nothing to show; the caller needs to know it happened rather than see silence.
+	PopDueSnoozed(ctx context.Context, now time.Time) ([]SnoozedMessage, int, error)
 	// NextSnooze returns the earliest pending snooze instant and whether one exists, so the resurface
 	// scheduler only does work when something is actually due.
 	NextSnooze(ctx context.Context) (time.Time, bool, error)

@@ -1,20 +1,21 @@
-// Package sound gives PigeonPost its own notification voice. The Windows shell plays one default
+// Package sound gives PigeonPost its own notification voices. The Windows shell plays one default
 // sound for every balloon notification, so a new message is indistinguishable by ear from any other
 // app or tool raising a stock notification. The tray therefore silences the shell's sound and plays
-// the chime rendered here instead.
+// one of the chimes rendered here instead, chosen by what is being announced.
 //
-// The chime is synthesised rather than shipped as an asset: it is a pure function of a handful of
-// named constants, so there is no binary blob in the repository, nothing to resolve at runtime across
-// the dev, Wails and packaged builds, and the result is unit testable.
+// This file is the synthesis engine: notes, envelopes and the WAV encoding. The three voices it
+// renders are scored in voices.go. Every chime is synthesised rather than shipped as an asset, so it
+// is a pure function of a handful of named constants: there is no binary blob in the repository,
+// nothing to resolve at runtime across the dev, Wails and packaged builds; the result is unit
+// testable.
 package sound
 
 import (
 	"encoding/binary"
 	"math"
-	"sync"
 )
 
-// PCM format of the rendered chime: CD-quality mono, the one format every platform plays without a
+// PCM format of the rendered chimes: CD-quality mono, the one format every platform plays without a
 // codec.
 const (
 	sampleRate    = 44100
@@ -24,27 +25,12 @@ const (
 	maxSample     = 32767.0
 )
 
-// Mix constants. peakLevel keeps the chime well below full scale so it sits under speech and music
-// rather than cutting across them, and tailFadeSecs removes the click a hard buffer end would
+// Mix constants. peakLevel keeps a chime well below full scale so it sits under speech and music
+// rather than cutting across them; tailFadeSecs removes the click a hard buffer end would
 // otherwise produce.
 const (
 	peakLevel    = 0.32
 	tailFadeSecs = 0.02
-)
-
-// The chime is a soft falling pair, the shape of a pigeon's call. It is deliberately low and wooden
-// where the system notification sounds are bright and glassy, since telling the two apart by ear is
-// the whole point of having our own.
-const (
-	cooLengthSecs      = 1.10
-	cooFirstFreq       = 392.00 // G4
-	cooSecondFreq      = 311.13 // Eb4, the minor third below that gives the call its falling shape
-	cooSecondStartSecs = 0.26
-	cooAttackSecs      = 0.030 // slow enough to sound breathed rather than struck
-	cooFirstDecaySecs  = 0.16
-	cooSecondDecaySecs = 0.22
-	cooFirstLevel      = 1.0
-	cooSecondLevel     = 0.9
 )
 
 // partial is one harmonic of a note: a multiple of the fundamental at a fraction of its amplitude.
@@ -62,43 +48,6 @@ type note struct {
 	attackSecs float64
 	decaySecs  float64 // exponential time constant, not a hard cutoff
 	partials   []partial
-}
-
-// cooPartials is an almost pure tone with one quiet octave above it, which reads as warm and wooden
-// rather than metallic.
-var cooPartials = []partial{{ratio: 2, level: 0.08}}
-
-// notificationWAV renders the chime once and reuses it. Rendering is cheap but not free, the bytes
-// never change, and holding a single buffer for the life of the process is what makes asynchronous
-// playback safe on Windows.
-var notificationWAV = sync.OnceValue(func() []byte {
-	return encodeWAV(render(cooLengthSecs, notificationNotes()))
-})
-
-// Play sounds PigeonPost's notification chime. It is a no-op on platforms where the notification
-// sound is left to the desktop's own notification service.
-func Play() { play(notificationWAV()) }
-
-// notificationNotes is the chime's score.
-func notificationNotes() []note {
-	return []note{
-		{
-			startSecs:  0,
-			freq:       cooFirstFreq,
-			level:      cooFirstLevel,
-			attackSecs: cooAttackSecs,
-			decaySecs:  cooFirstDecaySecs,
-			partials:   cooPartials,
-		},
-		{
-			startSecs:  cooSecondStartSecs,
-			freq:       cooSecondFreq,
-			level:      cooSecondLevel,
-			attackSecs: cooAttackSecs,
-			decaySecs:  cooSecondDecaySecs,
-			partials:   cooPartials,
-		},
-	}
 }
 
 // render sums the notes into a buffer of samples in the range -1 to 1.

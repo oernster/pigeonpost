@@ -33,6 +33,15 @@ func messageIDsOf(messages []domain.MessageSummary) []string {
 	return out
 }
 
+// snoozedIDsOf is messageIDsOf for the snoozed-message pairs the pop returns.
+func snoozedIDsOf(messages []SnoozedMessage) []string {
+	out := make([]string, len(messages))
+	for i, m := range messages {
+		out[i] = m.Summary.ID()
+	}
+	return out
+}
+
 func TestSnoozeHidesFromVisibleListingsUntilUnsnoozed(t *testing.T) {
 	_, snooze, mailbox := newSnoozeFixture(t)
 	ctx := context.Background()
@@ -115,19 +124,25 @@ func TestSnoozePopDueReturnsAndClearsOnlyTheDue(t *testing.T) {
 	mail.snoozes["m1"] = epoch.Add(-time.Minute)
 	mail.snoozes["m2"] = epoch.Add(time.Hour)
 
-	due, err := snooze.PopDue(ctx)
+	due, cleared, err := snooze.PopDue(ctx)
 	if err != nil {
 		t.Fatalf("pop due: %v", err)
 	}
-	if ids := messageIDsOf(due); len(ids) != 1 || ids[0] != "m1" {
+	if cleared != 1 {
+		t.Errorf("cleared = %d, want 1", cleared)
+	}
+	if ids := snoozedIDsOf(due); len(ids) != 1 || ids[0] != "m1" {
 		t.Fatalf("due = %v, want [m1]", ids)
 	}
-	again, err := snooze.PopDue(ctx)
+	again, clearedAgain, err := snooze.PopDue(ctx)
 	if err != nil {
 		t.Fatalf("second pop: %v", err)
 	}
+	if clearedAgain != 0 {
+		t.Errorf("second pop cleared %d, want 0: popping is idempotent", clearedAgain)
+	}
 	if len(again) != 0 {
-		t.Fatalf("second pop = %v, want empty", messageIDsOf(again))
+		t.Fatalf("second pop = %v, want empty", snoozedIDsOf(again))
 	}
 
 	next, ok, err := snooze.NextDue(ctx)
@@ -136,6 +151,27 @@ func TestSnoozePopDueReturnsAndClearsOnlyTheDue(t *testing.T) {
 	}
 	if !ok || !next.Equal(epoch.Add(time.Hour)) {
 		t.Errorf("next = %v ok = %t, want the remaining snooze", next, ok)
+	}
+}
+
+// TestSnoozePopDueCountsARowWithNoMessageLeft covers the expiry that has nothing to show: the snooze
+// came due, the row went, the message it hid is no longer cached. The service must pass the count
+// through rather than report an empty slice, because a caller reading the slice alone cannot tell this
+// apart from no snooze having been due at all, so it would show the user nothing.
+func TestSnoozePopDueCountsARowWithNoMessageLeft(t *testing.T) {
+	mail, snooze, _ := newSnoozeFixture(t)
+	ctx := context.Background()
+	mail.snoozes["gone"] = time.Unix(0, 0).UTC().Add(-time.Minute)
+
+	due, cleared, err := snooze.PopDue(ctx)
+	if err != nil {
+		t.Fatalf("pop due: %v", err)
+	}
+	if len(due) != 0 {
+		t.Errorf("due = %v, want none: the message is no longer cached", snoozedIDsOf(due))
+	}
+	if cleared != 1 {
+		t.Errorf("cleared = %d, want 1: the expiry happened and must not read as a no-op", cleared)
 	}
 }
 
@@ -170,7 +206,7 @@ func TestSnoozeErrorsAreWrapped(t *testing.T) {
 
 	mail, snooze, _ = newSnoozeFixture(t)
 	mail.popDueErr = errBoom
-	if _, err := snooze.PopDue(ctx); !errors.Is(err, errBoom) {
+	if _, _, err := snooze.PopDue(ctx); !errors.Is(err, errBoom) {
 		t.Errorf("pop-due error = %v, want wrapped boom", err)
 	}
 

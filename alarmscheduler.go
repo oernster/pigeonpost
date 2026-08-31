@@ -6,6 +6,7 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 
 	"github.com/oernster/pigeonpost/internal/application"
+	"github.com/oernster/pigeonpost/internal/infrastructure/sound"
 	"github.com/oernster/pigeonpost/internal/infrastructure/taskbar"
 )
 
@@ -25,7 +26,7 @@ type ReminderDTO struct {
 // runReminderScheduler pushes reminders to the front end as they come due. On launch it first catches up
 // reminders for still-imminent events whose trigger lapsed while the app was closed (so a reminder for an
 // upcoming event is not missed), without resurrecting reminders for events already past. It then polls
-// every interval, advancing its checkpoint so each reminder fires once, and stops when the runtime
+// every interval, advancing its checkpoint so each reminder fires once; it stops when the runtime
 // context is cancelled at shutdown.
 func (a *App) runReminderScheduler() {
 	last := time.Now()
@@ -74,6 +75,6 @@ func (a *App) emitReminders(reminders []application.DueReminder) {
 		}
 		title, body := taskbar.BalloonText(summaries)
 		// A reminder suppresses when the window is focused: its in-app banner covers that case.
-		a.tray.Notify(title, body, false)
+		a.tray.Notify(title, body, false, sound.Reminder)
 	}
 }

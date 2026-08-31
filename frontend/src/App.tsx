@@ -30,6 +30,7 @@ import {AccountSetupModal} from './components/AccountSetupModal'
 import {ConfirmStack} from './components/ConfirmStack'
 import {PromptDialog} from './components/PromptDialog'
 import {ReminderNotifications} from './components/ReminderNotifications'
+import {SnoozeNotifications} from './components/SnoozeNotifications'
 import {CloseChoiceDialog} from './components/CloseChoiceDialog'
 import {ManagerModals} from './components/ManagerModals'
 import {Splash} from './components/Splash'
@@ -660,6 +661,18 @@ function App() {
             prev && isOutboxMessage(prev) && !outboxForAccount.some((o) => o.id === prev.id) ? null : prev)
     }, [outboxForAccount, selectedFolder, folders, loadFolderMessages])
 
+    // openResurfacedMessage shows a message a snooze toast names: its account first (the resurface pass
+    // spans every account, so the message need not be in the one on screen), then the folder it returned
+    // to, then the message itself. Selecting a folder clears the selected message, so the message is set
+    // after the folder rather than before it.
+    const openResurfacedMessage = useCallback(async (message: Message) => {
+        if (message.accountId && message.accountId !== selectedAccountRef.current) {
+            await selectAccount(message.accountId)
+        }
+        await selectFolder(message.folderId)
+        setSelectedMessage(message)
+    }, [selectAccount, selectFolder, setSelectedMessage, selectedAccountRef])
+
     // The backend scheduler announces resurfaced snoozes, so the badges and the open view (the inbox a
     // message returns to, else the Snoozed view it leaves) refresh the moment it comes back.
     useEffect(() => EventsOn('snooze:changed', () => {
@@ -1133,7 +1146,10 @@ function App() {
                 }}
             />
             {splashVisible && <Splash version={appVersion} author={appAuthor} fading={splashFading}/>}
-            <ReminderNotifications onOpen={openReminderEvent}/>
+            <div className="toast-stack">
+                <ReminderNotifications onOpen={openReminderEvent}/>
+                <SnoozeNotifications onOpen={openResurfacedMessage}/>
+            </div>
             <TitleBar
                 unreadCounts={unreadCounts}
                 fileMenu={fileMenu}

@@ -14,9 +14,30 @@ const wavHeaderSize = 44
 // floating-point sums and a quantisation to 16 bits.
 const floatTolerance = 1e-9
 
+// The note counts each voice is scored with. They are what a listener actually tells apart, so they are
+// asserted rather than left to the ear.
+const (
+	newMailNoteCount    = 3
+	reminderNoteCount   = 2
+	resurfacedNoteCount = 1
+)
+
+// everyKind is the full set of chimes, each with the score it is rendered from. A voice missing from
+// here is a voice nothing checks.
+var everyKind = []struct {
+	name       string
+	kind       Kind
+	lengthSecs float64
+	notes      func() []note
+}{
+	{"new mail", NewMail, newMailLengthSecs, newMailNotes},
+	{"reminder", Reminder, reminderLengthSecs, reminderNotes},
+	{"resurfaced", Resurfaced, resurfacedLengthSecs, resurfacedNotes},
+}
+
 func TestNotificationWAVHasWellFormedHeader(t *testing.T) {
 	t.Parallel()
-	wav := notificationWAV()
+	wav := wavFor(NewMail)
 	if len(wav) <= wavHeaderSize {
 		t.Fatalf("wav is %d bytes: expected a header plus sample data", len(wav))
 	}
@@ -44,7 +65,7 @@ func TestNotificationWAVHasWellFormedHeader(t *testing.T) {
 
 func TestNotificationWAVDeclaresMono16BitCDAudio(t *testing.T) {
 	t.Parallel()
-	wav := notificationWAV()
+	wav := wavFor(NewMail)
 	cases := []struct {
 		name string
 		got  uint32
@@ -67,16 +88,16 @@ func TestNotificationWAVDeclaresMono16BitCDAudio(t *testing.T) {
 
 func TestNotificationWAVRunsForTheChimeLength(t *testing.T) {
 	t.Parallel()
-	wav := notificationWAV()
+	wav := wavFor(NewMail)
 	samples := (len(wav) - wavHeaderSize) / bytesPerSlot
-	if want := int(cooLengthSecs * sampleRate); samples != want {
+	if want := int(newMailLengthSecs * sampleRate); samples != want {
 		t.Errorf("sample count = %d, want %d", samples, want)
 	}
 }
 
 func TestNotificationWAVIsRenderedOnceAndReused(t *testing.T) {
 	t.Parallel()
-	first, second := notificationWAV(), notificationWAV()
+	first, second := wavFor(NewMail), wavFor(NewMail)
 	if !bytes.Equal(first, second) {
 		t.Error("successive renderings differ: the chime must be deterministic")
 	}
@@ -89,7 +110,7 @@ func TestNotificationWAVIsRenderedOnceAndReused(t *testing.T) {
 // full amplitude would produce.
 func TestNotificationWAVOpensAndClosesInSilence(t *testing.T) {
 	t.Parallel()
-	wav := notificationWAV()
+	wav := wavFor(NewMail)
 	first := int16(binary.LittleEndian.Uint16(wav[wavHeaderSize : wavHeaderSize+bytesPerSlot]))
 	last := int16(binary.LittleEndian.Uint16(wav[len(wav)-bytesPerSlot:]))
 	if first != 0 {
@@ -102,7 +123,7 @@ func TestNotificationWAVOpensAndClosesInSilence(t *testing.T) {
 
 func TestRenderNormalisesToPeakLevelWithoutClipping(t *testing.T) {
 	t.Parallel()
-	buf := render(cooLengthSecs, notificationNotes())
+	buf := render(newMailLengthSecs, newMailNotes())
 	peak := 0.0
 	for _, v := range buf {
 		if a := math.Abs(v); a > peak {
@@ -119,11 +140,11 @@ func TestRenderNormalisesToPeakLevelWithoutClipping(t *testing.T) {
 
 func TestRenderPlacesEachNoteAtItsStart(t *testing.T) {
 	t.Parallel()
-	notes := notificationNotes()
-	if len(notes) != 2 {
-		t.Fatalf("chime has %d notes, want 2", len(notes))
+	notes := newMailNotes()
+	if len(notes) != newMailNoteCount {
+		t.Fatalf("new-mail chime has %d notes, want %d", len(notes), newMailNoteCount)
 	}
-	buf := render(cooLengthSecs, notes)
+	buf := render(newMailLengthSecs, notes)
 	// The second note starts after the first has decayed, so the sample just before it must be
 	// quieter than the peak reached shortly after it is voiced.
 	start := int(notes[1].startSecs * sampleRate)
@@ -141,7 +162,7 @@ func TestRenderPlacesEachNoteAtItsStart(t *testing.T) {
 
 func TestRenderIgnoresNotesWithoutLength(t *testing.T) {
 	t.Parallel()
-	if got := render(0, notificationNotes()); len(got) != 0 {
+	if got := render(0, newMailNotes()); len(got) != 0 {
 		t.Errorf("zero-length render produced %d samples, want 0", len(got))
 	}
 }
@@ -173,7 +194,7 @@ func TestTimbreAddsPartialsToTheFundamental(t *testing.T) {
 	quarterCycle := 1 / (4 * freq)
 	// At a quarter cycle the fundamental is at its maximum and the octave partial is back at zero,
 	// so the sum is the fundamental alone.
-	if got := timbre(quarterCycle, freq, cooPartials); math.Abs(got-1) > 1e-6 {
+	if got := timbre(quarterCycle, freq, warmPartials); math.Abs(got-1) > 1e-6 {
 		t.Errorf("timbre at the fundamental's peak = %v, want 1", got)
 	}
 	if got := timbre(0, freq, nil); math.Abs(got) > floatTolerance {
@@ -252,4 +273,80 @@ func TestEncodeWAVWritesSamplesAsSigned16Bit(t *testing.T) {
 func TestPlayToleratesAnEmptyBuffer(t *testing.T) {
 	t.Parallel()
 	play(nil)
+}
+
+// TestEveryVoiceIsRenderedWellFormed holds each chime to what the new-mail chime is held to above: a
+// buffer of the scored length that opens and closes in silence, so no voice can be added without the
+// same guarantees.
+func TestEveryVoiceIsRenderedWellFormed(t *testing.T) {
+	t.Parallel()
+	for _, k := range everyKind {
+		wav := wavFor(k.kind)
+		if len(wav) <= wavHeaderSize {
+			t.Errorf("%s: wav is %d bytes: expected a header plus sample data", k.name, len(wav))
+			continue
+		}
+		samples := (len(wav) - wavHeaderSize) / bytesPerSlot
+		if want := int(k.lengthSecs * sampleRate); samples != want {
+			t.Errorf("%s: sample count = %d, want %d", k.name, samples, want)
+		}
+		first := int16(binary.LittleEndian.Uint16(wav[wavHeaderSize : wavHeaderSize+bytesPerSlot]))
+		last := int16(binary.LittleEndian.Uint16(wav[len(wav)-bytesPerSlot:]))
+		if first != 0 || last != 0 {
+			t.Errorf("%s: opens at %d and closes at %d, want silence at both ends", k.name, first, last)
+		}
+	}
+}
+
+// TestVoicesAreScoredWithDifferentNoteCounts pins the one property the three chimes are told apart by.
+// Pitch alone survives neither a small speaker nor a noisy room; how many notes sound does.
+func TestVoicesAreScoredWithDifferentNoteCounts(t *testing.T) {
+	t.Parallel()
+	counts := map[string]int{
+		"new mail":   len(newMailNotes()),
+		"reminder":   len(reminderNotes()),
+		"resurfaced": len(resurfacedNotes()),
+	}
+	want := map[string]int{
+		"new mail":   newMailNoteCount,
+		"reminder":   reminderNoteCount,
+		"resurfaced": resurfacedNoteCount,
+	}
+	for name, got := range counts {
+		if got != want[name] {
+			t.Errorf("%s is scored with %d notes, want %d", name, got, want[name])
+		}
+	}
+}
+
+// TestVoicesRenderToDifferentAudio is the end of the same argument: three scores that produced the same
+// bytes would leave the user with one sound again, which is the state this change exists to leave.
+func TestVoicesRenderToDifferentAudio(t *testing.T) {
+	t.Parallel()
+	for i, a := range everyKind {
+		for _, b := range everyKind[i+1:] {
+			if bytes.Equal(wavFor(a.kind), wavFor(b.kind)) {
+				t.Errorf("%s and %s render identical audio: they must be distinguishable by ear", a.name, b.name)
+			}
+		}
+	}
+}
+
+// TestWavForUnknownKindSoundsRatherThanFallsSilent covers the miswired-call guard: an unknown kind is a
+// programming error; an audible wrong chime is findable where silence is not.
+func TestWavForUnknownKindSoundsRatherThanFallsSilent(t *testing.T) {
+	t.Parallel()
+	const unknown = Kind(-1)
+	if got := wavFor(unknown); !bytes.Equal(got, wavFor(NewMail)) {
+		t.Error("an unknown kind must fall back to the new-mail chime rather than to silence")
+	}
+}
+
+// TestPlayRendersEveryKind exercises Play itself for each voice. Away from Windows the playback call is
+// a no-op, so what this asserts is that every kind renders without panicking on the way to it.
+func TestPlayRendersEveryKind(t *testing.T) {
+	t.Parallel()
+	for _, k := range everyKind {
+		Play(k.kind)
+	}
 }

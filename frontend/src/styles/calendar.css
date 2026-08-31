@@ -231,7 +231,10 @@
     color: var(--text-dim);
 }
 
-.reminder-toasts {
+/* The toast stack is shared: reminders and returning snoozed messages both land in it, so the two
+   cannot arrive at the same corner and cover each other. The individual toasts below are styled the
+   same way whatever raised them. */
+.toast-stack {
     position: fixed;
     top: 16px;
     right: 16px;
@@ -242,7 +245,15 @@
     max-width: 320px;
 }
 
-.reminder-toast {
+.reminder-toasts,
+.snooze-toasts {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.reminder-toast,
+.snooze-toast {
     display: flex;
     align-items: flex-start;
     gap: 12px;
@@ -253,7 +264,8 @@
     box-shadow: 0 6px 24px rgba(0, 0, 0, 0.35);
 }
 
-.reminder-toast-body {
+.reminder-toast-body,
+.snooze-toast-body {
     flex: 1;
     min-width: 0;
     display: block;
@@ -268,24 +280,29 @@
 }
 
 .reminder-toast-body:hover .reminder-toast-summary,
-.reminder-toast-body:focus-visible .reminder-toast-summary {
+.reminder-toast-body:focus-visible .reminder-toast-summary,
+.snooze-toast-body:hover .snooze-toast-summary,
+.snooze-toast-body:focus-visible .snooze-toast-summary {
     text-decoration: underline;
 }
 
-.reminder-toast-title {
+.reminder-toast-title,
+.snooze-toast-title {
     font-size: 12px;
     text-transform: uppercase;
     letter-spacing: 0.04em;
     color: var(--accent);
 }
 
-.reminder-toast-summary {
+.reminder-toast-summary,
+.snooze-toast-summary {
     font-weight: 600;
     color: var(--text);
     word-break: break-word;
 }
 
-.reminder-toast-when {
+.reminder-toast-when,
+.snooze-toast-when {
     font-size: 13px;
     color: var(--text-dim);
 }

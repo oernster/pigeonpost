@@ -2,7 +2,11 @@
 
 package taskbar
 
-import "github.com/godbus/dbus/v5"
+import (
+	"github.com/godbus/dbus/v5"
+
+	"github.com/oernster/pigeonpost/internal/infrastructure/sound"
+)
 
 const (
 	notifyDest           = "org.freedesktop.Notifications"
@@ -14,8 +18,9 @@ const (
 // Notify raises a desktop notification through the freedesktop D-Bus notification service, the standard
 // mechanism on Linux desktops. Any failure to reach the bus is ignored: a missing notification must
 // never disturb the reminder scheduler. The session bus connection is shared and cached by the library,
-// so it is not closed here.
-func (t *Tray) Notify(title, body string, _ bool) {
+// so it is not closed here. The chime kind is ignored here: the notification service sounds a
+// notification from the desktop's own theme, which PigeonPost has no business overriding.
+func (t *Tray) Notify(title, body string, _ bool, _ sound.Kind) {
 	if title == "" && body == "" {
 		return
 	}

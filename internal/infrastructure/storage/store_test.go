@@ -1177,13 +1177,19 @@ func TestSnoozeListPopNextAndClear(t *testing.T) {
 
 	// Popping before the instant does nothing; after it, the message is returned once and the snooze
 	// is gone.
-	popped, err := store.PopDueSnoozed(ctx, now)
-	if err != nil || len(popped) != 0 {
-		t.Fatalf("early pop = %v err %v, want none", popped, err)
+	popped, cleared, err := store.PopDueSnoozed(ctx, now)
+	if err != nil || len(popped) != 0 || cleared != 0 {
+		t.Fatalf("early pop = %v cleared %d err %v, want none", popped, cleared, err)
 	}
-	popped, err = store.PopDueSnoozed(ctx, now.Add(2*time.Hour))
-	if err != nil || len(popped) != 1 || popped[0].ID() != "m2" {
+	popped, cleared, err = store.PopDueSnoozed(ctx, now.Add(2*time.Hour))
+	if err != nil || len(popped) != 1 || popped[0].Summary.ID() != "m2" {
 		t.Fatalf("due pop = %v err %v, want m2", popped, err)
+	}
+	if cleared != 1 {
+		t.Errorf("cleared = %d, want 1: a resurfaced snooze is a cleared one", cleared)
+	}
+	if !popped[0].Until.Equal(until) || popped[0].AccountID != "a1" {
+		t.Errorf("popped = %+v, want until %v on account a1", popped[0], until)
 	}
 	if _, ok, _ := store.NextSnooze(ctx); ok {
 		t.Error("a popped snooze must be gone")
@@ -1199,6 +1205,37 @@ func TestSnoozeListPopNextAndClear(t *testing.T) {
 	visible, err := store.ListMessagesVisible(ctx, "f1", now)
 	if err != nil || len(visible) != 2 {
 		t.Fatalf("visible after clear = %v err %v, want both", visible, err)
+	}
+}
+
+// TestSnoozeDueWithoutItsMessageIsClearedAndCounted pins what PopDueSnoozed reports when a due snooze
+// has no message left to resurface. SaveMessages sweeps orphaned snoozes as it goes, so this state is
+// not reachable through an ordinary resync; the test builds it directly, because the contract is what
+// the resurface scheduler now keys off. Returning the messages alone would let a due snooze be removed
+// while the caller saw an empty slice and did nothing: the hidden state gone, the badges stale and
+// nothing shown. The count is how the caller knows an expiry happened at all.
+func TestSnoozeDueWithoutItsMessageIsClearedAndCounted(t *testing.T) {
+	store := openTestStore(t)
+	ctx := context.Background()
+	now := time.Date(2026, time.July, 14, 12, 0, 0, 0, time.UTC)
+	until := now.Add(time.Hour)
+
+	if err := store.SetSnooze(ctx, "no-such-message", until); err != nil {
+		t.Fatalf("set snooze: %v", err)
+	}
+
+	popped, cleared, err := store.PopDueSnoozed(ctx, until.Add(time.Minute))
+	if err != nil {
+		t.Fatalf("pop due: %v", err)
+	}
+	if len(popped) != 0 {
+		t.Errorf("popped = %+v, want none: there is no message to resurface", popped)
+	}
+	if cleared != 1 {
+		t.Fatalf("cleared = %d, want 1: the due row was removed and the caller must be told", cleared)
+	}
+	if _, ok, _ := store.NextSnooze(ctx); ok {
+		t.Error("the orphaned row must not survive to be retried on every tick")
 	}
 }
 

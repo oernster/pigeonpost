@@ -398,22 +398,26 @@ func (f *fakeMailStore) ListSnoozed(ctx context.Context) ([]SnoozedMessage, erro
 	return out, nil
 }
 
-func (f *fakeMailStore) PopDueSnoozed(ctx context.Context, now time.Time) ([]domain.MessageSummary, error) {
+func (f *fakeMailStore) PopDueSnoozed(ctx context.Context, now time.Time) ([]SnoozedMessage, int, error) {
 	if f.popDueErr != nil {
-		return nil, f.popDueErr
+		return nil, 0, f.popDueErr
 	}
-	var due []domain.MessageSummary
+	var due []SnoozedMessage
+	cleared := 0
 	for messageID, until := range f.snoozes {
 		if until.After(now) {
 			continue
 		}
 		delete(f.snoozes, messageID)
+		// Every removed row counts, including one whose message has gone: that is the case the real
+		// store reports separately and the scheduler acts on.
+		cleared++
 		if summary, err := f.GetMessage(ctx, messageID); err == nil {
-			due = append(due, summary)
+			due = append(due, SnoozedMessage{Summary: summary, Until: until})
 		}
 	}
-	sort.Slice(due, func(i, j int) bool { return due[i].ID() < due[j].ID() })
-	return due, nil
+	sort.Slice(due, func(i, j int) bool { return due[i].Summary.ID() < due[j].Summary.ID() })
+	return due, cleared, nil
 }
 
 func (f *fakeMailStore) NextSnooze(_ context.Context) (time.Time, bool, error) {

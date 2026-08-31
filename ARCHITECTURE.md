@@ -391,10 +391,22 @@ still finds hidden messages. The Snoozed view is the synthetic folder `__snoozed
 pattern), listing every hidden message across accounts with its due time, an Unsnooze action and the
 same per-account dots and cross-account rules as the unified mailbox (rows compose from their own
 account; Move, Copy and Junk live in the real folder). A scheduler goroutine (`runSnoozeScheduler`,
-gated on the store's earliest snooze) pops due snoozes in one transaction, raises a desktop notification
-(a snooze is an alarm the user set) and announces `snooze:changed`; a snooze missed while the app was
-closed pops on the first tick after launch; a snooze orphaned by its message's deletion or move is
-swept rather than resurfacing as a ghost.
+gated on the store's earliest snooze) pops due snoozes in one transaction, then announces what came
+back: `snooze:changed` so the badges and listings refresh, `snooze:resurfaced` carrying the messages so
+the front end raises a toast for each (`SnoozeNotifications`, sharing the reminder toasts' stack) plus a
+desktop notification, since a snooze is an alarm the user set. The toast is what makes the expiry
+observable rather than the notification: a Windows balloon reaches the user only if the shell's
+notification pipeline lets it through, which the app can neither see nor control, so an expiry announced
+by the balloon alone can pass with nothing shown. A snooze missed while the app was closed pops on the
+first tick after launch; a snooze orphaned by its message's deletion or move is swept
+(`SaveMessages`) rather than resurfacing as a ghost.
+
+`PopDueSnoozed` returns the resurfaced messages **and** the number of snooze rows cleared; the
+scheduler acts on the count. The two differ only where a due snooze outlived the message it hid, which
+is exactly the case a messages-only signature turned into silence: the row removed, the hidden
+state gone, the badges stale and nothing shown. Such an expiry now refreshes the front end and is
+recorded through the error log, so it leaves a trace rather than being indistinguishable afterwards
+from the scheduler never having run.
 
 Junk, conversations and list order: marking a message as junk moves it to the account's Junk folder
 through the same online path as Move (`MessageActionService.MarkJunk`, resolving the Junk folder by kind);
@@ -1030,15 +1042,22 @@ an in-view reminder relies on its banner alone.
 one default notification sound, which is the same sound every other app and tool raising a stock
 notification gets, so a PigeonPost alert cannot be told apart by ear from anything else on the machine.
 The tray therefore sets `NIIF_NOSOUND` to silence the shell and plays its own chime through
-`infrastructure/sound`, a soft falling pair pitched low and wooden where the system sounds are bright
-and glassy. The chime is synthesised from named constants rather than shipped as an asset, so there is
-no binary in the repository and nothing to resolve at runtime across the dev, Wails and packaged
-builds; the synthesis is a pure function and is unit tested, leaving only the `winmm` `PlaySound` call
-itself outside coverage. Playback is asynchronous and reads the buffer after the call returns, which is
-safe because the rendering is cached once for the life of the process. Every tray notification shares
-the one chime (new mail, a due reminder and a snoozed message returning), so PigeonPost has a single
-recognisable voice. Off Windows the sound is left to the desktop's own notification service, which
-chooses it from the user's theme, so there is nothing to override.
+`infrastructure/sound`. The chimes are synthesised from named constants rather than shipped as assets,
+so there is no binary in the repository and nothing to resolve at runtime across the dev, Wails and
+packaged builds; the synthesis is a pure function and is unit tested, leaving only the `winmm`
+`PlaySound` call itself outside coverage. Playback is asynchronous and reads the buffer after the call
+returns, which is safe because each kind's rendering is cached once for the life of the process.
+
+Each of the three things PigeonPost announces has its own voice (`sound.Kind`), passed to `Notify` by
+the caller that raised it: new mail is three short wooden notes climbing a triad, a due reminder is two
+quick knocks on one bright pitch, a returning snoozed message is a single low note voiced slowly. They
+differ by note count and rhythm rather than by pitch alone, because that is what a listener tells apart
+across a small speaker and a noisy room; a test asserts the counts differ and that no two render the
+same audio. A soft falling pair is deliberately not among them: that shape is what every desktop
+assistant and notification tool reaches for; PigeonPost used one for all three alerts, so it could
+be told apart neither from the other tools on the machine nor between its own alerts. Off Windows the
+sound is left to the desktop's own notification service, which chooses it from the user's theme, so
+there is nothing to override.
 
 **Close to tray.** On Windows the `Tray` is a persistent, clickable
 notification-area icon: left-clicking it reopens the window; its right-click menu mirrors the Help

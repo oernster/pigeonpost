@@ -43,7 +43,7 @@ func (s *Store) ListMessagesPageVisible(ctx context.Context, folderID string, ha
 
 // listMessagesPage is the shared keyset page query behind ListMessagesPage and ListMessagesPageVisible:
 // ordered by (date_ms, id) in either direction, resuming strictly after the cursor when one is given,
-// reading at most limit rows, and excluding snooze-hidden rows when hideSnoozed is set.
+// reading at most limit rows, excluding snooze-hidden rows when hideSnoozed is set.
 func (s *Store) listMessagesPage(ctx context.Context, folderID string, hasCursor bool, cursorDateMs int64, cursorID string, limit int, ascending bool, hideSnoozed bool, visibleAtMs int64) ([]domain.MessageSummary, error) {
 	order, cmp := "DESC", "<"
 	if ascending {
@@ -94,61 +94,81 @@ func (s *Store) ListSnoozed(ctx context.Context) ([]application.SnoozedMessage, 
 		 FROM message m
 		 JOIN message_snooze sn ON sn.message_id = m.id
 		 LEFT JOIN folder f ON f.id = m.folder_id
-		 ORDER BY sn.until_ms;`, aliasColumns("m")),
-		func(row scanner) (application.SnoozedMessage, error) {
-			var (
-				r         messageRow
-				untilMs   int64
-				accountID string
-			)
-			if err := row.Scan(append(r.scanFields(), &untilMs, &accountID)...); err != nil {
-				return application.SnoozedMessage{}, fmt.Errorf("scan snoozed message: %w", err)
-			}
-			summary, err := r.build()
-			if err != nil {
-				return application.SnoozedMessage{}, err
-			}
-			return application.SnoozedMessage{
-				Summary:   summary,
-				Until:     time.UnixMilli(untilMs).UTC(),
-				AccountID: accountID,
-			}, nil
-		})
+		 ORDER BY sn.until_ms;`, aliasColumns("m")), scanSnoozed)
+}
+
+// scanSnoozed reads one row of the snoozed-message column list: a message summary followed by its due
+// instant and its owning account. Both the Snoozed listing and the resurface pop select those columns,
+// so they share this scanner rather than stating the column order twice.
+func scanSnoozed(row scanner) (application.SnoozedMessage, error) {
+	var (
+		r         messageRow
+		untilMs   int64
+		accountID string
+	)
+	if err := row.Scan(append(r.scanFields(), &untilMs, &accountID)...); err != nil {
+		return application.SnoozedMessage{}, fmt.Errorf("scan snoozed message: %w", err)
+	}
+	summary, err := r.build()
+	if err != nil {
+		return application.SnoozedMessage{}, err
+	}
+	return application.SnoozedMessage{
+		Summary:   summary,
+		Until:     time.UnixMilli(untilMs).UTC(),
+		AccountID: accountID,
+	}, nil
 }
 
 // PopDueSnoozed removes every snooze whose instant has passed and returns the messages that just
-// resurfaced, soonest first, in one transaction so a resurfaced message can never be announced twice.
-// A due snooze orphaned by its message's deletion is removed without being returned.
-func (s *Store) PopDueSnoozed(ctx context.Context, now time.Time) ([]domain.MessageSummary, error) {
+// resurfaced, soonest first, alongside the total number of snoozes cleared. Both run in one transaction
+// so a resurfaced message can never be announced twice.
+//
+// The two numbers differ when a due snooze has outlived the message it hides: a message moved by a
+// rule, deleted from the server or dropped with its folder leaves a snooze row pointing at nothing. Such
+// a row can never resurface, so it is cleared; the count says it happened. Reporting only the
+// resurfaced messages would let a snooze expire into complete silence, with its state destroyed and
+// nothing shown, which is precisely the failure this signature exists to make impossible.
+func (s *Store) PopDueSnoozed(ctx context.Context, now time.Time) ([]application.SnoozedMessage, int, error) {
 	nowMs := now.UnixMilli()
-	var resurfaced []domain.MessageSummary
+	var resurfaced []application.SnoozedMessage
+	cleared := 0
 	err := s.inTx(ctx, func(tx *sql.Tx) error {
 		rows, err := tx.QueryContext(ctx, fmt.Sprintf(
-			`SELECT %s FROM message m JOIN message_snooze sn ON sn.message_id = m.id
+			`SELECT %s, sn.until_ms, COALESCE(f.account_id, '')
+			 FROM message m
+			 JOIN message_snooze sn ON sn.message_id = m.id
+			 LEFT JOIN folder f ON f.id = m.folder_id
 			 WHERE sn.until_ms <= ? ORDER BY sn.until_ms;`, aliasColumns("m")), nowMs)
 		if err != nil {
 			return fmt.Errorf("query due snoozes: %w", err)
 		}
 		defer rows.Close()
 		for rows.Next() {
-			message, err := scanMessage(rows)
+			due, err := scanSnoozed(rows)
 			if err != nil {
 				return err
 			}
-			resurfaced = append(resurfaced, message)
+			resurfaced = append(resurfaced, due)
 		}
 		if err := rows.Err(); err != nil {
 			return fmt.Errorf("iterate due snoozes: %w", err)
 		}
-		if _, err := tx.ExecContext(ctx, "DELETE FROM message_snooze WHERE until_ms <= ?;", nowMs); err != nil {
+		result, err := tx.ExecContext(ctx, "DELETE FROM message_snooze WHERE until_ms <= ?;", nowMs)
+		if err != nil {
 			return fmt.Errorf("clear due snoozes: %w", err)
 		}
+		affected, err := result.RowsAffected()
+		if err != nil {
+			return fmt.Errorf("count cleared snoozes: %w", err)
+		}
+		cleared = int(affected)
 		return nil
 	})
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
-	return resurfaced, nil
+	return resurfaced, cleared, nil
 }
 
 // NextSnooze returns the earliest pending snooze instant and whether one exists.
