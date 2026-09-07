@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
@@ -101,6 +102,9 @@ type RuleBackfillDTO struct {
 	Flag     int `json:"flag"`
 	Move     int `json:"move"`
 	Destroy  int `json:"destroy"`
+	// Cancelled reports that the run stopped early, so the counts above are of the work that had
+	// already landed. That work is irreversible, so it is reported rather than hidden.
+	Cancelled bool `json:"cancelled"`
 }
 
 // RuleBackfillProgressDTO is the JSON-serialisable view of how far a backfill has got, carried on the
@@ -120,7 +124,9 @@ const ruleBackfillProgressEvent = "rules:backfill-progress"
 // do, changing nothing. The front end shows these counts for confirmation before calling RunRuleBackfill,
 // because a backfill acts on a whole backlog unattended and so cannot ask about each message.
 func (a *App) PreviewRuleBackfill(ruleID string) (RuleBackfillDTO, error) {
-	counts, err := a.ruleBackfill.Preview(a.ctx, ruleID, a.emitBackfillProgress)
+	ctx, done := a.beginBackfill()
+	defer done()
+	counts, err := a.ruleBackfill.Preview(ctx, ruleID, a.emitBackfillProgress)
 	return ruleBackfillToDTO(counts), err
 }
 
@@ -128,8 +134,46 @@ func (a *App) PreviewRuleBackfill(ruleID string) (RuleBackfillDTO, error) {
 // The counts are of work that succeeded, so a partially refused run reports the part that landed and
 // returns the error describing the rest.
 func (a *App) RunRuleBackfill(ruleID string) (RuleBackfillDTO, error) {
-	counts, err := a.ruleBackfill.Run(a.ctx, ruleID, a.emitBackfillProgress)
+	ctx, done := a.beginBackfill()
+	defer done()
+	counts, err := a.ruleBackfill.Run(ctx, ruleID, a.emitBackfillProgress)
 	return ruleBackfillToDTO(counts), err
+}
+
+// CancelRuleBackfill stops the backfill in flight, if there is one. It is safe to call when none is
+// running, since the dialog's Cancel can race the run's own completion. A cancelled run is not an
+// error: it returns the work that had already landed, with Cancelled set on its counts.
+func (a *App) CancelRuleBackfill() {
+	a.backfillMu.Lock()
+	stop := a.backfillStop
+	a.backfillMu.Unlock()
+	if stop != nil {
+		stop()
+	}
+}
+
+// beginBackfill derives a cancellable context for one backfill and publishes its cancel so
+// CancelRuleBackfill can reach it. The returned function releases both and must be deferred: a stale
+// cancel left published would stop the NEXT run the moment it started.
+//
+// The generation is what makes that release safe. Only one backfill should run at a time (the button
+// is disabled while one does), yet a run that finished can only clear the published cancel if it is
+// still its own: clearing unconditionally would strand a newer run with nothing able to stop it.
+func (a *App) beginBackfill() (context.Context, func()) {
+	ctx, cancel := context.WithCancel(a.ctx)
+	a.backfillMu.Lock()
+	a.backfillGen++
+	mine := a.backfillGen
+	a.backfillStop = cancel
+	a.backfillMu.Unlock()
+	return ctx, func() {
+		a.backfillMu.Lock()
+		if a.backfillGen == mine {
+			a.backfillStop = nil
+		}
+		a.backfillMu.Unlock()
+		cancel()
+	}
 }
 
 // emitBackfillProgress puts one progress reading on the wire. The application layer knows nothing of
@@ -145,6 +189,7 @@ func (a *App) emitBackfillProgress(p application.RuleBackfillProgress) {
 func ruleBackfillToDTO(c application.RuleBackfillCounts) RuleBackfillDTO {
 	return RuleBackfillDTO{
 		Scanned: c.Scanned, MarkRead: c.MarkRead, Flag: c.Flag, Move: c.Move, Destroy: c.Destroy,
+		Cancelled: c.Cancelled,
 	}
 }
 

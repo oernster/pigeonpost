@@ -57,6 +57,9 @@ type App struct {
 	watchersMu    sync.Mutex                    // guards watchers
 	mailCheck     sync.Mutex                    // serialises checkMail so the poll and IDLE pushes do not detect concurrently
 	quitting      atomic.Bool                   // set when an explicit Quit is under way, so the close prompt is skipped
+	backfillMu    sync.Mutex                    // guards backfillStop
+	backfillStop  context.CancelFunc            // cancels the rule backfill in flight; nil when none is
+	backfillGen   uint64                        // which backfill backfillStop belongs to, so a finished run clears only its own
 	accounts      *application.AccountService
 	setup         *application.AccountSetupService
 	msSetup       *application.MicrosoftSetupService

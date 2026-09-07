@@ -277,7 +277,9 @@ export function RuleManagerModal({accounts, rules, onChanged, onClose}: RuleMana
                 phase={backfill.phase}
                 progress={backfill.progress}
                 busy={backfill.busy}
+                cancelling={backfill.cancelling}
                 onRun={backfill.run}
+                onCancel={backfill.cancel}
                 onDismiss={backfill.dismiss}
             />
             {toDelete && (

@@ -17,6 +17,7 @@ const apiSpies = vi.hoisted(() => ({
     reorderRules: vi.fn(),
     previewRuleBackfill: vi.fn(),
     runRuleBackfill: vi.fn(),
+    cancelRuleBackfill: vi.fn(),
 }))
 
 // The backfill listens for its progress event, so the runtime binding it reads is stubbed too. The
@@ -70,7 +71,7 @@ function buildRule(overrides: Partial<Rule> = {}): Rule {
 // counts builds a backfill result, defaulting every kind of work to none so a test states only the
 // numbers it cares about.
 function counts(overrides: Partial<RuleBackfill> = {}): RuleBackfill {
-    return {scanned: 0, markRead: 0, flag: 0, move: 0, destroy: 0, ...overrides} as RuleBackfill
+    return {scanned: 0, markRead: 0, flag: 0, move: 0, destroy: 0, cancelled: false, ...overrides} as RuleBackfill
 }
 
 // noWork is the result of a rule that matches nothing, the default for tests not about the backfill.
@@ -104,6 +105,7 @@ describe('RuleManagerModal', () => {
         runtimeSpies.listeners.clear()
         apiSpies.previewRuleBackfill.mockResolvedValue(noWork)
         apiSpies.runRuleBackfill.mockResolvedValue(noWork)
+        apiSpies.cancelRuleBackfill.mockResolvedValue(undefined)
     })
     afterEach(cleanup)
 
@@ -220,6 +222,32 @@ describe('RuleManagerModal', () => {
         await act(async () => {
             finish(noWork)
         })
+    })
+
+    it('cancels a run in flight and reports the work that had already landed', async () => {
+        const {onChanged} = renderModal([buildRule()])
+        apiSpies.previewRuleBackfill.mockResolvedValue(counts({scanned: 2414, move: 2414}))
+        // The run is held open so Cancel can be pressed while it is genuinely in flight.
+        let finish: (c: RuleBackfill) => void = () => {}
+        apiSpies.runRuleBackfill.mockReturnValue(new Promise<RuleBackfill>((resolve) => {
+            finish = resolve
+        }))
+
+        fireEvent.click(screen.getByLabelText('Apply Newsletters to stored mail'))
+        await waitFor(() => expect(screen.getByText('Apply rule now')).toBeTruthy())
+        fireEvent.click(screen.getByText('Apply rule now'))
+        await waitFor(() => expect(screen.getByRole('progressbar')).toBeTruthy())
+
+        fireEvent.click(screen.getByText('Cancel'))
+        await waitFor(() => expect(apiSpies.cancelRuleBackfill).toHaveBeenCalled())
+        // The dialog stays put: the call it stopped is still coming back with what it managed.
+        expect(screen.getByText('Stopping...')).toBeTruthy()
+
+        await act(async () => {
+            finish(counts({scanned: 2414, move: 400, cancelled: true}))
+        })
+        await waitFor(() => expect(screen.getByText('Stopped. 400 moved.')).toBeTruthy())
+        expect(onChanged).toHaveBeenCalled()
     })
 
     it('offers no backfill for a disabled rule', () => {

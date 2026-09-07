@@ -34,6 +34,10 @@ type RuleBackfillCounts struct {
 	Move int `json:"move"`
 	// Destroy is how many messages the rule deletes outright, with no Trash hop.
 	Destroy int `json:"destroy"`
+	// Cancelled reports that the run stopped before it finished, so the counts are of the work that
+	// had already landed rather than of everything the rule wanted. A backfill's work is irreversible,
+	// so a cancel that reported nothing would be a lie about the mailbox.
+	Cancelled bool `json:"cancelled"`
 }
 
 // Acts reports whether the rule changes anything at all, so a caller can say "nothing to do" rather
@@ -127,13 +131,17 @@ func (s *RuleBackfillService) Preview(ctx context.Context, ruleID string, to Rul
 	if plan == nil {
 		return RuleBackfillCounts{}, err
 	}
-	return plan.counts, err
+	counts := plan.counts
+	counts.Cancelled = plan.cancelled
+	return counts, err
 }
 
 // backfillPlan is the work one rule implies, gathered before any of it is carried out. Moves are
-// grouped by destination so each destination costs one batched server round trip; moveOrder keeps
-// those destinations in the order they were first seen, so a run is reproducible.
+// grouped by destination and then sent in batches of at most actionBatchSize; moveOrder keeps those
+// destinations in the order they were first seen, so a run is reproducible.
 type backfillPlan struct {
+	// cancelled records that the scan stopped early, so the counts describe part of the mailbox.
+	cancelled bool
 	counts    RuleBackfillCounts
 	markRead  []string
 	flag      []string
@@ -182,6 +190,12 @@ func (s *RuleBackfillService) plan(ctx context.Context, ruleID string, to RuleBa
 	plan := newBackfillPlan()
 	report(to, RuleBackfillScanning, 0, len(targets))
 	for i, t := range targets {
+		// Checked per folder rather than per message: one folder's read is a single store call, so this
+		// is the finest grain at which the scan can be stopped.
+		if ctx.Err() != nil {
+			plan.cancelled = true
+			break
+		}
 		messages, err := s.store.ListMessages(ctx, t.folder.ID())
 		if err != nil {
 			errs = append(errs, fmt.Errorf("rules: backfill: list messages in %q: %w", t.folder.ID(), err))

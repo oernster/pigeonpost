@@ -152,8 +152,9 @@ concern, so read it before attaching it to anything.
   account the rule covers. It first shows what the rule found (how many stored messages it was checked
   against and how many it would mark, flag, move or delete) and acts only once you agree; a rule that would
   change nothing says so instead. A progress bar counts folders while it checks and messages while it
-  applies, each knowing its total before it starts. Afterwards it reports what actually happened, so a run
-  the server partly refused names the part that landed.
+  applies, each knowing its total before it starts; Cancel stops it. Stopping is not an undo: the
+  report then tells you what had already been done, because that part really did happen. Afterwards it
+  reports what actually happened either way, so a run the server partly refused names the part that landed.
 - **Read**: an optional reading pane (mark-on-view, F8 toggle) whose attachments stay pinned at the
   foot of the message, so Open and Save are one click away however long the thread is rather than below
   every quoted round, with draggable pane dividers

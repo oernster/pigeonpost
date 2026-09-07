@@ -3,6 +3,7 @@ package application
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/oernster/pigeonpost/internal/domain"
@@ -18,6 +19,10 @@ type fakeBackfillActions struct {
 	permanent  []bool
 	readErr    error
 	flagErr    error
+	// onRead and onMove fire inside the call, so a test can cancel part way through a run rather than
+	// only before it starts.
+	onRead     func()
+	onMove     func()
 	moveErr    error
 	destroyErr error
 	// moveRefused and destroyRefused are the ids a failing call leaves behind, so a test can model a
@@ -33,6 +38,9 @@ type backfillMoveCall struct {
 }
 
 func (f *fakeBackfillActions) MarkRead(_ context.Context, messageID string, _ bool) error {
+	if f.onRead != nil {
+		f.onRead()
+	}
 	if f.readErr != nil {
 		return f.readErr
 	}
@@ -51,6 +59,9 @@ func (f *fakeBackfillActions) MarkFlagged(_ context.Context, messageID string, _
 func (f *fakeBackfillActions) MoveMany(_ context.Context, messageIDs []string, destFolderID string) (
 	[]string, map[string]string, error) {
 	f.moves = append(f.moves, backfillMoveCall{ids: messageIDs, dest: destFolderID})
+	if f.onMove != nil {
+		f.onMove()
+	}
 	if f.moveErr != nil {
 		return messageIDs[:len(messageIDs)-f.moveRefused], nil, f.moveErr
 	}
@@ -327,6 +338,131 @@ func TestRuleBackfillReportsAnEmptyApplyingPhaseRatherThanNothing(t *testing.T) 
 	}
 	if seen[len(seen)-1] != (RuleBackfillProgress{Phase: RuleBackfillFinished, Done: 0, Total: 0}) {
 		t.Errorf("empty run did not finish: %+v", seen[len(seen)-1])
+	}
+}
+
+func TestRuleBackfillSendsBigMovesInBatchesSoTheBarMoves(t *testing.T) {
+	// The defect this exists for: a rule that filed 2414 messages issued ONE move and reported once, so
+	// the bar sat at its opening reading for the whole operation and read as a hang.
+	const messages = actionBatchSize*2 + 5
+	rule := execRule(t, "r1", "shop.com", execAction(t, domain.RuleMoveTo, "f2"))
+	svc, mail, _, _, actions := backfillFixture(t, rule)
+	stored := make([]domain.MessageSummary, 0, messages)
+	for i := 0; i < messages; i++ {
+		stored = append(stored, backfillMessage(t, fmt.Sprintf("m%d", i), "f1", "billing@shop.com", 0))
+	}
+	mail.messages["f1"] = stored
+
+	var applying []RuleBackfillProgress
+	counts, err := svc.Run(context.Background(), "r1", func(p RuleBackfillProgress) {
+		if p.Phase == RuleBackfillApplying {
+			applying = append(applying, p)
+		}
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if counts.Move != messages {
+		t.Errorf("wrong move count: %+v", counts)
+	}
+	// Three batches: two full and the remainder, each its own server call.
+	if len(actions.moves) != 3 {
+		t.Fatalf("expected 3 batches, got %d", len(actions.moves))
+	}
+	if len(actions.moves[0].ids) != actionBatchSize || len(actions.moves[2].ids) != 5 {
+		t.Errorf("wrong batch sizes: %d, %d", len(actions.moves[0].ids), len(actions.moves[2].ids))
+	}
+	// The opening reading plus one per batch: the bar moves during the run rather than only at its end.
+	if len(applying) != 4 {
+		t.Errorf("expected 4 applying readings, got %d: %+v", len(applying), applying)
+	}
+}
+
+func TestRuleBackfillStopsWhenCancelledAndReportsWhatLanded(t *testing.T) {
+	const messages = actionBatchSize * 3
+	rule := execRule(t, "r1", "shop.com", execAction(t, domain.RuleMoveTo, "f2"))
+	svc, mail, _, _, actions := backfillFixture(t, rule)
+	stored := make([]domain.MessageSummary, 0, messages)
+	for i := 0; i < messages; i++ {
+		stored = append(stored, backfillMessage(t, fmt.Sprintf("m%d", i), "f1", "billing@shop.com", 0))
+	}
+	mail.messages["f1"] = stored
+
+	// Cancelled from inside the first batch, so the run stops between batches rather than at the end.
+	ctx, cancel := context.WithCancel(context.Background())
+	actions.onMove = func() { cancel() }
+
+	counts, err := svc.Run(ctx, "r1", nil)
+	if err != nil {
+		t.Fatalf("a cancel is not an error: %v", err)
+	}
+	if !counts.Cancelled {
+		t.Error("a cancelled run did not say so")
+	}
+	// One batch was issued and seen through; the rest never went.
+	if len(actions.moves) != 1 {
+		t.Errorf("expected 1 batch before the stop, got %d", len(actions.moves))
+	}
+	// The work that landed is reported rather than hidden: those messages really did move.
+	if counts.Move != actionBatchSize {
+		t.Errorf("cancelled run misreported what landed: %+v", counts)
+	}
+}
+
+func TestRuleBackfillStopsScanningWhenCancelled(t *testing.T) {
+	rule := execRule(t, "r1", "news@", execAction(t, domain.RuleMarkRead, ""))
+	svc, mail, _, _, _ := backfillFixture(t, rule)
+	mail.messages["f1"] = []domain.MessageSummary{backfillMessage(t, "m1", "f1", "news@site.com", 0)}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	counts, err := svc.Preview(ctx, "r1", nil)
+	if err != nil {
+		t.Fatalf("a cancel is not an error: %v", err)
+	}
+	if !counts.Cancelled || counts.Scanned != 0 {
+		t.Errorf("scan did not stop on cancel: %+v", counts)
+	}
+}
+
+func TestRuleBackfillStopsFlagsAndDestroysWhenCancelled(t *testing.T) {
+	rule := execRule(t, "r1", "bad.com", execAction(t, domain.RuleMarkRead, ""))
+	svc, mail, _, _, actions := backfillFixture(t, rule)
+	mail.messages["f1"] = []domain.MessageSummary{
+		backfillMessage(t, "m1", "f1", "spam@bad.com", 0),
+		backfillMessage(t, "m2", "f1", "junk@bad.com", 0),
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	actions.onRead = func() { cancel() }
+
+	counts, err := svc.Run(ctx, "r1", nil)
+	if err != nil {
+		t.Fatalf("a cancel is not an error: %v", err)
+	}
+	if counts.MarkRead != 1 || !counts.Cancelled {
+		t.Errorf("flags did not stop on cancel: %+v", counts)
+	}
+
+	// A destroy set gathered by the scan and then stopped before it runs: the mail must still be there.
+	// The cancel is driven from the reporter, which fires once per folder scanned, so the first folder's
+	// matches are planned and the second is never read.
+	destroy := execRule(t, "d1", "bad.com", execAction(t, domain.RuleDestroy, ""))
+	svc2, mail2, _, _, actions2 := backfillFixture(t, destroy)
+	mail2.messages["f1"] = mail.messages["f1"]
+	ctx2, cancel2 := context.WithCancel(context.Background())
+	counts2, err := svc2.Run(ctx2, "d1", func(p RuleBackfillProgress) {
+		if p.Phase == RuleBackfillScanning && p.Done == 1 {
+			cancel2()
+		}
+	})
+	if err != nil {
+		t.Fatalf("a cancel is not an error: %v", err)
+	}
+	if counts2.Destroy != 0 || len(actions2.destroyed) != 0 {
+		t.Errorf("destroy ran after a cancel: %+v", counts2)
+	}
+	if !counts2.Cancelled {
+		t.Error("a cancelled destroy run did not say so")
 	}
 }
 

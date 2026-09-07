@@ -51,7 +51,10 @@ function doneLine(counts: Counts): string {
     if (counts.destroy > 0) {
         parts.push(`${counts.destroy} deleted permanently`)
     }
-    return parts.length === 0 ? 'Nothing changed.' : `${parts.join(', ')}.`
+    const summary = parts.length === 0 ? 'Nothing changed.' : `${parts.join(', ')}.`
+    // A cancelled run says so first. Its work is irreversible, so the counts are what actually
+    // happened to the mailbox before it stopped, not a plan that was abandoned.
+    return counts.cancelled ? `Stopped. ${summary}` : summary
 }
 
 // acts reports whether there is any work in the counts.
@@ -95,7 +98,9 @@ interface RuleBackfillProps {
     phase: backfillPhase
     progress: RuleBackfillProgress | null
     busy: boolean
+    cancelling: boolean
     onRun: (rule: Rule) => void
+    onCancel: () => void
     onDismiss: () => void
 }
 
@@ -103,7 +108,7 @@ interface RuleBackfillProps {
 // reads and acts, the confirmation before it acts and the report afterwards. A backfill runs over a
 // whole backlog unattended, so the confirmation is the only point at which the user can be asked about
 // it at all: it names the exact counts; it says plainly when a rule deletes mail outright.
-export function RuleBackfillDialogs({phase, progress, busy, onRun, onDismiss}: RuleBackfillProps) {
+export function RuleBackfillDialogs({phase, progress, busy, cancelling, onRun, onCancel, onDismiss}: RuleBackfillProps) {
     if (phase.kind === 'working') {
         const percent = barPercent(progress)
         return (
@@ -122,6 +127,11 @@ export function RuleBackfillDialogs({phase, progress, busy, onRun, onDismiss}: R
                         >
                             <div className="progress-fill" style={{width: `${percent}%`}}/>
                         </div>
+                    </div>
+                    <div className="modal-actions">
+                        <button className="btn" onClick={onCancel} disabled={cancelling} autoFocus>
+                            {cancelling ? 'Stopping...' : 'Cancel'}
+                        </button>
                     </div>
                 </div>
             </div>
@@ -177,6 +187,7 @@ export function useRuleBackfill(onChanged: () => void, onError: (message: string
     const [phase, setPhase] = useState<backfillPhase>({kind: 'idle'})
     const [progress, setProgress] = useState<RuleBackfillProgress | null>(null)
     const [busy, setBusy] = useState(false)
+    const [cancelling, setCancelling] = useState(false)
     // The listener is registered once for the life of the component rather than per run: EventsOn's
     // unsubscribe is what stops it; binding it to a run would race the run's own first reading.
     const running = useRef(false)
@@ -192,6 +203,7 @@ export function useRuleBackfill(onChanged: () => void, onError: (message: string
 
     const start = async (rule: Rule) => {
         setBusy(true)
+        setCancelling(false)
         setProgress(null)
         running.current = true
         setPhase({kind: 'working', rule})
@@ -204,6 +216,7 @@ export function useRuleBackfill(onChanged: () => void, onError: (message: string
         } finally {
             running.current = false
             setBusy(false)
+            setCancelling(false)
         }
     }
 
@@ -211,6 +224,7 @@ export function useRuleBackfill(onChanged: () => void, onError: (message: string
     // alongside the error: hiding them would leave the user unsure what had already been done.
     const run = async (rule: Rule) => {
         setBusy(true)
+        setCancelling(false)
         setProgress(null)
         running.current = true
         setPhase({kind: 'working', rule})
@@ -225,15 +239,26 @@ export function useRuleBackfill(onChanged: () => void, onError: (message: string
         } finally {
             running.current = false
             setBusy(false)
+            setCancelling(false)
         }
+    }
+
+    // cancel asks the backend to stop. The call in flight is not abandoned: it comes back with the
+    // work that had already landed, which is what the report then shows, so the dialog stays put
+    // until it does rather than closing on a promise the mailbox has not finished keeping.
+    const cancel = () => {
+        setCancelling(true)
+        void api.cancelRuleBackfill().catch((e) => onError(String(e)))
     }
 
     return {
         phase,
         progress,
         busy,
+        cancelling,
         start: (rule: Rule) => void start(rule),
         run: (rule: Rule) => void run(rule),
+        cancel,
         dismiss: () => setPhase({kind: 'idle'}),
     }
 }

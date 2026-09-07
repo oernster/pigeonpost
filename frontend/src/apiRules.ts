@@ -4,6 +4,7 @@
 // with its own types is exactly the kind of thing that should leave it. The api object spreads what is
 // exported here, so callers still reach these through api.* and nothing else changes.
 import {
+    CancelRuleBackfill,
     DeleteRule,
     ListRules,
     PreviewRuleBackfill,
@@ -63,4 +64,7 @@ export const rulesApi = {
     // nothing; runRuleBackfill applies it and reports what it actually did.
     previewRuleBackfill: (ruleId: string): Promise<RuleBackfill> => PreviewRuleBackfill(ruleId),
     runRuleBackfill: (ruleId: string): Promise<RuleBackfill> => RunRuleBackfill(ruleId),
+    // cancelRuleBackfill stops the run in flight. The call it stops still resolves, with counts
+    // reporting the work that had already landed and cancelled set.
+    cancelRuleBackfill: (): Promise<void> => CancelRuleBackfill(),
 }

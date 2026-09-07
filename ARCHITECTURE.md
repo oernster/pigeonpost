@@ -777,6 +777,21 @@ than successes, so a refused batch does not shorten the bar while the run carrie
 supplies a reporter that emits `rules:backfill-progress`, keeping the application layer free of
 Wails; the front end holds one listener for both phases and draws a determinate bar.
 
+The applying phase sends its work in batches of `actionBatchSize` rather than one call per
+destination. Grouping alone was not enough: a rule filing 2414 messages into one folder issued a
+single `MoveMany` and so reported once, leaving the bar at its opening reading for the whole
+operation, which reads as a hang. The batch is the unit of three things at once: one server round
+trip, one progress step and one cancellation check. It also bounds a single IMAP UID set to a length
+every server accepts.
+
+Cancelling is a context, checked between batches and between folders rather than inside a call: a
+server call already issued is seen through, since abandoning it would leave the run unable to say
+whether those messages moved. The facade derives a cancellable context per run and publishes its
+cancel for `CancelRuleBackfill`, clearing it under a generation so a finished run cannot strand a
+newer one. A cancel is NOT an error: the counts come back with `Cancelled` set, reporting the work
+that had already landed. A backfill's work is irreversible, so a cancel that reported nothing would
+be a lie about the mailbox.
+
 `RuleBackfillProgressDTO` is the one DTO on this surface Wails generates no TypeScript type for,
 since it travels on an event rather than as a bound method's return and generation follows binding
 signatures. Its front-end interface is therefore hand-written: the wire stated twice, so
