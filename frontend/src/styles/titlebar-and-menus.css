@@ -1,14 +1,21 @@
 /* The left group: the app mark and the all-accounts unread badge; nothing else. The menus sit with the
    working controls in the group after this one, so what is left here is the one thing in the bar that is
    not a control, standing where a window's icon belongs and wearing no box of its own.
-   min-width: 0 lets it shrink before the groups to its right do, which is what a narrow window should
-   give up first. */
+
+   It does NOT shrink. It used to carry min-width: 0 so it would give way first in a narrow window, on the
+   reasoning that the one thing here is not a control. What that actually did was measured: the group
+   shrank to 45px while the mark inside it stayed its own 75px, because the artwork is a fixed size, so
+   the mark did not shrink, it slid UNDER the File button and the application's own icon was painted over.
+   The groups to its right are flex-shrink: 0, so it was the only thing that could give. Now nothing in
+   the bar gives: a window too narrow for the whole run pushes the far end past the edge instead, which
+   loses a control the user can get back by widening the window rather than burying the one mark they
+   cannot. The window's own minimum width (see main.go) is what keeps that from happening at all. */
 .titlebar-left {
     display: flex;
     align-items: center;
     gap: 8px;
     justify-content: flex-start;
-    min-width: 0;
+    flex-shrink: 0;
 }
 
 .titlebar-right {

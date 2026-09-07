@@ -53,8 +53,27 @@ const (
 	// mailErrorLogName sits beside the database and holds the raw text of mail errors the interface
 	// replaces with a message fit to read, so a wrong reading of a failure can still be looked up.
 	mailErrorLogName = "mail-errors.log"
-	windowW          = 1200
-	windowH          = 800
+	// The window opens wide enough for the whole title bar and cannot be dragged narrower than it.
+	//
+	// Both numbers are measured rather than chosen. The bar's run of controls needs 1254 CSS pixels of
+	// client width with an ordinary unread badge and 1265 with a four-figure one; at the old 1200 it had
+	// about 1180 and the left group was squeezed to 45 pixels while the app mark inside it stayed its own
+	// 75, so the mark slid under the File button and the application's own icon was painted over. That is
+	// what prompted this. The stylesheet no longer lets the mark be the thing that gives (see
+	// .titlebar-left), so the two changes are belt and braces: this one keeps the bar whole, that one
+	// keeps the mark whole if it is ever not.
+	//
+	// windowMinW is the smallest a 13 inch laptop is taken to be, which is the screen this has to fit:
+	// 1280 device-independent pixels wide, whether that is a 1280 panel or a 1920 one at 150%. It leaves
+	// about 1264 of client width, which covers the bar up to a three-figure unread count. windowW then
+	// sits above it with real room to spare and still fits a 1366 wide panel.
+	//
+	// The height is unchanged. It is the width that overflowed; a 13 inch screen is shorter than it is
+	// wide, so raising the height is what would push the window off the bottom of one.
+	windowW    = 1320
+	windowH    = 800
+	windowMinW = 1280
+	windowMinH = 700
 	// oauthHTTPTimeout bounds each OAuth token endpoint request so a stalled network never hangs a
 	// sign-in or a silent token refresh indefinitely.
 	oauthHTTPTimeout = 30 * time.Second
@@ -199,6 +218,8 @@ func run() error {
 		Title:            windowTitle,
 		Width:            windowW,
 		Height:           windowH,
+		MinWidth:         windowMinW,
+		MinHeight:        windowMinH,
 		AssetServer:      &assetserver.Options{Assets: assets},
 		BackgroundColour: &options.RGBA{R: 22, G: 27, B: 34, A: 1},
 		// Only one PigeonPost runs per user; a second launch reveals the existing instance (which may be

@@ -102,4 +102,17 @@ describe('the stylesheets', () => {
         expect(block).toMatch(/border-color:\s*transparent;/)
         expect(block).toMatch(/background-color:\s*transparent;/)
     })
+
+    // The group holding the app mark must not shrink. It carried min-width: 0 so it would give way first
+    // in a narrow window, which measured badly: the group shrank to 45px while the mark inside it stayed
+    // its own 75px, because the artwork is a fixed size, so the mark slid under the button beside it and
+    // the application's own icon was painted over. Nothing here computes layout, so what is held is the
+    // declaration that decides it.
+    it('keep the group holding the app mark from shrinking', async () => {
+        const {readFileSync} = await nodeFs()
+        const css = withoutComments(readFileSync(`${STYLESHEET_DIR}/titlebar-and-menus.css`, 'utf8'))
+        const block = css.slice(css.indexOf('.titlebar-left {')).split('}')[0]
+        expect(block).toMatch(/flex-shrink:\s*0;/)
+        expect(block).not.toMatch(/min-width:\s*0;/)
+    })
 })
