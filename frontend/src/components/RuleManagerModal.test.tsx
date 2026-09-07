@@ -16,6 +16,9 @@ const apiSpies = vi.hoisted(() => ({
     deleteRule: vi.fn(),
     reorderRules: vi.fn(),
     previewRuleBackfill: vi.fn(),
+    exportRules: vi.fn(),
+    previewRuleImport: vi.fn(),
+    applyRuleImport: vi.fn(),
     runRuleBackfill: vi.fn(),
     cancelRuleBackfill: vi.fn(),
 }))
@@ -106,6 +109,9 @@ describe('RuleManagerModal', () => {
         apiSpies.previewRuleBackfill.mockResolvedValue(noWork)
         apiSpies.runRuleBackfill.mockResolvedValue(noWork)
         apiSpies.cancelRuleBackfill.mockResolvedValue(undefined)
+        apiSpies.exportRules.mockResolvedValue(true)
+        apiSpies.previewRuleImport.mockResolvedValue({cancelled: true})
+        apiSpies.applyRuleImport.mockResolvedValue({added: 0, replaced: 0, disabled: []})
     })
     afterEach(cleanup)
 
@@ -167,6 +173,60 @@ describe('RuleManagerModal', () => {
         // The exclusion carries "and" on its own row; nothing claims it is an alternative.
         expect(screen.getByTitle(/An exclusion always applies/)).toBeTruthy()
         expect(screen.queryByText('or')).toBeNull()
+    })
+
+    // Export and import move a whole rule set between installations. The file dialogs live in Go, so
+    // what is asserted here is that the buttons reach them and that the answer is acted on.
+    it('exports the rules and says so', async () => {
+        renderModal([buildRule()])
+        fireEvent.click(screen.getByText('Export'))
+        await waitFor(() => expect(apiSpies.exportRules).toHaveBeenCalled())
+        await waitFor(() => expect(screen.getByText('Rules exported.')).toBeTruthy())
+    })
+
+    it('says nothing when the export dialog is cancelled', async () => {
+        apiSpies.exportRules.mockResolvedValue(false)
+        renderModal([buildRule()])
+        fireEvent.click(screen.getByText('Export'))
+        await waitFor(() => expect(apiSpies.exportRules).toHaveBeenCalled())
+        expect(screen.queryByText('Rules exported.')).toBeNull()
+    })
+
+    // An imported rule set runs unattended, so the file is described and agreed to before anything is
+    // written: what it holds, what it replaces, what arrives switched off and what deletes mail.
+    it('describes an import before writing anything, then reports what it did', async () => {
+        apiSpies.previewRuleImport.mockResolvedValue({
+            cancelled: false, path: 'C:/tmp/rules.json', file: 'rules.json',
+            add: ['Receipts'], replace: ['Newsletters'], disable: ['Filed elsewhere'],
+            destructive: ['Kill it'],
+        })
+        apiSpies.applyRuleImport.mockResolvedValue({added: 1, replaced: 1, disabled: ['Filed elsewhere']})
+        const {onChanged} = renderModal([buildRule()])
+
+        fireEvent.click(screen.getByText('Import'))
+
+        await waitFor(() => expect(screen.getByText(/rules\.json holds 2 rule/)).toBeTruthy())
+        expect(screen.getByText(/replaced rather than duplicated/)).toBeTruthy()
+        expect(screen.getByText(/Arriving switched off.*Filed elsewhere/)).toBeTruthy()
+        expect(screen.getByText(/1 of them move or delete mail: Kill it/)).toBeTruthy()
+        // Nothing is written until the confirmation is agreed to.
+        expect(apiSpies.applyRuleImport).not.toHaveBeenCalled()
+
+        // The title and the confirm button carry the same words, so the button is taken by role.
+        fireEvent.click(screen.getByRole('button', {name: 'Import rules'}))
+        await waitFor(() => expect(apiSpies.applyRuleImport).toHaveBeenCalledWith('C:/tmp/rules.json'))
+        await waitFor(() =>
+            expect(screen.getByText(/1 added, 1 replaced\. Switched off because they cannot run here: Filed elsewhere\./))
+                .toBeTruthy(),
+        )
+        expect(onChanged).toHaveBeenCalled()
+    })
+
+    it('opens no confirmation when the import dialog is cancelled', async () => {
+        renderModal([buildRule()])
+        fireEvent.click(screen.getByText('Import'))
+        await waitFor(() => expect(apiSpies.previewRuleImport).toHaveBeenCalled())
+        expect(screen.queryByRole('button', {name: 'Import rules'})).toBeNull()
     })
 
     it('marks a destroying rule in the list', () => {

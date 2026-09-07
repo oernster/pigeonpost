@@ -141,6 +141,10 @@ func run() error {
 	// browser-managed WebView profile, which is outside the app's own data directory and not durable).
 	folderUIStateService := application.NewFolderUIStateService(store)
 	ruleService := application.NewRuleService(store, newRuleID)
+	// The transfer service moves a whole rule set between installations through a file. It reads the
+	// accounts and folders this machine holds, because an imported rule names both and neither can
+	// be assumed to exist here.
+	ruleTransferService := application.NewRuleTransferService(store, store, store, newRuleID)
 	// The backfill service is the on-demand half of the rule engine: RuleExecutor above acts on arrivals
 	// during a sync, while this one applies a single rule to mail already stored, when the user asks it to.
 	// It carries out its work through the message action service rather than the server directly, so the
@@ -188,7 +192,7 @@ func run() error {
 	updateService := application.NewUpdateService(
 		update.NewGitHubReleaseSource(), version(), application.PlatformKeyFor(goruntime.GOOS))
 
-	app = NewApp(store.Close, overlay, flasher, tray, watcher, accountService, setupService, microsoftSetupService, mailboxService, unifiedService, snoozeService, syncService, composeService, tagService, tagSyncService, bodyService, actionService, folderService, folderUIStateService, ruleService, ruleBackfillService, templateService, contactService, calendarService, calendarEditService, schedulingService, remoteImageService, caldavService, updateService, mailErrors)
+	app = NewApp(store.Close, overlay, flasher, tray, watcher, accountService, setupService, microsoftSetupService, mailboxService, unifiedService, snoozeService, syncService, composeService, tagService, tagSyncService, bodyService, actionService, folderService, folderUIStateService, ruleService, ruleTransferService, ruleBackfillService, templateService, contactService, calendarService, calendarEditService, schedulingService, remoteImageService, caldavService, updateService, mailErrors)
 	app.title = windowTitle
 
 	err = wails.Run(&options.App{

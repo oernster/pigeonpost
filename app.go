@@ -75,6 +75,7 @@ type App struct {
 	folders       *application.FolderService
 	folderUIState *application.FolderUIStateService
 	rules         *application.RuleService
+	ruleTransfer  *application.RuleTransferService
 	ruleBackfill  *application.RuleBackfillService
 	templates     *application.TemplateService
 	contacts      *application.ContactService
@@ -108,6 +109,7 @@ func NewApp(
 	folders *application.FolderService,
 	folderUIState *application.FolderUIStateService,
 	rules *application.RuleService,
+	ruleTransfer *application.RuleTransferService,
 	ruleBackfill *application.RuleBackfillService,
 	templates *application.TemplateService,
 	contacts *application.ContactService,
@@ -142,6 +144,7 @@ func NewApp(
 		folders:       folders,
 		folderUIState: folderUIState,
 		rules:         rules,
+		ruleTransfer:  ruleTransfer,
 		ruleBackfill:  ruleBackfill,
 		templates:     templates,
 		contacts:      contacts,

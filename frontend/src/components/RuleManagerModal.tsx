@@ -5,6 +5,7 @@ import {ModalClose} from './ModalClose'
 import {ConfirmDialog} from './ConfirmDialog'
 import {RuleEditor, FolderChoice, AccountChoice} from './RuleEditor'
 import {RuleBackfillDialogs, useRuleBackfill} from './RuleBackfill'
+import {RuleTransferDialogs, useRuleTransfer} from './RuleTransfer'
 import {destroys, emptyRule, isDestructive, ruleIsComplete, ruleSummary} from './ruleLabels'
 
 interface RuleManagerModalProps {
@@ -104,6 +105,7 @@ export function RuleManagerModal({accounts, rules, onChanged, onClose}: RuleMana
     }
 
     const backfill = useRuleBackfill(onChanged, setError)
+    const transfer = useRuleTransfer(onChanged, setError)
 
     const remove = (rule: Rule) =>
         void run(async () => {
@@ -267,12 +269,26 @@ export function RuleManagerModal({accounts, rules, onChanged, onClose}: RuleMana
                     </div>
                     <div className="modal-actions spread">
                         <button className="btn" onClick={onClose}>Close</button>
-                        <button className="btn primary" onClick={() => setDraft(emptyRule(rules.length))}>
-                            New rule
-                        </button>
+                        <div className="rule-file-actions">
+                            <button className="btn" onClick={() => void transfer.exportRules()} disabled={transfer.busy}>
+                                Export
+                            </button>
+                            <button className="btn" onClick={() => void transfer.beginImport()} disabled={transfer.busy}>
+                                Import
+                            </button>
+                            <button className="btn primary" onClick={() => setDraft(emptyRule(rules.length))}>
+                                New rule
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
+            <RuleTransferDialogs
+                phase={transfer.phase}
+                busy={transfer.busy}
+                onConfirm={() => void transfer.confirmImport()}
+                onDismiss={transfer.dismiss}
+            />
             <RuleBackfillDialogs
                 phase={backfill.phase}
                 progress={backfill.progress}

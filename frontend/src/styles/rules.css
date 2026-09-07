@@ -64,6 +64,14 @@
     background-color: var(--bg-elev);
 }
 
+/* The file actions sit with New rule at the right of the rules dialog's action row, so Close keeps
+   the left on its own the way every other dialog has it. */
+.rule-file-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
 /* The word between two condition rows, saying how they combine. It sits in the gutter at the card's
    left edge rather than centred, so a column of them reads as one running sentence down the rule. */
 .rule-joiner {

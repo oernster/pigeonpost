@@ -4,9 +4,12 @@
 // with its own types is exactly the kind of thing that should leave it. The api object spreads what is
 // exported here, so callers still reach these through api.* and nothing else changes.
 import {
+    ApplyRuleImport,
     CancelRuleBackfill,
     DeleteRule,
+    ExportRulesToFile,
     ListRules,
+    PreviewRuleImport,
     PreviewRuleBackfill,
     ReorderRules,
     RunRuleBackfill,
@@ -23,6 +26,10 @@ export type RuleAction = main.RuleActionDTO
 // RuleBackfill is what applying one rule to the mail already stored would do or did do. The same
 // shape carries both, so the confirmation and the result read identically.
 export type RuleBackfill = main.RuleBackfillDTO
+// RuleImportPlan is what importing a chosen file would do, reported before anything is written;
+// RuleImportResult is what it then did.
+export type RuleImportPlan = main.RuleImportPlanDTO
+export type RuleImportResult = main.RuleImportResultDTO
 
 // RuleBackfillProgress is how far a running backfill has got. Unlike every other type here it is
 // hand-written rather than generated: it travels on the ruleBackfillProgressEvent event rather than as
@@ -67,4 +74,10 @@ export const rulesApi = {
     // cancelRuleBackfill stops the run in flight. The call it stops still resolves, with counts
     // reporting the work that had already landed and cancelled set.
     cancelRuleBackfill: (): Promise<void> => CancelRuleBackfill(),
+    // exportRules writes every rule to a file the user chooses, reporting whether one was written (a
+    // cancelled dialog is not an error). previewRuleImport reads a chosen file and says what importing
+    // it would do without writing anything; applyRuleImport then imports the file it named.
+    exportRules: (): Promise<boolean> => ExportRulesToFile(),
+    previewRuleImport: (): Promise<RuleImportPlan> => PreviewRuleImport(),
+    applyRuleImport: (path: string): Promise<RuleImportResult> => ApplyRuleImport(path),
 }
