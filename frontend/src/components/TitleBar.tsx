@@ -9,6 +9,15 @@ import {Menu, MenuItem} from './Menu'
 // TitleBarProps is the header's slice of App: the unread badge, the five menu-bar arrays (built by useMenus),
 // the derived gating flags the icon buttons read plus the handlers those buttons fire. It is prop-heavy
 // because the header is the app's whole action bar; each field drives the control that names it.
+// ManagerOpeners is the four manager dialogs the bar can open, grouped because they are one kind of
+// thing and the bar treats them alike: each button just switches its dialog on.
+export interface ManagerOpeners {
+    contacts: Dispatch<SetStateAction<boolean>>
+    calendar: Dispatch<SetStateAction<boolean>>
+    rules: Dispatch<SetStateAction<boolean>>
+    templates: Dispatch<SetStateAction<boolean>>
+}
+
 export interface TitleBarProps {
     unreadCounts: UnreadCountsResult
     fileMenu: MenuItem[]
@@ -24,8 +33,7 @@ export interface TitleBarProps {
     setComposing: Dispatch<SetStateAction<boolean>>
     setSettingUp: Dispatch<SetStateAction<boolean>>
     sync: () => Promise<void>
-    setManagingContacts: Dispatch<SetStateAction<boolean>>
-    setManagingCalendar: Dispatch<SetStateAction<boolean>>
+    managers: ManagerOpeners
     setTheme: Dispatch<SetStateAction<Theme>>
 }
 
@@ -62,7 +70,7 @@ export function TitleBar(props: TitleBarProps) {
         unreadCounts, fileMenu, editMenu, viewMenu, mailMenu, helpMenu,
         selectedAccount, accountSyncing, theme,
         signatureHtml, setComposeInitial, setComposing, setSettingUp, sync,
-        setManagingContacts, setManagingCalendar, setTheme,
+        managers, setTheme,
     } = props
     return (
             <header className="titlebar">
@@ -80,8 +88,25 @@ export function TitleBar(props: TitleBarProps) {
                     <Menu title="File" icon={icons.file} items={fileMenu} align="left"/>
                     <Menu title="Edit" icon={icons.edit} items={editMenu} align="left"/>
                     <Menu title="View" icon={icons.view} items={viewMenu} align="left"/>
-                    <Menu title="Mail" icon={icons.mail} items={mailMenu} align="left"/>
                     <span className="titlebar-sep" aria-hidden="true"/>
+                    <button
+                        className="icon-btn icon-btn-image"
+                        data-tip="Filter rules"
+                        aria-label="Filter rules"
+                        onClick={() => managers.rules(true)}
+                    >
+                        <img src={icons.rules} alt="" draggable={false}/>
+                    </button>
+                    <button
+                        className="icon-btn icon-btn-image"
+                        data-tip="Message templates"
+                        aria-label="Message templates"
+                        onClick={() => managers.templates(true)}
+                    >
+                        <img src={icons.template} alt="" draggable={false}/>
+                    </button>
+                    <span className="titlebar-sep" aria-hidden="true"/>
+                    <Menu title="Mail" icon={icons.mail} items={mailMenu} align="left"/>
                     <button
                         className="icon-btn icon-btn-image"
                         data-tip="Compose"
@@ -117,7 +142,7 @@ export function TitleBar(props: TitleBarProps) {
                         className="icon-btn icon-btn-image"
                         data-tip="Contacts"
                         aria-label="Contacts"
-                        onClick={() => setManagingContacts(true)}
+                        onClick={() => managers.contacts(true)}
                     >
                         <img src={icons.contacts} alt="" draggable={false}/>
                     </button>
@@ -125,7 +150,7 @@ export function TitleBar(props: TitleBarProps) {
                         className="icon-btn icon-btn-image"
                         data-tip="Calendar"
                         aria-label="Calendar"
-                        onClick={() => setManagingCalendar(true)}
+                        onClick={() => managers.calendar(true)}
                     >
                         <img src={icons.calendar} alt="" draggable={false}/>
                     </button>

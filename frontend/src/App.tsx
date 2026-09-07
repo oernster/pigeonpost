@@ -1189,8 +1189,8 @@ function App() {
                 setComposing={setComposing}
                 setSettingUp={setSettingUp}
                 sync={sync}
-                setManagingContacts={setManagingContacts}
-                setManagingCalendar={setManagingCalendar}
+                managers={{contacts: setManagingContacts, calendar: setManagingCalendar,
+                    rules: setManagingRules, templates: setManagingTemplates}}
                 setTheme={setTheme}
             />
             <ErrorBar message={error} onDismiss={() => setError('')}/>

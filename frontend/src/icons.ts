@@ -3,9 +3,10 @@
 // rather than carrying a path of its own.
 //
 // The files are generated from the masters in assets/ at the repo root by `go run ./tools/genicons`,
-// which the build runs before it builds. They are not committed, exactly as the About dialog's
-// pigeonpost.png is not: a missing one fails the frontend build, which is what says the generator has
-// not been run.
+// which the build runs before it builds. Both the masters and the derived glyphs are committed, as the
+// About dialog's pigeonpost.png is: the front end imports each one, so a missing file fails the build
+// rather than shipping a bar with a gap in it. Adding a glyph therefore means adding its master, running
+// the generator and committing both.
 import addAccount from './assets/icons/add-account.png'
 import archive from './assets/icons/archive.png'
 import calendar from './assets/icons/calendar.png'
@@ -22,9 +23,11 @@ import junk from './assets/icons/junk.png'
 import lightMode from './assets/icons/light-mode.png'
 import mail from './assets/icons/mail.png'
 import outbox from './assets/icons/outbox.png'
+import rules from './assets/icons/rules.png'
 import sentMessages from './assets/icons/sent-messages.png'
 import snooze from './assets/icons/snooze.png'
 import sync from './assets/icons/sync.png'
+import template from './assets/icons/template.png'
 import view from './assets/icons/view.png'
 
 export const icons = {
@@ -49,9 +52,11 @@ export const icons = {
     lightMode,
     mail,
     outbox,
+    rules,
     sentMessages,
     snooze,
     sync,
+    template,
     view,
 } as const
 
