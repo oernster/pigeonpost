@@ -140,8 +140,14 @@ concern, so read it before attaching it to anything.
   holds a copy of every message you have, so a count there would be the whole mailbox rather than anything
   about archived mail. Reading a message marks it read everywhere it appears, which on Gmail is every
   label it carries. Filter rules combine several conditions (all fields at
-  once; or From, To, Cc, any recipient, Subject, sender domain) with all-or-any matching and a per-condition
-  match-case switch, then mark read, flag, move to a folder of your choice or delete permanently. A rule
+  once; or From, To, Cc, any recipient, Subject, sender domain) with all-or-any matching, a per-condition
+  NOT switch and a per-condition match-case switch, then mark read, flag, move to a folder of your choice
+  or delete permanently. NOT reverses whatever the condition compares, so every comparison has its
+  opposite: is not, does not start with, does not end with, does not contain. A negated condition is an
+  exclusion, which a rule applies whatever its match mode, so one rule can say any of these, never those:
+  a rule filing two music shops keeps filing both while excluding a sender you never want filed. The
+  editor prints the joining word between the rows, marking an exclusion as one, so a rule reads as what
+  it does. A new rule starts on all-of-these, where a second condition narrows it. A rule
   runs on every account unless you limit it to the ones you pick. Delete permanently means exactly that: removed on the server,
   never cached and not recoverable. On most providers the message is expunged where it stands and never
   touches Trash. Gmail is the exception: it treats its folders as labels and answers an expunge by

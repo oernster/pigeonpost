@@ -718,10 +718,22 @@ actions. A rule naming no account covers every account, including one added afte
 quietly stop covering a user's mail the moment they add an address. `RulesForAccount` narrows the set before
 evaluation, so scope is enforced in one place rather than checked per message. A condition matches one
 field (all fields, From, To, Cc, any recipient, Subject or sender domain) against a value with an operator
-(contains, is, starts with, ends with or does not contain), case-insensitively unless the condition sets
-its case-sensitivity flag. The all-fields option reaches the sender, every recipient, the subject and the
-sender's domain at once; it is what a new condition starts on, alongside an any-of-these match mode,
-because narrowing a rule is easier than knowing to widen it. Bcc is deliberately absent: the sending
+(contains, is, starts with or ends with), case-insensitively unless the condition sets its
+case-sensitivity flag, optionally NEGATED. Negation is a property of the condition rather than of one
+operator, so every comparison has its opposite; the earlier `RuleOpNotContains` is retired into
+contains-and-negated and its stored value stays reserved. A negation is read against the whole field: it
+holds only when NO candidate string satisfies the operator, so "From does not contain acme.com" is false
+when the address holds it even though the display name does not. The all-fields option reaches the sender,
+every recipient, the subject and the sender's domain at once; it is what a new condition starts on,
+alongside an all-of-these match mode, so a second condition narrows the rule.
+
+The match mode combines the conditions, with one qualification: under `RuleMatchAny` a NEGATED condition
+is still required, while the plain ones combine with or. A negation is an exclusion; an exclusion offered
+as one arm of an or is satisfied by almost every message the rule was never about, so the rule
+stops being about its subject at all: a rule filing two music shops widened, on the addition of a single
+exclusion, to filing an entire mailbox. Nobody writes an exclusion meaning "or anything that is not
+this". `Rule.matchesAny` is what says so; a rule holding only exclusions is satisfied by meeting all of
+them. This changes nothing for a rule with no negated condition. Bcc is deliberately absent: the sending
 server strips it, so a received message never carries one and such a condition could never fire. The
 actions are mark read, flag, move to a named folder and delete permanently.
 
@@ -754,6 +766,15 @@ it exempted every message arriving into a filed-clean mailbox from the destructi
 and every time; for anyone who keeps their inbox at zero a destroying rule then essentially never ran.
 It also cannot live on the folder row, because `SaveFolders` clears and rewrites every folder for an
 account on each sync and would take the mark with it, re-arming the exemption forever.
+
+`SaveFolders` also sweeps the messages whose folder has gone, in the same transaction. A folder id is its
+account plus its path, so renaming or moving a folder brings the mailbox back under a NEW id while every
+cached message keeps the old one: nothing lists those rows, nothing counts them and nothing deleted them,
+so they accumulated for the life of the cache (one account held 2,439 of them across 18 dead folder ids).
+The sweep is not limited to the account being saved, since a row is an orphan only when no folder
+anywhere references it and another account's folders are untouched by that transaction. `schemaV54`
+clears what earlier versions left behind, so an existing installation does not wait for a full account
+sync. A message row is a cache of server data, so dropping it costs a re-fetch and nothing else.
 
 **Applying a rule on demand.** `RuleBackfillService` is the on-demand counterpart, reached by the
 Now button on a rule's row. It is
@@ -824,7 +845,11 @@ case-insensitively, which is all any of them ever did. `schemaV52` adds the `rul
 a rule with no row there applies everywhere, so nothing needed backfilling. `schemaV53` adds
 `folder_baseline` and marks every folder already in the database, since those installations established
 their baseline through ordinary use; a folder written after that step, which is what a newly added
-account produces, has no row and so still gets its one protected pass.
+account produces, has no row and so still gets its one protected pass. `schemaV55` puts every
+one-condition rule on the all mode: with one condition the two modes are identical, so no rule changes
+what it matches, while a second condition then narrows rather than widens it. `schemaV56` adds the
+per-condition negation flag and rewrites each stored not-contains condition to contains-and-negated,
+which is the same test under the spelling every operator now shares.
 
 The editor keeps the scope and a move destination consistent: a scoped rule is offered only folders in
 the accounts it covers; narrowing the scope clears a destination that falls outside it. Without
@@ -849,6 +874,14 @@ surface nothing on failure or when up to date; the manual check reports both.
 
 Wrapped with `fmt.Errorf("...: %w", err)` and matched with `errors.Is` against sentinel errors. No
 custom error types beyond sentinels.
+
+A message the cache no longer holds is one of those sentinels (`application.ErrMessageNotCached`) rather
+than a bare `sql.ErrNoRows`, because it is a state the interface meets in normal use: a list read before
+a sync, a move or a folder rename still shows rows whose messages the store no longer has; every
+action on such a row then asks for a message that is not there. `friendlyMailError` turns it into a sentence
+saying the message has moved on, so the reader is never shown the query that failed. The front end
+re-reads the open folder when a body cannot be read, so the row leaves the list instead of staying there
+unusable. A message that is still cached and merely failed to fetch survives that re-read.
 
 ## Quality enforcement
 

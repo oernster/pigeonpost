@@ -146,12 +146,22 @@ no-op and passes vacuously. Those steps are tested against a database built at t
 upgrades FROM: apply `migrations[:n]` by hand, set `PRAGMA user_version = n`, write the old-shape rows,
 then `Open` the file so the real migration runs and assert on what comes back.
 
-`TestRuleMigrationCarriesLegacyRules` (a flat rule reads back as an equivalent one-condition rule) and
-`TestFolderBaselineMigrationMarksExistingFolders` (an existing folder comes out baselined, so the first
-sync after updating does not re-arm the destructive-rule exemption) are the two worked examples, each
-paired with a fresh-database counterpart proving the other side. The `n` in each is a fixed number with
-a comment saying so, never an offset from `schemaVersion`, so a later migration cannot quietly move the
-test off the step it exists to cover.
+The worked examples, each paired with a fresh-database counterpart proving the other side:
+
+- `TestRuleMigrationCarriesLegacyRules`: a flat rule reads back as an equivalent one-condition rule.
+- `TestFolderBaselineMigrationMarksExistingFolders`: an existing folder comes out baselined, so the
+  first sync after updating does not re-arm the destructive-rule exemption.
+- `TestOrphanMessageMigrationClearsWhatEarlierVersionsLeft`: a message whose folder has gone is
+  cleared, while one whose folder is still there is not.
+- `TestRuleMatchModeMigrationDisarmsOneConditionRules`: a one-condition rule moves to the all mode
+  (identical behaviour with one condition), while a two-condition rule keeps the mode it was given.
+- `TestNegateMigrationRewritesTheRetiredOperator`: a not-contains condition reads back as
+  contains-and-negated, the same test under the spelling every operator now shares.
+
+The `n` in each is a fixed number with a comment saying so, never an offset from `schemaVersion`, so a
+later migration cannot quietly move the test off the step it exists to cover. Each was also watched to
+fail: a migration that runs against nothing passes vacuously. The match-mode step did exactly that
+until the test caught that `schemaVersion` had not been bumped with it.
 
 ## Skippable live integration tests
 

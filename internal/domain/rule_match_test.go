@@ -300,3 +300,54 @@ func TestRetiredNotContainsFoldsIntoANegatedCondition(t *testing.T) {
 		t.Error("the folded condition stopped matching a message that does not contain the text")
 	}
 }
+
+// TestAnyModeRuleWithSeveralExclusions encodes a whole rule as the editor writes it, rather than one
+// condition at a time: three plain conditions under "any" plus three negated ones. It is the shape a
+// rule takes in use; it is what says, in a form that can be re-run, how such a rule reads:
+//
+//	(contains "7digital" OR contains "boomkat" OR contains "flac")
+//	AND NOT contains "mediamonkey" AND NOT contains "peter" AND NOT contains "barbara"
+func TestAnyModeRuleWithSeveralExclusions(t *testing.T) {
+	positive := func(text string) RuleCondition {
+		t.Helper()
+		return mustCondition(t, RuleFieldAll, RuleOpContains, text)
+	}
+	excluded := func(text string) RuleCondition {
+		t.Helper()
+		c, err := NewRuleConditionFull(RuleFieldAll, RuleOpContains, text, false, true)
+		if err != nil {
+			t.Fatalf("condition: %v", err)
+		}
+		return c
+	}
+	rule := mustRule(t, RuleSpec{
+		Enabled: true, MatchMode: RuleMatchAny,
+		Conditions: []RuleCondition{
+			positive("7digital"), positive("boomkat"), positive("flac"),
+			excluded("mediamonkey"), excluded("peter"), excluded("barbara"),
+		},
+		Actions: []RuleAction{mustAction(t, RuleFlag, "")},
+	})
+	cases := []struct {
+		name    string
+		subject string
+		want    bool
+	}{
+		{"one alternative, no exclusion", "Your 7digital receipt", true},
+		{"another alternative", "boomkat order", true},
+		{"third alternative", "your flac download", true},
+		{"an alternative and an exclusion", "7digital for mediamonkey", false},
+		{"an alternative and a different exclusion", "boomkat order from peter", false},
+		{"an alternative and the last exclusion", "flac for barbara", false},
+		{"no alternative at all", "an unrelated message", false},
+		{"no alternative and no exclusion either", "nothing to see", false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			m := ruleMessage(t, "Someone", "someone@example.com", c.subject)
+			if got := rule.Matches(m); got != c.want {
+				t.Errorf("got %v, want %v", got, c.want)
+			}
+		})
+	}
+}
