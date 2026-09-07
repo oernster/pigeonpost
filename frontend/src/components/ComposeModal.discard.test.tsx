@@ -173,6 +173,86 @@ describe('ComposeModal: discard guard', () => {
     })
 })
 
+// The recovery slot is the local snapshot taken while a message is being written, so a crash or a
+// stray close does not lose it. Discarding must clear it. It did not, so the failure only showed on
+// the NEXT launch: the message is gone from the screen while its snapshot is still on disk, so the
+// app opens offering to recover a message the user watched itself throw away.
+//
+// The autosave is debounced, so these drive the clock past it to get a snapshot written first,
+// which is the state the bug needs.
+const AUTOSAVE_WAIT_MS = 2000
+
+describe('discarding a message', () => {
+    // discardIt opens the guard and agrees to it.
+    const discardIt = () => {
+        fireEvent.keyDown(document, {key: 'Escape'})
+        const dialog = discardDialog()!
+        const confirm = Array.from(dialog.querySelectorAll('button')).find((b) => b.textContent === 'Discard')
+        fireEvent.click(confirm!)
+    }
+
+    it('clears the recovery snapshot it had already written', () => {
+        const {onClose, toInput} = renderCompose()
+        fireEvent.change(toInput(), {target: {value: 'bob@example.com'}})
+        act(() => {
+            vi.advanceTimersByTime(AUTOSAVE_WAIT_MS)
+        })
+        expect(apiSpies.saveDraftRecovery).toHaveBeenCalled()
+
+        discardIt()
+
+        expect(onClose).toHaveBeenCalled()
+        expect(apiSpies.clearDraftRecovery).toHaveBeenCalled()
+    })
+
+    // The debounce is the second half of the same bug: a snapshot already scheduled must not land after
+    // the message has been thrown away, which would write the slot straight back.
+    it('does not let a pending snapshot land after the discard', () => {
+        const {toInput} = renderCompose()
+        fireEvent.change(toInput(), {target: {value: 'bob@example.com'}})
+
+        discardIt()
+        apiSpies.saveDraftRecovery.mockClear()
+        act(() => {
+            vi.advanceTimersByTime(AUTOSAVE_WAIT_MS)
+        })
+
+        expect(apiSpies.saveDraftRecovery).not.toHaveBeenCalled()
+    })
+
+    // The other way to the same state, taking no confirmation at all: write something, so a
+    // snapshot lands, then empty it out again. The compose is then dirty with no content, so closing
+    // asks nothing and goes straight out. The autosave would have cleared the slot itself, yet only
+    // after its debounce, which closing the window cancels.
+    it('clears the snapshot when an emptied-out compose closes without asking', () => {
+        const {onClose, toInput} = renderCompose()
+        fireEvent.change(toInput(), {target: {value: 'bob@example.com'}})
+        act(() => {
+            vi.advanceTimersByTime(AUTOSAVE_WAIT_MS)
+        })
+        expect(apiSpies.saveDraftRecovery).toHaveBeenCalled()
+
+        fireEvent.change(toInput(), {target: {value: ''}})
+        fireEvent.keyDown(document, {key: 'Escape'})
+
+        expect(discardDialog()).toBeNull()
+        expect(onClose).toHaveBeenCalled()
+        expect(apiSpies.clearDraftRecovery).toHaveBeenCalled()
+    })
+
+    // The limit on all of the above. The recovery slot is a single slot, so a compose that never wrote
+    // anything must not clear it: an untouched compose opened and closed over the top of a snapshot left
+    // by an earlier session would otherwise throw that message away, which is the very loss the slot
+    // exists to prevent.
+    it('leaves the slot alone when the compose wrote nothing', () => {
+        const {onClose} = renderCompose()
+        fireEvent.keyDown(document, {key: 'Escape'})
+
+        expect(onClose).toHaveBeenCalled()
+        expect(apiSpies.clearDraftRecovery).not.toHaveBeenCalled()
+    })
+})
+
 // The mock covers the api in both directions: the afterEach above catches a method reached with no
 // spy; this catches the opposite, a spy declared under a name the api does not have, which binds to
 // nothing, so every test configuring it would be configuring a stub the code can never call.

@@ -192,10 +192,36 @@ export function ComposeModal({accountId, senders, initial, canSaveDraft, onMarkR
         to.trim() !== '' || cc.trim() !== '' || bcc.trim() !== '' || subject.trim() !== '' ||
         (editor?.getText() ?? '').trim() !== ''
     const requestClose = () => {
-        if (autosave.isDirty() && composedContent()) {
+        if (!autosave.isDirty()) {
+            // Nothing was ever written for this compose, so there is no snapshot of it to clear. It is
+            // left alone rather than cleared anyway: the recovery slot is a single slot, so clearing it
+            // here would throw away a snapshot left by an earlier session that the user has not yet
+            // answered for.
+            onClose()
+            return
+        }
+        if (composedContent()) {
             setConfirmDiscard(true)
             return
         }
+        // Dirty with nothing left in it: closing asks nothing, though a snapshot was written before the
+        // user emptied it out. The autosave clears the slot itself in that case, though only after its
+        // debounce, which closing the window cancels; so the clear happens here instead.
+        discard()
+    }
+
+    // discard throws the message away for good, which means the local recovery slot goes with it. Closing
+    // alone was not enough and the failure only showed on the NEXT launch: the message left the screen
+    // while the snapshot taken as it was written stayed on disk, so the app opened offering to recover a
+    // message the user had just watched it discard. Applying a template made it reliable rather than
+    // occasional, since a template fills the compose at once and the snapshot is written a second and a
+    // half later, whether or not the user typed anything themselves.
+    //
+    // Stopping the autosave first is the other half. The snapshot is debounced, so one already scheduled
+    // would otherwise land after the clear and write the slot straight back.
+    const discard = () => {
+        autosave.stopAutosave()
+        void api.clearDraftRecovery()
         onClose()
     }
     const dismiss = useBackdropDismiss(requestClose)
@@ -672,7 +698,7 @@ export function ComposeModal({accountId, senders, initial, canSaveDraft, onMarkR
                     title="Discard message?"
                     message="This message has not been sent or saved as a draft. Discard it?"
                     confirmLabel="Discard"
-                    onConfirm={onClose}
+                    onConfirm={discard}
                     onCancel={() => setConfirmDiscard(false)}
                 />
             )}
