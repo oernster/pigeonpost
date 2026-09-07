@@ -2,6 +2,8 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -71,5 +73,42 @@ func TestRuleBackfillProgressWireShape(t *testing.T) {
 	const want = `{"phase":"scanning","done":3,"total":7}`
 	if string(encoded) != want {
 		t.Errorf("progress wire shape changed:\n got %s\nwant %s", encoded, want)
+	}
+}
+
+// TestBackfillErrorIsBoundedForTheInterface guards a defect that was reported as "a wall of horrible
+// errors": a cancelled backfill produced one failure per message and errors.Join handed all of them to
+// a banner meant for a sentence. The cause is fixed (the work no longer runs on a cancellable context),
+// but a bad server can still fail every batch, so the interface is protected rather than trusted.
+func TestBackfillErrorIsBoundedForTheInterface(t *testing.T) {
+	const failures = 200
+	parts := make([]error, 0, failures)
+	for i := 0; i < failures; i++ {
+		parts = append(parts, fmt.Errorf("remove moved message %d from cache", i))
+	}
+
+	summarised := summariseBackfillError(errors.Join(parts...))
+	lines := strings.Split(summarised.Error(), "\n")
+	if len(lines) != maxReportedBackfillFailures+1 {
+		t.Fatalf("expected %d lines, got %d", maxReportedBackfillFailures+1, len(lines))
+	}
+	// The count is the point: four failures and four hundred read very differently to whoever sees it.
+	if want := "and 197 more like this"; lines[len(lines)-1] != want {
+		t.Errorf("wrong tail: %q, want %q", lines[len(lines)-1], want)
+	}
+	if lines[0] != "remove moved message 0 from cache" {
+		t.Errorf("first failure not shown: %q", lines[0])
+	}
+}
+
+// TestBackfillErrorPassesASmallOneThrough keeps the summariser from rewriting an error that was already
+// readable, since a rewrite would lose the wrapping errors.Is depends on.
+func TestBackfillErrorPassesASmallOneThrough(t *testing.T) {
+	one := errors.New("one thing went wrong")
+	if got := summariseBackfillError(one); got != one {
+		t.Errorf("a single error was rewritten: %v", got)
+	}
+	if summariseBackfillError(nil) != nil {
+		t.Error("nil became an error")
 	}
 }

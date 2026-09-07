@@ -179,33 +179,46 @@ type backfillTarget struct {
 // its first step. A bar that learns its own length as it goes cannot say how far along it is, which is
 // the whole point of drawing one.
 func (s *RuleBackfillService) plan(ctx context.Context, ruleID string, to RuleBackfillReport) (*backfillPlan, error) {
-	rule, err := s.findRule(ctx, ruleID)
+	work := workContext(ctx)
+	rule, err := s.findRule(work, ruleID)
 	if err != nil {
 		return nil, err
 	}
-	targets, errs, err := s.targets(ctx, rule)
+	targets, errs, err := s.targets(work, rule)
 	if err != nil {
 		return nil, err
 	}
 	plan := newBackfillPlan()
 	report(to, RuleBackfillScanning, 0, len(targets))
 	for i, t := range targets {
-		// Checked per folder rather than per message: one folder's read is a single store call, so this
-		// is the finest grain at which the scan can be stopped.
+		// Checked BETWEEN folders, never during one: a read already issued runs on work, which cannot be
+		// cancelled, so a cancel stops the next folder rather than failing the one in hand.
 		if ctx.Err() != nil {
 			plan.cancelled = true
 			break
 		}
-		messages, err := s.store.ListMessages(ctx, t.folder.ID())
+		messages, err := s.store.ListMessages(work, t.folder.ID())
 		if err != nil {
 			errs = append(errs, fmt.Errorf("rules: backfill: list messages in %q: %w", t.folder.ID(), err))
 		} else {
-			s.planFolder(ctx, t.account, t.folder, messages, rule, plan, &errs)
+			s.planFolder(work, t.account, t.folder, messages, rule, plan, &errs)
 		}
 		report(to, RuleBackfillScanning, i+1, len(targets))
 	}
 	return plan, errors.Join(errs...)
 }
+
+// workContext is the context every store and server call of a backfill runs on: the caller's, with
+// its cancellation stripped. Cancelling is a decision to STOP, not a decision to abandon what is
+// already in flight; the two are not the same call.
+//
+// Measured, not theorised: passing the cancellable context down meant a cancel landed inside
+// MessageActionService.MoveMany AFTER the server had moved a batch of 200 and BEFORE their rows were
+// dropped from the cache. Every one of those cache deletes failed with "context canceled", so the
+// mail had moved on the server while the local cache still listed it where it used to be; the
+// user was handed two hundred joined errors. The work is therefore uncancellable by construction and
+// the cancellation is read only between batches, where stopping costs nothing.
+func workContext(ctx context.Context) context.Context { return context.WithoutCancel(ctx) }
 
 // targets lists every folder the rule will be evaluated over. An account whose folders cannot be read
 // contributes an error and no targets, so the rest of the backfill still runs; only a failure to list

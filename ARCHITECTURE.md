@@ -784,13 +784,26 @@ operation, which reads as a hang. The batch is the unit of three things at once:
 trip, one progress step and one cancellation check. It also bounds a single IMAP UID set to a length
 every server accepts.
 
-Cancelling is a context, checked between batches and between folders rather than inside a call: a
-server call already issued is seen through, since abandoning it would leave the run unable to say
-whether those messages moved. The facade derives a cancellable context per run and publishes its
-cancel for `CancelRuleBackfill`, clearing it under a generation so a finished run cannot strand a
-newer one. A cancel is NOT an error: the counts come back with `Cancelled` set, reporting the work
-that had already landed. A backfill's work is irreversible, so a cancel that reported nothing would
-be a lie about the mailbox.
+Cancelling separates the decision to STOP from the context the work runs on. `workContext` is
+where that separation lives: every store and server call runs on `context.WithoutCancel` of the
+caller's, while the caller's own context is read only between batches and between folders.
+
+Threading the cancellable context straight down was tried first and is the thing to avoid. A cancel
+then landed INSIDE `MessageActionService.MoveMany`, after the server had moved a batch of 200 and
+before their rows were dropped from the cache; every one of those cache deletes failed with
+`context canceled`. The mail had moved on the server while the local cache still listed it where it
+had been; two hundred joined errors reached the interface. Stopping between batches costs
+nothing because a batch is bounded; stopping inside one costs consistency.
+
+The facade derives a cancellable context per run and publishes its cancel for `CancelRuleBackfill`,
+clearing it under a generation so a finished run cannot strand a newer one. A cancel is NOT an
+error: the counts come back with `Cancelled` set, reporting the work that had already landed. A
+backfill's work is irreversible, so a cancel that reported nothing would be a lie about the mailbox.
+
+What does reach the interface is bounded. A backfill acts on thousands of messages, so a failing
+server can produce thousands of errors; `summariseBackfillError` shows the first
+`maxReportedBackfillFailures` and then says how many more there were, since the difference between
+four failures and four hundred is the whole story and a banner is meant for a sentence.
 
 `RuleBackfillProgressDTO` is the one DTO on this surface Wails generates no TypeScript type for,
 since it travels on an event rather than as a bound method's return and generation follows binding

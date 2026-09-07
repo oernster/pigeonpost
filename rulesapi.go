@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 
@@ -127,7 +128,7 @@ func (a *App) PreviewRuleBackfill(ruleID string) (RuleBackfillDTO, error) {
 	ctx, done := a.beginBackfill()
 	defer done()
 	counts, err := a.ruleBackfill.Preview(ctx, ruleID, a.emitBackfillProgress)
-	return ruleBackfillToDTO(counts), err
+	return ruleBackfillToDTO(counts), summariseBackfillError(err)
 }
 
 // RunRuleBackfill applies the named rule to the mail already in the mailboxes and reports what it did.
@@ -137,7 +138,29 @@ func (a *App) RunRuleBackfill(ruleID string) (RuleBackfillDTO, error) {
 	ctx, done := a.beginBackfill()
 	defer done()
 	counts, err := a.ruleBackfill.Run(ctx, ruleID, a.emitBackfillProgress)
-	return ruleBackfillToDTO(counts), err
+	return ruleBackfillToDTO(counts), summariseBackfillError(err)
+}
+
+// maxReportedBackfillFailures bounds how many of a backfill's failures reach the interface. A backfill
+// acts on thousands of messages, so a bad server or a bad batch can produce thousands of errors; joined,
+// they arrive as one unreadable wall in a banner meant for a sentence. Three is enough to show what kind
+// of failure it is; the count that follows is what says how widespread it was.
+const maxReportedBackfillFailures = 3
+
+// summariseBackfillError turns a joined error into something a person can read. errors.Join separates
+// its parts with newlines, which is what makes the count possible; the parts beyond the cap are reduced
+// to how many there were rather than dropped silently, since the difference between four failures and
+// four hundred is the whole story.
+func summariseBackfillError(err error) error {
+	if err == nil {
+		return nil
+	}
+	failures := strings.Split(err.Error(), "\n")
+	if len(failures) <= maxReportedBackfillFailures {
+		return err
+	}
+	shown := strings.Join(failures[:maxReportedBackfillFailures], "\n")
+	return fmt.Errorf("%s\nand %d more like this", shown, len(failures)-maxReportedBackfillFailures)
 }
 
 // CancelRuleBackfill stops the backfill in flight, if there is one. It is safe to call when none is

@@ -21,8 +21,11 @@ type fakeBackfillActions struct {
 	flagErr    error
 	// onRead and onMove fire inside the call, so a test can cancel part way through a run rather than
 	// only before it starts.
-	onRead     func()
-	onMove     func()
+	onRead func()
+	onMove func()
+	// moveCtxErr records what each move's own context reported AFTER the cancel fired inside it, which
+	// is how the cache-write failure was actually observed.
+	moveCtxErr []error
 	moveErr    error
 	destroyErr error
 	// moveRefused and destroyRefused are the ids a failing call leaves behind, so a test can model a
@@ -56,12 +59,15 @@ func (f *fakeBackfillActions) MarkFlagged(_ context.Context, messageID string, _
 	return nil
 }
 
-func (f *fakeBackfillActions) MoveMany(_ context.Context, messageIDs []string, destFolderID string) (
+func (f *fakeBackfillActions) MoveMany(ctx context.Context, messageIDs []string, destFolderID string) (
 	[]string, map[string]string, error) {
 	f.moves = append(f.moves, backfillMoveCall{ids: messageIDs, dest: destFolderID})
 	if f.onMove != nil {
 		f.onMove()
 	}
+	// Read after the hook, standing in for the cache writes MessageActionService.MoveMany makes once the
+	// server has agreed: those are what failed when the run's own context was cancellable.
+	f.moveCtxErr = append(f.moveCtxErr, ctx.Err())
 	if f.moveErr != nil {
 		return messageIDs[:len(messageIDs)-f.moveRefused], nil, f.moveErr
 	}
@@ -463,6 +469,33 @@ func TestRuleBackfillStopsFlagsAndDestroysWhenCancelled(t *testing.T) {
 	}
 	if !counts2.Cancelled {
 		t.Error("a cancelled destroy run did not say so")
+	}
+}
+
+func TestRuleBackfillCancelDoesNotAbortTheCallInFlight(t *testing.T) {
+	// The defect: cancelling passed straight down into MessageActionService.MoveMany, landing AFTER the
+	// server had moved 200 messages and BEFORE their rows were dropped from the cache. Every cache delete
+	// then failed with "context canceled", so the mail had moved on the server while the cache still
+	// listed it where it was; the user got two hundred joined errors.
+	rule := execRule(t, "r1", "shop.com", execAction(t, domain.RuleMoveTo, "f2"))
+	svc, mail, _, _, actions := backfillFixture(t, rule)
+	mail.messages["f1"] = []domain.MessageSummary{
+		backfillMessage(t, "m1", "f1", "billing@shop.com", 0),
+		backfillMessage(t, "m2", "f1", "orders@shop.com", 0),
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	actions.onMove = func() { cancel() }
+
+	counts, err := svc.Run(ctx, "r1", nil)
+	if err != nil {
+		t.Fatalf("a cancel must not surface as an error: %v", err)
+	}
+	// The batch's own context is still live after the cancel, so the work it does afterwards succeeds.
+	if len(actions.moveCtxErr) != 1 || actions.moveCtxErr[0] != nil {
+		t.Errorf("the call in flight saw the cancel: %v", actions.moveCtxErr)
+	}
+	if counts.Move != 2 || !counts.Cancelled {
+		t.Errorf("wrong outcome: %+v", counts)
 	}
 }
 

@@ -50,13 +50,16 @@ func (s *RuleBackfillService) Run(ctx context.Context, ruleID string, to RuleBac
 	if err != nil {
 		errs = append(errs, err)
 	}
+	// work carries no cancellation, so a batch already issued completes rather than failing part way
+	// through; run holds the caller's context, which is read only between batches. See workContext.
+	work := workContext(ctx)
 	run := &backfillRun{ctx: ctx, to: to, total: plan.actionCount()}
 	report(to, RuleBackfillApplying, 0, run.total)
 	done := RuleBackfillCounts{Scanned: plan.counts.Scanned}
-	done.MarkRead = s.applyFlags(ctx, plan.markRead, s.actions.MarkRead, "mark read", run, &errs)
-	done.Flag = s.applyFlags(ctx, plan.flag, s.actions.MarkFlagged, "flag", run, &errs)
-	done.Move = s.applyMoves(ctx, plan, run, &errs)
-	done.Destroy = s.applyDestroys(ctx, plan, run, &errs)
+	done.MarkRead = s.applyFlags(work, plan.markRead, s.actions.MarkRead, "mark read", run, &errs)
+	done.Flag = s.applyFlags(work, plan.flag, s.actions.MarkFlagged, "flag", run, &errs)
+	done.Move = s.applyMoves(work, plan, run, &errs)
+	done.Destroy = s.applyDestroys(work, plan, run, &errs)
 	done.Cancelled = plan.cancelled || run.stopped()
 	report(to, RuleBackfillFinished, run.done, run.total)
 	return done, errors.Join(errs...)
@@ -83,8 +86,9 @@ type backfillRun struct {
 }
 
 // stopped reports whether the run should go no further. It is checked between batches rather than
-// inside one: a server call already issued is seen through, since abandoning it would leave the caller
-// unable to say whether those messages moved.
+// inside one; the batches themselves run on an uncancellable context, so a call already issued is
+// genuinely seen through: abandoning one leaves the server changed and the cache not, which is the
+// defect workContext exists for.
 func (r *backfillRun) stopped() bool { return r.ctx.Err() != nil }
 
 // advance records that n more messages have been attempted and reports the new position. Attempted,
