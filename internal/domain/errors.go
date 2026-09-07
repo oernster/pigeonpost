@@ -45,6 +45,8 @@ var (
 	ErrEmptyTemplateID      = errors.New("template id is empty")
 	ErrEmptyTemplateName    = errors.New("template name is empty")
 	ErrEmptyAttachmentName  = errors.New("attachment filename is empty")
+	// A template that could never be sent is refused at the save rather than at every send.
+	ErrTemplateAttachmentsTooLarge = errors.New("template attachments are larger than a message may carry")
 
 	ErrEmptyContactID        = errors.New("contact id is empty")
 	ErrEmptyContactName      = errors.New("contact formatted name is empty")

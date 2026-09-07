@@ -1253,14 +1253,26 @@ func (f *fakeRuleStore) DeleteRule(_ context.Context, id string) error {
 	return nil
 }
 
-// fakeTemplateStore is a hand-written in-memory TemplateStore with error-injection fields.
+// fakeTemplateStore is a hand-written in-memory TemplateStore with error-injection fields. files holds
+// each template's stored bytes by template id, which is what a save resolves its kept positions
+// against; savedFiles records what the last save was asked to write.
 type fakeTemplateStore struct {
-	templates []domain.Template
-	listErr   error
-	saveErr   error
-	deleteErr error
-	saved     []domain.Template
-	deleted   []string
+	templates  []domain.Template
+	files      map[string][]domain.Attachment
+	listErr    error
+	filesErr   error
+	saveErr    error
+	deleteErr  error
+	saved      []domain.Template
+	savedFiles [][]domain.Attachment
+	deleted    []string
+}
+
+func (f *fakeTemplateStore) TemplateFiles(_ context.Context, templateID string) ([]domain.Attachment, error) {
+	if f.filesErr != nil {
+		return nil, f.filesErr
+	}
+	return f.files[templateID], nil
 }
 
 func (f *fakeTemplateStore) ListTemplates(context.Context) ([]domain.Template, error) {
@@ -1270,12 +1282,19 @@ func (f *fakeTemplateStore) ListTemplates(context.Context) ([]domain.Template, e
 	return f.templates, nil
 }
 
-func (f *fakeTemplateStore) SaveTemplate(_ context.Context, template domain.Template) error {
+func (f *fakeTemplateStore) SaveTemplate(
+	_ context.Context, template domain.Template, files []domain.Attachment,
+) error {
 	if f.saveErr != nil {
 		return f.saveErr
 	}
 	f.saved = append(f.saved, template)
+	f.savedFiles = append(f.savedFiles, files)
 	f.templates = append(f.templates, template)
+	if f.files == nil {
+		f.files = map[string][]domain.Attachment{}
+	}
+	f.files[template.ID()] = files
 	return nil
 }
 

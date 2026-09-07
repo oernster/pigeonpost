@@ -279,6 +279,37 @@ it into a new message and above the quoted original on a reply or forward; an em
 the empty string rather than the `<p></p>` an empty document serialises to, so an account without a
 signature adds no block.
 
+**Message templates.** A template is a reusable {name, subject, HTML body, files} skeleton the compose
+window inserts. `TemplateService` manages them over the `TemplateStore` port, whose reads are split in
+two because the two halves are wanted at different moments: `ListTemplates` fills the compose picker and
+so runs for every template, while `TemplateFiles` returns one template's bytes and runs only when a
+template is inserted or opened for editing. A `domain.Template` therefore carries `TemplateAttachment`
+DESCRIPTIONS (filename, content type, size) rather than content; the listing reads `LENGTH(content)`
+instead of the blob. Carrying content on the listing would have read every byte of every template to draw
+a menu of names, which a template holding a whole message's worth of files makes expensive rather than
+merely wasteful.
+
+The bytes are stored (`template_attachment`, `schemaV57`) rather than a path being remembered. A path is
+a claim about a filesystem that may have moved on, so a template pointing at a file since deleted would
+look complete and attach nothing: the same silent-failure shape the rules editor refuses elsewhere. The
+cost is duplication in the database, which is the price of a template that still does what it says a year
+later. A template's files are held to the same total a single message is (`domain.MaxTotalAttachmentBytes`,
+one home now shared with the send path), refused at the save rather than at every send.
+
+An edit states what became of the stored files rather than sending them back: `KeepFiles` names the
+positions to carry over, in the order they should end up in; `AddFiles` carries the newly chosen
+ones, which follow. Anything unnamed is dropped. `TemplateService.Save` reads the kept ones back through
+the port and writes the whole set again, so changing a subject does not push megabytes across the bridge
+and back, while the saved set is still exactly what the editor was showing. `domain.NewTemplateFromFiles`
+builds the template from those same files, so its descriptions and the bytes stored beside them cannot
+disagree. The facade reads the newly chosen paths, since reading a path is its business; the front
+end's pure `templateFiles` module owns the split.
+
+Inserting a template attaches its files through the path the composer already had: the facade hands them
+over base64 encoded in the same shape a pasted file travels in; `useComposeIntake.add` takes them
+under the same size check a paste gets, since a template at the limit can still overflow a message that
+already carries something.
+
 Every rich-text surface (the composer, the template editor and the signature field) cleans clipboard
 markup before ProseMirror parses it, through `transformPastedHTML` over the gated pure `pastedHtml`
 module. Windows carries HTML on the clipboard in the CF_HTML format, which the webview reconstructs with

@@ -291,9 +291,19 @@ type RuleStore interface {
 }
 
 // TemplateStore persists user-defined message templates, inserted while composing.
+//
+// A template's files are addressed apart from the template itself, because the two are wanted at
+// different moments: every template is listed to fill the compose picker, while one template's bytes
+// are read only when it is inserted or edited. ListTemplates therefore returns descriptions and
+// TemplateFiles returns content.
+//
+// On SaveTemplate, `files` is authoritative: the store writes those bytes and describes them from the
+// same slice. Callers build the template with domain.NewTemplateFromFiles so its descriptions and the
+// files cannot disagree.
 type TemplateStore interface {
 	ListTemplates(ctx context.Context) ([]domain.Template, error)
-	SaveTemplate(ctx context.Context, template domain.Template) error
+	TemplateFiles(ctx context.Context, templateID string) ([]domain.Attachment, error)
+	SaveTemplate(ctx context.Context, template domain.Template, files []domain.Attachment) error
 	DeleteTemplate(ctx context.Context, id string) error
 }
 

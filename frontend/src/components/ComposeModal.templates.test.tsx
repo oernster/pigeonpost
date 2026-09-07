@@ -21,6 +21,7 @@ const apiSpies = vi.hoisted(() => ({
     listContacts: vi.fn(),
     collectContacts: vi.fn(),
     listTemplates: vi.fn(),
+    templateFiles: vi.fn(),
 }))
 
 const unstubbedCalls = vi.hoisted(() => new Set<string>())
@@ -62,8 +63,14 @@ vi.mock('@tiptap/react', () => {
 type ComposeProps = ComponentProps<typeof ComposeModal>
 
 const templates = [
-    {id: 't1', name: 'Chasing an invoice', subject: 'Invoice 41 is overdue', body: '<p>As above.</p>'},
-    {id: 't2', name: 'Bodyless one', subject: 'Just a subject', body: ''},
+    {
+        id: 't1',
+        name: 'Chasing an invoice',
+        subject: 'Invoice 41 is overdue',
+        body: '<p>As above.</p>',
+        attachments: [{filename: 'terms.pdf', contentType: 'application/pdf', size: 9}],
+    },
+    {id: 't2', name: 'Bodyless one', subject: 'Just a subject', body: '', attachments: []},
 ] as Template[]
 
 function renderCompose(overrides: Partial<ComposeProps> = {}) {
@@ -98,6 +105,9 @@ beforeEach(() => {
     apiSpies.listContacts.mockResolvedValue([])
     apiSpies.collectContacts.mockResolvedValue(0)
     apiSpies.listTemplates.mockResolvedValue(templates)
+    apiSpies.templateFiles.mockResolvedValue([
+        {name: 'terms.pdf', contentType: 'application/pdf', content: btoa('the terms')},
+    ])
 })
 
 afterEach(() => {
@@ -162,5 +172,38 @@ describe('the compose template picker', () => {
         renderCompose()
         await openPicker()
         expect(screen.getByText('No templates yet.')).toBeTruthy()
+    })
+})
+
+describe('the files an inserted template carries', () => {
+    // The picker's listing describes a template's files without their bytes, so choosing one is what
+    // fetches them. Reading them all up front would pull every template's attachments into the window
+    // just to draw a menu of names.
+    it('fetches the chosen template files and attaches them', async () => {
+        renderCompose()
+        await openPicker()
+        expect(apiSpies.templateFiles).not.toHaveBeenCalled()
+
+        fireEvent.click(screen.getByText('Chasing an invoice'))
+        await waitFor(() => expect(apiSpies.templateFiles).toHaveBeenCalledWith('t1'))
+        expect(await screen.findByText('terms.pdf')).toBeTruthy()
+    })
+
+    it('does not go to the backend for a template that carries no files', async () => {
+        renderCompose()
+        await openPicker()
+        fireEvent.click(screen.getByText('Bodyless one'))
+        await waitFor(() => expect(screen.getByDisplayValue('Just a subject')).toBeTruthy())
+        expect(apiSpies.templateFiles).not.toHaveBeenCalled()
+    })
+
+    // A failed read must say so rather than inserting the body and silently dropping the files, which
+    // would send a message whose text refers to an attachment that is not there.
+    it('reports a failure to read the files', async () => {
+        apiSpies.templateFiles.mockRejectedValue(new Error('disk gone'))
+        renderCompose()
+        await openPicker()
+        fireEvent.click(screen.getByText('Chasing an invoice'))
+        expect(await screen.findByText(/disk gone/)).toBeTruthy()
     })
 })

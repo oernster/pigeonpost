@@ -3,6 +3,15 @@ import {useEditor} from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import {useBackdropDismiss} from './useBackdropDismiss'
 import {api, Template, TemplateInput} from '../api'
+import {formatBytes} from '../readerFormat'
+import {
+    pickedFiles,
+    removeFileAt,
+    saveFiles,
+    storedFiles,
+    STORED_ELSEWHERE,
+    type TemplateEditorFile,
+} from '../templateFiles'
 import {EDITOR_LINK_OPTIONS, EDITOR_PASTE_PROPS} from '../richText'
 import {ModalClose} from './ModalClose'
 import {ConfirmDialog} from './ConfirmDialog'
@@ -26,6 +35,9 @@ export function TemplateManagerModal({templates, onChanged, onClose}: TemplateMa
     const [busy, setBusy] = useState(false)
     // pendingDelete is the template awaiting delete confirmation; null when no prompt is open.
     const [pendingDelete, setPendingDelete] = useState<Template | null>(null)
+    // files is the template's attachments as the editor holds them: stored ones named by position and
+    // newly picked ones carrying a path. See templateFiles for the split the save request states.
+    const [files, setFiles] = useState<TemplateEditorFile[]>([])
 
     // The body is edited as rich text (HTML), matching the composer. The editor is created once; loading a
     // template for editing sets its content through setContent; the reset clears it.
@@ -39,6 +51,7 @@ export function TemplateManagerModal({templates, onChanged, onClose}: TemplateMa
         setEditingId('')
         setName('')
         setSubject('')
+        setFiles([])
         editor?.commands.setContent('')
     }
 
@@ -47,7 +60,22 @@ export function TemplateManagerModal({templates, onChanged, onClose}: TemplateMa
         setEditingId(t.id)
         setName(t.name)
         setSubject(t.subject)
+        setFiles(storedFiles(t.attachments ?? []))
         editor?.commands.setContent(t.body || '')
+    }
+
+    // addFiles opens the native picker and appends what was chosen. The bytes are read by the backend at
+    // save time, so nothing is loaded into the window here.
+    const addFiles = async () => {
+        setError('')
+        try {
+            const picked = await api.pickAttachments()
+            if (picked.length > 0) {
+                setFiles((prev) => [...prev, ...pickedFiles(picked, prev)])
+            }
+        } catch (e) {
+            setError(String(e))
+        }
     }
 
     const save = async () => {
@@ -56,7 +84,7 @@ export function TemplateManagerModal({templates, onChanged, onClose}: TemplateMa
         try {
             // An empty editor serialises to "<p></p>"; store it as blank so the template carries no body.
             const body = editor && !editor.isEmpty ? editor.getHTML() : ''
-            const req: TemplateInput = {id: editingId, name, subject, body}
+            const req: TemplateInput = {id: editingId, name, subject, body, ...saveFiles(files)}
             await api.saveTemplate(req)
             reset()
             onChanged()
@@ -135,6 +163,29 @@ export function TemplateManagerModal({templates, onChanged, onClose}: TemplateMa
                         onChange={(e) => setSubject(e.target.value)}
                     />
                     <RichTextField editor={editor} full/>
+                    <button type="button" className="btn" onClick={() => void addFiles()}>
+                        Attach files
+                    </button>
+                    {files.length > 0 && (
+                        <ul className="attachment-list">
+                            {files.map((file, index) => (
+                                <li key={`${file.position}-${file.path}-${file.name}`} className="attachment-chip">
+                                    <span className="attachment-name" title={file.path || file.name}>{file.name}</span>
+                                    {file.position !== STORED_ELSEWHERE && (
+                                        <span className="attachment-size">{formatBytes(file.size)}</span>
+                                    )}
+                                    <button
+                                        type="button"
+                                        className="attachment-remove"
+                                        aria-label={`Remove ${file.name}`}
+                                        onClick={() => setFiles((prev) => removeFileAt(prev, index))}
+                                    >
+                                        &times;
+                                    </button>
+                                </li>
+                            ))}
+                        </ul>
+                    )}
                 </div>
                 </div>
                 <div className="modal-actions spread">

@@ -125,7 +125,7 @@ documented here.
   running the setup program, not by unit tests.
 - **Composition root and startup** (the whole `main` package: `main.go` plus the Wails facade files,
   namely `app.go`, one binding file per feature surface (accounts, mail, folders, send, draft recovery,
-  outbox, snooze, tags, rules, rules files, templates, calendar, CalDAV, contacts, scheduling, export, `.eml`
+  outbox, snooze, tags, rules, rules files, templates and their files, calendar, CalDAV, contacts, scheduling, export, `.eml`
   files and updates), the background goroutines (the new-mail notifier, the reminder scheduler, the outbox
   dispatcher and the snooze scheduler) plus the DTO mappers and clock) and the **icon tool**
   (`tools/genicons`): wiring and one-shot programs, verified by the app and the build succeeding. The

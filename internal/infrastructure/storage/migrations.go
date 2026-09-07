@@ -277,4 +277,20 @@ ALTER TABLE rule_condition ADD COLUMN negate INTEGER NOT NULL DEFAULT 0;
 UPDATE rule_condition SET operator = 0, negate = 1 WHERE operator = 1;
 `
 
-var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15, schemaV16, schemaV17, schemaV18, schemaV19, schemaV20, schemaV21, schemaV22, schemaV23, schemaV24, schemaV25, schemaV26, schemaV27, schemaV28, schemaV29, schemaV30, schemaV31, schemaV32, schemaV33, schemaV34, schemaV35, schemaV36, schemaV37, schemaV38, schemaV39, schemaV40, schemaV41, schemaV42, schemaV43, schemaV44, schemaV45, schemaV46, schemaV47, schemaV48, schemaV49, schemaV50, schemaV51, schemaV52, schemaV53, schemaV54, schemaV55, schemaV56}
+// schemaV57 lets a template carry files. The bytes are stored rather than a path, because a path is a
+// claim about a filesystem that may have moved on: a template pointing at a file since deleted would
+// look complete and attach nothing. An attachment keeps an explicit position, so the order the user
+// gave is the order the files arrive in, mirroring the contact and rule child tables. Deleting a
+// template takes its attachments with it, which the store does in one transaction.
+const schemaV57 = `
+CREATE TABLE IF NOT EXISTS template_attachment (
+    template_id  TEXT NOT NULL,
+    position     INTEGER NOT NULL,
+    filename     TEXT NOT NULL,
+    content_type TEXT NOT NULL,
+    content      BLOB NOT NULL,
+    PRIMARY KEY (template_id, position)
+);
+`
+
+var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15, schemaV16, schemaV17, schemaV18, schemaV19, schemaV20, schemaV21, schemaV22, schemaV23, schemaV24, schemaV25, schemaV26, schemaV27, schemaV28, schemaV29, schemaV30, schemaV31, schemaV32, schemaV33, schemaV34, schemaV35, schemaV36, schemaV37, schemaV38, schemaV39, schemaV40, schemaV41, schemaV42, schemaV43, schemaV44, schemaV45, schemaV46, schemaV47, schemaV48, schemaV49, schemaV50, schemaV51, schemaV52, schemaV53, schemaV54, schemaV55, schemaV56, schemaV57}

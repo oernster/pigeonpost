@@ -27,6 +27,7 @@ export default defineConfig({
         'src/autoCollect.ts',
         'src/datePicker.ts',
         'src/accountProviders.ts',
+        'src/templateFiles.ts',
         'src/sidebarDnd.ts',
         'src/dragScroll.ts',
         'src/autoScroll.ts',

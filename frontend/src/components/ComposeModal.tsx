@@ -371,7 +371,7 @@ export function ComposeModal({accountId, senders, initial, canSaveDraft, onMarkR
     // insertTemplate applies a chosen template: it fills the subject when it is still empty (so a template
     // never overwrites a subject already typed) and inserts the template body HTML at the cursor, then marks
     // the draft dirty so the change is autosaved.
-    const insertTemplate = (t: Template) => {
+    const insertTemplate = async (t: Template) => {
         setTemplatePicker(false)
         if (subject.trim() === '' && t.subject !== '') {
             setSubject(t.subject)
@@ -380,6 +380,16 @@ export function ComposeModal({accountId, senders, initial, canSaveDraft, onMarkR
             editor?.chain().focus().insertContent(t.body).run()
         }
         autosave.markDirty()
+        // The files come over only now, for the one template chosen: a template may carry a whole
+        // message's worth of bytes, so the picker's listing describes them and this reads them.
+        if ((t.attachments ?? []).length === 0) {
+            return
+        }
+        try {
+            intake.add(await api.templateFiles(t.id))
+        } catch (e) {
+            setError(String(e))
+        }
     }
 
     // The formatting strip is one focus-ring stop (roving tabindex; see useToolbarNav): the tools
@@ -505,7 +515,7 @@ export function ComposeModal({accountId, senders, initial, canSaveDraft, onMarkR
                                     role="menuitem"
                                     className="compose-template-option"
                                     onMouseDown={(e) => e.preventDefault()}
-                                    onClick={() => insertTemplate(t)}
+                                    onClick={() => void insertTemplate(t)}
                                 >
                                     <span className="compose-template-name">{t.name}</span>
                                     <span className="compose-template-subject">{t.subject || '(no subject)'}</span>

@@ -46,10 +46,13 @@ type AttachmentDataEntry struct {
 // rfc822ContentType is the MIME type for a whole email attached to another email.
 const rfc822ContentType = "message/rfc822"
 
+// The attachment size limit is the domain's, since the template store holds to the same number: a
+// template may not carry more than a message could ever send. These are aliases so the send path reads
+// as it did rather than repeating the domain path at every use.
 const (
-	bytesPerMebibyte        = 1 << 20
-	maxAttachmentMebibytes  = 25
-	maxTotalAttachmentBytes = maxAttachmentMebibytes * bytesPerMebibyte
+	bytesPerMebibyte        = domain.BytesPerMebibyte
+	maxAttachmentMebibytes  = domain.MaxAttachmentMebibytes
+	maxTotalAttachmentBytes = domain.MaxTotalAttachmentBytes
 )
 
 // SendMessage parses the request's addresses and sends the message through the compose use case. With
@@ -125,7 +128,7 @@ func (a *App) OutboxCount() (int, error) {
 	return a.compose.PendingOutbox(a.ctx)
 }
 
-// ReplayOutbox attempts to deliver every queued outgoing operation, oldest first, and returns how many
+// ReplayOutbox attempts to deliver every queued outgoing operation, oldest first; it returns how many
 // succeeded. It is called after a successful sync, when connectivity has returned.
 func (a *App) ReplayOutbox() (int, error) {
 	return a.compose.ReplayOutbox(a.ctx)

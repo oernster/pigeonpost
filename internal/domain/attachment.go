@@ -5,6 +5,19 @@ import "strings"
 // defaultAttachmentContentType is used when a caller does not know an attachment's media type.
 const defaultAttachmentContentType = "application/octet-stream"
 
+const (
+	// BytesPerMebibyte converts the limit below between the unit a person reads and the unit a byte
+	// count is measured in.
+	BytesPerMebibyte = 1 << 20
+	// MaxAttachmentMebibytes is the largest total a single outgoing message may carry: its attachments
+	// plus the images embedded in its HTML body, which ship as message parts just as attachments do.
+	MaxAttachmentMebibytes = 25
+	// MaxTotalAttachmentBytes is that limit in bytes. It lives in the domain because two surfaces now
+	// hold to it: the send path, which refuses an oversized message; and a template, which refuses to
+	// store more than a message could ever carry rather than waiting to fail at the send.
+	MaxTotalAttachmentBytes = MaxAttachmentMebibytes * BytesPerMebibyte
+)
+
 // Attachment is a file carried by an outgoing message: its display filename, MIME content type and raw
 // bytes. It is immutable once constructed.
 type Attachment struct {

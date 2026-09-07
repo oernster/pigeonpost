@@ -43,7 +43,6 @@ import {
     DeleteContactGroup,
     DeleteEvent,
     DeleteFolder,
-    DeleteTemplate,
     ExportContactsToFile,
     ExportEventsToFile,
     FolderUIState,
@@ -63,7 +62,6 @@ import {
     ListContacts,
     ListEvents,
     ListEventInstances,
-    ListTemplates,
     SaveCalendar,
     SaveContact,
     SaveContactGroup,
@@ -74,7 +72,6 @@ import {
     MoveMessage,
     MoveMessages,
     RenameFolder,
-    SaveTemplate,
     CancelOutboxItem,
     CheckForUpdates,
     ListOutbox,
@@ -119,6 +116,8 @@ import {isSnoozedFolder} from './snooze'
 // into the api object below, so callers still reach them as api.* and import their types from here.
 import {rulesApi} from './apiRules'
 export type {Rule, RuleAction, RuleBackfill, RuleBackfillProgress, RuleCondition, RuleInput} from './apiRules'
+import {templatesApi} from './apiTemplates'
+export type {Template, TemplateAttachment, TemplateFile, TemplateInput} from './apiTemplates'
 
 export type Account = main.AccountDTO
 export type Folder = main.FolderDTO
@@ -159,7 +158,6 @@ export const SEARCH_MATCH_END = '\u0002'
 export type AboutInfo = main.AboutDTO
 export type UpdateStatus = main.UpdateStatusDTO
 export type Tag = main.TagDTO
-export type Template = main.TemplateDTO
 // MessageBody drops the generated convertValues helper so an outbox message's body can be built as a
 // plain object literal; the nested AttachmentDTO array carries no helper of its own.
 export type MessageBody = Omit<main.MessageBodyDTO, 'convertValues'>
@@ -295,13 +293,6 @@ export interface TagInput {
     id: string
     name: string
     colour: string
-}
-
-export interface TemplateInput {
-    id: string
-    name: string
-    subject: string
-    body: string
 }
 
 export interface ComposeInput {
@@ -524,9 +515,7 @@ export const api = {
     saveFolderUIState: (accountId: string, order: string[], collapsed: string[]): Promise<void> =>
         SaveFolderUIState(accountId, order, collapsed),
     ...rulesApi,
-    listTemplates: (): Promise<Template[]> => ListTemplates(),
-    saveTemplate: (req: TemplateInput): Promise<void> => SaveTemplate(main.TemplateRequest.createFrom(req)),
-    deleteTemplate: (templateId: string): Promise<void> => DeleteTemplate(templateId),
+    ...templatesApi,
     about: (): Promise<AboutInfo> => About(),
     licence: (): Promise<string> => LicenceText(),
     version: (): Promise<string> => Version(),

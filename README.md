@@ -93,7 +93,13 @@ concern, so read it before attaching it to anything.
   progress cue.
 - **Compose**: TipTap rich text, To/Cc/Bcc, reply, reply-all and forward (Ctrl+R, Ctrl+Shift+R and
   Ctrl+L), file or message attachments
-  (25 MB), reusable message templates, per-account signatures and server Drafts. A saved draft
+  (25 MB), reusable message templates, per-account signatures and server Drafts. A template carries a
+  subject, a body written with the same formatting the compose window offers and the files that go with
+  it, all inserted together from the template button on the formatting strip: a template inserted into
+  a blank message fills its subject, though one you have already typed is left alone. A template's files
+  are stored rather than referenced, so a template still attaches what it promised after the original
+  file has moved or gone. A template may hold no more than a single message may carry, which is
+  refused while you are still looking at the editor rather than at every send. A saved draft
   reopens for editing from the Drafts folder (double-click or Enter on it, else Edit draft in the
   reader) exactly as it was saved; finishing it, by sending or saving again, replaces the stored
   copy rather than leaving a stale one behind. The compose window can be dragged by its title bar

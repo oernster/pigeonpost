@@ -6,7 +6,7 @@
 //
 // One module is stubbed: ../api (the Wails seam), so the calls the modal makes can be asserted.
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
-import {cleanup, fireEvent, render, screen} from '@testing-library/react'
+import {cleanup, fireEvent, render, screen, waitFor} from '@testing-library/react'
 import {TemplateManagerModal} from './TemplateManagerModal'
 import type {Template} from '../api'
 import {formattingTools} from '../editorTools'
@@ -15,6 +15,7 @@ import {spiesNotInApi, unstubbedNames} from '../test/apiMock'
 const apiSpies = vi.hoisted(() => ({
     saveTemplate: vi.fn(),
     deleteTemplate: vi.fn(),
+    pickAttachments: vi.fn(),
 }))
 
 const unstubbedCalls = vi.hoisted(() => new Set<string>())
@@ -25,8 +26,17 @@ vi.mock('../api', async () => {
 })
 
 const templates = [
-    {id: 't1', name: 'Chasing an invoice', subject: 'Invoice 41 is overdue', body: '<p>As above.</p>'},
-    {id: 't2', name: 'No subject one', subject: '', body: ''},
+    {
+        id: 't1',
+        name: 'Chasing an invoice',
+        subject: 'Invoice 41 is overdue',
+        body: '<p>As above.</p>',
+        attachments: [
+            {filename: 'terms.pdf', contentType: 'application/pdf', size: 2048},
+            {filename: 'logo.png', contentType: 'image/png', size: 1024},
+        ],
+    },
+    {id: 't2', name: 'No subject one', subject: '', body: '', attachments: []},
 ] as Template[]
 
 function renderModal() {
@@ -35,6 +45,13 @@ function renderModal() {
     render(<TemplateManagerModal templates={templates} onChanged={onChanged} onClose={onClose}/>)
     return {onChanged, onClose}
 }
+
+beforeEach(() => {
+    vi.clearAllMocks()
+    apiSpies.saveTemplate.mockResolvedValue(undefined)
+    apiSpies.deleteTemplate.mockResolvedValue(undefined)
+    apiSpies.pickAttachments.mockResolvedValue([])
+})
 
 afterEach(() => {
     cleanup()
@@ -52,12 +69,6 @@ describe('the api mock', () => {
 })
 
 describe('TemplateManagerModal', () => {
-    beforeEach(() => {
-        vi.clearAllMocks()
-        apiSpies.saveTemplate.mockResolvedValue(undefined)
-        apiSpies.deleteTemplate.mockResolvedValue(undefined)
-    })
-
     // Edit used to be the word "Edit" while every comparable row in the app carries a pencil. The
     // accessible name stays a sentence naming the template, since a glyph on its own says nothing to a
     // screen reader.
@@ -103,5 +114,69 @@ describe('TemplateManagerModal', () => {
         expect(screen.getByDisplayValue('Chasing an invoice')).toBeTruthy()
         expect(screen.getByDisplayValue('Invoice 41 is overdue')).toBeTruthy()
         expect(screen.getByRole('button', {name: 'Save template'})).toBeTruthy()
+    })
+})
+
+describe('the files a template carries', () => {
+    it('shows the stored files with their sizes when a template is opened', () => {
+        renderModal()
+        fireEvent.click(screen.getByRole('button', {name: 'Edit Chasing an invoice'}))
+        expect(screen.getByText('terms.pdf')).toBeTruthy()
+        expect(screen.getByText('logo.png')).toBeTruthy()
+        expect(screen.getByText('2.0 KB')).toBeTruthy()
+    })
+
+    // The contract with the backend: a stored file is carried over by NAMING its position, never by
+    // being sent back. Getting this wrong does not look like a bug, it looks like a template quietly
+    // losing its attachments on the next save.
+    it('keeps every stored file by position when nothing is removed', async () => {
+        renderModal()
+        fireEvent.click(screen.getByRole('button', {name: 'Edit Chasing an invoice'}))
+        fireEvent.click(screen.getByRole('button', {name: 'Save template'}))
+
+        await waitFor(() => expect(apiSpies.saveTemplate).toHaveBeenCalled())
+        expect(apiSpies.saveTemplate.mock.calls[0][0]).toMatchObject({
+            id: 't1',
+            keepFilePositions: [0, 1],
+            addFilePaths: [],
+        })
+    })
+
+    it('drops a removed file from what the save keeps', async () => {
+        renderModal()
+        fireEvent.click(screen.getByRole('button', {name: 'Edit Chasing an invoice'}))
+        fireEvent.click(screen.getByRole('button', {name: 'Remove terms.pdf'}))
+        expect(screen.queryByText('terms.pdf')).toBeNull()
+
+        fireEvent.click(screen.getByRole('button', {name: 'Save template'}))
+        await waitFor(() => expect(apiSpies.saveTemplate).toHaveBeenCalled())
+        expect(apiSpies.saveTemplate.mock.calls[0][0]).toMatchObject({keepFilePositions: [1]})
+    })
+
+    it('adds a chosen file as a path, its bytes read by the backend at save time', async () => {
+        apiSpies.pickAttachments.mockResolvedValue(['/home/me/quote.pdf'])
+        renderModal()
+        fireEvent.change(screen.getByPlaceholderText('Template name'), {target: {value: 'New one'}})
+        fireEvent.click(screen.getByRole('button', {name: 'Attach files'}))
+
+        await waitFor(() => expect(screen.getByText('quote.pdf')).toBeTruthy())
+        fireEvent.click(screen.getByRole('button', {name: 'Add template'}))
+
+        await waitFor(() => expect(apiSpies.saveTemplate).toHaveBeenCalled())
+        expect(apiSpies.saveTemplate.mock.calls[0][0]).toMatchObject({
+            id: '',
+            keepFilePositions: [],
+            addFilePaths: ['/home/me/quote.pdf'],
+        })
+    })
+
+    // Starting a new template must not carry the last edited one's files into it.
+    it('clears the files when the edit is cancelled', () => {
+        renderModal()
+        fireEvent.click(screen.getByRole('button', {name: 'Edit Chasing an invoice'}))
+        expect(screen.getByText('terms.pdf')).toBeTruthy()
+
+        fireEvent.click(screen.getByRole('button', {name: 'Cancel edit'}))
+        expect(screen.queryByText('terms.pdf')).toBeNull()
     })
 })

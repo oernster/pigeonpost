@@ -201,16 +201,34 @@ func toTagDTOs(tags []domain.Tag) []TagDTO {
 	return out
 }
 
+// TemplateAttachmentDTO describes one file a template carries. It deliberately carries no content: the
+// list exists to draw a chip with a name and a size, while a template may hold a whole message's worth
+// of bytes. The bytes travel only when the template is inserted (see TemplateFiles).
+type TemplateAttachmentDTO struct {
+	Filename    string `json:"filename"`
+	ContentType string `json:"contentType"`
+	Size        int    `json:"size"`
+}
+
 // TemplateDTO is the JSON-serialisable view of a message template. The body is HTML.
 type TemplateDTO struct {
-	ID      string `json:"id"`
-	Name    string `json:"name"`
-	Subject string `json:"subject"`
-	Body    string `json:"body"`
+	ID          string                  `json:"id"`
+	Name        string                  `json:"name"`
+	Subject     string                  `json:"subject"`
+	Body        string                  `json:"body"`
+	Attachments []TemplateAttachmentDTO `json:"attachments"`
 }
 
 func toTemplateDTO(t domain.Template) TemplateDTO {
-	return TemplateDTO{ID: t.ID(), Name: t.Name(), Subject: t.Subject(), Body: t.Body()}
+	attachments := make([]TemplateAttachmentDTO, 0, len(t.Attachments()))
+	for _, a := range t.Attachments() {
+		attachments = append(attachments, TemplateAttachmentDTO{
+			Filename: a.Filename(), ContentType: a.ContentType(), Size: a.Size(),
+		})
+	}
+	return TemplateDTO{
+		ID: t.ID(), Name: t.Name(), Subject: t.Subject(), Body: t.Body(), Attachments: attachments,
+	}
 }
 
 func toTemplateDTOs(templates []domain.Template) []TemplateDTO {

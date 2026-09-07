@@ -57,7 +57,7 @@ export function useComposeIntake({editor, setError, markDirty, addPaths, initial
     // take is the single entry for files arriving by paste or drop: the editor's handlePaste and
     // handleDrop plus the modal's own drop zone all land here. It reports whether it took the event, so
     // a file-free paste or drop falls through to the editor's default handling. Files arrive as File
-    // objects where the engine provides them (files, or WebKit's items-only pasted images); a paste
+    // objects where the engine provides them (files; or WebKit's items-only pasted images); a paste
     // carrying only file:// URIs attaches by path instead.
     const take = (dt: DataTransfer | null): boolean => {
         const files = transferFiles(dt)
@@ -83,5 +83,23 @@ export function useComposeIntake({editor, setError, markDirty, addPaths, initial
         setDataAttachments((prev) => prev.filter((_, i) => i !== index))
     }
 
-    return {dataAttachments, take, remove}
+    // add takes files that already carry their bytes, which is how a message template's attachments
+    // arrive: the backend hands them over in the same base64 shape a pasted file is held in. It holds to
+    // the same limit a paste does, since a template capped at a whole message's worth can still overflow
+    // a message that already carries something.
+    const add = (files: DataAttachment[]): boolean => {
+        if (files.length === 0) {
+            return true
+        }
+        const held = attachmentBytes(dataAttachments) + inlineImageBytes(editor?.getHTML() ?? '')
+        if (held + attachmentBytes(files) > MAX_TOTAL_ATTACHMENT_BYTES) {
+            setError(`Adding these files would exceed the ${MAX_ATTACHMENT_MEBIBYTES} MB attachment limit.`)
+            return false
+        }
+        setDataAttachments((prev) => [...prev, ...files])
+        markDirty()
+        return true
+    }
+
+    return {dataAttachments, take, remove, add}
 }
