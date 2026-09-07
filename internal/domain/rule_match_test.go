@@ -99,6 +99,10 @@ func TestRuleMatchModes(t *testing.T) {
 	m := ruleMessage(t, "Acme News", "news@acme.com", "Weekly Digest")
 	hit := mustCondition(t, RuleFieldFrom, RuleOpContains, "acme")
 	miss := mustCondition(t, RuleFieldSubject, RuleOpContains, "invoice")
+	// excludes names text the message HAS, so the exclusion is violated; permits names text it does
+	// not have, so the exclusion is satisfied.
+	excludes := mustCondition(t, RuleFieldFrom, RuleOpNotContains, "acme")
+	permits := mustCondition(t, RuleFieldFrom, RuleOpNotContains, "mediamonkey")
 	action := []RuleAction{mustAction(t, RuleFlag, "")}
 	cases := []struct {
 		name       string
@@ -110,6 +114,18 @@ func TestRuleMatchModes(t *testing.T) {
 		{"all one misses", RuleMatchAll, []RuleCondition{hit, miss}, false},
 		{"any one hits", RuleMatchAny, []RuleCondition{miss, hit}, true},
 		{"any none hit", RuleMatchAny, []RuleCondition{miss, miss}, false},
+		// A negative condition is an exclusion, so it is required under any as well as under all.
+		// Without this an exclusion is one arm of an or; it is satisfied by every message the rule was
+		// never about, so the rule matches the whole mailbox.
+		{"any positive hits but the exclusion bites", RuleMatchAny, []RuleCondition{hit, excludes}, false},
+		{"any positive hits and the exclusion allows", RuleMatchAny, []RuleCondition{hit, permits}, true},
+		{"any exclusion alone does not widen the rule", RuleMatchAny, []RuleCondition{miss, permits}, false},
+		// Only negatives: meeting them all is the whole rule, since there is no positive to meet.
+		{"any only exclusions, all met", RuleMatchAny, []RuleCondition{permits, permits}, true},
+		{"any only exclusions, one bites", RuleMatchAny, []RuleCondition{permits, excludes}, false},
+		// Under all a negative is required exactly as it always was.
+		{"all with an exclusion that bites", RuleMatchAll, []RuleCondition{hit, excludes}, false},
+		{"all with an exclusion that allows", RuleMatchAll, []RuleCondition{hit, permits}, true},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

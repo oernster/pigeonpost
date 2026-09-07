@@ -129,6 +129,46 @@ describe('RuleManagerModal', () => {
         )
     })
 
+    // An exclusion is not one of the alternatives: it always applies. The summary brackets the
+    // alternatives and hangs the exclusion off them with "and", so the line says what the engine does
+    // rather than reading as one flat list of ors.
+    it('summarises an exclusion apart from the alternatives it applies to', async () => {
+        renderModal([
+            buildRule({
+                matchMode: 'any',
+                conditions: [
+                    {field: 'all', operator: 'contains', text: '7digital', caseSensitive: false},
+                    {field: 'all', operator: 'contains', text: 'boomkat', caseSensitive: false},
+                    {field: 'all', operator: 'notContains', text: 'mediamonkey', caseSensitive: false},
+                ],
+            }),
+        ])
+        await waitFor(() =>
+            expect(
+                screen.getByText(
+                    `On any account, if (All fields contains "7digital" or All fields contains "boomkat") ` +
+                    `and All fields doesn't contain "mediamonkey", then mark as read`,
+                ),
+            ).toBeTruthy(),
+        )
+    })
+
+    it('marks an exclusion in the editor and gives it no or', async () => {
+        renderModal([
+            buildRule({
+                matchMode: 'any',
+                conditions: [
+                    {field: 'all', operator: 'contains', text: '7digital', caseSensitive: false},
+                    {field: 'all', operator: 'notContains', text: 'mediamonkey', caseSensitive: false},
+                ],
+            }),
+        ])
+        fireEvent.click(screen.getByLabelText('Edit Newsletters'))
+        // The exclusion carries "and" on its own row; nothing claims it is an alternative.
+        expect(screen.getByTitle(/An exclusion always applies/)).toBeTruthy()
+        expect(screen.queryByText('or')).toBeNull()
+    })
+
     it('marks a destroying rule in the list', () => {
         renderModal([buildRule({actions: [{kind: 'destroy', folderId: ''}]})])
         expect(screen.getByText('destroys')).toBeTruthy()

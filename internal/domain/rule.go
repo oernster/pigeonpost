@@ -90,6 +90,10 @@ func (o RuleOperator) String() string {
 // Valid reports whether the operator is one a condition can use.
 func (o RuleOperator) Valid() bool { return o >= RuleOpContains && o <= RuleOpEndsWith }
 
+// Negated reports whether the operator states what a message must NOT be. A negative condition is
+// combined differently from the rest: see Rule.Matches.
+func (o RuleOperator) Negated() bool { return o == RuleOpNotContains }
+
 // RuleMatchMode is how a rule combines its conditions. The zero value is "all", so a rule written
 // before multi-condition support (which had exactly one condition) reads back unchanged.
 type RuleMatchMode int

@@ -106,10 +106,31 @@ export function ruleSummary(
     folderName: (folderId: string) => string,
     accountName: (accountId: string) => string,
 ): string {
-    const joiner = rule.matchMode === 'any' ? ' or ' : ' and '
-    const conditions = rule.conditions.map(conditionText).join(joiner)
+    const conditions = conditionsText(rule)
     const actions = rule.actions.map((a) => actionText(a, folderName)).join(', ')
     return `${scopeText(rule, accountName)}if ${conditions}, then ${actions}`
+}
+
+// isNegative reports whether a condition states what a message must NOT be. Such a condition always
+// applies, whatever the match mode, which is why the summary sets it apart from the rest.
+export function isNegative(condition: RuleCondition): boolean {
+    return condition.operator === 'notContains'
+}
+
+// conditionsText spells out how a rule's conditions combine, in the same terms the engine applies
+// them. Under "all" they are simply joined with and. Under "any" the positives are joined with or and
+// bracketed, then the exclusions follow. That is what the rule does: any of these, never those. A rule of exclusions alone has to meet all of them, so they read with and.
+function conditionsText(rule: Rule): string {
+    const positives = rule.conditions.filter((c) => !isNegative(c)).map(conditionText)
+    const negatives = rule.conditions.filter(isNegative).map(conditionText)
+    if (rule.matchMode !== 'any' || negatives.length === 0) {
+        return rule.conditions.map(conditionText).join(rule.matchMode === 'any' ? ' or ' : ' and ')
+    }
+    if (positives.length === 0) {
+        return negatives.join(' and ')
+    }
+    const head = positives.length === 1 ? positives[0] : `(${positives.join(' or ')})`
+    return `${head} and ${negatives.join(' and ')}`
 }
 
 // scopeText opens the summary with the accounts a rule is limited to. It is stated on every rule,

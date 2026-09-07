@@ -203,17 +203,24 @@ func (r Rule) Destructive() bool {
 
 // Matches reports whether the message satisfies the rule's conditions under its match mode. A disabled
 // rule never matches.
+//
+// Under RuleMatchAll every condition must match, which is the plain reading.
+//
+// Under RuleMatchAny a NEGATIVE condition ("does not contain") is still required, while the positive
+// ones are combined with or: "any of these; none of those". A negation is an exclusion; an exclusion
+// offered as one arm of an or is satisfied by almost every message that was never the
+// rule's business, so the rule stops being about its subject at all: one rule filing two music shops
+// widened, on the addition of a single exclusion, to filing the entire mailbox. Nobody writes an
+// exclusion meaning "or anything that is not this". The clause below is what says so.
+//
+// It changes nothing for a rule with no negative condition, which is most of them: with no negatives
+// the loop below is the same or it always was.
 func (r Rule) Matches(m MessageSummary) bool {
 	if !r.enabled {
 		return false
 	}
 	if r.matchMode == RuleMatchAny {
-		for _, c := range r.conditions {
-			if c.Matches(m) {
-				return true
-			}
-		}
-		return false
+		return r.matchesAny(m)
 	}
 	for _, c := range r.conditions {
 		if !c.Matches(m) {
@@ -221,4 +228,24 @@ func (r Rule) Matches(m MessageSummary) bool {
 		}
 	}
 	return true
+}
+
+// matchesAny applies the any-mode reading: every negative condition must match; at least one
+// positive condition must match where the rule has any. A rule holding only negatives is satisfied by
+// meeting all of them, since demanding a positive that was never written would make it match nothing.
+func (r Rule) matchesAny(m MessageSummary) bool {
+	positives, matched := 0, false
+	for _, c := range r.conditions {
+		if c.Operator().Negated() {
+			if !c.Matches(m) {
+				return false
+			}
+			continue
+		}
+		positives++
+		if c.Matches(m) {
+			matched = true
+		}
+	}
+	return positives == 0 || matched
 }

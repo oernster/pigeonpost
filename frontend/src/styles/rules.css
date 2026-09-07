@@ -75,6 +75,19 @@
     color: var(--text-dim);
 }
 
+/* The mark on an exclusion under "any": it is not one of the alternatives, it always applies, so it
+   carries its own joining word inside the card rather than taking the "or" printed between the rest. */
+.rule-always {
+    padding: 2px 6px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+}
+
 /* The one card that deletes mail is bordered in the danger colour, so the irreversible action is
    visible while scanning rather than only on reading the dropdown. */
 .rule-card.danger {

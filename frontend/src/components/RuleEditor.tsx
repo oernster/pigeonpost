@@ -6,6 +6,7 @@ import {
     EMPTY_CONDITION,
     FIELD_LABELS,
     OPERATOR_LABELS,
+    isNegative,
 } from './ruleLabels'
 
 // FolderChoice is one destination a move action can name: a concrete folder in one account, labelled
@@ -49,7 +50,21 @@ export function RuleEditor({rule, folders, accounts, onChange}: RuleEditorProps)
     const setConditions = (conditions: RuleCondition[]) => onChange({...rule, conditions} as Rule)
     // joiner is the word printed between the condition rows, taken from the match mode so the rule
     // reads as the sentence it is: every line with the next; either line with the next.
-    const joiner = rule.matchMode === 'any' ? 'or' : 'and'
+    const anyMode = rule.matchMode === 'any'
+    const joiner = anyMode ? 'or' : 'and'
+    // joinerFor answers what, if anything, is printed above the row at index. Under "all" every row
+    // after the first is joined with and. Under "any" an exclusion is not one of the alternatives (it
+    // always applies), so it takes no joiner and wears its own mark instead; a positive row takes the
+    // or only once there is an earlier positive for it to be an alternative to.
+    const joinerFor = (index: number): string => {
+        if (!anyMode) {
+            return index > 0 ? joiner : ''
+        }
+        if (isNegative(rule.conditions[index])) {
+            return ''
+        }
+        return rule.conditions.slice(0, index).some((c) => !isNegative(c)) ? joiner : ''
+    }
     const setActions = (actions: RuleAction[]) => onChange({...rule, actions} as Rule)
     const destroying = rule.actions.some((a) => a.kind === 'destroy')
 
@@ -147,8 +162,16 @@ export function RuleEditor({rule, folders, accounts, onChange}: RuleEditorProps)
                             anyone checks what it will do; "and" between two lines says it where the
                             reader is already looking. It follows the mode, so the two cannot
                             disagree. */}
-                        {index > 0 && <div className="rule-joiner">{joiner}</div>}
+                        {joinerFor(index) !== '' && <div className="rule-joiner">{joinerFor(index)}</div>}
                         <div className="rule-card">
+                            {anyMode && isNegative(condition) && (
+                                <span
+                                    className="rule-always"
+                                    title="An exclusion always applies: any of the other conditions, never this one."
+                                >
+                                    and
+                                </span>
+                            )}
                         <select
                             className="rule-field"
                             aria-label={`Field ${index + 1}`}

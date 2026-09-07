@@ -297,3 +297,76 @@ func TestRuleMigrationCarriesLegacyRules(t *testing.T) {
 		t.Errorf("action not carried over verbatim: %+v", actions)
 	}
 }
+
+// TestRuleMatchModeMigrationDisarmsOneConditionRules builds a database at the version just before the
+// match-mode step, writes a one-condition rule on "any" plus a two-condition rule on "any", then opens
+// it normally so the migration runs. The one-condition rule must come back on "all" (identical
+// behaviour today; a second condition will now narrow it rather than widen it); the two-condition
+// rule must be left exactly as it was, because its mode is a choice someone made.
+func TestRuleMatchModeMigrationDisarmsOneConditionRules(t *testing.T) {
+	ctx := context.Background()
+	path := filepath.Join(t.TempDir(), "modes.db")
+	db, err := sql.Open(driverName, path)
+	if err != nil {
+		t.Fatalf("open raw db: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	// preMatchModeVersion is the version schemaV55 upgrades FROM. It is a fixed number rather than an
+	// offset from schemaVersion, so later migrations cannot move this test off its step.
+	const preMatchModeVersion = 54
+	for _, step := range migrations[:preMatchModeVersion] {
+		if _, err := db.ExecContext(ctx, step); err != nil {
+			t.Fatalf("apply migrations up to %d: %v", preMatchModeVersion, err)
+		}
+	}
+	if _, err := db.ExecContext(ctx, fmt.Sprintf("PRAGMA user_version = %d;", preMatchModeVersion)); err != nil {
+		t.Fatalf("set version: %v", err)
+	}
+	insertRule := func(id string, position int, conditions ...string) {
+		t.Helper()
+		if _, err := db.ExecContext(ctx,
+			"INSERT INTO rule (id, name, enabled, position, match_mode, stop_processing) VALUES (?, ?, 1, ?, ?, 0);",
+			id, id, position, int(domain.RuleMatchAny)); err != nil {
+			t.Fatalf("insert rule %q: %v", id, err)
+		}
+		for i, text := range conditions {
+			if _, err := db.ExecContext(ctx,
+				`INSERT INTO rule_condition (rule_id, position, field, operator, match_text, case_sensitive)
+				 VALUES (?, ?, ?, ?, ?, 0);`,
+				id, i, int(domain.RuleFieldAll), int(domain.RuleOpContains), text); err != nil {
+				t.Fatalf("insert condition for %q: %v", id, err)
+			}
+		}
+		if _, err := db.ExecContext(ctx,
+			"INSERT INTO rule_action (rule_id, position, kind, folder_id) VALUES (?, 0, ?, '');",
+			id, int(domain.RuleFlag)); err != nil {
+			t.Fatalf("insert action for %q: %v", id, err)
+		}
+	}
+	insertRule("single", 0, "shop")
+	insertRule("pair", 1, "shop", "store")
+	if err := db.Close(); err != nil {
+		t.Fatalf("close raw db: %v", err)
+	}
+
+	store, err := Open(ctx, path)
+	if err != nil {
+		t.Fatalf("open store (migration failed): %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+
+	rules, err := store.ListRules(ctx)
+	if err != nil {
+		t.Fatalf("list rules: %v", err)
+	}
+	modes := map[string]domain.RuleMatchMode{}
+	for _, r := range rules {
+		modes[r.ID()] = r.MatchMode()
+	}
+	if modes["single"] != domain.RuleMatchAll {
+		t.Errorf("a one-condition rule was left on any, so its next condition widens it")
+	}
+	if modes["pair"] != domain.RuleMatchAny {
+		t.Errorf("a two-condition rule had its mode rewritten, changing what it matches")
+	}
+}
