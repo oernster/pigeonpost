@@ -95,7 +95,7 @@ export function TemplateManagerModal({templates, onChanged, onClose}: TemplateMa
                 ) : (
                     <ul className="list">
                         {templates.map((t) => (
-                            <li key={t.id} className="list-item">
+                            <li key={t.id} className="list-item template-row">
                                 <span className="item-text">
                                     <span className="item-title" title={t.name}>{t.name}</span>
                                     <span className="item-sub" title={t.subject}>{t.subject || '(no subject)'}</span>
@@ -106,7 +106,7 @@ export function TemplateManagerModal({templates, onChanged, onClose}: TemplateMa
                                     title="Edit template"
                                     onClick={() => startEdit(t)}
                                 >
-                                    Edit
+                                    &#9998;
                                 </button>
                                 <button
                                     className="account-action delete"
@@ -134,7 +134,7 @@ export function TemplateManagerModal({templates, onChanged, onClose}: TemplateMa
                         value={subject}
                         onChange={(e) => setSubject(e.target.value)}
                     />
-                    <RichTextField editor={editor}/>
+                    <RichTextField editor={editor} full/>
                 </div>
                 </div>
                 <div className="modal-actions spread">

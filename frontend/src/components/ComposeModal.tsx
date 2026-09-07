@@ -20,20 +20,9 @@ import {useSeparatorCorrection} from '../hooks/useSeparatorCorrection'
 import {bodyMentionsAttachment} from '../composeAttachment'
 import {fromDatetimeLocal, isSchedulable, sendLaterChoices} from '../schedule'
 import {ToolButton} from './ToolButton'
+import {EditorTool, formattingTools} from '../editorTools'
 import {useToolbarNav} from '../hooks/useToolbarNav'
 import {useModalDrag} from '../hooks/useModalDrag'
-
-// ComposeTool is one entry in the formatting strip: its button face, its editor action and its
-// place in the strip's visual grouping.
-interface ComposeTool {
-    glyph: string
-    name: string
-    shortcut?: string
-    active: boolean
-    run: () => void
-    sepAfter?: boolean
-    hasPopup?: boolean
-}
 
 // ComposeInitial pre-fills the compose window, used by reply, reply-all and forward.
 // MessageAttachment is an existing email attached to a new message: its id (fetched and rendered as a
@@ -396,16 +385,12 @@ export function ComposeModal({accountId, senders, initial, canSaveDraft, onMarkR
     // The formatting strip is one focus-ring stop (roving tabindex; see useToolbarNav): the tools
     // are data so the toolbar renders and navigates from one list. A separator follows the tools
     // that end a visual group.
-    const tools: ComposeTool[] = [
-        {glyph: 'B', name: 'Bold', shortcut: 'Ctrl+B', active: editor?.isActive('bold') ?? false, run: () => editor?.chain().focus().toggleBold().run()},
-        {glyph: 'I', name: 'Italic', shortcut: 'Ctrl+I', active: editor?.isActive('italic') ?? false, run: () => editor?.chain().focus().toggleItalic().run()},
-        {glyph: 'S', name: 'Strikethrough', shortcut: 'Ctrl+Shift+X', active: editor?.isActive('strike') ?? false, run: () => editor?.chain().focus().toggleStrike().run(), sepAfter: true},
-        {glyph: 'H', name: 'Heading', shortcut: 'Ctrl+Alt+2', active: editor?.isActive('heading', {level: 2}) ?? false, run: () => editor?.chain().focus().toggleHeading({level: 2}).run()},
-        {glyph: '•', name: 'Bullet list', shortcut: 'Ctrl+Shift+8', active: editor?.isActive('bulletList') ?? false, run: () => editor?.chain().focus().toggleBulletList().run()},
-        {glyph: '1.', name: 'Numbered list', shortcut: 'Ctrl+Shift+7', active: editor?.isActive('orderedList') ?? false, run: () => editor?.chain().focus().toggleOrderedList().run()},
-        {glyph: '”', name: 'Quote', shortcut: 'Ctrl+Shift+B', active: editor?.isActive('blockquote') ?? false, run: () => editor?.chain().focus().toggleBlockquote().run(), sepAfter: true},
-        {glyph: '🔗', name: 'Link', active: editor?.isActive('link') ?? false, run: link.openLink, sepAfter: true},
-        {glyph: 'Template', name: 'Insert template', active: templatePicker, run: () => void openTemplatePicker(), hasPopup: true},
+    const tools: EditorTool[] = [
+        ...formattingTools(editor, link.openLink, {trailingSeparator: true}),
+        // The face is an icon rather than the word "Template": among B, I, S, H and the rest, a lone
+        // word did not read as a control at all, so the picker went unnoticed and templates could be
+        // written but never used. The name it announces is unchanged.
+        {glyph: '📄', name: 'Insert template', active: templatePicker, run: () => void openTemplatePicker(), hasPopup: true},
     ]
     const toolbar = useToolbarNav(tools.length)
 

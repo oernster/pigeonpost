@@ -31,6 +31,26 @@
     color: var(--text-dim);
 }
 
+/* A template row lays its actions out beside the text rather than beneath it. `.list-item` is a column
+   by default, which stacked the pencil and the cross under the subject line and made a two-line row
+   four lines tall. The folder row solves the same problem the same way; this is the modal equivalent,
+   without the hover gating a folder row uses, since a dialog list shows its actions at all times. */
+.list-item.template-row {
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+}
+
+.list-item.template-row .item-text {
+    flex: 1 1 auto;
+}
+
+/* The two 22x22 icon buttons keep their size: a flex item's width is only a basis, so a long template
+   name would otherwise squeeze the pencil and the cross out of shape rather than truncating the name. */
+.list-item.template-row .account-action {
+    flex: 0 0 auto;
+}
+
 .list-item.folder {
     position: relative;
     flex-direction: row;
