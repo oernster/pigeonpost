@@ -738,9 +738,10 @@ every message a destroying rule claimed to remove sitting in Gmail's All Mail; `
 two-step route there instead (see Permanent deletion below).
 Moves are batched per destination through `MoveMany`. Three guards bound the destruction, each pinned by
 a test: rules run on the **Inbox only**, so mail the user has already filed by hand is never touched;
-they act on **arrivals only** (an id the local store does not hold), so adding a rule never reaches back
-over existing mail of its own accord (the Now button below is the one way it does, only when asked); and destructive actions are held back until the folder has been **baselined**, the
-one pass that records what a folder already holds, which is what stops a newly added account being
+they act on **arrivals only** (an id the local store does not hold), so adding a rule never reaches
+back over existing mail of its own accord (the Now button below is the one way it does, only when
+asked); and destructive actions are held back until the folder has been **baselined**, the one
+pass that records what a folder already holds, which is what stops a newly added account being
 emptied by mail that arrived long before the rule. A batch the server refuses leaves its messages in
 place and reports the failure.
 
@@ -754,7 +755,8 @@ and every time; for anyone who keeps their inbox at zero a destroying rule then 
 It also cannot live on the folder row, because `SaveFolders` clears and rewrites every folder for an
 account on each sync and would take the mark with it, re-arming the exemption forever.
 
-`RuleBackfillService` is the on-demand counterpart, reached by the Now button on a rule's row. It is
+**Applying a rule on demand.** `RuleBackfillService` is the on-demand counterpart, reached by the
+Now button on a rule's row. It is
 the one path that reaches mail the sync will not touch: it evaluates a single named rule over every
 folder of every account that rule covers, over the messages already stored. It carries the outcome
 out through `MessageActionService` rather than the server directly, so a backfilled move or deletion
@@ -1147,8 +1149,8 @@ leaves the window open. A native dialog is deliberately avoided so the prompt ma
 Where no tray icon exists the close button simply quits. The tray menu's Quit sets a flag so it exits
 without re-triggering that prompt, since it drives the same close path. To keep the `taskbar` package
 free of any UI-framework dependency, the tray's Open and menu items invoke callbacks supplied by the
-`App` facade, which reopen the window (`WindowShow`), quit or emit `menu:*` Wails events the front end
-turns into the same dialogs the in-window Help menu opens.
+`App` facade, which reveal the window (`revealWindow`, below), quit or emit `menu:*` Wails events the
+front end turns into the same dialogs the in-window Help menu opens.
 
 **Meeting scheduling (iTIP / iMIP).** An event with attendees is a meeting; PigeonPost sends and
 receives the RFC 5546 scheduling messages (REQUEST, REPLY, CANCEL) as RFC 6047 iMIP `text/calendar` mail

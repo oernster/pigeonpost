@@ -64,7 +64,7 @@ documented here.
 | `internal/infrastructure/taskbar` | unit on the pure label formatting and the balloon-suppression rule, plus a source scan holding the chime call in `Notify` rather than in the balloon; Win32 overlay excluded | none |
 | `internal/infrastructure/sound` | unit on the three chimes' synthesis and WAV encoding, including that they are scored with different note counts and render to different audio; the winmm playback call excluded | none |
 | `internal/installer` | unit on payload extraction and paths | temp dir |
-| `main` (the Wails facade) | unit on its pure helpers only: mailto parsing, attachment decoding, the offline-error translation with its recording of the error it replaces, the resurfaced-snooze notification text with its wire mapping, plus the DTO wire shape | none |
+| `main` (the Wails facade) | unit on its pure helpers only: mailto parsing, attachment decoding, the offline-error translation with its recording of the error it replaces, the resurfaced-snooze notification text with its wire mapping, the rule-backfill error summariser, plus the DTO wire shape | none |
 | `tests/structural` | AST scan of the source tree | file reads |
 
 ## Coverage snapshot
@@ -93,7 +93,7 @@ documented here.
 | internal/infrastructure/imap | ~27% | the source adapter's pure helpers; the wire-to-domain and HTML logic now lives in `mailparse`; live fetch/append plus the IDLE watcher are excluded |
 | internal/infrastructure/taskbar | ~17% | the pure label formatting, the balloon-suppression rule and the no-op stub covered; the Windows-only Win32 overlay excluded, with a source scan standing in for the chime's placement inside it |
 | internal/infrastructure/smtp | 0% | transport is live `Send` only; MIME building lives in `message` |
-| main package | ~7% | composition root and the Wails facade, excluded; the covered statements are the package's own pure helpers, which carry unit tests of their own (mailto parsing, attachment decoding, the offline-error translation, the resurfaced-snooze announcement text with its wire mapping, plus the rule DTO's wire shape) |
+| main package | ~7% | composition root and the Wails facade, excluded; the covered statements are the package's own pure helpers, which carry unit tests of their own (mailto parsing, attachment decoding, the offline-error translation, the resurfaced-snooze announcement text with its wire mapping, the rule-backfill error summariser, plus the rule DTO's wire shape) |
 | installer app, tools/genicons | 0% | GUI and one-shot tooling, excluded |
 
 ## Documented exclusions (and why)
