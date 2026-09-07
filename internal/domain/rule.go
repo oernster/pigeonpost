@@ -59,7 +59,11 @@ type RuleOperator int
 const (
 	// RuleOpContains matches when the field contains the text.
 	RuleOpContains RuleOperator = iota
-	// RuleOpNotContains matches when the field does not contain the text.
+	// RuleOpNotContains is RETIRED. Negation is a property of the condition, not of one operator, so
+	// "does not contain" is now RuleOpContains with the condition negated; every operator negates the
+	// same way. The value is kept and reserved, because rules stored before that carry it: the storage
+	// layer reads it back as contains-and-negated; the migration rewrites it in place. Do not reuse the
+	// number for anything else.
 	RuleOpNotContains
 	// RuleOpEquals matches when the field equals the text exactly.
 	RuleOpEquals
@@ -90,10 +94,6 @@ func (o RuleOperator) String() string {
 // Valid reports whether the operator is one a condition can use.
 func (o RuleOperator) Valid() bool { return o >= RuleOpContains && o <= RuleOpEndsWith }
 
-// Negated reports whether the operator states what a message must NOT be. A negative condition is
-// combined differently from the rest: see Rule.Matches.
-func (o RuleOperator) Negated() bool { return o == RuleOpNotContains }
-
 // RuleMatchMode is how a rule combines its conditions. The zero value is "all", so a rule written
 // before multi-condition support (which had exactly one condition) reads back unchanged.
 type RuleMatchMode int
@@ -120,12 +120,14 @@ func (m RuleMatchMode) String() string {
 // Valid reports whether the match mode is one a rule can use.
 func (m RuleMatchMode) Valid() bool { return m == RuleMatchAll || m == RuleMatchAny }
 
-// RuleCondition is one field-operator-text test within a rule. It is immutable once constructed.
+// RuleCondition is one field-operator-text test within a rule, optionally negated. It is immutable once
+// constructed.
 type RuleCondition struct {
 	field         RuleField
 	operator      RuleOperator
 	text          string
 	caseSensitive bool
+	negate        bool
 }
 
 // NewRuleCondition validates and constructs a case-insensitive condition, the default a rule written
@@ -138,6 +140,19 @@ func NewRuleCondition(field RuleField, operator RuleOperator, text string) (Rule
 // NewRuleConditionCased is NewRuleCondition with the case-sensitivity flag stated. When caseSensitive
 // is true the comparison is exact, so "INVOICE" no longer matches "invoice".
 func NewRuleConditionCased(field RuleField, operator RuleOperator, text string, caseSensitive bool) (RuleCondition, error) {
+	return NewRuleConditionFull(field, operator, text, caseSensitive, false)
+}
+
+// NewRuleConditionFull is the full constructor, with negation stated. A negated condition holds when
+// the operator does NOT hold: "is not", "does not start with" and so on, for every operator rather
+// than for the one that used to spell its own negation. A negated condition is also an exclusion,
+// which a rule applies whatever its match mode: see Rule.Matches.
+//
+// The retired RuleOpNotContains is accepted and folded into contains-and-negated, so a rule stored
+// before negation existed reads back meaning exactly what it meant.
+func NewRuleConditionFull(
+	field RuleField, operator RuleOperator, text string, caseSensitive, negate bool,
+) (RuleCondition, error) {
 	text = strings.TrimSpace(text)
 	if text == "" {
 		return RuleCondition{}, ErrEmptyRuleMatch
@@ -148,7 +163,12 @@ func NewRuleConditionCased(field RuleField, operator RuleOperator, text string, 
 	if !operator.Valid() {
 		return RuleCondition{}, ErrInvalidRuleOperator
 	}
-	return RuleCondition{field: field, operator: operator, text: text, caseSensitive: caseSensitive}, nil
+	if operator == RuleOpNotContains {
+		operator, negate = RuleOpContains, true
+	}
+	return RuleCondition{
+		field: field, operator: operator, text: text, caseSensitive: caseSensitive, negate: negate,
+	}, nil
 }
 
 // Field returns the matched field.
@@ -163,24 +183,27 @@ func (c RuleCondition) Text() string { return c.text }
 // CaseSensitive reports whether the comparison distinguishes upper from lower case.
 func (c RuleCondition) CaseSensitive() bool { return c.caseSensitive }
 
+// Negated reports whether the condition holds when its operator does not. Such a condition states what
+// a message must NOT be, which is an exclusion, so a rule requires it whatever its match mode.
+func (c RuleCondition) Negated() bool { return c.negate }
+
 // Matches reports whether the message satisfies this condition. A field can contribute several
-// candidate strings (a recipient's display name and address, for instance); the condition matches when
-// any candidate satisfies the operator, except "does not contain", which matches only when no candidate
-// contains the text. A field with no candidates at all (a message with no Cc, say) does not contain the
-// text, so "does not contain" holds and every positive operator fails. Both sides are lower-cased first
-// unless the condition asked for a case-sensitive comparison.
+// candidate strings (a recipient's display name and address, for instance) and the operator is tried
+// against each: the condition holds when ANY candidate satisfies it. A negated condition inverts that
+// whole answer, so it holds only when NO candidate satisfies the operator, which is the reading a
+// negation has to have: "does not contain" must be false when any part of the field contains the text,
+// not merely when some other part does not. A field with no candidates at all (a message with no Cc,
+// say) satisfies no operator, so every plain condition fails on it and every negated one holds. Both
+// sides are lower-cased first unless the condition asked for a case-sensitive comparison.
 func (c RuleCondition) Matches(m MessageSummary) bool {
+	return c.negate != c.satisfied(m)
+}
+
+// satisfied reports whether any of the field's candidate strings satisfies the operator, before any
+// negation is applied.
+func (c RuleCondition) satisfied(m MessageSummary) bool {
 	needle := c.fold(c.text)
-	candidates := c.candidates(m)
-	if c.operator == RuleOpNotContains {
-		for _, s := range candidates {
-			if strings.Contains(c.fold(s), needle) {
-				return false
-			}
-		}
-		return true
-	}
-	for _, s := range candidates {
+	for _, s := range c.candidates(m) {
 		if matchOperator(c.operator, c.fold(s), needle) {
 			return true
 		}

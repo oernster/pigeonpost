@@ -20,6 +20,9 @@ type RuleConditionDTO struct {
 	Text     string `json:"text"`
 	// CaseSensitive makes the comparison exact; the default is case-insensitive matching.
 	CaseSensitive bool `json:"caseSensitive"`
+	// Negate holds the condition when the operator does NOT hold, so every operator has its negative.
+	// A negated condition is an exclusion, which a rule applies whatever its match mode.
+	Negate bool `json:"negate"`
 }
 
 // RuleActionDTO is the JSON-serialisable view of one rule action. Kind is a stable string token
@@ -222,7 +225,7 @@ func ruleToDTO(r domain.Rule) RuleDTO {
 	for _, c := range r.Conditions() {
 		conditions = append(conditions, RuleConditionDTO{
 			Field: c.Field().String(), Operator: c.Operator().String(), Text: c.Text(),
-			CaseSensitive: c.CaseSensitive(),
+			CaseSensitive: c.CaseSensitive(), Negate: c.Negated(),
 		})
 	}
 	actions := make([]RuleActionDTO, 0, len(r.Actions()))
@@ -260,6 +263,7 @@ func parseRuleConditions(in []RuleConditionDTO) ([]application.RuleConditionInpu
 		}
 		out = append(out, application.RuleConditionInput{
 			Field: field, Operator: operator, Text: c.Text, CaseSensitive: c.CaseSensitive,
+			Negate: c.Negate,
 		})
 	}
 	return out, nil
@@ -304,6 +308,8 @@ func parseRuleOperator(s string) (domain.RuleOperator, error) {
 	case "contains":
 		return domain.RuleOpContains, nil
 	case "notContains":
+		// Retired: kept so a rule written before negation became a flag still parses, folded into
+		// contains-and-negated by the condition constructor.
 		return domain.RuleOpNotContains, nil
 	case "equals":
 		return domain.RuleOpEquals, nil

@@ -62,7 +62,7 @@ function buildRule(overrides: Partial<Rule> = {}): Rule {
         matchMode: 'all',
         stopProcessing: false,
         accountIds: [],
-        conditions: [{field: 'from', operator: 'contains', text: 'news@', caseSensitive: false}],
+        conditions: [{field: 'from', operator: 'contains', text: 'news@', caseSensitive: false, negate: false}],
         actions: [{kind: 'markRead', folderId: ''}],
         ...overrides,
     } as Rule
@@ -114,8 +114,8 @@ describe('RuleManagerModal', () => {
             buildRule({
                 matchMode: 'any',
                 conditions: [
-                    {field: 'senderDomain', operator: 'equals', text: 'shop.com', caseSensitive: false},
-                    {field: 'subject', operator: 'contains', text: 'invoice', caseSensitive: true},
+                    {field: 'senderDomain', operator: 'equals', text: 'shop.com', caseSensitive: false, negate: false},
+                    {field: 'subject', operator: 'contains', text: 'invoice', caseSensitive: true, negate: false},
                 ],
                 actions: [{kind: 'markRead', folderId: ''}, {kind: 'moveTo', folderId: 'f2'}],
             }),
@@ -137,9 +137,9 @@ describe('RuleManagerModal', () => {
             buildRule({
                 matchMode: 'any',
                 conditions: [
-                    {field: 'all', operator: 'contains', text: '7digital', caseSensitive: false},
-                    {field: 'all', operator: 'contains', text: 'boomkat', caseSensitive: false},
-                    {field: 'all', operator: 'notContains', text: 'mediamonkey', caseSensitive: false},
+                    {field: 'all', operator: 'contains', text: '7digital', caseSensitive: false, negate: false},
+                    {field: 'all', operator: 'contains', text: 'boomkat', caseSensitive: false, negate: false},
+                    {field: 'all', operator: 'contains', text: 'mediamonkey', caseSensitive: false, negate: true},
                 ],
             }),
         ])
@@ -158,8 +158,8 @@ describe('RuleManagerModal', () => {
             buildRule({
                 matchMode: 'any',
                 conditions: [
-                    {field: 'all', operator: 'contains', text: '7digital', caseSensitive: false},
-                    {field: 'all', operator: 'notContains', text: 'mediamonkey', caseSensitive: false},
+                    {field: 'all', operator: 'contains', text: '7digital', caseSensitive: false, negate: false},
+                    {field: 'all', operator: 'contains', text: 'mediamonkey', caseSensitive: false, negate: true},
                 ],
             }),
         ])
@@ -405,6 +405,38 @@ describe('RuleManagerModal', () => {
         fireEvent.change(screen.getByLabelText('Match mode'), {target: {value: 'any'}})
         expect(screen.getByText('or')).toBeTruthy()
         expect(screen.queryByText('and')).toBeNull()
+    })
+
+    // The NOT switch is what gives every comparison its opposite: "is not", "doesn't start with" and
+    // so on, rather than negation living inside one operator and being unavailable to the rest.
+    it('negates any comparison and carries the switch back on save', async () => {
+        renderModal([buildRule({
+            conditions: [{field: 'subject', operator: 'endsWith', text: 'digest', caseSensitive: false, negate: false}],
+        })])
+        fireEvent.click(screen.getByLabelText('Edit Newsletters'))
+
+        const not = screen.getByLabelText('Not 1')
+        expect(not.getAttribute('aria-pressed')).toBe('false')
+        fireEvent.click(not)
+        expect(screen.getByLabelText('Not 1').getAttribute('aria-pressed')).toBe('true')
+
+        fireEvent.click(screen.getByText('Save rule'))
+        await waitFor(() => expect(apiSpies.saveRule).toHaveBeenCalledTimes(1))
+        const saved = apiSpies.saveRule.mock.calls[0][0].conditions[0]
+        expect(saved.negate).toBe(true)
+        // The comparison itself is untouched: NOT reverses it rather than replacing it.
+        expect(saved.operator).toBe('endsWith')
+    })
+
+    it('reads a negated comparison in words', async () => {
+        renderModal([buildRule({
+            conditions: [{field: 'subject', operator: 'endsWith', text: 'digest', caseSensitive: false, negate: true}],
+        })])
+        await waitFor(() =>
+            expect(screen.getByText(
+                `On any account, if Subject doesn't end with "digest", then mark as read`,
+            )).toBeTruthy(),
+        )
     })
 
     it('carries the case-sensitivity toggle back on save', async () => {

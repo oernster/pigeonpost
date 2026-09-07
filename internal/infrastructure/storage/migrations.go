@@ -266,4 +266,15 @@ UPDATE rule SET match_mode = 0
 WHERE (SELECT COUNT(*) FROM rule_condition c WHERE c.rule_id = rule.id) <= 1;
 `
 
-var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15, schemaV16, schemaV17, schemaV18, schemaV19, schemaV20, schemaV21, schemaV22, schemaV23, schemaV24, schemaV25, schemaV26, schemaV27, schemaV28, schemaV29, schemaV30, schemaV31, schemaV32, schemaV33, schemaV34, schemaV35, schemaV36, schemaV37, schemaV38, schemaV39, schemaV40, schemaV41, schemaV42, schemaV43, schemaV44, schemaV45, schemaV46, schemaV47, schemaV48, schemaV49, schemaV50, schemaV51, schemaV52, schemaV53, schemaV54, schemaV55}
+// schemaV56 gives a rule condition its own negation flag and retires the not-contains operator into it.
+// Negation was available on one operator alone, so a rule could say "does not contain" while "is not",
+// "does not start with" and "does not end with" could not be written at all. It is a property of the
+// condition rather than of one comparison, so every operator negates the same way. Existing
+// not-contains conditions become contains-and-negated, which is the same test under a name that
+// generalises; nothing else is touched and no rule changes what it matches.
+const schemaV56 = `
+ALTER TABLE rule_condition ADD COLUMN negate INTEGER NOT NULL DEFAULT 0;
+UPDATE rule_condition SET operator = 0, negate = 1 WHERE operator = 1;
+`
+
+var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15, schemaV16, schemaV17, schemaV18, schemaV19, schemaV20, schemaV21, schemaV22, schemaV23, schemaV24, schemaV25, schemaV26, schemaV27, schemaV28, schemaV29, schemaV30, schemaV31, schemaV32, schemaV33, schemaV34, schemaV35, schemaV36, schemaV37, schemaV38, schemaV39, schemaV40, schemaV41, schemaV42, schemaV43, schemaV44, schemaV45, schemaV46, schemaV47, schemaV48, schemaV49, schemaV50, schemaV51, schemaV52, schemaV53, schemaV54, schemaV55, schemaV56}

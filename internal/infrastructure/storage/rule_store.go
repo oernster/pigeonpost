@@ -89,18 +89,20 @@ type ruleChild[T any] struct {
 // listRuleConditions returns every rule's conditions keyed by rule id, each in stored position order.
 func (s *Store) listRuleConditions(ctx context.Context) (map[string][]domain.RuleCondition, error) {
 	rows, err := queryRows(ctx, s.db, "rule conditions",
-		`SELECT rule_id, field, operator, match_text, case_sensitive FROM rule_condition
+		`SELECT rule_id, field, operator, match_text, case_sensitive, negate FROM rule_condition
 		 ORDER BY rule_id, position;`,
 		func(row scanner) (ruleChild[domain.RuleCondition], error) {
 			var (
-				ruleID, text                   string
-				field, operator, caseSensitive int
+				ruleID, text                           string
+				field, operator, caseSensitive, negate int
 			)
-			if err := row.Scan(&ruleID, &field, &operator, &text, &caseSensitive); err != nil {
+			if err := row.Scan(&ruleID, &field, &operator, &text, &caseSensitive, &negate); err != nil {
 				return ruleChild[domain.RuleCondition]{}, fmt.Errorf("scan rule condition: %w", err)
 			}
-			cond, err := domain.NewRuleConditionCased(domain.RuleField(field), domain.RuleOperator(operator),
-				text, caseSensitive != 0)
+			// The retired not-contains operator is folded into contains-and-negated by the constructor,
+			// so a row the migration has not reached still reads back meaning what it meant.
+			cond, err := domain.NewRuleConditionFull(domain.RuleField(field), domain.RuleOperator(operator),
+				text, caseSensitive != 0, negate != 0)
 			if err != nil {
 				return ruleChild[domain.RuleCondition]{}, fmt.Errorf("rebuild condition of rule %q: %w", ruleID, err)
 			}
@@ -183,10 +185,10 @@ func (s *Store) SaveRule(ctx context.Context, rule domain.Rule) error {
 		}
 		for i, c := range rule.Conditions() {
 			if _, err := tx.ExecContext(ctx,
-				`INSERT INTO rule_condition (rule_id, position, field, operator, match_text, case_sensitive)
-				 VALUES (?, ?, ?, ?, ?, ?);`,
+				`INSERT INTO rule_condition (rule_id, position, field, operator, match_text, case_sensitive, negate)
+				 VALUES (?, ?, ?, ?, ?, ?, ?);`,
 				rule.ID(), i, int(c.Field()), int(c.Operator()), c.Text(),
-				boolToInt(c.CaseSensitive())); err != nil {
+				boolToInt(c.CaseSensitive()), boolToInt(c.Negated())); err != nil {
 				return fmt.Errorf("save condition %d of rule %q: %w", i, rule.ID(), err)
 			}
 		}

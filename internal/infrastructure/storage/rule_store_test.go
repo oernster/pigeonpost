@@ -370,3 +370,106 @@ func TestRuleMatchModeMigrationDisarmsOneConditionRules(t *testing.T) {
 		t.Errorf("a two-condition rule had its mode rewritten, changing what it matches")
 	}
 }
+
+// TestNegateMigrationRewritesTheRetiredOperator builds a database at the version just before negation
+// became its own flag, writes a not-contains condition in the old spelling, then opens it normally so
+// the migration runs. The condition must come back as contains-and-negated: the same test, under the
+// spelling every operator now shares.
+func TestNegateMigrationRewritesTheRetiredOperator(t *testing.T) {
+	ctx := context.Background()
+	path := filepath.Join(t.TempDir(), "negate.db")
+	db, err := sql.Open(driverName, path)
+	if err != nil {
+		t.Fatalf("open raw db: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	// preNegateVersion is the version schemaV56 upgrades FROM. It is a fixed number rather than an
+	// offset from schemaVersion, so later migrations cannot move this test off its step.
+	const preNegateVersion = 55
+	for _, step := range migrations[:preNegateVersion] {
+		if _, err := db.ExecContext(ctx, step); err != nil {
+			t.Fatalf("apply migrations up to %d: %v", preNegateVersion, err)
+		}
+	}
+	if _, err := db.ExecContext(ctx, fmt.Sprintf("PRAGMA user_version = %d;", preNegateVersion)); err != nil {
+		t.Fatalf("set version: %v", err)
+	}
+	if _, err := db.ExecContext(ctx,
+		"INSERT INTO rule (id, name, enabled, position, match_mode, stop_processing) VALUES ('r1', 'Music', 1, 0, ?, 0);",
+		int(domain.RuleMatchAny)); err != nil {
+		t.Fatalf("insert rule: %v", err)
+	}
+	if _, err := db.ExecContext(ctx,
+		`INSERT INTO rule_condition (rule_id, position, field, operator, match_text, case_sensitive)
+		 VALUES ('r1', 0, ?, ?, 'mediamonkey', 0);`,
+		int(domain.RuleFieldAll), int(domain.RuleOpNotContains)); err != nil {
+		t.Fatalf("insert condition: %v", err)
+	}
+	if _, err := db.ExecContext(ctx,
+		"INSERT INTO rule_action (rule_id, position, kind, folder_id) VALUES ('r1', 0, ?, '');",
+		int(domain.RuleFlag)); err != nil {
+		t.Fatalf("insert action: %v", err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatalf("close raw db: %v", err)
+	}
+
+	store, err := Open(ctx, path)
+	if err != nil {
+		t.Fatalf("open store (migration failed): %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+
+	rules, err := store.ListRules(ctx)
+	if err != nil {
+		t.Fatalf("list rules: %v", err)
+	}
+	if len(rules) != 1 || len(rules[0].Conditions()) != 1 {
+		t.Fatalf("expected one rule with one condition, got %d", len(rules))
+	}
+	got := rules[0].Conditions()[0]
+	if !got.Negated() {
+		t.Error("the migrated condition is not negated, so the rule stopped excluding what it excluded")
+	}
+	if got.Operator() != domain.RuleOpContains {
+		t.Errorf("operator is %v, want contains", got.Operator())
+	}
+}
+
+// A negated condition survives a save and a read: the flag is stored beside the comparison rather
+// than folded back into an operator that only one comparison has.
+func TestRuleStoreRoundTripsANegatedCondition(t *testing.T) {
+	store := openTestStore(t)
+	ctx := context.Background()
+	cond, err := domain.NewRuleConditionFull(domain.RuleFieldSubject, domain.RuleOpEquals, "digest", false, true)
+	if err != nil {
+		t.Fatalf("condition: %v", err)
+	}
+	action, err := domain.NewRuleAction(domain.RuleFlag, "")
+	if err != nil {
+		t.Fatalf("action: %v", err)
+	}
+	rule, err := domain.NewRule(domain.RuleSpec{
+		ID: "r1", Name: "Not the digest", Enabled: true,
+		MatchMode: domain.RuleMatchAll, Conditions: []domain.RuleCondition{cond},
+		Actions: []domain.RuleAction{action},
+	})
+	if err != nil {
+		t.Fatalf("rule: %v", err)
+	}
+	if err := store.SaveRule(ctx, rule); err != nil {
+		t.Fatalf("save rule: %v", err)
+	}
+
+	rules, err := store.ListRules(ctx)
+	if err != nil {
+		t.Fatalf("list rules: %v", err)
+	}
+	if len(rules) != 1 || len(rules[0].Conditions()) != 1 {
+		t.Fatalf("expected one rule with one condition, got %d", len(rules))
+	}
+	got := rules[0].Conditions()[0]
+	if !got.Negated() || got.Operator() != domain.RuleOpEquals {
+		t.Errorf("read back operator %v negated %v, want equals negated", got.Operator(), got.Negated())
+	}
+}

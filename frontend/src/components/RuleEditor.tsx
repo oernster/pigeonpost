@@ -172,6 +172,30 @@ export function RuleEditor({rule, folders, accounts, onChange}: RuleEditorProps)
                                     and
                                 </span>
                             )}
+                            <button
+                                className={`rule-not${isNegative(condition) ? ' on' : ''}`}
+                                aria-label={`Not ${index + 1}`}
+                                aria-pressed={isNegative(condition)}
+                                title={
+                                    isNegative(condition)
+                                        ? 'Negated: this condition holds when the comparison does NOT'
+                                        : 'Negate this condition, so it holds when the comparison does not'
+                                }
+                                onClick={() =>
+                                    setConditions(
+                                        replaceAt(rule.conditions, index, {
+                                            ...condition,
+                                            // The retired notContains operator is rewritten on the way
+                                            // out, so a rule edited here never carries both spellings
+                                            // of a negation.
+                                            operator: condition.operator === 'notContains' ? 'contains' : condition.operator,
+                                            negate: !isNegative(condition),
+                                        }),
+                                    )
+                                }
+                            >
+                                NOT
+                            </button>
                         <select
                             className="rule-field"
                             aria-label={`Field ${index + 1}`}
@@ -187,7 +211,7 @@ export function RuleEditor({rule, folders, accounts, onChange}: RuleEditorProps)
                         <select
                             className="rule-operator"
                             aria-label={`Operator ${index + 1}`}
-                            value={condition.operator}
+                            value={condition.operator === 'notContains' ? 'contains' : condition.operator}
                             onChange={(e) =>
                                 setConditions(replaceAt(rule.conditions, index, {...condition, operator: e.target.value}))
                             }

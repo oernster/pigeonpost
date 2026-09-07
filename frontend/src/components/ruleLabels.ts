@@ -15,12 +15,26 @@ export const FIELD_LABELS: Record<string, string> = {
     senderDomain: 'Sender domain',
 }
 
+// OPERATOR_LABELS are the comparisons a condition can make. Negation is not one of them: it is the
+// separate NOT switch on the row, so every comparison has its opposite rather than only "contains".
+// The retired notContains token is still read back from a rule written before that (the back end
+// folds it into contains with NOT set), so it needs no label here.
 export const OPERATOR_LABELS: Record<string, string> = {
     contains: 'contains',
-    notContains: "doesn't contain",
     equals: 'is',
     startsWith: 'starts with',
     endsWith: 'ends with',
+}
+
+// NEGATED_OPERATOR_LABELS are the same comparisons as they read with NOT set, for the summary line.
+// They are written out rather than composed from a prefix, since English negates each of them
+// differently and "not is" is not a sentence.
+export const NEGATED_OPERATOR_LABELS: Record<string, string> = {
+    contains: "doesn't contain",
+    notContains: "doesn't contain",
+    equals: 'is not',
+    startsWith: "doesn't start with",
+    endsWith: "doesn't end with",
 }
 
 export const ACTION_LABELS: Record<string, string> = {
@@ -51,6 +65,7 @@ export const EMPTY_CONDITION: RuleCondition = {
     operator: 'contains',
     text: '',
     caseSensitive: false,
+    negate: false,
 }
 export const EMPTY_ACTION: RuleAction = {kind: 'markRead', folderId: ''}
 
@@ -112,9 +127,10 @@ export function ruleSummary(
 }
 
 // isNegative reports whether a condition states what a message must NOT be. Such a condition always
-// applies, whatever the match mode, which is why the summary sets it apart from the rest.
+// applies, whatever the match mode, which is why the summary sets it apart from the rest. The retired
+// notContains operator counts too, so a rule read back before the migration rewrites it reads right.
 export function isNegative(condition: RuleCondition): boolean {
-    return condition.operator === 'notContains'
+    return condition.negate || condition.operator === 'notContains'
 }
 
 // conditionsText spells out how a rule's conditions combine, in the same terms the engine applies
@@ -147,7 +163,8 @@ function scopeText(rule: Rule, accountName: (accountId: string) => string): stri
 // since case-insensitive is the default and saying so every time would be noise.
 function conditionText(c: RuleCondition): string {
     const cased = c.caseSensitive ? ' (match case)' : ''
-    return `${FIELD_LABELS[c.field] ?? c.field} ${OPERATOR_LABELS[c.operator] ?? c.operator} "${c.text}"${cased}`
+    const labels = isNegative(c) ? NEGATED_OPERATOR_LABELS : OPERATOR_LABELS
+    return `${FIELD_LABELS[c.field] ?? c.field} ${labels[c.operator] ?? c.operator} "${c.text}"${cased}`
 }
 
 // actionText renders one action in the summary line, naming a move's destination folder.

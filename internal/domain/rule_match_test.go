@@ -224,3 +224,79 @@ func TestRuleConditionAllFields(t *testing.T) {
 		t.Errorf("all-fields condition matched text the message does not carry")
 	}
 }
+
+// TestNegatedConditionsCoverEveryOperator pins the capability the not-contains operator could not
+// give: every comparison has its opposite. A negated condition holds exactly when the plain one does
+// not, on the same message and the same field.
+func TestNegatedConditionsCoverEveryOperator(t *testing.T) {
+	m := ruleMessage(t, "Acme News", "news@acme.com", "Weekly Digest")
+	cases := []struct {
+		name     string
+		field    RuleField
+		operator RuleOperator
+		text     string
+		want     bool
+	}{
+		{"not contains, text present", RuleFieldSubject, RuleOpContains, "Weekly", false},
+		{"not contains, text absent", RuleFieldSubject, RuleOpContains, "Invoice", true},
+		{"is not, equal", RuleFieldSubject, RuleOpEquals, "Weekly Digest", false},
+		{"is not, different", RuleFieldSubject, RuleOpEquals, "Weekly", true},
+		{"does not start with, it does", RuleFieldSubject, RuleOpStartsWith, "Weekly", false},
+		{"does not start with, it does not", RuleFieldSubject, RuleOpStartsWith, "Digest", true},
+		{"does not end with, it does", RuleFieldSubject, RuleOpEndsWith, "Digest", false},
+		{"does not end with, it does not", RuleFieldSubject, RuleOpEndsWith, "Weekly", true},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			negated, err := NewRuleConditionFull(c.field, c.operator, c.text, false, true)
+			if err != nil {
+				t.Fatalf("condition: %v", err)
+			}
+			if got := negated.Matches(m); got != c.want {
+				t.Errorf("negated: got %v, want %v", got, c.want)
+			}
+			plain, err := NewRuleConditionFull(c.field, c.operator, c.text, false, false)
+			if err != nil {
+				t.Fatalf("condition: %v", err)
+			}
+			if plain.Matches(m) == negated.Matches(m) {
+				t.Errorf("negating the condition did not change what it matches")
+			}
+		})
+	}
+}
+
+// A negation has to be read against the whole field: "does not contain" is false when ANY of the
+// field's candidate strings contains the text, never merely when some other candidate does not. The
+// From field carries both a display name and an address, which is where a per-candidate reading would
+// go wrong: the address holds the text while the display name does not.
+func TestNegationAppliesToTheWholeField(t *testing.T) {
+	m := ruleMessage(t, "Acme News", "news@acme.com", "Weekly Digest")
+	c, err := NewRuleConditionFull(RuleFieldFrom, RuleOpContains, "acme.com", false, true)
+	if err != nil {
+		t.Fatalf("condition: %v", err)
+	}
+	if c.Matches(m) {
+		t.Error("a negated condition held while part of the field satisfied the comparison")
+	}
+}
+
+// A rule stored before negation became its own flag carries the retired not-contains operator. It is
+// folded into contains-and-negated on construction, so it means what it always meant and there is one
+// spelling of a negation from there on.
+func TestRetiredNotContainsFoldsIntoANegatedCondition(t *testing.T) {
+	c, err := NewRuleCondition(RuleFieldSubject, RuleOpNotContains, "invoice")
+	if err != nil {
+		t.Fatalf("condition: %v", err)
+	}
+	if !c.Negated() {
+		t.Error("the retired operator did not read back as a negation")
+	}
+	if c.Operator() != RuleOpContains {
+		t.Errorf("operator is %v, want contains", c.Operator())
+	}
+	m := ruleMessage(t, "Acme News", "news@acme.com", "Weekly Digest")
+	if !c.Matches(m) {
+		t.Error("the folded condition stopped matching a message that does not contain the text")
+	}
+}

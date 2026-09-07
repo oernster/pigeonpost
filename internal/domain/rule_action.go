@@ -236,7 +236,7 @@ func (r Rule) Matches(m MessageSummary) bool {
 func (r Rule) matchesAny(m MessageSummary) bool {
 	positives, matched := 0, false
 	for _, c := range r.conditions {
-		if c.Operator().Negated() {
+		if c.Negated() {
 			if !c.Matches(m) {
 				return false
 			}
