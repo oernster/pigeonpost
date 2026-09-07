@@ -161,6 +161,15 @@ concern, so read it before attaching it to anything.
   applies, each knowing its total before it starts; Cancel stops it. Stopping is not an undo: the
   report then tells you what had already been done, because that part really did happen. Afterwards it
   reports what actually happened either way, so a run the server partly refused names the part that landed.
+  A rule set moves between installations through a file: Export writes every rule as readable JSON and
+  Import reads one back. The file carries nothing local to the machine that wrote it, so a rule keeps no
+  id and no position while a move names its destination as the account plus the mailbox path rather than
+  as the folder id those two are joined into. An import is described before it is applied, since rules act
+  unattended: what the file holds, what it replaces, what arrives switched off and what moves or deletes
+  mail. A rule matching a stored one by name replaces it in place rather than duplicating it; anything
+  else is appended in file order. A rule this installation cannot run, because it names a destination
+  folder or accounts held nowhere here, arrives switched off and is named in the report, so it works once
+  that folder syncs or that account is added.
 - **Read**: an optional reading pane (mark-on-view, F8 toggle) whose attachments stay pinned at the
   foot of the message, so Open and Save are one click away however long the thread is rather than below
   every quoted round, with draggable pane dividers

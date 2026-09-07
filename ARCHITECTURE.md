@@ -856,6 +856,40 @@ the accounts it covers; narrowing the scope clears a destination that falls outs
 that, a rule could name a folder it can never reach and the move would silently do nothing on every
 sync; clearing it instead blocks the save until a reachable folder is chosen.
 
+**Moving a rule set between installations.** `RuleTransferService` is a separate use case from
+`RuleService` because the two answer different questions: one edits a rule on this machine, the other
+moves a set of them to another, where nothing local may be assumed. Its three methods are `Export`,
+`Plan` and `Import`; it holds the `RuleStore`, the `AccountStore`, a folder lister and an id generator,
+all injected; it knows the file only through a `RuleCodec` interface that round-trips a
+`[]RuleTransfer`. The format itself lives in infrastructure, in the `rulefile` package, so the
+application layer carries no JSON.
+
+The travelling record deliberately drops local identity. A rule keeps no id, since an id is local to the
+database that minted it; it keeps no position either, since the order is the order of the file. A move's destination
+is written as an account plus a mailbox path rather than as a folder id: `domain.FolderIDFor` and
+`domain.SplitFolderID` are the one spelling of that composition, so nothing is lost while the file stays
+readable and an import can say which folder a rule wanted when this installation does not hold it. The
+file is indented JSON headed by `kind` and `version`, so a JSON document of some other shape is refused
+by name (`ErrNotARulesFile`) rather than read as an empty rule set; a file from a later format
+version is refused outright (`ErrFutureVersion`) rather than read with its unknown fields dropped.
+
+Name is the identity across machines. An incoming rule matching a stored one by name replaces it in
+place, keeping its position, so re-importing a file updates rather than duplicates; anything else is
+appended after the existing rules in file order.
+
+A rule that cannot act as written here arrives switched off; both the plan and the result name it.
+Two things a file can claim that the reader may not have: a destination folder and an account scope.
+Neither is an error, since both may exist later, so the rule is imported verbatim and disabled rather
+than rewritten. Disabling is the honest answer because both alternatives are worse: left enabled, a rule
+whose destination is unknown silently does nothing on every sync while looking active, which is the
+failure the editor already refuses to save; dropping the unreachable part instead would quietly change
+what the user wrote; for a scope that would mean widening a rule to every account.
+
+`Plan` is `Import` with nothing written, so the confirmation is measured rather than promised. It
+reports what would be added, what would be replaced, what would arrive switched off and which rules move
+or destroy mail. That last group is why the confirmation exists at all: an imported rule runs unattended
+on the next sync, so agreeing to a file is agreeing to whatever its rules do.
+
 **Update check.** The application `UpdateService` compares the embedded VERSION against the newest
 published GitHub release through the `ReleaseSource` port, implemented by
 `infrastructure/update.GitHubReleaseSource` (a 5 second `net/http` GET of the latest-release

@@ -115,6 +115,14 @@
                         you want. Stopping is not an undo: the report then tells you what had already been
                         done, because that part really did happen. Either way you are told what actually
                         happened, so a run the server partly refused names the part that landed</li>
+                    <li>Export your rules to a file and import them on another machine. The file is
+                        readable JSON naming a move's destination as the account and mailbox path, so
+                        you can open it, read it and hand-edit it. An import tells you what the file
+                        holds before it writes anything: what arrives, what replaces a rule of the same
+                        name, what comes in switched off and which of them move or delete mail. A rule
+                        that cannot run here, because it names a folder or accounts this installation
+                        does not have, arrives switched off rather than silently doing nothing, so it
+                        works once that folder syncs or that account is added</li>
                     <li>Drag mail into a folder and it goes at once: the message leaves the list on the
                         drop rather than after the server has caught up, the folder that took it flashes
                         so you can see where it went; holding a drag near the edge of the folder

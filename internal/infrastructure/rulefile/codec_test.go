@@ -85,6 +85,19 @@ func TestEncodeGivesAnEmptySetAnEmptyRuleList(t *testing.T) {
 	}
 }
 
+// An unscoped rule covers every account, which the file states as an empty list rather than as null.
+// The distinction is not cosmetic: a hand-editing reader meeting "accounts": null has to know that
+// Go's zero slice and an empty one mean the same thing here, while an empty list says it outright.
+func TestEncodeWritesAnUnscopedRuleAsAnEmptyAccountList(t *testing.T) {
+	data, err := New().Encode([]application.RuleTransfer{{Name: "Everywhere", Accounts: nil}})
+	if err != nil {
+		t.Fatalf("encode: %v", err)
+	}
+	if !strings.Contains(string(data), "\"accounts\": []") {
+		t.Errorf("an unscoped rule wrote %s", data)
+	}
+}
+
 // Refusing a file that is not ours matters more than it looks: decoding it as an empty rule set would
 // report "0 rules" about a file the user believed held theirs, which is a wrong answer told quietly.
 func TestDecodeRefusesWhatIsNotARulesFile(t *testing.T) {

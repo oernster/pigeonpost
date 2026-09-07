@@ -55,6 +55,7 @@ documented here.
 | `internal/infrastructure/recurrence` | unit on RRULE expansion and truncation | none |
 | `internal/infrastructure/vcard` | unit on the vCard codec round-trip | none |
 | `internal/infrastructure/csv` | unit on the Outlook CSV codec round-trip | none |
+| `internal/infrastructure/rulefile` | unit on the rules-file JSON codec: the round trip of every field, the readable shape (indented, ending in a newline, no folder id in it), an empty export and the refusals (not a rules file, malformed JSON, a later format version) | none |
 | `internal/infrastructure/caldav` | unit against a local stub CalDAV server (httptest) | local HTTP server |
 | `internal/infrastructure/oauth` | unit against stubbed token endpoints (httptest) | local HTTP server |
 | `internal/infrastructure/remoteimage` | unit on the SSRF guard and the resolver for both parked images and parked CSS backgrounds, against local stub servers (httptest) and an injected fetch seam | local HTTP server |
@@ -77,6 +78,7 @@ documented here.
 | internal/infrastructure/mailrouter | 100% | per-protocol dispatch (pure) |
 | internal/infrastructure/errlog | 100% | the mail-error log: append, rollover, the nil case, an unwritable location and concurrent writers |
 | internal/infrastructure/keychain | 100% | account and CalDAV calendar password paths via go-keyring's in-memory mock |
+| internal/infrastructure/rulefile | ~97% | the rules-file codec (pure): the field round trip, the readable shape, the empty and unscoped cases and every refusal; only the `json.MarshalIndent` error branch is uncovered, which a plain struct tree cannot reach |
 | internal/infrastructure/recurrence | ~97% | RRULE expansion and truncation; a few defensive edges uncovered |
 | internal/infrastructure/vcard | ~97% | vCard codec round-trip |
 | internal/infrastructure/sound | ~97% | the three notification chimes' synthesis, normalisation and WAV encoding (pure); only the winmm playback call is excluded |
@@ -123,7 +125,7 @@ documented here.
   running the setup program, not by unit tests.
 - **Composition root and startup** (the whole `main` package: `main.go` plus the Wails facade files,
   namely `app.go`, one binding file per feature surface (accounts, mail, folders, send, draft recovery,
-  outbox, snooze, tags, rules, templates, calendar, CalDAV, contacts, scheduling, export, `.eml`
+  outbox, snooze, tags, rules, rules files, templates, calendar, CalDAV, contacts, scheduling, export, `.eml`
   files and updates), the background goroutines (the new-mail notifier, the reminder scheduler, the outbox
   dispatcher and the snooze scheduler) plus the DTO mappers and clock) and the **icon tool**
   (`tools/genicons`): wiring and one-shot programs, verified by the app and the build succeeding. The
