@@ -139,15 +139,21 @@ concern, so read it before attaching it to anything.
   puts a message out of the way, so it stops asking for attention. On Gmail the archive is All Mail, which
   holds a copy of every message you have, so a count there would be the whole mailbox rather than anything
   about archived mail. Reading a message marks it read everywhere it appears, which on Gmail is every
-  label it carries. On-arrival rules combine several conditions (all fields at
+  label it carries. Filter rules combine several conditions (all fields at
   once; or From, To, Cc, any recipient, Subject, sender domain) with all-or-any matching and a per-condition
   match-case switch, then mark read, flag, move to a folder of your choice or delete permanently. A rule
   runs on every account unless you limit it to the ones you pick. Delete permanently means exactly that: removed on the server,
   never cached and not recoverable. On most providers the message is expunged where it stands and never
   touches Trash. Gmail is the exception: it treats its folders as labels and answers an expunge by
   archiving rather than deleting, so there PigeonPost moves the message to the Bin and empties it from
-  the Bin, which is the only route Gmail honours as a deletion. Rules run on the Inbox and
-  only on mail arriving after the rule exists, so adding one never reaches back over the mail you have.
+  the Bin, which is the only route Gmail honours as a deletion. Unattended, rules run on the Inbox and only on mail arriving
+  after the rule exists, so adding one never reaches back over the mail you have. A Now button on each rule
+  is how you ask it to: it applies that one rule to the mail you already have, across every folder of every
+  account the rule covers. It first shows what the rule found (how many stored messages it was checked
+  against and how many it would mark, flag, move or delete) and acts only once you agree; a rule that would
+  change nothing says so instead. A progress bar counts folders while it checks and messages while it
+  applies, each knowing its total before it starts. Afterwards it reports what actually happened, so a run
+  the server partly refused names the part that landed.
 - **Read**: an optional reading pane (mark-on-view, F8 toggle) whose attachments stay pinned at the
   foot of the message, so Open and Save are one click away however long the thread is rather than below
   every quoted round, with draggable pane dividers

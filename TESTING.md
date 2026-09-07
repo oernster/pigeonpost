@@ -131,7 +131,10 @@ documented here.
   unit tests. `rulesapi_test.go` is the one to copy when adding another: it asserts on the DTO's
   marshalled JSON bytes rather than on a hand-written fixture, because a Go nil slice encodes as
   `null` while the generated front-end type declares an array; only the real encoder output shows
-  that.
+  that. The same file pins the rule-backfill progress DTO for a different reason: that one travels on
+  a Wails event rather than as a binding's return, so Wails generates no TypeScript type for it and
+  the front end's interface is hand-written. Nothing type-checks the two against each other, so the
+  encoder output is what holds them in step.
 - **A few defensive branches in storage** (a commit failing after a successful transaction, a driver
   read error mid-iteration): not reachably triggerable with a real SQLite file.
 

@@ -89,13 +89,23 @@
                         heading makes one at the top level and New subfolder on a folder's right-click
                         menu makes one inside it; the arrangement you settle on
                         is remembered per account and survives updates and reinstalls</li>
-                    <li>On-arrival rules that combine as many conditions as you need, matched on all or
+                    <li>Filter rules that combine as many conditions as you need, matched on all or
                         any of them, against the sender, the recipients, the subject, the sender's whole
                         domain or every field at once, with case matching per condition. A rule can mark
                         read, flag, move to a folder of your choice or delete permanently, run on every
                         account or only the ones you pick and be reordered, switched off or set to stop
-                        later rules. Rules act on the Inbox and only on mail arriving after you write
-                        them, so adding one never reaches back over the mail you already have</li>
+                        later rules. Left to themselves they act on the Inbox and only on mail arriving
+                        after you write them, so adding one never reaches back over the mail you already
+                        have</li>
+                    <li>A Now button on each rule applies it to the mail you already have, across every
+                        folder of every account that rule covers. It shows you what the rule found first,
+                        counting the stored messages it was checked against and the ones it would mark,
+                        flag, move or delete, then acts only once you agree; a rule that would change
+                        nothing says so rather than asking. A rule that deletes says plainly that the
+                        deletion is permanent and cannot be undone. A progress bar counts folders while
+                        it checks and messages while it applies, so a long run says how far along it is
+                        rather than leaving you guessing. Afterwards you are told what actually happened,
+                        so a run the server partly refused names the part that landed</li>
                     <li>Drag mail into a folder and it goes at once: the message leaves the list on the
                         drop rather than after the server has caught up, the folder that took it flashes
                         so you can see where it went; holding a drag near the edge of the folder

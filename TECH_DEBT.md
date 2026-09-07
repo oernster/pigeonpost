@@ -14,7 +14,7 @@ The limit is 400 lines. `tests/structural/boundary_test.go` has always enforced 
 |---|---|
 | `src/App.tsx` | 1371 |
 | `src/components/ComposeModal.tsx` | 699 |
-| `src/api.ts` | 627 |
+| `src/api.ts` | 604 |
 | `src/components/EventFormModal.tsx` | 559 |
 | `src/components/ContactsModal.tsx` | 491 |
 | `src/components/FolderTree.tsx` | 445 |

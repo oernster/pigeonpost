@@ -767,6 +767,21 @@ promised; a run reports the work that SUCCEEDED, taken from what each batch came
 from the plan. A disabled rule is refused outright (`ErrRuleDisabled`) rather than silently
 reporting that it changed nothing.
 
+Both halves report progress, because both are slow enough on a real mailbox that silence reads as a
+hang. The service takes a `RuleBackfillReport`, a plain function rather than a port interface since
+it has one method and no state; a nil one is valid. It reports two phases, each with a total it
+knows before it begins: the scan counts folders, which is why `targets` gathers every folder before
+any is read (a bar that learns its own length as it goes cannot say how far along it is); the
+applying phase counts messages, which is known once the scan has finished. It counts ATTEMPTS rather
+than successes, so a refused batch does not shorten the bar while the run carries on. The facade
+supplies a reporter that emits `rules:backfill-progress`, keeping the application layer free of
+Wails; the front end holds one listener for both phases and draws a determinate bar.
+
+`RuleBackfillProgressDTO` is the one DTO on this surface Wails generates no TypeScript type for,
+since it travels on an event rather than as a bound method's return and generation follows binding
+signatures. Its front-end interface is therefore hand-written: the wire stated twice, so
+`TestRuleBackfillProgressWireShape` asserts on the marshalled bytes to compare the two statements.
+
 Because a rule runs unattended, the confirmation for a destructive action moves to rule-creation time:
 the UI warns before saving a rule that moves or destroys mail and marks a destroying rule in the list.
 A backfill is confirmed separately at the point it is asked for, against the previewed counts, since
@@ -1203,8 +1218,16 @@ calendar on that event through the existing calendar binding.
 
 Only one PigeonPost runs per user, enforced by Wails' `SingleInstanceLock` (a named mutex on Windows).
 A second launch does not open a new window: the running instance's `OnSecondInstanceLaunch` reveals its
-window through the same `WindowShow`/`WindowUnminimise` path the tray uses, so relaunching an app hidden
-in the tray simply brings it back.
+window through the same `revealWindow` path the tray and the close prompt use, so relaunching an app
+hidden in the tray simply brings it back.
+
+`revealWindow` holds one invariant: revealing the window never changes whether it is maximised. The
+un-minimise is therefore conditional and the maximised state is read and restored around the calls,
+rather than the state being branched on per platform. Wails turns `WindowUnminimise` into a
+`WM_SYSCOMMAND` carrying `SC_RESTORE`, which restores a MAXIMISED window to its pre-maximised size just
+as readily as it raises a minimised one, so asking for it unconditionally shrank a maximised window
+every time the close button was pressed, before the close-choice dialog had even appeared. The tray's
+Open item and a second launch reveal through the same function, so all three carried it.
 
 A clicked `mailto:` link or opened `.eml` reaches the app by two platform routes into one shared
 mechanism. On Windows the payload arrives as a command-line argument (of the cold launch or the second
