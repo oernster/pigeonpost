@@ -7,7 +7,7 @@
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 import {cleanup, fireEvent, render, screen, waitFor} from '@testing-library/react'
 import {RuleManagerModal} from './RuleManagerModal'
-import type {Account, Rule} from '../api'
+import type {Account, Rule, RuleBackfill} from '../api'
 import {spiesNotInApi, unstubbedNames} from '../test/apiMock'
 
 const apiSpies = vi.hoisted(() => ({
@@ -15,6 +15,8 @@ const apiSpies = vi.hoisted(() => ({
     saveRule: vi.fn(),
     deleteRule: vi.fn(),
     reorderRules: vi.fn(),
+    previewRuleBackfill: vi.fn(),
+    runRuleBackfill: vi.fn(),
 }))
 
 // The mock is built from the real api rather than hand-listed here, so a method reached with no spy
@@ -50,6 +52,15 @@ function buildRule(overrides: Partial<Rule> = {}): Rule {
     } as Rule
 }
 
+// counts builds a backfill result, defaulting every kind of work to none so a test states only the
+// numbers it cares about.
+function counts(overrides: Partial<RuleBackfill> = {}): RuleBackfill {
+    return {scanned: 0, markRead: 0, flag: 0, move: 0, destroy: 0, ...overrides} as RuleBackfill
+}
+
+// noWork is the result of a rule that matches nothing, the default for tests not about the backfill.
+const noWork = counts()
+
 function renderModal(rules: Rule[]) {
     const onChanged = vi.fn()
     const onClose = vi.fn()
@@ -75,6 +86,8 @@ describe('RuleManagerModal', () => {
         apiSpies.saveRule.mockResolvedValue(undefined)
         apiSpies.deleteRule.mockResolvedValue(undefined)
         apiSpies.reorderRules.mockResolvedValue(undefined)
+        apiSpies.previewRuleBackfill.mockResolvedValue(noWork)
+        apiSpies.runRuleBackfill.mockResolvedValue(noWork)
     })
     afterEach(cleanup)
 
@@ -103,9 +116,53 @@ describe('RuleManagerModal', () => {
         expect(screen.getByText('destroys')).toBeTruthy()
     })
 
-    it('states that rules never act on mail already in the mailbox', () => {
+    it('states that a rule reaches stored mail only when asked to', () => {
         renderModal([])
-        expect(screen.getByText(/never act on mail\s+already in your mailbox/)).toBeTruthy()
+        expect(screen.getByText(/do not act on mail\s+already in your mailbox until you ask them to/)).toBeTruthy()
+    })
+
+    it('confirms a backfill against the counts it previewed before running it', async () => {
+        const {onChanged} = renderModal([buildRule()])
+        apiSpies.previewRuleBackfill.mockResolvedValue(counts({scanned: 40, markRead: 7}))
+        apiSpies.runRuleBackfill.mockResolvedValue(counts({scanned: 40, markRead: 7}))
+
+        fireEvent.click(screen.getByLabelText('Apply Newsletters to stored mail'))
+
+        await waitFor(() => expect(screen.getByText(/7 to mark as read/)).toBeTruthy())
+        // Nothing has run yet: the preview is a description; the run only happens on confirmation.
+        expect(screen.getByText(/40 stored message\(s\)/)).toBeTruthy()
+        expect(apiSpies.runRuleBackfill).not.toHaveBeenCalled()
+
+        fireEvent.click(screen.getByText('Apply rule now'))
+        await waitFor(() => expect(apiSpies.runRuleBackfill).toHaveBeenCalledWith('r1'))
+        await waitFor(() => expect(screen.getByText('7 marked as read.')).toBeTruthy())
+        expect(onChanged).toHaveBeenCalled()
+    })
+
+    it('warns that a destroying backfill cannot be undone', async () => {
+        renderModal([buildRule({actions: [{kind: 'destroy', folderId: ''}]})])
+        apiSpies.previewRuleBackfill.mockResolvedValue(counts({scanned: 12, destroy: 3}))
+
+        fireEvent.click(screen.getByLabelText('Apply Newsletters to stored mail'))
+
+        await waitFor(() => expect(screen.getByText(/3 to delete permanently/)).toBeTruthy())
+        expect(screen.getByText(/does not go to Trash and no copy is kept/)).toBeTruthy()
+        expect(screen.getByText('This will delete stored mail')).toBeTruthy()
+    })
+
+    it('skips the confirmation when a rule would change nothing', async () => {
+        renderModal([buildRule()])
+
+        fireEvent.click(screen.getByLabelText('Apply Newsletters to stored mail'))
+
+        await waitFor(() => expect(screen.getByText('Nothing changed.')).toBeTruthy())
+        expect(apiSpies.runRuleBackfill).not.toHaveBeenCalled()
+    })
+
+    it('offers no backfill for a disabled rule', () => {
+        renderModal([buildRule({enabled: false})])
+        const button = screen.getByLabelText('Apply Newsletters to stored mail') as HTMLButtonElement
+        expect(button.disabled).toBe(true)
     })
 
     it('saves a flag-only rule without a confirmation', async () => {

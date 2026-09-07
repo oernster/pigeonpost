@@ -4,6 +4,7 @@ import {api, Account, Folder, Rule, RuleInput} from '../api'
 import {ModalClose} from './ModalClose'
 import {ConfirmDialog} from './ConfirmDialog'
 import {RuleEditor, FolderChoice, AccountChoice} from './RuleEditor'
+import {RuleBackfillDialogs, useRuleBackfill} from './RuleBackfill'
 import {destroys, emptyRule, isDestructive, ruleIsComplete, ruleSummary} from './ruleLabels'
 
 interface RuleManagerModalProps {
@@ -102,6 +103,8 @@ export function RuleManagerModal({accounts, rules, onChanged, onClose}: RuleMana
         })
     }
 
+    const backfill = useRuleBackfill(onChanged, setError)
+
     const remove = (rule: Rule) =>
         void run(async () => {
             await api.deleteRule(rule.id)
@@ -180,8 +183,9 @@ export function RuleManagerModal({accounts, rules, onChanged, onClose}: RuleMana
                     <h2 className="modal-title">Filter rules</h2>
                     <div className="modal-body">
                         <p className="setup-hint">
-                            Rules run on mail arriving in the Inbox, in the order shown. They never act on mail
-                            already in your mailbox.
+                            Rules run on mail arriving in the Inbox, in the order shown. They do not act on mail
+                            already in your mailbox until you ask them to: Now applies one rule to what is
+                            already stored, in every folder of the accounts it covers.
                         </p>
                         {error && <div className="compose-error">{error}</div>}
                         {rules.length === 0 ? (
@@ -228,6 +232,17 @@ export function RuleManagerModal({accounts, rules, onChanged, onClose}: RuleMana
                                             </button>
                                             <button
                                                 className="rule-edit"
+                                                aria-label={`Apply ${r.name} to stored mail`}
+                                                title={r.enabled
+                                                    ? 'Apply this rule to mail already in your mailbox'
+                                                    : 'Enable this rule to apply it'}
+                                                disabled={busy || backfill.busy || !r.enabled}
+                                                onClick={() => backfill.start(r)}
+                                            >
+                                                Now
+                                            </button>
+                                            <button
+                                                className="rule-edit"
                                                 aria-label={`Edit ${r.name}`}
                                                 title="Edit rule"
                                                 disabled={busy}
@@ -258,6 +273,12 @@ export function RuleManagerModal({accounts, rules, onChanged, onClose}: RuleMana
                     </div>
                 </div>
             </div>
+            <RuleBackfillDialogs
+                phase={backfill.phase}
+                busy={backfill.busy}
+                onRun={backfill.run}
+                onDismiss={backfill.dismiss}
+            />
             {toDelete && (
                 <ConfirmDialog
                     title="Delete rule"

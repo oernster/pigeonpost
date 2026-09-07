@@ -43,7 +43,6 @@ import {
     DeleteContactGroup,
     DeleteEvent,
     DeleteFolder,
-    DeleteRule,
     DeleteTemplate,
     ExportContactsToFile,
     ExportEventsToFile,
@@ -64,7 +63,6 @@ import {
     ListContacts,
     ListEvents,
     ListEventInstances,
-    ListRules,
     ListTemplates,
     SaveCalendar,
     SaveContact,
@@ -76,8 +74,6 @@ import {
     MoveMessage,
     MoveMessages,
     RenameFolder,
-    SaveRule,
-    ReorderRules,
     SaveTemplate,
     CancelOutboxItem,
     CheckForUpdates,
@@ -119,6 +115,10 @@ import {ClipboardGetText} from '../wailsjs/runtime'
 import {main} from '../wailsjs/go/models'
 import {isUnifiedFolder} from './unified'
 import {isSnoozedFolder} from './snooze'
+// The filter-rule calls and their types live in their own module; they are re-exported and spread
+// into the api object below, so callers still reach them as api.* and import their types from here.
+import {rulesApi} from './apiRules'
+export type {Rule, RuleAction, RuleBackfill, RuleCondition, RuleInput} from './apiRules'
 
 export type Account = main.AccountDTO
 export type Folder = main.FolderDTO
@@ -159,12 +159,6 @@ export const SEARCH_MATCH_END = '\u0002'
 export type AboutInfo = main.AboutDTO
 export type UpdateStatus = main.UpdateStatusDTO
 export type Tag = main.TagDTO
-// Rule drops the generated convertValues helper, the same way Message and MessageBody do: the rule
-// editor builds and edits rules as plain object literals; Wails hands back plain JSON at runtime
-// anyway. The nested condition and action DTOs carry no helper of their own.
-export type Rule = Omit<main.RuleDTO, 'convertValues'>
-export type RuleCondition = main.RuleConditionDTO
-export type RuleAction = main.RuleActionDTO
 export type Template = main.TemplateDTO
 // MessageBody drops the generated convertValues helper so an outbox message's body can be built as a
 // plain object literal; the nested AttachmentDTO array carries no helper of its own.
@@ -295,19 +289,6 @@ export interface CalendarEventInput {
     // is empty for an ordinary calendar entry.
     organizer: MeetingOrganizerInput
     attendees: MeetingAttendeeInput[]
-}
-
-// RuleInput is the shape sent back to save a rule. It mirrors Rule exactly, so a rule read from the
-// back end can be edited and returned without translation; an empty id means a new rule.
-export interface RuleInput {
-    id: string
-    name: string
-    enabled: boolean
-    position: number
-    matchMode: string
-    stopProcessing: boolean
-    conditions: RuleCondition[]
-    actions: RuleAction[]
 }
 
 export interface TagInput {
@@ -542,11 +523,7 @@ export const api = {
     folderUIState: (accountId: string): Promise<FolderUIStateResult> => FolderUIState(accountId),
     saveFolderUIState: (accountId: string, order: string[], collapsed: string[]): Promise<void> =>
         SaveFolderUIState(accountId, order, collapsed),
-    listRules: (): Promise<Rule[]> => ListRules(),
-    saveRule: (req: RuleInput): Promise<void> => SaveRule(main.RuleDTO.createFrom(req)),
-    deleteRule: (ruleId: string): Promise<void> => DeleteRule(ruleId),
-    // reorderRules writes the evaluation order: the rule at index i takes position i.
-    reorderRules: (orderedIds: string[]): Promise<void> => ReorderRules(orderedIds),
+    ...rulesApi,
     listTemplates: (): Promise<Template[]> => ListTemplates(),
     saveTemplate: (req: TemplateInput): Promise<void> => SaveTemplate(main.TemplateRequest.createFrom(req)),
     deleteTemplate: (templateId: string): Promise<void> => DeleteTemplate(templateId),

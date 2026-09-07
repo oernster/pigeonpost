@@ -8,6 +8,9 @@ interface ConfirmDialogProps {
     onConfirm: () => void
     onCancel: () => void
     busy?: boolean
+    // busyLabel replaces the button text while the action runs. It defaults to the removal wording the
+    // dialog was written for; a caller doing something other than removing says so instead.
+    busyLabel?: string
     // defaultConfirm focuses the confirm (destructive) button instead of Cancel, so pressing Enter carries
     // out the action rather than cancelling it. Used where the user already invoked the action explicitly,
     // such as the Delete and Shift+Delete message shortcuts, so Enter completes the delete they asked for.
@@ -17,7 +20,7 @@ interface ConfirmDialogProps {
 // ConfirmDialog is the shared modal for confirming a destructive action. It names what happens and
 // defaults focus to Cancel, so Enter cancels; set defaultConfirm to focus the danger button instead so
 // Enter carries out the action. The confirm button carries the danger styling either way.
-export function ConfirmDialog({title, message, confirmLabel, onConfirm, onCancel, busy, defaultConfirm}: ConfirmDialogProps) {
+export function ConfirmDialog({title, message, confirmLabel, onConfirm, onCancel, busy, busyLabel, defaultConfirm}: ConfirmDialogProps) {
     const dismiss = useBackdropDismiss(onCancel)
     return (
         <div className="modal-backdrop" {...dismiss}>
@@ -30,7 +33,7 @@ export function ConfirmDialog({title, message, confirmLabel, onConfirm, onCancel
                 <div className="modal-actions spread">
                     <button className="btn" onClick={onCancel} disabled={busy} autoFocus={!defaultConfirm}>Cancel</button>
                     <button className="btn danger" onClick={onConfirm} disabled={busy} autoFocus={defaultConfirm}>
-                        {busy ? 'Removing...' : confirmLabel}
+                        {busy ? (busyLabel ?? 'Removing...') : confirmLabel}
                     </button>
                 </div>
             </div>

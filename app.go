@@ -72,6 +72,7 @@ type App struct {
 	folders       *application.FolderService
 	folderUIState *application.FolderUIStateService
 	rules         *application.RuleService
+	ruleBackfill  *application.RuleBackfillService
 	templates     *application.TemplateService
 	contacts      *application.ContactService
 	calendar      *application.CalendarService
@@ -104,6 +105,7 @@ func NewApp(
 	folders *application.FolderService,
 	folderUIState *application.FolderUIStateService,
 	rules *application.RuleService,
+	ruleBackfill *application.RuleBackfillService,
 	templates *application.TemplateService,
 	contacts *application.ContactService,
 	calendar *application.CalendarService,
@@ -137,6 +139,7 @@ func NewApp(
 		folders:       folders,
 		folderUIState: folderUIState,
 		rules:         rules,
+		ruleBackfill:  ruleBackfill,
 		templates:     templates,
 		contacts:      contacts,
 		calendar:      calendar,
@@ -238,10 +241,24 @@ func (a *App) onFileOpen(path string) {
 }
 
 // revealWindow brings the window back into view: it un-hides it (it may be hidden to the tray) and
-// un-minimises it. Used by the tray's Open action and by a second launch.
+// un-minimises it, without disturbing whether the window was maximised. Used by the tray's Open
+// action, by a second launch and by beforeClose ahead of the close-choice dialog.
+//
+// The un-minimise is conditional; the maximised state is restored afterwards. Both calls
+// reach the same platform primitive. Wails turns WindowUnminimise into WM_SYSCOMMAND/SC_RESTORE, which
+// restores a MAXIMISED window to its pre-maximised size as readily as it raises a minimised one: asking
+// for it unconditionally therefore shrank a maximised window every time the close button was pressed.
+// Reading the state around the calls rather than branching per platform keeps the one invariant that
+// matters here: revealing the window never changes whether it is maximised.
 func (a *App) revealWindow() {
+	maximised := runtime.WindowIsMaximised(a.ctx)
 	runtime.WindowShow(a.ctx)
-	runtime.WindowUnminimise(a.ctx)
+	if runtime.WindowIsMinimised(a.ctx) {
+		runtime.WindowUnminimise(a.ctx)
+	}
+	if maximised && !runtime.WindowIsMaximised(a.ctx) {
+		runtime.WindowMaximise(a.ctx)
+	}
 }
 
 // shutdown releases infrastructure resources when the window closes, removing the tray icon first.

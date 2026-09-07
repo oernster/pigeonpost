@@ -739,7 +739,7 @@ two-step route there instead (see Permanent deletion below).
 Moves are batched per destination through `MoveMany`. Three guards bound the destruction, each pinned by
 a test: rules run on the **Inbox only**, so mail the user has already filed by hand is never touched;
 they act on **arrivals only** (an id the local store does not hold), so adding a rule never reaches back
-over existing mail; and destructive actions are held back until the folder has been **baselined**, the
+over existing mail of its own accord (the Now button below is the one way it does, only when asked); and destructive actions are held back until the folder has been **baselined**, the
 one pass that records what a folder already holds, which is what stops a newly added account being
 emptied by mail that arrived long before the rule. A batch the server refuses leaves its messages in
 place and reports the failure.
@@ -754,8 +754,23 @@ and every time; for anyone who keeps their inbox at zero a destroying rule then 
 It also cannot live on the folder row, because `SaveFolders` clears and rewrites every folder for an
 account on each sync and would take the mark with it, re-arming the exemption forever.
 
+`RuleBackfillService` is the on-demand counterpart, reached by the Now button on a rule's row. It is
+the one path that reaches mail the sync will not touch: it evaluates a single named rule over every
+folder of every account that rule covers, over the messages already stored. It carries the outcome
+out through `MessageActionService` rather than the server directly, so a backfilled move or deletion
+goes through the same code as the manual one and the cache cannot drift from the server. It is
+deliberately wider than the sync path in scope, because it is an explicit instruction about mail
+already filed rather than an unattended reaction to mail arriving; it is narrower in one respect:
+it evaluates that rule alone, so `StopProcessing` has nothing to stop. Its `Preview` runs
+the same evaluation and touches nothing, so the counts in the confirmation are measured rather than
+promised; a run reports the work that SUCCEEDED, taken from what each batch came back with, never
+from the plan. A disabled rule is refused outright (`ErrRuleDisabled`) rather than silently
+reporting that it changed nothing.
+
 Because a rule runs unattended, the confirmation for a destructive action moves to rule-creation time:
 the UI warns before saving a rule that moves or destroys mail and marks a destroying rule in the list.
+A backfill is confirmed separately at the point it is asked for, against the previewed counts, since
+it acts on a backlog the user can already see.
 Conditions and actions live in the `rule_condition` and `rule_action` child tables keyed by rule id and
 ordered by position (`schemaV50`); rules written before that carry over verbatim as one-condition,
 one-action rules, their stored field, operator and action integers unchanged. `schemaV51` adds the

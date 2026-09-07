@@ -22,7 +22,7 @@ const DANGER_TARGET = 350
 const EXEMPT: Record<string, number> = {
     'src/App.tsx': 1395,
     'src/components/ComposeModal.tsx': 731,
-    'src/api.ts': 631,
+    'src/api.ts': 604,
     'src/components/EventFormModal.tsx': 559,
     'src/components/ContactsModal.tsx': 491,
     'src/components/FolderTree.tsx': 445,

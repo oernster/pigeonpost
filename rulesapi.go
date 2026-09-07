@@ -90,6 +90,40 @@ func (a *App) ReorderRules(orderedIDs []string) error {
 	return a.rules.Reorder(a.ctx, orderedIDs)
 }
 
+// RuleBackfillDTO is the JSON-serialisable view of what applying one rule to the mail already stored
+// would do or did do. The same shape carries both: the counts fill the confirmation before a run and
+// report the outcome after it, so the front end formats one thing rather than two.
+type RuleBackfillDTO struct {
+	Scanned  int `json:"scanned"`
+	MarkRead int `json:"markRead"`
+	Flag     int `json:"flag"`
+	Move     int `json:"move"`
+	Destroy  int `json:"destroy"`
+}
+
+// PreviewRuleBackfill reports what applying the named rule to the mail already in the mailboxes would
+// do, changing nothing. The front end shows these counts for confirmation before calling RunRuleBackfill,
+// because a backfill acts on a whole backlog unattended and so cannot ask about each message.
+func (a *App) PreviewRuleBackfill(ruleID string) (RuleBackfillDTO, error) {
+	counts, err := a.ruleBackfill.Preview(a.ctx, ruleID)
+	return ruleBackfillToDTO(counts), err
+}
+
+// RunRuleBackfill applies the named rule to the mail already in the mailboxes and reports what it did.
+// The counts are of work that succeeded, so a partially refused run reports the part that landed and
+// returns the error describing the rest.
+func (a *App) RunRuleBackfill(ruleID string) (RuleBackfillDTO, error) {
+	counts, err := a.ruleBackfill.Run(a.ctx, ruleID)
+	return ruleBackfillToDTO(counts), err
+}
+
+// ruleBackfillToDTO converts the application counts to their wire view.
+func ruleBackfillToDTO(c application.RuleBackfillCounts) RuleBackfillDTO {
+	return RuleBackfillDTO{
+		Scanned: c.Scanned, MarkRead: c.MarkRead, Flag: c.Flag, Move: c.Move, Destroy: c.Destroy,
+	}
+}
+
 // ruleToDTO converts a domain rule to its wire view.
 func ruleToDTO(r domain.Rule) RuleDTO {
 	conditions := make([]RuleConditionDTO, 0, len(r.Conditions()))
@@ -103,11 +137,11 @@ func ruleToDTO(r domain.Rule) RuleDTO {
 	for _, a := range r.Actions() {
 		actions = append(actions, RuleActionDTO{Kind: a.Kind().String(), FolderID: a.FolderID()})
 	}
-	// A rule limited to no account has a nil AccountIDs, and encoding/json writes a nil slice as null
+	// A rule limited to no account has a nil AccountIDs; encoding/json writes a nil slice as null
 	// rather than []. The front end's type declares an array, so a null there is not a wrong value but
-	// a crash when its length is read, and with no error boundary above the app that takes the whole
+	// a crash when its length is read, with no error boundary above the app, so that takes the whole
 	// window down instead of one dialog. Conditions and actions are already built with make, so they
-	// cannot be nil; this is the one list that can, and it is fixed here rather than in the front end
+	// cannot be nil; this is the one list that can. It is fixed here rather than in the front end
 	// because the wire shape is this function's promise to keep.
 	accountIDs := r.AccountIDs()
 	if accountIDs == nil {
