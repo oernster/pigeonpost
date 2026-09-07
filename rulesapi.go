@@ -3,6 +3,8 @@ package main
 import (
 	"fmt"
 
+	"github.com/wailsapp/wails/v2/pkg/runtime"
+
 	"github.com/oernster/pigeonpost/internal/application"
 	"github.com/oernster/pigeonpost/internal/domain"
 )
@@ -101,11 +103,24 @@ type RuleBackfillDTO struct {
 	Destroy  int `json:"destroy"`
 }
 
+// RuleBackfillProgressDTO is the JSON-serialisable view of how far a backfill has got, carried on the
+// ruleBackfillProgressEvent Wails event rather than returned: a bound call answers once, at the end,
+// which is exactly when progress has stopped being useful.
+type RuleBackfillProgressDTO struct {
+	Phase string `json:"phase"`
+	Done  int    `json:"done"`
+	Total int    `json:"total"`
+}
+
+// ruleBackfillProgressEvent is the Wails event a backfill's progress is emitted on. It is one event for
+// both phases, each naming itself, so the front end holds one listener rather than one per phase.
+const ruleBackfillProgressEvent = "rules:backfill-progress"
+
 // PreviewRuleBackfill reports what applying the named rule to the mail already in the mailboxes would
 // do, changing nothing. The front end shows these counts for confirmation before calling RunRuleBackfill,
 // because a backfill acts on a whole backlog unattended and so cannot ask about each message.
 func (a *App) PreviewRuleBackfill(ruleID string) (RuleBackfillDTO, error) {
-	counts, err := a.ruleBackfill.Preview(a.ctx, ruleID)
+	counts, err := a.ruleBackfill.Preview(a.ctx, ruleID, a.emitBackfillProgress)
 	return ruleBackfillToDTO(counts), err
 }
 
@@ -113,8 +128,17 @@ func (a *App) PreviewRuleBackfill(ruleID string) (RuleBackfillDTO, error) {
 // The counts are of work that succeeded, so a partially refused run reports the part that landed and
 // returns the error describing the rest.
 func (a *App) RunRuleBackfill(ruleID string) (RuleBackfillDTO, error) {
-	counts, err := a.ruleBackfill.Run(a.ctx, ruleID)
+	counts, err := a.ruleBackfill.Run(a.ctx, ruleID, a.emitBackfillProgress)
 	return ruleBackfillToDTO(counts), err
+}
+
+// emitBackfillProgress puts one progress reading on the wire. The application layer knows nothing of
+// Wails, so it reports through a plain function and this is the one place that turns a reading into an
+// event.
+func (a *App) emitBackfillProgress(p application.RuleBackfillProgress) {
+	runtime.EventsEmit(a.ctx, ruleBackfillProgressEvent, RuleBackfillProgressDTO{
+		Phase: p.Phase, Done: p.Done, Total: p.Total,
+	})
 }
 
 // ruleBackfillToDTO converts the application counts to their wire view.

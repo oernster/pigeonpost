@@ -42,6 +42,45 @@ func (c RuleBackfillCounts) Acts() bool {
 	return c.MarkRead > 0 || c.Flag > 0 || c.Move > 0 || c.Destroy > 0
 }
 
+// The phases a backfill passes through, in order. They are named constants rather than literals
+// written at each call site, so the service and the front end cannot disagree about the spelling.
+const (
+	// RuleBackfillScanning is reading the stored mail and deciding what the rule wants done. Its total
+	// is the number of folders to read.
+	RuleBackfillScanning = "scanning"
+	// RuleBackfillApplying is carrying that out. Its total is the number of messages to act on, which
+	// is known only once the scan has finished.
+	RuleBackfillApplying = "applying"
+	// RuleBackfillFinished reports the run complete, so a bar is filled rather than left short of its end.
+	RuleBackfillFinished = "done"
+)
+
+// RuleBackfillProgress reports how far a backfill has got. A backfill reads every folder of every
+// account a rule covers and then acts message by message, which on a real mailbox takes long enough
+// that silence reads as a hang, so both halves are counted rather than only the second.
+//
+// Total is zero where a phase has nothing to do, so a caller drawing a bar treats a zero total as
+// complete rather than dividing by it.
+type RuleBackfillProgress struct {
+	Phase string `json:"phase"`
+	Done  int    `json:"done"`
+	Total int    `json:"total"`
+}
+
+// RuleBackfillReport receives progress as a backfill runs. It is a plain function rather than a port
+// interface because it has one method and no state; the facade passes one that emits a Wails event. A
+// nil reporter is valid, which is what report below is for.
+type RuleBackfillReport func(RuleBackfillProgress)
+
+// report sends progress where a reporter was given and does nothing otherwise, so each call site
+// states its progress once without guarding for nil itself.
+func report(to RuleBackfillReport, phase string, done, total int) {
+	if to == nil {
+		return
+	}
+	to(RuleBackfillProgress{Phase: phase, Done: done, Total: total})
+}
+
 // RuleBackfillActions is the subset of message actions a backfill carries out. It is the existing
 // MessageActionService seen through a narrower door: those methods already drive the server and the
 // local cache together; reproducing that here would be a second implementation of moving and
@@ -81,9 +120,10 @@ func NewRuleBackfillService(rules RuleStore, accounts AccountStore, store MailSt
 // runs unattended over a whole backlog, so it cannot ask about each message the way a manual delete can.
 //
 // A folder that cannot be read contributes an error and is left out of the counts, so a preview is
-// never quietly narrower than it looks.
-func (s *RuleBackfillService) Preview(ctx context.Context, ruleID string) (RuleBackfillCounts, error) {
-	plan, err := s.plan(ctx, ruleID)
+// never quietly narrower than it looks. It reports its scan through the given reporter, because on a
+// large mailbox the scan is the slow half and a preview that says nothing looks like a stalled app.
+func (s *RuleBackfillService) Preview(ctx context.Context, ruleID string, to RuleBackfillReport) (RuleBackfillCounts, error) {
+	plan, err := s.plan(ctx, ruleID, to)
 	if plan == nil {
 		return RuleBackfillCounts{}, err
 	}
@@ -117,19 +157,51 @@ func (p *backfillPlan) addMove(destFolderID, messageID string) {
 	p.counts.Move++
 }
 
+// backfillTarget is one folder the rule will be evaluated over, carried with the account that owns it.
+type backfillTarget struct {
+	account domain.Account
+	folder  domain.Folder
+}
+
 // plan builds the whole plan for a rule: every folder of every account the rule covers, evaluated and
 // sorted into the four kinds of work. Errors from individual folders are joined and returned alongside
 // the plan rather than instead of it, so an unreadable folder does not cancel the rest of the backfill.
-func (s *RuleBackfillService) plan(ctx context.Context, ruleID string) (*backfillPlan, error) {
+//
+// The folders are gathered before any of them is read, so the scan has a total to count against from
+// its first step. A bar that learns its own length as it goes cannot say how far along it is, which is
+// the whole point of drawing one.
+func (s *RuleBackfillService) plan(ctx context.Context, ruleID string, to RuleBackfillReport) (*backfillPlan, error) {
 	rule, err := s.findRule(ctx, ruleID)
 	if err != nil {
 		return nil, err
 	}
-	accounts, err := s.accounts.ListAccounts(ctx)
+	targets, errs, err := s.targets(ctx, rule)
 	if err != nil {
-		return nil, fmt.Errorf("rules: backfill: list accounts: %w", err)
+		return nil, err
 	}
 	plan := newBackfillPlan()
+	report(to, RuleBackfillScanning, 0, len(targets))
+	for i, t := range targets {
+		messages, err := s.store.ListMessages(ctx, t.folder.ID())
+		if err != nil {
+			errs = append(errs, fmt.Errorf("rules: backfill: list messages in %q: %w", t.folder.ID(), err))
+		} else {
+			s.planFolder(ctx, t.account, t.folder, messages, rule, plan, &errs)
+		}
+		report(to, RuleBackfillScanning, i+1, len(targets))
+	}
+	return plan, errors.Join(errs...)
+}
+
+// targets lists every folder the rule will be evaluated over. An account whose folders cannot be read
+// contributes an error and no targets, so the rest of the backfill still runs; only a failure to list
+// the accounts at all stops the plan, since without them nothing could be scoped.
+func (s *RuleBackfillService) targets(ctx context.Context, rule domain.Rule) ([]backfillTarget, []error, error) {
+	accounts, err := s.accounts.ListAccounts(ctx)
+	if err != nil {
+		return nil, nil, fmt.Errorf("rules: backfill: list accounts: %w", err)
+	}
+	var targets []backfillTarget
 	var errs []error
 	for _, account := range accounts {
 		if !rule.AppliesTo(account.ID()) {
@@ -141,15 +213,10 @@ func (s *RuleBackfillService) plan(ctx context.Context, ruleID string) (*backfil
 			continue
 		}
 		for _, folder := range folders {
-			messages, err := s.store.ListMessages(ctx, folder.ID())
-			if err != nil {
-				errs = append(errs, fmt.Errorf("rules: backfill: list messages in %q: %w", folder.ID(), err))
-				continue
-			}
-			s.planFolder(ctx, account, folder, messages, rule, plan, &errs)
+			targets = append(targets, backfillTarget{account: account, folder: folder})
 		}
 	}
-	return plan, errors.Join(errs...)
+	return targets, errs, nil
 }
 
 // findRule reads the named rule and refuses a missing or disabled one.

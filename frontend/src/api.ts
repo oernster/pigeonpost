@@ -118,7 +118,7 @@ import {isSnoozedFolder} from './snooze'
 // The filter-rule calls and their types live in their own module; they are re-exported and spread
 // into the api object below, so callers still reach them as api.* and import their types from here.
 import {rulesApi} from './apiRules'
-export type {Rule, RuleAction, RuleBackfill, RuleCondition, RuleInput} from './apiRules'
+export type {Rule, RuleAction, RuleBackfill, RuleBackfillProgress, RuleCondition, RuleInput} from './apiRules'
 
 export type Account = main.AccountDTO
 export type Folder = main.FolderDTO

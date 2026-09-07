@@ -110,7 +110,7 @@ func TestRuleBackfillPreviewCountsWithoutActing(t *testing.T) {
 	}
 	mail.messages["f2"] = []domain.MessageSummary{backfillMessage(t, "m3", "f2", "news@site.com", 0)}
 
-	counts, err := svc.Preview(context.Background(), "r1")
+	counts, err := svc.Preview(context.Background(), "r1", nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -136,7 +136,7 @@ func TestRuleBackfillSkipsMessagesAlreadyInTheWantedState(t *testing.T) {
 		backfillMessage(t, "m2", "f1", "news@site.com", 0),
 	}
 
-	counts, err := svc.Preview(context.Background(), "r1")
+	counts, err := svc.Preview(context.Background(), "r1", nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -153,7 +153,7 @@ func TestRuleBackfillCountsNothingWhenNoMessageMatches(t *testing.T) {
 	svc, mail, _, _, _ := backfillFixture(t, rule)
 	mail.messages["f1"] = []domain.MessageSummary{backfillMessage(t, "m1", "f1", "friend@good.com", 0)}
 
-	counts, err := svc.Preview(context.Background(), "r1")
+	counts, err := svc.Preview(context.Background(), "r1", nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -172,7 +172,7 @@ func TestRuleBackfillMovesGroupedByDestination(t *testing.T) {
 	// A message already in the destination has nowhere to go, so it is not work.
 	mail.messages["f2"] = []domain.MessageSummary{backfillMessage(t, "m3", "f2", "billing@shop.com", 0)}
 
-	counts, err := svc.Run(context.Background(), "r1")
+	counts, err := svc.Run(context.Background(), "r1", nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -190,7 +190,7 @@ func TestRuleBackfillDestroysPermanentlyAndSkipsItsFlagActions(t *testing.T) {
 	svc, mail, _, _, actions := backfillFixture(t, rule)
 	mail.messages["f1"] = []domain.MessageSummary{backfillMessage(t, "m1", "f1", "spam@bad.com", 0)}
 
-	counts, err := svc.Run(context.Background(), "r1")
+	counts, err := svc.Run(context.Background(), "r1", nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -215,7 +215,7 @@ func TestRuleBackfillRunsOnlyTheAccountsTheRuleCovers(t *testing.T) {
 	mail.messages["f1"] = []domain.MessageSummary{backfillMessage(t, "m1", "f1", "news@site.com", 0)}
 	mail.messages["f9"] = []domain.MessageSummary{backfillMessage(t, "m9", "f9", "news@site.com", 0)}
 
-	counts, err := svc.Preview(context.Background(), "r1")
+	counts, err := svc.Preview(context.Background(), "r1", nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -231,7 +231,7 @@ func TestRuleBackfillSkipsMoveToAnotherAccount(t *testing.T) {
 	mail.folders["a2"] = []domain.Folder{testFolder(t, "f9", "a2", "INBOX")}
 	mail.messages["f1"] = []domain.MessageSummary{backfillMessage(t, "m1", "f1", "news@site.com", 0)}
 
-	counts, err := svc.Run(context.Background(), "r1")
+	counts, err := svc.Run(context.Background(), "r1", nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -251,11 +251,82 @@ func TestRuleBackfillRejectsMissingAndDisabledRules(t *testing.T) {
 	}
 	svc, _, _, _, _ := backfillFixture(t, disabled)
 
-	if _, err := svc.Preview(context.Background(), "missing"); !errors.Is(err, ErrRuleNotFound) {
+	if _, err := svc.Preview(context.Background(), "missing", nil); !errors.Is(err, ErrRuleNotFound) {
 		t.Errorf("wrong error for a missing rule: %v", err)
 	}
-	if _, err := svc.Run(context.Background(), "off"); !errors.Is(err, ErrRuleDisabled) {
+	if _, err := svc.Run(context.Background(), "off", nil); !errors.Is(err, ErrRuleDisabled) {
 		t.Errorf("wrong error for a disabled rule: %v", err)
+	}
+}
+
+func TestRuleBackfillReportsProgressThroughBothPhases(t *testing.T) {
+	// Two folders to scan and three messages to act on, so each phase has a total a bar can divide by.
+	rule := execRule(t, "r1", "shop.com",
+		execAction(t, domain.RuleMarkRead, ""), execAction(t, domain.RuleMoveTo, "f2"))
+	svc, mail, _, _, _ := backfillFixture(t, rule)
+	mail.messages["f1"] = []domain.MessageSummary{
+		backfillMessage(t, "m1", "f1", "billing@shop.com", 0),
+		backfillMessage(t, "m2", "f1", "orders@shop.com", 0),
+	}
+
+	var seen []RuleBackfillProgress
+	if _, err := svc.Run(context.Background(), "r1", func(p RuleBackfillProgress) {
+		seen = append(seen, p)
+	}); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// The scan counts folders and knows its total from the first reading, before any folder is read.
+	if seen[0] != (RuleBackfillProgress{Phase: RuleBackfillScanning, Done: 0, Total: 2}) {
+		t.Errorf("scan did not open with its total: %+v", seen[0])
+	}
+	// Two marks plus two moves is four attempts; the run ends filled rather than short.
+	last := seen[len(seen)-1]
+	if last != (RuleBackfillProgress{Phase: RuleBackfillFinished, Done: 4, Total: 4}) {
+		t.Errorf("run did not finish filled: %+v", last)
+	}
+	assertMonotonic(t, seen, RuleBackfillScanning)
+	assertMonotonic(t, seen, RuleBackfillApplying)
+}
+
+// assertMonotonic checks one phase's readings never go backwards and never exceed their total, the two
+// ways a bar can visibly lie about where a run has got to.
+func assertMonotonic(t *testing.T, seen []RuleBackfillProgress, phase string) {
+	t.Helper()
+	previous, found := -1, false
+	for _, p := range seen {
+		if p.Phase != phase {
+			continue
+		}
+		found = true
+		if p.Done < previous {
+			t.Errorf("%s went backwards: %d after %d", phase, p.Done, previous)
+		}
+		if p.Done > p.Total {
+			t.Errorf("%s ran past its total: %+v", phase, p)
+		}
+		previous = p.Done
+	}
+	if !found {
+		t.Errorf("no %s readings at all", phase)
+	}
+}
+
+func TestRuleBackfillReportsAnEmptyApplyingPhaseRatherThanNothing(t *testing.T) {
+	// A rule that matches nothing still opens and closes the applying phase, so the dialog is never left
+	// showing a scan that finished with no word of what followed.
+	rule := execRule(t, "r1", "news@", execAction(t, domain.RuleMarkRead, ""))
+	svc, mail, _, _, _ := backfillFixture(t, rule)
+	mail.messages["f1"] = []domain.MessageSummary{backfillMessage(t, "m1", "f1", "friend@good.com", 0)}
+
+	var seen []RuleBackfillProgress
+	if _, err := svc.Run(context.Background(), "r1", func(p RuleBackfillProgress) {
+		seen = append(seen, p)
+	}); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if seen[len(seen)-1] != (RuleBackfillProgress{Phase: RuleBackfillFinished, Done: 0, Total: 0}) {
+		t.Errorf("empty run did not finish: %+v", seen[len(seen)-1])
 	}
 }
 

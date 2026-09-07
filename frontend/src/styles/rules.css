@@ -344,3 +344,30 @@
     font-size: 12px;
     color: var(--text-dim);
 }
+
+/*
+ * The progress bar shown while a rule is applied to stored mail. A backfill reads every folder of
+ * every account the rule covers and then acts message by message, so on a real mailbox it is long
+ * enough that silence reads as a hang; the bar is what says the app is still working.
+ *
+ * It is determinate rather than an indeterminate spinner because both phases know their own total
+ * before they begin: the folders are gathered before any is read and the messages are counted once
+ * the scan has finished.
+ */
+.progress-track {
+    width: 100%;
+    height: 8px;
+    margin-top: 14px;
+    border-radius: 999px;
+    background-color: var(--bg-elev);
+    border: 1px solid var(--border);
+    overflow: hidden;
+}
+
+.progress-fill {
+    height: 100%;
+    background-color: var(--accent);
+    /* The width is set inline from the reading; the transition is what stops each step reading as a
+       jump on a mailbox where one folder is most of the total. */
+    transition: width 120ms linear;
+}

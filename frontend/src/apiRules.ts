@@ -23,6 +23,23 @@ export type RuleAction = main.RuleActionDTO
 // shape carries both, so the confirmation and the result read identically.
 export type RuleBackfill = main.RuleBackfillDTO
 
+// RuleBackfillProgress is how far a running backfill has got. Unlike every other type here it is
+// hand-written rather than generated: it travels on the ruleBackfillProgressEvent event rather than as
+// a bound method's return, while Wails generates types only for what a binding's signature names. The Go
+// side's wire shape is pinned by TestRuleBackfillProgressWireShape so the two statements stay in step.
+//
+// Phase is 'scanning' while the stored mail is being read and 'applying' while the rule is being
+// carried out, then 'done'. Total is zero where a phase has nothing to do, so a bar treats a zero total
+// as complete rather than dividing by it.
+export interface RuleBackfillProgress {
+    phase: 'scanning' | 'applying' | 'done'
+    done: number
+    total: number
+}
+
+// ruleBackfillProgressEvent is the Wails event those readings arrive on.
+export const ruleBackfillProgressEvent = 'rules:backfill-progress'
+
 // RuleInput is the shape sent back to save a rule. It mirrors Rule exactly, so a rule read from the
 // back end can be edited and returned without translation; an empty id means a new rule.
 export interface RuleInput {

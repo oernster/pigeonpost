@@ -39,7 +39,7 @@ func TestRuleBackfillReportsStoreFailures(t *testing.T) {
 			mail.messages["f1"] = []domain.MessageSummary{backfillMessage(t, "m1", "f1", "news@site.com", 0)}
 			tc.set(mail, accounts, rules)
 
-			if _, err := svc.Preview(context.Background(), "r1"); !errors.Is(err, errBackfill) {
+			if _, err := svc.Preview(context.Background(), "r1", nil); !errors.Is(err, errBackfill) {
 				t.Errorf("failure did not reach the caller: %v", err)
 			}
 		})
@@ -54,7 +54,7 @@ func TestRuleBackfillReportsAnUnreadableFolderYetKeepsGoing(t *testing.T) {
 	mail.messages["f1"] = []domain.MessageSummary{backfillMessage(t, "m1", "f1", "billing@shop.com", 0)}
 	mail.getFolderErr = errBackfill
 
-	counts, err := svc.Preview(context.Background(), "r1")
+	counts, err := svc.Preview(context.Background(), "r1", nil)
 	if !errors.Is(err, errBackfill) {
 		t.Errorf("unresolvable destination not reported: %v", err)
 	}
@@ -72,7 +72,7 @@ func TestRuleBackfillRunReportsAPlanningFailureAlongsideTheWorkItDid(t *testing.
 	mail.messages["f1"] = []domain.MessageSummary{backfillMessage(t, "m1", "f1", "billing@shop.com", 0)}
 	mail.getFolderErr = errBackfill
 
-	counts, err := svc.Run(context.Background(), "r1")
+	counts, err := svc.Run(context.Background(), "r1", nil)
 	if !errors.Is(err, errBackfill) {
 		t.Errorf("planning failure not reported by the run: %v", err)
 	}
@@ -91,7 +91,7 @@ func TestRuleBackfillRunReportsWhatSucceededWhenActionsFail(t *testing.T) {
 	mail.messages["f1"] = []domain.MessageSummary{backfillMessage(t, "m1", "f1", "news@site.com", 0)}
 	actions.readErr = errBackfill
 
-	counts, err := svc.Run(context.Background(), "r1")
+	counts, err := svc.Run(context.Background(), "r1", nil)
 	if !errors.Is(err, errBackfill) {
 		t.Errorf("failed mark did not reach the caller: %v", err)
 	}
@@ -112,7 +112,7 @@ func TestRuleBackfillRunReportsAPartiallyRefusedMoveAndDestroy(t *testing.T) {
 	actions.moveErr = errBackfill
 	actions.moveRefused = 1
 
-	counts, err := svc.Run(context.Background(), "mv")
+	counts, err := svc.Run(context.Background(), "mv", nil)
 	if !errors.Is(err, errBackfill) {
 		t.Errorf("refused move not reported: %v", err)
 	}
@@ -128,7 +128,7 @@ func TestRuleBackfillRunReportsARefusedDestroy(t *testing.T) {
 	actions.destroyErr = errBackfill
 	actions.destroyRefused = 1
 
-	counts, err := svc.Run(context.Background(), "r1")
+	counts, err := svc.Run(context.Background(), "r1", nil)
 	if !errors.Is(err, errBackfill) {
 		t.Errorf("refused destroy not reported: %v", err)
 	}
@@ -140,7 +140,7 @@ func TestRuleBackfillRunReportsARefusedDestroy(t *testing.T) {
 func TestRuleBackfillRunFailsWholeOnAMissingRule(t *testing.T) {
 	svc, _, _, _, actions := backfillFixture(t)
 
-	counts, err := svc.Run(context.Background(), "gone")
+	counts, err := svc.Run(context.Background(), "gone", nil)
 	if !errors.Is(err, ErrRuleNotFound) {
 		t.Errorf("wrong error: %v", err)
 	}
@@ -169,7 +169,7 @@ func TestRuleBackfillDrivesTheRealMessageActions(t *testing.T) {
 	svc := NewRuleBackfillService(&fakeRuleStore{rules: []domain.Rule{rule}}, accounts, mail,
 		NewMessageActionService(mail, accounts, remote))
 
-	counts, err := svc.Run(context.Background(), "r1")
+	counts, err := svc.Run(context.Background(), "r1", nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

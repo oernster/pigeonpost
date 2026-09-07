@@ -275,6 +275,7 @@ export function RuleManagerModal({accounts, rules, onChanged, onClose}: RuleMana
             </div>
             <RuleBackfillDialogs
                 phase={backfill.phase}
+                progress={backfill.progress}
                 busy={backfill.busy}
                 onRun={backfill.run}
                 onDismiss={backfill.dismiss}

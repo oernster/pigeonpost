@@ -5,7 +5,7 @@
 //
 // One module is stubbed: ../api (the Wails seam), so the calls the modal makes can be asserted.
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
-import {cleanup, fireEvent, render, screen, waitFor} from '@testing-library/react'
+import {act, cleanup, fireEvent, render, screen, waitFor} from '@testing-library/react'
 import {RuleManagerModal} from './RuleManagerModal'
 import type {Account, Rule, RuleBackfill} from '../api'
 import {spiesNotInApi, unstubbedNames} from '../test/apiMock'
@@ -17,6 +17,21 @@ const apiSpies = vi.hoisted(() => ({
     reorderRules: vi.fn(),
     previewRuleBackfill: vi.fn(),
     runRuleBackfill: vi.fn(),
+}))
+
+// The backfill listens for its progress event, so the runtime binding it reads is stubbed too. The
+// stub captures the registered listener, which is what lets a test deliver readings by hand rather
+// than waiting for a real backend to emit them.
+const runtimeSpies = vi.hoisted(() => ({
+    listeners: new Map<string, (data: unknown) => void>(),
+    EventsOn: vi.fn(),
+}))
+vi.mock('../../wailsjs/runtime', () => ({
+    EventsOn: (name: string, cb: (data: unknown) => void) => {
+        runtimeSpies.EventsOn(name)
+        runtimeSpies.listeners.set(name, cb)
+        return () => runtimeSpies.listeners.delete(name)
+    },
 }))
 
 // The mock is built from the real api rather than hand-listed here, so a method reached with no spy
@@ -86,6 +101,7 @@ describe('RuleManagerModal', () => {
         apiSpies.saveRule.mockResolvedValue(undefined)
         apiSpies.deleteRule.mockResolvedValue(undefined)
         apiSpies.reorderRules.mockResolvedValue(undefined)
+        runtimeSpies.listeners.clear()
         apiSpies.previewRuleBackfill.mockResolvedValue(noWork)
         apiSpies.runRuleBackfill.mockResolvedValue(noWork)
     })
@@ -157,6 +173,53 @@ describe('RuleManagerModal', () => {
 
         await waitFor(() => expect(screen.getByText('Nothing changed.')).toBeTruthy())
         expect(apiSpies.runRuleBackfill).not.toHaveBeenCalled()
+    })
+
+    it('shows a progress bar while a backfill scans and applies', async () => {
+        renderModal([buildRule()])
+        // The preview is held open so the working dialog can be inspected mid-run rather than after it.
+        let finish: (c: RuleBackfill) => void = () => {}
+        apiSpies.previewRuleBackfill.mockReturnValue(new Promise<RuleBackfill>((resolve) => {
+            finish = resolve
+        }))
+
+        fireEvent.click(screen.getByLabelText('Apply Newsletters to stored mail'))
+        await waitFor(() => expect(screen.getByRole('progressbar')).toBeTruthy())
+
+        const emit = runtimeSpies.listeners.get('rules:backfill-progress')
+        expect(emit).toBeTruthy()
+        act(() => emit!({phase: 'scanning', done: 1, total: 4}))
+        expect(screen.getByText('Checking folder 2 of 4...')).toBeTruthy()
+        expect(screen.getByRole('progressbar').getAttribute('aria-valuenow')).toBe('25')
+
+        act(() => emit!({phase: 'applying', done: 3, total: 6}))
+        expect(screen.getByText('Applying to message 4 of 6...')).toBeTruthy()
+        expect(screen.getByRole('progressbar').getAttribute('aria-valuenow')).toBe('50')
+
+        await act(async () => {
+            finish(counts({scanned: 10, markRead: 6}))
+        })
+        await waitFor(() => expect(screen.queryByRole('progressbar')).toBeNull())
+    })
+
+    it('fills the bar for a phase with nothing to count rather than dividing by zero', async () => {
+        renderModal([buildRule()])
+        let finish: (c: RuleBackfill) => void = () => {}
+        apiSpies.previewRuleBackfill.mockReturnValue(new Promise<RuleBackfill>((resolve) => {
+            finish = resolve
+        }))
+
+        fireEvent.click(screen.getByLabelText('Apply Newsletters to stored mail'))
+        await waitFor(() => expect(screen.getByRole('progressbar')).toBeTruthy())
+
+        const emit = runtimeSpies.listeners.get('rules:backfill-progress')
+        act(() => emit!({phase: 'applying', done: 0, total: 0}))
+        expect(screen.getByRole('progressbar').getAttribute('aria-valuenow')).toBe('100')
+        expect(screen.getByText('Nothing to apply.')).toBeTruthy()
+
+        await act(async () => {
+            finish(noWork)
+        })
     })
 
     it('offers no backfill for a disabled rule', () => {
