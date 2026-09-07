@@ -1,3 +1,4 @@
+import {Fragment} from 'react'
 import {Rule, RuleCondition, RuleAction} from '../api'
 import {
     ACTION_LABELS,
@@ -46,6 +47,9 @@ function replaceAt<T>(list: T[], index: number, value: T): T[] {
 // reads as broken rather than as unavailable.
 export function RuleEditor({rule, folders, accounts, onChange}: RuleEditorProps) {
     const setConditions = (conditions: RuleCondition[]) => onChange({...rule, conditions} as Rule)
+    // joiner is the word printed between the condition rows, taken from the match mode so the rule
+    // reads as the sentence it is: every line with the next; either line with the next.
+    const joiner = rule.matchMode === 'any' ? 'or' : 'and'
     const setActions = (actions: RuleAction[]) => onChange({...rule, actions} as Rule)
     const destroying = rule.actions.some((a) => a.kind === 'destroy')
 
@@ -137,7 +141,14 @@ export function RuleEditor({rule, folders, accounts, onChange}: RuleEditorProps)
                 </div>
 
                 {rule.conditions.map((condition, index) => (
-                    <div className="rule-card" key={`condition-${index}`}>
+                    <Fragment key={`condition-${index}`}>
+                        {/* The joiner is spelled out between the rows rather than left to be inferred
+                            from the mode dropdown above them: reading a rule top to bottom is how
+                            anyone checks what it will do; "and" between two lines says it where the
+                            reader is already looking. It follows the mode, so the two cannot
+                            disagree. */}
+                        {index > 0 && <div className="rule-joiner">{joiner}</div>}
+                        <div className="rule-card">
                         <select
                             className="rule-field"
                             aria-label={`Field ${index + 1}`}
@@ -201,7 +212,8 @@ export function RuleEditor({rule, folders, accounts, onChange}: RuleEditorProps)
                                 &times;
                             </button>
                         )}
-                    </div>
+                        </div>
+                    </Fragment>
                 ))}
                 <button
                     className="rule-add"

@@ -55,13 +55,19 @@ export const EMPTY_CONDITION: RuleCondition = {
 export const EMPTY_ACTION: RuleAction = {kind: 'markRead', folderId: ''}
 
 // emptyRule is a brand-new, enabled rule with one blank condition and one harmless action.
+//
+// It starts on "all", so a second condition NARROWS the rule. The default was "any", which reads
+// harmlessly while a rule has one condition then turns dangerous the moment a negative one is added:
+// "does not contain X" as one arm of an or matches nearly every message, so a rule meant to file a
+// handful of senders sweeps the whole mailbox into a folder; a destroying rule empties it. Narrowing is
+// someone adding a second line almost always means; widening is available in one click beside it.
 export function emptyRule(position: number): Rule {
     return {
         id: '',
         name: '',
         enabled: true,
         position,
-        matchMode: 'any',
+        matchMode: 'all',
         stopProcessing: false,
         accountIds: [],
         conditions: [{...EMPTY_CONDITION}],

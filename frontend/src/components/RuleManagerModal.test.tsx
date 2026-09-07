@@ -343,11 +343,28 @@ describe('RuleManagerModal', () => {
 
     // The two defaults a new rule starts on: match anywhere in the message, then fire when any one
     // condition applies. Narrowing from there is easier than knowing to widen.
-    it('starts a new rule on all fields and any-of-these', async () => {
+    // A new rule starts on "all", so adding a second condition narrows it. Under "any" a negative
+    // condition ("does not contain X") is an arm of an or that nearly every message satisfies, which
+    // turns a rule meant for a few senders into one that sweeps the mailbox.
+    it('starts a new rule on all fields and all-of-these', async () => {
         renderModal([])
         fireEvent.click(screen.getByText('New rule'))
         expect((screen.getByLabelText('Field 1') as HTMLSelectElement).value).toBe('all')
-        expect((screen.getByLabelText('Match mode') as HTMLSelectElement).value).toBe('any')
+        expect((screen.getByLabelText('Match mode') as HTMLSelectElement).value).toBe('all')
+    })
+
+    it('spells the joiner out between the condition rows and follows the match mode', async () => {
+        renderModal([])
+        fireEvent.click(screen.getByText('New rule'))
+        // One condition joins nothing, so nothing is claimed about how it combines.
+        expect(screen.queryByText('and')).toBeNull()
+
+        fireEvent.click(screen.getByText('+ Add condition'))
+        expect(screen.getByText('and')).toBeTruthy()
+
+        fireEvent.change(screen.getByLabelText('Match mode'), {target: {value: 'any'}})
+        expect(screen.getByText('or')).toBeTruthy()
+        expect(screen.queryByText('and')).toBeNull()
     })
 
     it('carries the case-sensitivity toggle back on save', async () => {
