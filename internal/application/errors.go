@@ -12,6 +12,13 @@ var ErrCalendarAccountNotFound = errors.New("calendar account not found")
 // ErrBodyNotCached is returned by a MailStore when a message's full body has not been fetched yet.
 var ErrBodyNotCached = errors.New("message body not cached")
 
+// ErrMessageNotCached is returned by a MailStore when no cached message matches the given id. It is a
+// named condition rather than a bare database miss because it is a state the interface can meet in
+// normal use: a list read before a sync, a rename or a move still shows rows whose messages the cache
+// no longer holds; every action on such a row asks for a message that is not there. Naming it lets
+// the facade say so in words and lets the caller recover, instead of showing the query that failed.
+var ErrMessageNotCached = errors.New("message not cached")
+
 // ErrNoDraftsFolder is returned when a draft cannot be saved because the account has no Drafts mailbox.
 var ErrNoDraftsFolder = errors.New("account has no drafts folder")
 

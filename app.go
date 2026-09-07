@@ -340,7 +340,7 @@ func (a *App) UnreadCounts() (UnreadCountsDTO, error) {
 func (a *App) GetMessageBody(messageID string) (MessageBodyDTO, error) {
 	body, err := a.body.Body(a.ctx, messageID)
 	if err != nil {
-		return MessageBodyDTO{}, err
+		return MessageBodyDTO{}, a.mailError(err)
 	}
 	return toMessageBodyDTO(body), nil
 }

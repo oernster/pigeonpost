@@ -3,75 +3,14 @@ package storage
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
 
+	"github.com/oernster/pigeonpost/internal/application"
 	"github.com/oernster/pigeonpost/internal/domain"
 )
-
-// Folder unread and total counts are computed live from the cached messages rather than read from the
-// stored folder.unread / folder.total columns, because servers report those inconsistently (unread
-// arrives as 0 from a plain LIST); the local message cache is the reliable source. Both are counted
-// from the same table so total is always the superset of unread, satisfying the domain invariant that
-// unread never exceeds total. Each subquery refers to the folder as f in the surrounding query.
-var (
-	// unreadCountExpr counts a folder's unread messages: those whose Seen bit is clear. The bit value
-	// is taken from the domain flag so the query can never drift from the domain definition of "read".
-	//
-	// The archive always reports none. Archiving is the act of putting a message out of the way, so it
-	// does not go on demanding attention, which is the same rule the account-level totals apply. On Gmail
-	// the count would also be untrue rather than merely unwanted: the archive there is All Mail, which
-	// holds a copy of every labelled message, so the number would be the whole mailbox's unread dressed
-	// up as the archive's. Worse, the copies drift: reading a message in the inbox updates that row alone,
-	// so the archive's twin stays unread in the cache and the badge stays lit until the archive is opened
-	// and synced. A count nobody can trust is worth less than no count.
-	unreadCountExpr = fmt.Sprintf(
-		"(SELECT COUNT(*) FROM message m WHERE m.folder_id = f.id AND (m.flags & %d) = 0 AND f.kind != %d)",
-		int(domain.FlagSeen), int(domain.FolderArchive))
-	// totalCountExpr counts all of a folder's cached messages.
-	totalCountExpr = "(SELECT COUNT(*) FROM message m WHERE m.folder_id = f.id)"
-)
-
-// ListFolders returns the cached folders for an account, ordered by path. Each folder's unread and
-// total counts are computed live from the cached messages rather than read from the stored columns.
-func (s *Store) ListFolders(ctx context.Context, accountID string) ([]domain.Folder, error) {
-	return queryRows(ctx, s.db, "folders", fmt.Sprintf(
-		`SELECT f.id, f.account_id, f.path, f.separator, f.kind, %s AS unread, %s AS total
-		 FROM folder f WHERE f.account_id = ? ORDER BY f.path;`, unreadCountExpr, totalCountExpr),
-		func(row scanner) (domain.Folder, error) {
-			var (
-				id, accID, path, sep string
-				kind, unread, total  int
-			)
-			if err := row.Scan(&id, &accID, &path, &sep, &kind, &unread, &total); err != nil {
-				return domain.Folder{}, fmt.Errorf("scan folder: %w", err)
-			}
-			folder, err := domain.NewFolderWithSeparator(id, accID, path, sep, domain.FolderKind(kind), unread, total)
-			if err != nil {
-				return domain.Folder{}, fmt.Errorf("rebuild folder %q: %w", id, err)
-			}
-			return folder, nil
-		}, accountID)
-}
-
-// SaveFolders replaces the cached folder set for an account in a single transaction.
-func (s *Store) SaveFolders(ctx context.Context, accountID string, folders []domain.Folder) error {
-	return s.inTx(ctx, func(tx *sql.Tx) error {
-		if _, err := tx.ExecContext(ctx, "DELETE FROM folder WHERE account_id = ?;", accountID); err != nil {
-			return fmt.Errorf("clear folders: %w", err)
-		}
-		for _, f := range folders {
-			if _, err := tx.ExecContext(ctx,
-				`INSERT INTO folder (id, account_id, path, separator, kind, unread, total)
-				 VALUES (?, ?, ?, ?, ?, ?, ?);`,
-				f.ID(), f.AccountID(), f.Path(), f.Separator(), int(f.Kind()), f.Unread(), f.Total()); err != nil {
-				return fmt.Errorf("insert folder %q: %w", f.ID(), err)
-			}
-		}
-		return nil
-	})
-}
 
 // ListMessages returns the cached message summaries for a folder, newest first.
 func (s *Store) ListMessages(ctx context.Context, folderID string) ([]domain.MessageSummary, error) {
@@ -151,31 +90,13 @@ func (s *Store) GetMessage(ctx context.Context, messageID string) (domain.Messag
 		        date_ms, size, flags, has_attachments, snippet
 		 FROM message WHERE id = ?;`, messageID)
 	msg, err := scanMessage(row)
+	if errors.Is(err, sql.ErrNoRows) {
+		return domain.MessageSummary{}, application.ErrMessageNotCached
+	}
 	if err != nil {
 		return domain.MessageSummary{}, fmt.Errorf("get message %q: %w", messageID, err)
 	}
 	return msg, nil
-}
-
-// GetFolder returns a single cached folder by its local id, with its unread and total counts computed
-// live from the cached messages rather than read from the stored columns.
-func (s *Store) GetFolder(ctx context.Context, folderID string) (domain.Folder, error) {
-	var (
-		id, accountID, path, sep string
-		kind, unread, total      int
-	)
-	err := s.db.QueryRowContext(ctx, fmt.Sprintf(
-		"SELECT f.id, f.account_id, f.path, f.separator, f.kind, %s AS unread, %s AS total FROM folder f WHERE f.id = ?;",
-		unreadCountExpr, totalCountExpr), folderID).
-		Scan(&id, &accountID, &path, &sep, &kind, &unread, &total)
-	if err != nil {
-		return domain.Folder{}, fmt.Errorf("get folder %q: %w", folderID, err)
-	}
-	folder, err := domain.NewFolderWithSeparator(id, accountID, path, sep, domain.FolderKind(kind), unread, total)
-	if err != nil {
-		return domain.Folder{}, fmt.Errorf("rebuild folder %q: %w", folderID, err)
-	}
-	return folder, nil
 }
 
 // SaveMessages replaces the cached message set for a folder in a single transaction, keeping the

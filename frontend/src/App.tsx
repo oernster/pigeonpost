@@ -404,6 +404,12 @@ function App() {
             .catch((e) => {
                 if (active) {
                     setError(String(e))
+                    // A body that cannot be read is often a row the cache no longer holds: the message
+                    // was moved or removed since the list was read, so nothing can address it any more
+                    // and every other action on it would fail the same way. Re-reading the folder takes
+                    // such a row out of the list. A message that is still cached and merely failed to
+                    // fetch (offline, say) survives the re-read, so nothing is lost by doing this here.
+                    refreshOpenFolder()
                 }
             })
             .finally(() => {
@@ -456,6 +462,21 @@ function App() {
             // Offline or a transient failure: the cached view stands.
         }
     }, [sortAscending, conversationView, loadUnread, pagination])
+
+    // refreshOpenFolder re-reads the folder on screen, for the paths that need the list to agree with
+    // the cache again: a paste that has just settled; a message that turned out not to be there.
+    // It is a no-op wherever a folder reload would be wrong: the synthetic folders (Outbox, the unified
+    // mailbox, Snoozed) are not folders the store can list; a search result set is not the folder's
+    // list at all, so reloading would replace what the user is reading with something they did not ask
+    // for.
+    const refreshOpenFolder = useCallback(() => {
+        const folderId = selectedFolderRef.current
+        if (!folderId || searchActive || folderId === OUTBOX_FOLDER_ID ||
+            isUnifiedFolder(folderId) || isSnoozedFolder(folderId)) {
+            return
+        }
+        void loadFolderMessages(folderId)
+    }, [searchActive, loadFolderMessages])
 
     // loadMoreMessages appends the next page to the flat folder view as the list nears its end. It is a
     // no-op in conversation view and in search (both hold the whole set), on the synthetic Outbox and when
@@ -815,6 +836,9 @@ function App() {
     // not one real folder (the outbox, the unified mailbox and Snoozed), which disables the paste.
     const messageClipboard = useMessageClipboard({
         store, selectedFolderId: selectedFolder, undo: undoRedo.recorder, loadUnread, refreshFolders, setError,
+        // A paste into the folder on screen ends by reloading it, so the rows it shows are the rows the
+        // cache holds rather than the ids the server predicted for them.
+        reloadFolder: loadFolderMessages,
     })
     // folderContextMenu is the folder row's right-click menu (Paste onto that folder), the
     // folder-side counterpart of contextMenu.

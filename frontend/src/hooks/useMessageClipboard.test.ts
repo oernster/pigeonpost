@@ -43,6 +43,13 @@ const undoSpies = {
 }
 const errors: string[] = []
 
+// cachedRows stands in for what the local cache holds once the destination has synced: reloading the
+// open folder replaces the list with these. null (the default) means the cache holds exactly what the
+// list already shows, so the reload changes nothing and the optimistic outcome stays readable; a test
+// that models a cache which disagrees sets the rows it holds.
+let cachedRows: Message[] | null = null
+const reloadCalls: string[] = []
+
 function harness() {
     return renderHook(() => {
         const store = useMessageStore()
@@ -52,6 +59,12 @@ function harness() {
             undo: undoSpies,
             loadUnread: async () => {},
             refreshFolders: async () => {},
+            reloadFolder: async (folderId: string) => {
+                reloadCalls.push(folderId)
+                if (cachedRows !== null) {
+                    store.setMessages(cachedRows)
+                }
+            },
             setError: (message: string) => errors.push(message),
         })
         return {store, clipboard}
@@ -60,6 +73,8 @@ function harness() {
 
 beforeEach(() => {
     errors.length = 0
+    cachedRows = null
+    reloadCalls.length = 0
     undoSpies.push.mockReset()
     apiSpies.moveMessages.mockReset().mockResolvedValue({ids: [], failed: 0, error: '', newIds: {}})
     apiSpies.copyMessage.mockReset().mockResolvedValue({newId: ''})
@@ -107,7 +122,7 @@ describe('useMessageClipboard: pasting a cut', () => {
             await result.current.clipboard.pasteInto('fd')
         })
         expect(apiSpies.moveMessages).toHaveBeenCalledWith(['a', 'b'], 'fd')
-        expect(apiSpies.syncFolder).toHaveBeenCalledWith('fd')
+        expect(reloadCalls).toEqual(['fd'])
         expect(undoSpies.push).toHaveBeenCalledWith({
             kind: 'move', flavour: 'move',
             items: [
@@ -168,6 +183,34 @@ describe('useMessageClipboard: pasting a cut', () => {
         })
         expect(result.current.store.messages.map((m) => m.id)).toEqual(['a'])
     })
+
+    // The defect this pins: a row was left on screen under the id the server predicted for it, while
+    // the destination sync never brought that message into the cache. Opening such a row asks the
+    // store for a message it does not hold. That fails with "no rows in result set"; so does every
+    // other action on it. The list is re-read from the cache once the destination has settled,
+    // so what is on screen is what can actually be opened.
+    it('drops an optimistic row the destination sync did not bring into the cache', async () => {
+        const {result} = harness()
+        cachedRows = [] // the sync did not bring the message in
+        apiSpies.moveMessages.mockResolvedValueOnce({ids: ['a'], failed: 0, error: '', newIds: {a: 'n1'}})
+        act(() => result.current.clipboard.cutMessages([makeMessage('a', 'f1')]))
+        await act(async () => {
+            await result.current.clipboard.pasteInto('fd')
+        })
+        expect(reloadCalls).toEqual(['fd'])
+        expect(result.current.store.messages).toHaveLength(0)
+    })
+
+    it('shows the cached row rather than the optimistic one when the sync did bring it in', async () => {
+        const {result} = harness()
+        cachedRows = [makeMessage('n1', 'fd')]
+        apiSpies.moveMessages.mockResolvedValueOnce({ids: ['a'], failed: 0, error: '', newIds: {a: 'n1'}})
+        act(() => result.current.clipboard.cutMessages([makeMessage('a', 'f1')]))
+        await act(async () => {
+            await result.current.clipboard.pasteInto('fd')
+        })
+        expect(result.current.store.messages.map((m) => m.id)).toEqual(['n1'])
+    })
 })
 
 describe('useMessageClipboard: copies and gating', () => {
@@ -185,27 +228,36 @@ describe('useMessageClipboard: copies and gating', () => {
             await result.current.clipboard.pasteInto('fd')
         })
         expect(apiSpies.copyMessage.mock.calls).toEqual([['a', 'fd'], ['b', 'fd']])
-        expect(apiSpies.syncFolder).toHaveBeenCalledWith('fd')
+        expect(reloadCalls).toEqual(['fd'])
         expect(apiSpies.moveMessages).not.toHaveBeenCalled()
         expect(result.current.clipboard.hasClip).toBe(true)
     })
 
     it('shows a pasted copy in the open folder as soon as the server reports where it landed', async () => {
         const {result} = harness()
+        // The second copy never settles within this test, so what is asserted is the state while the
+        // paste is still running: the first duplicate is on screen before the destination has synced.
+        let settle: (v: {newId: string}) => void = () => {}
         apiSpies.copyMessage
             .mockResolvedValueOnce({newId: 'c1'})
-            .mockResolvedValueOnce({newId: ''}) // no COPYUID: this copy waits for the sync
+            .mockReturnValueOnce(new Promise((resolve) => { settle = resolve }))
         act(() => {
             result.current.store.setMessages([makeMessage('a', 'fd')])
             result.current.clipboard.copyMessages([makeMessage('a', 'fd'), makeMessage('b', 'f1')])
         })
+        let pending: Promise<void> = Promise.resolve()
         await act(async () => {
-            await result.current.clipboard.pasteInto('fd')
+            pending = result.current.clipboard.pasteInto('fd')
         })
         // The reported duplicate is listed beside its original under its real id; the unreported
         // one is not shown early (it has no identity to show under).
         expect(result.current.store.messages.map((m) => ({id: m.id, folderId: m.folderId})))
             .toEqual([{id: 'a', folderId: 'fd'}, {id: 'c1', folderId: 'fd'}])
+        cachedRows = [makeMessage('a', 'fd'), makeMessage('c1', 'fd')]
+        settle({newId: ''}) // no COPYUID: this copy waits for the sync
+        await act(async () => {
+            await pending
+        })
         expect(result.current.clipboard.hasClip).toBe(true)
     })
 

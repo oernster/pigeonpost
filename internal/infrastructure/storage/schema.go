@@ -5,7 +5,7 @@ package storage
 // schemaVersion is the current on-disk schema version, tracked via SQLite's PRAGMA user_version. It
 // must equal len(migrations): an earlier revision left it one behind (46 with 47 steps), which made
 // schemaV47 unreachable; the bump to 48 applies both it and schemaV48 to existing databases.
-const schemaVersion = 53
+const schemaVersion = 54
 
 // schemaV1 is the initial schema. Statements are idempotent so re-running is safe.
 const schemaV1 = `
@@ -84,7 +84,7 @@ CREATE TABLE IF NOT EXISTS message_body (
 `
 
 // schemaV4 replaces the original contentless message_fts (which could not map matches back to
-// messages) with a queryable FTS5 table keyed by an unindexed message_id, and backfills it from the
+// messages) with a queryable FTS5 table keyed by an unindexed message_id, then backfills it from the
 // messages already cached.
 const schemaV4 = `
 DROP TABLE IF EXISTS message_fts;
@@ -153,7 +153,7 @@ ALTER TABLE folder ADD COLUMN separator TEXT NOT NULL DEFAULT '/';
 `
 
 // schemaV11 widens message.uid from INTEGER to TEXT so it can hold an opaque server handle: an IMAP
-// UID as a decimal string, or a POP3 UIDL. SQLite cannot change a column type in place, so the message
+// UID as a decimal string; a POP3 UIDL. SQLite cannot change a column type in place, so the message
 // table is rebuilt and existing integer uids are cast to their text form. The body, tag and FTS tables
 // key on the string message id, not uid, so they are left untouched.
 const schemaV11 = `
@@ -196,8 +196,8 @@ const schemaV13 = `
 DELETE FROM message_body;
 `
 
-// schemaV14 adds the address book: contacts with their labelled emails and phones, and groups (mailing
-// lists) linking to contacts by id. Emails, phones and members keep an explicit position so their order
+// schemaV14 adds the address book: contacts with their labelled emails and phones, plus groups
+// (mailing lists) linking to contacts by id. Emails, phones and members keep an explicit position so their order
 // is preserved on round-trip (the first email is the contact's primary).
 const schemaV14 = `
 CREATE TABLE IF NOT EXISTS contact (
@@ -240,7 +240,7 @@ CREATE INDEX IF NOT EXISTS idx_contact_group_member_group ON contact_group_membe
 `
 
 // schemaV15 adds the calendar: calendars and their events. Times are stored as Unix milliseconds;
-// end_ms is 0 when an event has no end, and all_day marks whole-day events.
+// end_ms is 0 when an event has no end; all_day marks whole-day events.
 const schemaV15 = `
 CREATE TABLE IF NOT EXISTS calendar (
     id     TEXT PRIMARY KEY,
@@ -280,7 +280,7 @@ ALTER TABLE event ADD COLUMN extra TEXT NOT NULL DEFAULT '';
 
 // schemaV18 models the rest of an event's recurrence set so it can be expanded into concrete
 // occurrences: rdate and exdate hold the added and excluded occurrence starts as comma-separated Unix
-// millisecond values, and recurrence_id holds the original start (Unix milliseconds, 0 when not an
+// millisecond values; recurrence_id holds the original start (Unix milliseconds, 0 when not an
 // override) of the single occurrence an override event replaces. Existing rows default to no extra
 // dates and not an override.
 const schemaV18 = `
@@ -336,7 +336,7 @@ ALTER TABLE account ADD COLUMN signature TEXT NOT NULL DEFAULT '';
 
 // schemaV25 adds the local draft-recovery slot: a single-row snapshot of the compose window still being
 // written, kept so an accidental close or a crash does not lose it. It is local only and never synced;
-// the id is fixed so a save replaces the previous snapshot, and the recipient columns hold the raw text
+// the id is fixed so a save replaces the previous snapshot; the recipient columns hold the raw text
 // as typed rather than validated addresses.
 const schemaV25 = `
 CREATE TABLE draft_recovery (

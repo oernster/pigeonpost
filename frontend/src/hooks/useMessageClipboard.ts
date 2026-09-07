@@ -15,6 +15,10 @@ export interface MessageClipboardDeps {
     undo: UndoRecorder
     loadUnread: () => Promise<void>
     refreshFolders: () => Promise<void>
+    // reloadFolder syncs a folder and re-reads its list from the local cache. A paste into the folder
+    // on screen ends with this, so the optimistic rows are replaced by the messages the cache actually
+    // holds rather than standing under ids only the server ever saw.
+    reloadFolder: (folderId: string) => Promise<void>
     setError: (message: string) => void
 }
 
@@ -35,8 +39,8 @@ export interface MessageClipboard {
 // until Paste files them into the folder being viewed (a cut moves, a copy duplicates). Cut is
 // therefore always safe: an unpasted cut simply expires when something else is cut or copied.
 //
-// Pasting a cut is optimistic, so it feels instant: the rows appear in the open folder at once,
-// the server move runs behind them, and each row is then re-pointed at the id the server says it
+// Pasting a cut is optimistic, so it feels instant: the rows appear in the open folder at once;
+// the server move runs behind them; each row is then re-pointed at the id the server says it
 // now carries (which is also what the recorded undo entry addresses). A move the server refuses
 // rolls its row back out and reports through the error sink; if the whole call fails the clipboard
 // is restored so the paste can be retried. A pasted copy stays on the clipboard because the
@@ -46,7 +50,7 @@ export interface MessageClipboard {
 // server that reports nothing shows its copies on the sync, as before (a duplicate row is never
 // shown under an invented identity).
 export function useMessageClipboard(deps: MessageClipboardDeps): MessageClipboard {
-    const {store, selectedFolderId, undo, loadUnread, refreshFolders, setError} = deps
+    const {store, selectedFolderId, undo, loadUnread, refreshFolders, reloadFolder, setError} = deps
     const {messages, setMessages, applyToAllLists, removeFromAllLists} = store
     const [clip, setClip] = useState<{mode: 'move' | 'copy'; messages: Message[]} | null>(null)
 
@@ -60,15 +64,30 @@ export function useMessageClipboard(deps: MessageClipboardDeps): MessageClipboar
     const cutMessages = useCallback((messages: Message[]) => take('move', messages), [take])
     const copyMessages = useCallback((messages: Message[]) => take('copy', messages), [take])
 
-    // syncDestination pulls the destination's listing so the server's view of the paste lands (and
-    // reconciles the optimistic rows); best-effort, the next background sync covers a failure.
+    // syncDestination pulls the destination's listing so the server's view of the paste lands, then
+    // reconciles the optimistic rows against it.
+    //
+    // Reconciling is why the paste into the open folder goes through reloadFolder rather than a bare
+    // sync: an optimistic row carries the id the server predicted for the message (COPYUID); until
+    // the destination's listing is cached under that id there is no message behind the row. Leaving it
+    // on screen leaves a row that cannot be opened, moved or deleted, because every one of those asks
+    // the cache for a message it does not hold. Re-reading the list from the cache is what makes the
+    // rows on screen the rows that can be acted on: a message the sync brought in stays under its real
+    // id, one it did not simply leaves until a later sync lists it.
+    //
+    // A paste onto a folder that is not being viewed has no rows to reconcile, so it only needs the
+    // sync; that stays best-effort, since nothing on screen depends on it.
     const syncDestination = useCallback(async (destFolderId: string) => {
+        if (destFolderId === selectedFolderId) {
+            await reloadFolder(destFolderId)
+            return
+        }
         try {
             await api.syncFolder(destFolderId)
         } catch {
             // Reconciled by the next background sync.
         }
-    }, [])
+    }, [selectedFolderId, reloadFolder])
 
     // pasteMove is the optimistic move behind pasting a cut. The clipboard rows not already in the
     // open folder are inserted immediately (re-homed to the destination), then the batched server

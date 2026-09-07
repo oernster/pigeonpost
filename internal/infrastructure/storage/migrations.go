@@ -145,11 +145,11 @@ CREATE INDEX IF NOT EXISTS idx_calendar_pending_calendar ON calendar_pending(cal
 
 // schemaV41 replaces the subject/snippet/sender message_fts with message_search, the full-text search
 // index over everything searchable about a message: subject, snippet, sender, recipients (To and Cc)
-// and, where the lazy caches hold them, the plain body and the attachment filenames. The
+// plus the plain body and the attachment filenames where the lazy caches hold them. The
 // message_searchable_text view is the single definition of a message's searchable text: every index
 // insert and the rebuild select from it, so the indexed shape cannot drift between sites. The index is
 // a self-contained FTS5 table rather than external-content: the text spans three tables (message,
-// message_body, message_attachment), and external content requires every delete to reproduce the exact
+// message_body, message_attachment); external content requires every delete to reproduce the exact
 // values as indexed, which cross-table mutation ordering cannot guarantee; self-contained keeps every
 // consistency path an idempotent DELETE or reinsert by message id, at the cost of the index holding its
 // own copy of the text. The backfill indexes all already-cached mail, bodies included where cached.
@@ -226,8 +226,8 @@ DELETE FROM message_body;
 
 // schemaV46 adds the pending flag-operations table: a local record of a flag change (read, starred,
 // answered, forwarded) not yet confirmed on the server, mirroring message_tag_pending. Some servers
-// (Outlook.com among them) accept a flag STORE and then report the old value on the next fetch, or drop
-// the STORE outright; without this record the sync would faithfully write that stale view over the local
+// (Outlook.com among them) accept a flag STORE then report the old value on the next fetch; some drop
+// the STORE outright. Without this record the sync would faithfully write that stale view over the local
 // change, un-reading a message the user just viewed. Each row is the intended state of one (message,
 // flag) pair; a row is cleared once a sync sees the server agree with it and is otherwise replayed to
 // the server on each sync.
@@ -350,4 +350,22 @@ INSERT OR IGNORE INTO folder_baseline (folder_id) SELECT id FROM folder;
 
 // migrations is the ordered list of schema steps. Index i upgrades the database from version i to
 // version i+1, so a fresh database applies them all and an existing one applies only what it lacks.
-var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15, schemaV16, schemaV17, schemaV18, schemaV19, schemaV20, schemaV21, schemaV22, schemaV23, schemaV24, schemaV25, schemaV26, schemaV27, schemaV28, schemaV29, schemaV30, schemaV31, schemaV32, schemaV33, schemaV34, schemaV35, schemaV36, schemaV37, schemaV38, schemaV39, schemaV40, schemaV41, schemaV42, schemaV43, schemaV44, schemaV45, schemaV46, schemaV47, schemaV48, schemaV49, schemaV50, schemaV51, schemaV52, schemaV53}
+// schemaV54 clears the cached messages whose folder no longer exists. Renaming or moving a folder
+// replaces the account's folder set under new ids (a folder id is its account plus its path) while the
+// message rows keep the id of the folder that has gone, so nothing lists them, nothing counts them and
+// nothing deleted them; one account had 2,439 such rows across 18 dead folder ids. SaveFolders now
+// sweeps them as part of replacing a folder set, which keeps it true from here on; this clears what
+// earlier versions already left behind, without waiting for the next full account sync. A message row
+// is a cache of server data, so dropping it costs a re-fetch and nothing else.
+const schemaV54 = `
+DELETE FROM message_body WHERE message_id IN (SELECT id FROM message m WHERE NOT EXISTS (SELECT 1 FROM folder f WHERE f.id = m.folder_id));
+DELETE FROM message_attachment WHERE message_id IN (SELECT id FROM message m WHERE NOT EXISTS (SELECT 1 FROM folder f WHERE f.id = m.folder_id));
+DELETE FROM message_tag WHERE message_id IN (SELECT id FROM message m WHERE NOT EXISTS (SELECT 1 FROM folder f WHERE f.id = m.folder_id));
+DELETE FROM message_tag_pending WHERE message_id IN (SELECT id FROM message m WHERE NOT EXISTS (SELECT 1 FROM folder f WHERE f.id = m.folder_id));
+DELETE FROM message_flag_pending WHERE message_id IN (SELECT id FROM message m WHERE NOT EXISTS (SELECT 1 FROM folder f WHERE f.id = m.folder_id));
+DELETE FROM message_search WHERE message_id IN (SELECT id FROM message m WHERE NOT EXISTS (SELECT 1 FROM folder f WHERE f.id = m.folder_id));
+DELETE FROM message_snooze WHERE message_id IN (SELECT id FROM message m WHERE NOT EXISTS (SELECT 1 FROM folder f WHERE f.id = m.folder_id));
+DELETE FROM message WHERE NOT EXISTS (SELECT 1 FROM folder f WHERE f.id = message.folder_id);
+`
+
+var migrations = []string{schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6, schemaV7, schemaV8, schemaV9, schemaV10, schemaV11, schemaV12, schemaV13, schemaV14, schemaV15, schemaV16, schemaV17, schemaV18, schemaV19, schemaV20, schemaV21, schemaV22, schemaV23, schemaV24, schemaV25, schemaV26, schemaV27, schemaV28, schemaV29, schemaV30, schemaV31, schemaV32, schemaV33, schemaV34, schemaV35, schemaV36, schemaV37, schemaV38, schemaV39, schemaV40, schemaV41, schemaV42, schemaV43, schemaV44, schemaV45, schemaV46, schemaV47, schemaV48, schemaV49, schemaV50, schemaV51, schemaV52, schemaV53, schemaV54}

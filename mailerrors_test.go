@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/oernster/pigeonpost/internal/application"
 	"github.com/oernster/pigeonpost/internal/domain"
 )
 
@@ -57,6 +58,20 @@ func TestFriendlyMailErrorTranslatesIMAPRefused(t *testing.T) {
 		if !strings.Contains(got.Error(), want) {
 			t.Fatalf("message %q does not name %q, so it cannot be acted on", got.Error(), want)
 		}
+	}
+}
+
+// A message the cache no longer holds is a state the interface meets in normal use (a list read
+// before a move or a sync still shows the row), so it is said in words rather than as the query that
+// failed.
+func TestFriendlyMailErrorTranslatesAMessageThatIsNoLongerCached(t *testing.T) {
+	wrapped := fmt.Errorf("locate message %q: %w", "acc\x1fFolder\x1f545", application.ErrMessageNotCached)
+	got := friendlyMailError(wrapped)
+	if got != errMessageGone {
+		t.Fatalf("expected the message-gone text, got %v", got)
+	}
+	if strings.Contains(got.Error(), "sql") || strings.Contains(got.Error(), "locate message") {
+		t.Fatalf("the replacement still leaks the query: %v", got)
 	}
 }
 

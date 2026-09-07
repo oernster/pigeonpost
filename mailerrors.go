@@ -8,6 +8,7 @@ package main
 import (
 	"errors"
 
+	"github.com/oernster/pigeonpost/internal/application"
 	"github.com/oernster/pigeonpost/internal/domain"
 )
 
@@ -46,6 +47,18 @@ var errIMAPRefused = errors.New(
 	"Microsoft accepted the sign-in then refused an IMAP session. Check IMAP is on at outlook.com " +
 		"under Settings, Mail, then \"Sync email\" or \"Forwarding and IMAP\". A mailbox created in " +
 		"the last few days is often refused even with IMAP on, so a new account may need to wait.")
+
+// errMessageGone is the message shown when an action addresses a message the local cache no longer
+// holds. It is returned verbatim by the Wails facade and rendered as-is in the interface, so a
+// capitalised, punctuated sentence is intended here.
+//
+// The reader used to be shown the query that failed ("scan message: sql: no rows in result set"),
+// which reads as a broken application rather than as a list that has moved on.
+//
+//lint:ignore ST1005 user-facing message shown verbatim in the UI
+var errMessageGone = errors.New(
+	"That message is not in this folder any more. It was moved or removed since the list was last " +
+		"read, so the list has been refreshed.")
 
 // isOffline reports whether err was caused by the mail server being unreachable (domain.ErrOffline
 // wrapped anywhere in the chain), as opposed to the server rejecting a well-formed request.
@@ -89,6 +102,9 @@ func friendlyMailError(err error) error {
 	}
 	if err != nil && errors.Is(err, domain.ErrIMAPRefused) {
 		return errIMAPRefused
+	}
+	if err != nil && errors.Is(err, application.ErrMessageNotCached) {
+		return errMessageGone
 	}
 	return err
 }
