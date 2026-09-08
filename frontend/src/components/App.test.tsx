@@ -1602,8 +1602,9 @@ describe('App: search', () => {
         apiSpies.listAccounts.mockResolvedValue([makeAccount()])
         apiSpies.listFolders.mockResolvedValue([makeFolder('inbox', 'Inbox', 'inbox')])
         apiSpies.listMessages.mockResolvedValue([makeMessage({subject: 'Weekly report'})])
-        render(<App/>)
+        const view = render(<App/>)
         await waitFor(() => expect(screen.getByText('Weekly report')).toBeInTheDocument())
+        return view
     }
 
     it('runs the query all-mail by default and renders the highlighted match snippet', async () => {
@@ -1624,6 +1625,24 @@ describe('App: search', () => {
         // The markers themselves never render.
         expect(marked.closest('.message-snippet')?.textContent).toBe('about the penguin colony')
         expect(screen.queryByText('Searched as plain text')).not.toBeInTheDocument()
+    })
+
+    // Clearing the search puts the folder listing back, so a hit that was open in the reader is no longer
+    // in the visible list; leaving it on screen shows a message the list cannot account for. Clearing the
+    // query empties the reader, exactly as selecting a folder does.
+    it('empties the reading pane when the search is cleared', async () => {
+        apiSpies.searchMessages.mockResolvedValue({
+            hits: [{message: makeMessage({id: 's1', subject: 'Search hit'}), snippet: 'a hit'}],
+            degraded: false,
+        })
+        const {container} = await renderWithInbox()
+        fireEvent.change(screen.getByLabelText('Search mail'), {target: {value: 'penguin'}})
+        fireEvent.click(await screen.findByText('Search hit'))
+        const reader = () => container.querySelector('.pane.reader') as HTMLElement
+        await waitFor(() => expect(within(reader()).getByText('Search hit')).toBeInTheDocument())
+        fireEvent.click(screen.getByLabelText('Clear search'))
+        await waitFor(() => expect(within(reader()).getByText('Select a message to read.')).toBeInTheDocument())
+        expect(within(reader()).queryByText('Search hit')).not.toBeInTheDocument()
     })
 
     it('scopes the search to the selected folder via the scope selector', async () => {

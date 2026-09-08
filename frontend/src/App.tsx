@@ -175,14 +175,6 @@ function App() {
     const [calendarInitialEvent, setCalendarInitialEvent] = useState<string | null>(null)
     const [messageBody, setMessageBody] = useState<MessageBody | null>(null)
     const [bodyLoading, setBodyLoading] = useState<boolean>(false)
-    // The local full-text search (its query, scope, snippets, degraded hint and the debounced run) lives
-    // in useSearch. Its hits go into the shared message store, where the list reads them.
-    const {
-        query: searchQuery, setQuery: setSearchQuery,
-        scope: searchScope, setScope: setSearchScope,
-        snippets: searchSnippets, degraded: searchDegraded,
-        active: searchActive, inputRef: searchInputRef, focusSearch,
-    } = useSearch({selectedFolder, selectedAccount, setResults: setSearchResults, setError})
     const [contextMenu, setContextMenu] = useState<{message: Message; x: number; y: number} | null>(null)
     // The multi-selection built by Ctrl and Shift gestures (the marked ids and the Shift-range anchor)
     // lives in its own hook. Empty marks mean single-select mode, where selectedMessage alone is selected.
@@ -197,6 +189,14 @@ function App() {
         selectMessage, openInNewTab, closeTab, togglePreview,
         popoutOpen, openPopout, closePopout,
     } = useReaderTabs({store})
+    // The local full-text search (its query, scope, snippets, degraded hint and the debounced run) lives
+    // in useSearch. Its hits go into the shared message store, where the list reads them.
+    const {
+        query: searchQuery, setQuery: setSearchQuery,
+        scope: searchScope, setScope: setSearchScope,
+        snippets: searchSnippets, degraded: searchDegraded,
+        active: searchActive, inputRef: searchInputRef, focusSearch,
+    } = useSearch({selectedFolder, selectedAccount, setResults: setSearchResults, setError, setSelectedMessage, clearSelection, setReadingFull})
     // Clicking the popout's backdrop closes it like any other dialog.
     const popoutDismiss = useBackdropDismiss(closePopout)
     // A neutral, offscreen focus anchor. It takes focus on launch so nothing is highlighted, yet the very

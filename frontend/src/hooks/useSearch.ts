@@ -20,13 +20,23 @@ export interface SearchOptions {
     // setResults writes the hits into the shared message store, where the list reads them.
     setResults: (messages: Message[]) => void
     setError: (message: string) => void
+    // Clearing an active query puts the folder listing back, so whatever the app was showing from the hits
+    // goes with them: the open message, the multi-selection and the full-width reader all belonged to a
+    // listing that is no longer on screen. Tearing that down is part of clearing the query, not a separate
+    // gesture the caller has to remember, which is why these three arrive here.
+    setSelectedMessage: (message: Message | null) => void
+    clearSelection: () => void
+    setReadingFull: (full: boolean) => void
 }
 
-export function useSearch({selectedFolder, selectedAccount, setResults, setError}: SearchOptions) {
+export function useSearch({selectedFolder, selectedAccount, setResults, setError, setSelectedMessage, clearSelection, setReadingFull}: SearchOptions) {
     const [query, setQuery] = useState<string>('')
     const [scope, setScope] = useState<SearchScope>('all')
     const [snippets, setSnippets] = useState<Map<string, string>>(new Map())
     const [degraded, setDegraded] = useState<boolean>(false)
+    // wasActive records whether a query was running, so the teardown below fires on the transition out of
+    // a search and not on every render with an empty box (a folder change re-runs the effect too).
+    const wasActive = useRef<boolean>(false)
     // inputRef lets Edit > Search (Ctrl+K) focus the search box from anywhere.
     const inputRef = useRef<HTMLInputElement>(null)
     const focusSearch = useCallback(() => inputRef.current?.focus(), [])
@@ -52,8 +62,15 @@ export function useSearch({selectedFolder, selectedAccount, setResults, setError
             setResults([])
             setSnippets(new Map())
             setDegraded(false)
+            if (wasActive.current) {
+                wasActive.current = false
+                setSelectedMessage(null)
+                clearSelection()
+                setReadingFull(false)
+            }
             return
         }
+        wasActive.current = true
         let stale = false
         const folderId = scope === 'folder' ? selectedFolder : ''
         const accountId = scope === 'account' ? selectedAccount : ''
@@ -71,8 +88,8 @@ export function useSearch({selectedFolder, selectedAccount, setResults, setError
             stale = true
             window.clearTimeout(handle)
         }
-        // setResults and setError are stable for the life of the app; listing them would re-run the
-        // query on every render that rebuilds them.
+        // setResults, setError and the teardown callbacks are stable for the life of the app; listing
+        // them would re-run the query on every render that rebuilds them.
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [query, scope, selectedFolder, selectedAccount])
 
