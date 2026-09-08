@@ -716,7 +716,11 @@ markers the UI splits on, so message content is never interpreted as markup. The
 `search_store_test.go` suite; a future index format change ships as a migration that drops and refills
 from the view, the pattern that built the current index. The UI runs the query debounced with a scope selector (all mail, this
 folder, this account), highlights matches in the result rows and is reachable via Edit > Search
-(Ctrl+K).
+(Ctrl+K). Clearing the query ends the search view rather than editing it: the hits go and the message
+the reader was showing from them goes with them, along with the multi-selection and the full-width
+reader; all three belonged to a listing that is no longer on screen. `useSearch` owns that teardown and
+fires it on the transition out of an active query, so an ordinary edit of a running query leaves the
+open message alone while a cleared box returns the folder listing with nothing open over it.
 
 Coloured tags: the `TagService` use case manages user-defined tags (a name plus a validated `#rrggbb`
 `Colour`) and their many-to-many association with messages, through the `TagStore` port. Tags and the
