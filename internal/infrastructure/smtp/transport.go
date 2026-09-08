@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net"
 	"strconv"
+	"strings"
 
 	"github.com/emersion/go-sasl"
 	gosmtp "github.com/emersion/go-smtp"
@@ -71,7 +72,7 @@ func (t *Transport) Send(ctx context.Context, account domain.Account, msg domain
 	defer client.Close()
 
 	if err := client.Auth(auth); err != nil {
-		return fmt.Errorf("smtp: authenticate: %w", err)
+		return authError(err)
 	}
 
 	body := message.BuildMIME(msg, t.clock.Now(), t.newID())
@@ -80,6 +81,33 @@ func (t *Transport) Send(ctx context.Context, account domain.Account, msg domain
 		return fmt.Errorf("smtp: send: %w", err)
 	}
 	return client.Quit()
+}
+
+// authError wraps a failure to authenticate, marking the case where the mailbox refused to take mail
+// from a client at all so the interface can say something the user can act on. It is a function of its
+// own rather than three lines inside the send, so the marking can be tested without a mail server:
+// without that, the detector below could be right and never wired to anything.
+func authError(err error) error {
+	if isSMTPRefused(err) {
+		return fmt.Errorf("smtp: authenticate: %w", errors.Join(err, domain.ErrSMTPRefused))
+	}
+	return fmt.Errorf("smtp: authenticate: %w", err)
+}
+
+// smtpRefusedResponse is the phrase the server uses when the mailbox will not accept mail from a client,
+// matched on the server's own words because the SMTP reply carries a 535 that means several things. It is
+// matched case-insensitively, which costs nothing and removes one way for the match to lapse silently.
+//
+// The response does not say WHY submission is refused and neither does this constant. Microsoft's own
+// link alongside it describes a per-mailbox setting an administrator controls, which a personal account
+// has no administrator for, so the words are not read here as naming a cause.
+const smtpRefusedResponse = "smtpclientauthentication is disabled"
+
+// isSMTPRefused reports whether err is the server refusing to take mail from an authenticated client. A
+// false negative only means the server's own words are shown instead, so the match is kept narrow rather
+// than clever: a plain wrong password answers 535 too and must keep saying so.
+func isSMTPRefused(err error) bool {
+	return err != nil && strings.Contains(strings.ToLower(err.Error()), smtpRefusedResponse)
 }
 
 // authClient builds the SASL client for the account: XOAUTH2 carrying a silently-refreshed OAuth access

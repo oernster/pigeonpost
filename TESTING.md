@@ -48,7 +48,7 @@ documented here.
 | `internal/infrastructure/message` | unit on the RFC 5322 MIME builder | none |
 | `internal/infrastructure/mailparse` | unit on the MIME body parsing, HTML sanitising, URL linkifying (bare and markdown-labelled links, solo-line button marking), image and CSS-background parking, hidden-preheader removal that keeps MJML layout wrappers and the outgoing embedded-image extraction (data: URI to cid part) | none |
 | `internal/infrastructure/mailrouter` | unit on the per-protocol dispatch | none |
-| `internal/infrastructure/smtp` | none (live send only; MIME building lives in `message`) | n/a |
+| `internal/infrastructure/smtp` | unit on the mailbox-refused detector and the marking it feeds (the rest is live send only; MIME building lives in `message`) | none |
 | `internal/infrastructure/imap` | unit on the source adapter's pure helpers (parsing moved to `mailparse`) | none |
 | `internal/infrastructure/pop3` | unit on the response and UIDL parsing; live download excluded | none |
 | `internal/infrastructure/ics` | unit on the RFC 5545 codec round-trip, recurrence and scheduling payloads | none |
@@ -94,7 +94,7 @@ documented here.
 | internal/installer | ~22% | extract and paths covered; Win32 side effects excluded |
 | internal/infrastructure/imap | ~27% | the source adapter's pure helpers; the wire-to-domain and HTML logic now lives in `mailparse`; live fetch/append plus the IDLE watcher are excluded |
 | internal/infrastructure/taskbar | ~17% | the pure label formatting, the balloon-suppression rule and the no-op stub covered; the Windows-only Win32 overlay excluded, with a source scan standing in for the chime's placement inside it |
-| internal/infrastructure/smtp | 0% | transport is live `Send` only; MIME building lives in `message` |
+| internal/infrastructure/smtp | low | the mailbox-refused detector and `authError`, which marks a refusal so the interface can translate it; the transport around them is live `Send` only and MIME building lives in `message` |
 | main package | ~7% | composition root and the Wails facade, excluded; the covered statements are the package's own pure helpers, which carry unit tests of their own (mailto parsing, attachment decoding, the offline-error translation, the resurfaced-snooze announcement text with its wire mapping, the rule-backfill error summariser, plus the rule DTO's wire shape) |
 | installer app, tools/genicons | 0% | GUI and one-shot tooling, excluded |
 

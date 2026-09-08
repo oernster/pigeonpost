@@ -93,3 +93,15 @@ var ErrOffline = errors.New("mail server is unreachable")
 // Infrastructure adapters wrap the server's refusal with this so the interface can say something useful
 // rather than quoting the protocol. Callers match with errors.Is.
 var ErrIMAPRefused = errors.New("server refused an imap session")
+
+// ErrSMTPRefused marks a mailbox whose server refused authenticated SMTP submission: the credential was
+// presented and the server declined to take mail from a client at all. It says only that, for the same
+// reason ErrIMAPRefused does.
+//
+// The refusal is at the mailbox, not at the credential, so it is not evidence of a wrong password nor of
+// the wrong authentication method: Microsoft returns it whether the client offered a password or a
+// bearer token. Measured on 2026-09-08 against a personal Hotmail mailbox created that day, which
+// PigeonPost was reading over IMAP at the time and which could send from the web: client submission was
+// refused while everything else about the account worked. Whatever is added here, it must not put a
+// cause back into the name.
+var ErrSMTPRefused = errors.New("server refused authenticated smtp submission")

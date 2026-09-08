@@ -48,6 +48,29 @@ var errIMAPRefused = errors.New(
 		"under Settings, Mail, then \"Sync email\" or \"Forwarding and IMAP\". A mailbox created in " +
 		"the last few days is often refused even with IMAP on, so a new account may need to wait.")
 
+// errSMTPRefused is the message shown when the server takes the sign-in and then refuses to accept mail
+// from a client. It describes exactly that and no more, for the same reason errIMAPRefused does.
+//
+// The refusal is at the mailbox rather than at the credential: measured on 2026-09-08 against a personal
+// Hotmail mailbox created that day, which PigeonPost was reading over IMAP at the same moment and which
+// could send from Outlook on the web. So the message does not say the password is wrong, does not say the
+// account was added the wrong way and does not send anyone to re-add it, because none of that was what
+// was wrong.
+//
+// It deliberately does NOT repeat Microsoft's own link. That page describes a per-mailbox setting an
+// administrator turns on in a work or school tenant; a personal Outlook.com or Hotmail account has no
+// administrator and no such switch, so following it leads to a control the reader cannot reach. Sending
+// someone to a page they cannot act on is the same failure as naming a setting that is already correct.
+//
+// What it offers instead is the one thing that has been observed to change: the mailbox getting older.
+// This is the same shape as the IMAP refusal above, on the same provider, for the same reason.
+//
+//lint:ignore ST1005 user-facing message shown verbatim in the UI
+var errSMTPRefused = errors.New(
+	"Microsoft accepted the sign-in then refused to send. Sending from an email app is switched off " +
+		"for this mailbox, which Microsoft does to new personal accounts; the same account can still " +
+		"send on the web. There is nothing to switch on, so try again later.")
+
 // errMessageGone is the message shown when an action addresses a message the local cache no longer
 // holds. It is returned verbatim by the Wails facade and rendered as-is in the interface, so a
 // capitalised, punctuated sentence is intended here.
@@ -102,6 +125,9 @@ func friendlyMailError(err error) error {
 	}
 	if err != nil && errors.Is(err, domain.ErrIMAPRefused) {
 		return errIMAPRefused
+	}
+	if err != nil && errors.Is(err, domain.ErrSMTPRefused) {
+		return errSMTPRefused
 	}
 	if err != nil && errors.Is(err, application.ErrMessageNotCached) {
 		return errMessageGone

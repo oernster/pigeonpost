@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 	"testing"
 
@@ -196,5 +197,84 @@ func TestMailErrorLeavesNilAlone(t *testing.T) {
 	}
 	if len(spy.recorded) != 0 {
 		t.Fatalf("recorded %v for a nil error, want nothing", spy.recorded)
+	}
+}
+
+// The shape a refused send produces, as measured on 2026-09-08 against a personal Hotmail mailbox
+// created that day: the server's own 535, wrapped by the transport and again by the compose service,
+// exactly as it reaches the facade.
+func TestFriendlyMailErrorTranslatesSMTPRefused(t *testing.T) {
+	t.Parallel()
+	server := errors.New("SMTP error 535: Authentication unsuccessful, SmtpClientAuthentication is " +
+		"disabled for the Mailbox. Visit https://aka.ms/smtp_auth_disabled for more information.")
+	wrapped := fmt.Errorf("compose: send: %w",
+		fmt.Errorf("smtp: authenticate: %w", errors.Join(server, domain.ErrSMTPRefused)))
+	got := friendlyMailError(wrapped)
+	if !errors.Is(got, errSMTPRefused) {
+		t.Fatalf("friendlyMailError did not translate an SMTP-refused error, got %v", got)
+	}
+	// What measurement forced into the message. The refusal is at the mailbox, so it must not say the
+	// password is wrong or send anyone to re-add the account; the same mailbox could send from the web
+	// while this was happening; a personal account has no setting to switch on either.
+	for _, want := range []string{"refused to send", "personal", "web", "later"} {
+		if !strings.Contains(got.Error(), want) {
+			t.Fatalf("message %q does not say %q, so it cannot be acted on", got.Error(), want)
+		}
+	}
+	for _, unwanted := range []string{"password", "aka.ms", "re-add", "add it again"} {
+		if strings.Contains(got.Error(), unwanted) {
+			t.Fatalf("message %q says %q, which asserts a cause that was measured wrong", got.Error(), unwanted)
+		}
+	}
+}
+
+func TestSMTPRefusedMessageStaysShort(t *testing.T) {
+	t.Parallel()
+	if got := len(errSMTPRefused.Error()); got > maxIMAPMessageChars {
+		t.Fatalf("errSMTPRefused is %d characters, over the %d cap: shorten it or move the detail to the README", got, maxIMAPMessageChars)
+	}
+}
+
+// A 535 means several things, so only the mailbox refusal is translated: a plain wrong password must
+// keep saying what the server said rather than being told to try again later.
+func TestFriendlyMailErrorLeavesAnOrdinaryAuthFailureAlone(t *testing.T) {
+	t.Parallel()
+	wrapped := fmt.Errorf("smtp: authenticate: %w",
+		errors.New("SMTP error 535: Authentication unsuccessful, the user name or password is incorrect"))
+	if got := friendlyMailError(wrapped); got != wrapped {
+		t.Fatalf("an ordinary auth failure was translated to %v", got)
+	}
+}
+
+// mailErrorSendCalls are the send-surface calls that reach a mail server, each of which must hand its
+// error to mailError. The facade's own contract says every mail error is translated before it is
+// returned; this surface was the one that never did. A refused send reached the compose window as
+// "smtp: authenticate: SMTP error 535" and the server's tagged response, in a red box above the message
+// the user was trying to send.
+//
+// It is a source scan for the same reason the taskbar chime's placement is: exercising it would need a
+// live mail server, while what went wrong is visible in the source and nothing else was holding it.
+var mailErrorSendCalls = []string{
+	"a.mailError(a.compose.Send(",
+	"a.mailError(a.compose.SaveDraft(",
+	"a.mailError(err)",
+}
+
+func TestSendSurfaceTranslatesItsErrors(t *testing.T) {
+	t.Parallel()
+	source, err := os.ReadFile("send.go")
+	if err != nil {
+		t.Fatalf("read send.go: %v", err)
+	}
+	text := string(source)
+	for _, want := range mailErrorSendCalls {
+		if !strings.Contains(text, want) {
+			t.Errorf("send.go no longer contains %q, so a server refusal reaches the user as protocol text", want)
+		}
+	}
+	// The scheduled send is the one that returns two values, so its translation is easy to drop while
+	// the immediate send keeps its own.
+	if !strings.Contains(text, "return id, a.mailError(err)") {
+		t.Error("the scheduled send no longer translates its error")
 	}
 }

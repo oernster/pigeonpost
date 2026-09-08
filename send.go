@@ -85,10 +85,15 @@ func (a *App) SendMessage(req ComposeRequest) (string, error) {
 		HTMLBody:    req.HTMLBody,
 		Attachments: attachments,
 	}
+	// Through mailError, not raw. Everything else that talks to a mail server goes through it (sync,
+	// bodies, message actions, account setup) while this surface never did, so a server refusal reached
+	// the compose window as the protocol exchange that produced it: "smtp: authenticate: SMTP error 535"
+	// and the server's tagged response, in a red box above the message the user is trying to send.
 	if req.SendAtMs > 0 {
-		return a.compose.ScheduleSend(a.ctx, req.AccountID, draft, time.UnixMilli(req.SendAtMs))
+		id, err := a.compose.ScheduleSend(a.ctx, req.AccountID, draft, time.UnixMilli(req.SendAtMs))
+		return id, a.mailError(err)
 	}
-	return "", a.compose.Send(a.ctx, req.AccountID, draft)
+	return "", a.mailError(a.compose.Send(a.ctx, req.AccountID, draft))
 }
 
 // SaveDraft stores an in-progress message in the account's Drafts mailbox. The message may be
@@ -110,7 +115,7 @@ func (a *App) SaveDraft(req ComposeRequest) error {
 	if err != nil {
 		return err
 	}
-	return a.compose.SaveDraft(a.ctx, req.AccountID, application.Draft{
+	return a.mailError(a.compose.SaveDraft(a.ctx, req.AccountID, application.Draft{
 		From:        req.From,
 		To:          to,
 		Cc:          cc,
@@ -119,7 +124,7 @@ func (a *App) SaveDraft(req ComposeRequest) error {
 		Body:        req.Body,
 		HTMLBody:    req.HTMLBody,
 		Attachments: attachments,
-	})
+	}))
 }
 
 // OutboxCount returns the number of outgoing operations queued while the server was offline, awaiting
