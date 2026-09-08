@@ -48,7 +48,8 @@ enforced by a test in `tests/structural/boundary_test.go`, not by convention.
   `installer/` Wails setup app.
 - **UI**: the React front end plus the thin Wails facade in package `main` (`app.go` with one binding
   file per feature surface: accounts, mail, folders, send, draft recovery, outbox, snooze, tags, rules,
-  templates, calendar, CalDAV, contacts, scheduling, export, `.eml` files, updates and About, plus the
+  the rule-set file (`rulesfileapi.go`, the export and import of a rule set), templates and their
+  attachments, calendar, CalDAV, contacts, scheduling, export, `.eml` files, updates and About, plus the
   `dto.go` DTO mappers and the `clock.go` clock). The facade is a client of the Application use cases only; it
   maps domain results to DTOs and holds no business logic.
 
@@ -369,7 +370,10 @@ close cross, Cancel) routes through one guard in `ComposeModal`: a compose the u
 edited (the autosave's dirty flag) that still holds content confirms "Discard message?" before
 closing, so a stray click, such as the one that refocuses the app window onto the backdrop, can
 never silently lose a message. An untouched or emptied-out compose closes at once. Send and Save
-draft close directly, having preserved the message. The modal's render in `App` is gated on the
+draft close directly, having preserved the message. A confirmed discard does two things before it
+closes: it stops the autosave, then it clears the local recovery slot. The order is the point, since
+the snapshot is debounced, so one already scheduled would otherwise land after the clear and write the
+slot straight back, which is how a discarded message came back on the next launch. The modal's render in `App` is gated on the
 composing flag alone (not the resolved account), so an account-state change can never unmount a
 compose in progress; the neutral-focus anchor declines to take focus while any dialog is open.
 
@@ -948,6 +952,20 @@ saying the message has moved on, so the reader is never shown the query that fai
 re-reads the open folder when a body cannot be read, so the row leaves the list instead of staying there
 unusable. A message that is still cached and merely failed to fetch survives that re-read.
 
+`friendlyMailError` (`mailerrors.go`) translates four cases and returns every other error unchanged so a
+genuine fault keeps its detail: a connectivity failure becomes the plain offline message, a mailbox with
+IMAP switched off becomes the message naming that setting, a server that takes the sign-in then refuses
+to accept mail becomes `errSMTPRefused` and an uncached message becomes the message-has-moved-on
+sentence. `App.mailError` wraps it: where the translation replaces the original it records the original
+through `errlog` first, because a message fit to read asserts a cause and asserting a cause is exactly
+when the evidence for it stops being available. An error passed through unchanged still carries its own
+detail, so it is not recorded and the log stays a list of the cases where something was hidden.
+
+The send surface reaches the translator through the same wrapper as every other binding. It did not
+always: send and Save draft returned the raw transport error, so a mailbox refusing authenticated
+submission surfaced as the server's own text with no reading of it. Every mail-facing binding now routes
+through `mailError`, which is what makes the SMTP refusal legible at the point it happens.
+
 ## Quality enforcement
 
 - `internal/domain` and `internal/application` at 100% test coverage, enforced by `./test.ps1`, which
@@ -1014,12 +1032,17 @@ keeps its size and nothing after it shifts. It is a span rather than a button, w
 of the tab order and off the focus ring without any markup to exclude it. The all-accounts unread badge
 sits beside it. There is no wordmark: the window title names the application in text.
 
-The mark holds the left corner alone and the controls read left to right from it: the File, Edit, View
-and Mail menus, then compose, add account and sync, then Contacts and Calendar. The theme toggle and Help
-close the bar at the far end. `margin-right: auto` on `.titlebar-actions` is what holds that shape,
-taking the spare width on its right so the working group stays welded to the mark while
-`.titlebar-right` is pushed to the edge. Two `.titlebar-sep` rules group the working controls; no rule
-stands before the theme toggle, because the width between the two groups already separates them.
+The mark holds the left corner alone and the controls read left to right from it: the File, Edit and View
+menus, then the rules and templates pair, then the Mail menu with compose, add account and sync, then
+Contacts and Calendar. The theme toggle and Help close the bar at the far end. `margin-right: auto` on
+`.titlebar-actions` is what holds that shape, taking the spare width on its right so the working group
+stays welded to the mark while `.titlebar-right` is pushed to the edge. Three `.titlebar-sep` rules
+group the working controls; no rule stands before the theme toggle, because the width between the two
+groups already separates them.
+
+`.titlebar-left` carries `flex-shrink: 0`, so the group holding the mark keeps its width whatever else
+is on the bar. Without it a window too narrow for the full run squeezes that group first and the
+controls after it are painted over the mark; `stylesheets.test.ts` holds the rule.
 
 Three other arrangements were tried and none survived a maximised window. The first left the menus in the
 left group and moved only the working controls to the centre, which split one sequence into two with a

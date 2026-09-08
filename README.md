@@ -57,6 +57,14 @@ is unaffected.
 You need only IMAP. Leave "Let devices and apps use POP" off, because PigeonPost never uses POP for a
 Microsoft account.
 
+**Sending is held back separately from reading.** A new personal mailbox can read over IMAP perfectly
+while Microsoft still refuses to accept mail from an email app, so a send fails on an account that is
+otherwise working; the same account can send from Outlook on the web at that moment. PigeonPost says so
+rather than showing the server's reply: "Microsoft accepted the sign-in then refused to send." There is
+no switch for this on a personal account, so nothing needs turning on and nothing is wrong with the
+account as it was added. It is the mailbox's age again, so the answer is the same as above: leave it and
+try later.
+
 If an account still will not add, `mail-errors.log` beside the database holds what the mail server
 actually said, one failure per line. PigeonPost replaces a server's own words with a message naming a
 setting and the steps, which is easier to act on but asserts a cause that can be wrong; the log is the

@@ -94,8 +94,8 @@ documented here.
 | internal/installer | ~22% | extract and paths covered; Win32 side effects excluded |
 | internal/infrastructure/imap | ~27% | the source adapter's pure helpers; the wire-to-domain and HTML logic now lives in `mailparse`; live fetch/append plus the IDLE watcher are excluded |
 | internal/infrastructure/taskbar | ~17% | the pure label formatting, the balloon-suppression rule and the no-op stub covered; the Windows-only Win32 overlay excluded, with a source scan standing in for the chime's placement inside it |
-| internal/infrastructure/smtp | low | the mailbox-refused detector and `authError`, which marks a refusal so the interface can translate it; the transport around them is live `Send` only and MIME building lives in `message` |
-| main package | ~7% | composition root and the Wails facade, excluded; the covered statements are the package's own pure helpers, which carry unit tests of their own (mailto parsing, attachment decoding, the offline-error translation, the resurfaced-snooze announcement text with its wire mapping, the rule-backfill error summariser, plus the rule DTO's wire shape) |
+| internal/infrastructure/smtp | ~10% | the mailbox-refused detector and `authError`, which marks a refusal so the interface can translate it; the transport around them is live `Send` only and MIME building lives in `message` |
+| main package | ~8% | composition root and the Wails facade, excluded; the covered statements are the package's own pure helpers, which carry unit tests of their own (mailto parsing, attachment decoding, the offline-error translation, the resurfaced-snooze announcement text with its wire mapping, the rule-backfill error summariser, plus the rule DTO's wire shape) |
 | installer app, tools/genicons | 0% | GUI and one-shot tooling, excluded |
 
 ## Documented exclusions (and why)
@@ -207,7 +207,7 @@ npx vitest run --coverage   # enforce the pure-module coverage gate
 
 - **Pure modules gated to 100%.** The pure logic modules (`messageText`, `shortcuts`, `print`,
   `readerFormat`, `composeAddresses`, `composeAttachment`, `composeIntake`, `recipientSuggest`,
-  `autoCollect`, `datePicker`, `accountProviders`, `sidebarDnd`, `calendarModel`, `replyDraft`,
+  `autoCollect`, `datePicker`, `accountProviders`, `templateFiles`, `sidebarDnd`, `calendarModel`, `replyDraft`,
   `caldavAccount`, `unified`, `schedule`, `snooze`, `toolbarNav`, `pastedHtml`, `confirmations`,
   `undoStack`, `editClipboard`, `paneLayout`, `emailColors`, `dragScroll`, `optimisticList`,
   `autoScroll`, `draftEdit`, `modalDrag`)
@@ -231,7 +231,9 @@ npx vitest run --coverage   # enforce the pure-module coverage gate
   `.icon-btn:hover` repainted on specificity, so hovering the mark drew a rectangle round it; the
   comment beside the mark already claimed the gate that no test held. It also asserts every class it
   names still appears in the stylesheets, so a rename cannot empty the list into a sweep of nothing;
-  it also pins the mark's transparent border, which the gating rule alone would not miss. Unlike the
+  it also pins the mark's transparent border, which the gating rule alone would not miss. A fourth rule
+  holds `.titlebar-left` against shrinking: a bar too narrow for everything on it otherwise squeezes the
+  group carrying the mark until the controls after it are painted over the mark. Unlike the
   boundary and module-size tests it reads the files through `node:fs` rather than Vite's glob: measured,
   a raw glob of the stylesheets finds every file and returns an empty string for each, because Vitest
   does not process CSS. All four rules were verified by planting a violation against each.
@@ -274,7 +276,7 @@ npx vitest run --coverage   # enforce the pure-module coverage gate
   before; anything else records that it was reached and throws, then an `afterEach` fails the test
   naming the method. A companion test checks the other direction, that no spy is declared under a name the api
   does not have, since such a spy binds to nothing and every test configuring it passes for the wrong
-  reason. Both directions were verified by planting a violation. Every one of the 25 test files that
+  reason. Both directions were verified by planting a violation. Every one of the 27 test files that
   mocks the api now uses it, each carrying the `afterEach` drain and the companion check. Converting
   them found two more holes of exactly the kind it exists to catch. `MessageBodyView.test.tsx` declared
   a `messageInvite` spy under a name the api has never had. `Sidebar.test.tsx` spread the real `api`
