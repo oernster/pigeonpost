@@ -1056,15 +1056,20 @@ its right so the working group stays on the left while `.titlebar-right` is push
 `.titlebar-sep` rules group the working controls; no rule stands before the theme toggle, because the
 width between the two groups already separates them.
 
-The bar's leading artwork stands on the same line as the sidebar's section labels below it (ACCOUNTS,
+The bar's leading control starts on the same line as the sidebar's section labels below it (ACCOUNTS,
 FOLDERS) and as the donate mark in the tray at the foot. `--bar-ink-x` in `style.css` names that line and
-each of the three surfaces takes its own inset off it, because what has to meet the line is the ink rather
-than the box drawn round it: a header control insets its picture by a border plus 7px of padding, the
-donate mark by a border plus 10px, a label by nothing at all. Aligning the boxes instead left the File
-glyph eight pixels right of every label under it, which is how it read. The empty leading group is taken
-out of the flow (`.titlebar-left:empty`) rather than left to contribute a gap of its own; when the badge
-is there its own padding puts it on the same line, one pixel out. `stylesheets.test.ts` holds the
-arithmetic, since jsdom lays nothing out.
+all three surfaces take their leading inset from it, rather than each writing a number that drifts the
+moment one of them is tuned. The token alone did not line them up, because `.titlebar-left` sits between
+the bar's edge and its first control: it holds the all-accounts unread badge and nothing else, so with
+nothing unread it was an empty box contributing a gap of its own and the File menu stood eight pixels
+right of every label under it. It is taken out of the flow while it is empty (`.titlebar-left:empty`);
+when the badge is there it takes that leading place itself. `stylesheets.test.ts` holds both halves,
+since jsdom lays nothing out.
+
+A first attempt aligned the artwork inside those boxes instead, pulling each bar left by its own button's
+inset so the pictures met the line. It was measured and rejected on sight: the buttons then began outside
+the line every label kept, so the bar read as overhanging the window's edge rather than as sharing it.
+What the eye lines up here is the control, not the ink inside it.
 
 `.titlebar-left` carries `flex-shrink: 0`, so the leading group keeps its width whatever else is on the
 bar. Without it a window too narrow for the full run squeezes that group first and the controls after it

@@ -61,7 +61,9 @@
 
 .titlebar {
     align-items: center;
-    padding: 8px 14px;
+    /* The leading inset is the shared ink line, so the first control of either bar starts under the
+       sidebar's section labels rather than beside them; see --bar-ink-x. */
+    padding: 8px var(--bar-ink-x);
     background-color: var(--bg-elev);
     border-bottom: 1px solid var(--border);
     /* Give the menu bar its own stacking context above the panes, so an open menu dropdown (and any
@@ -81,14 +83,10 @@
 /* The bottom tray, built from .titlebar so it matches the header's height, padding and background
    exactly; only the edge it draws its rule on differs. margin-top: auto pins it to the foot of the
    window on the screens whose body does not itself take the spare height (the welcome screen), while
-   the panes' own flex: 1 already holds it there everywhere else.
-
-   Its leading padding is the exception; it differs from the header's for the two bars to LOOK the
-   same: the donate mark keeps the wider .icon-btn padding, so its box has to start further left for
-   its artwork to stand on the same line the header's does. See --bar-ink-x. */
+   the panes' own flex: 1 already holds it there everywhere else. Its leading inset is the header's, so
+   the donate mark begins where the File menu does. */
 .bottombar {
     margin-top: auto;
-    padding-left: calc(var(--bar-ink-x) - 11px);
     border-bottom: none;
     border-top: 1px solid var(--border);
 }

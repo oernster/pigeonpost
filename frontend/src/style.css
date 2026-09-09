@@ -38,10 +38,10 @@
        grow with the viewport would end up filling it while the reader still had room to spare. */
     --watermark-size: min(20vw, 300px);
     --watermark-opacity: 0.1;
-    /* The line the window's leading ink stands on: the sidebar's section labels (ACCOUNTS, FOLDERS)
-       and the artwork on the leading control of the bar above them and of the tray below. It is one
-       token because three surfaces have to agree on it; each takes its own inset off it, since what
-       must land on the line is the ink rather than the box drawn around it. */
+    /* The window's leading edge: the sidebar's section labels (ACCOUNTS, FOLDERS), the first control of
+       the bar above them and the donate mark in the tray below all start on this line. It is one token
+       because three surfaces have to agree on it and a number written out three times drifts the moment
+       one of them is tuned. */
     --bar-ink-x: 14px;
 }
 

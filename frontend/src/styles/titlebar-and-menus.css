@@ -9,19 +9,15 @@
    only thing that could give. Now nothing in the bar gives: a window too narrow for the whole run pushes the
    far end past the edge instead, which loses a control the user can get back by widening the window. The
    window's own minimum width (see main.go) is what keeps that from happening at all. */
-/* The bar's leading artwork stands on the same line as the sidebar's section labels below it, which
-   is what --bar-ink-x names. The button box starts left of that line rather than on it, because a
-   header control insets its picture by its border plus its own padding (1px + 7px): aligning the box
-   would leave the picture eight pixels adrift of every label under it, which is the way it read.
+/* The leading control of the bar starts on the same line as the sidebar's section labels below it
+   (ACCOUNTS, FOLDERS), which is what --bar-ink-x names: the bars and the labels take their leading
+   inset from that one token rather than each writing a number of its own.
 
-   The empty leading group is taken out of the flow rather than left to contribute a gap of its own.
-   .titlebar-left holds the all-accounts unread badge and nothing else, so on a window with nothing
-   unread it is an empty box adding eight pixels to whatever the bar starts with; the badge's own
-   padding then puts it on the same line when it does appear. */
-header.titlebar {
-    padding-left: calc(var(--bar-ink-x) - 8px);
-}
-
+   The token alone was not enough, because .titlebar-left sat between the bar's edge and the first
+   control. It holds the all-accounts unread badge and nothing else, so on a window with nothing unread
+   it was an empty box contributing a gap of its own, which put the first button eight pixels right of
+   every label under it. Taking it out of the flow while it is empty is what lines the two up; when the
+   badge is there it takes that leading place itself. */
 .titlebar-left:empty {
     display: none;
 }

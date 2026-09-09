@@ -125,24 +125,25 @@ describe('the stylesheets', () => {
         expect(root).toMatch(/--watermark-opacity:/)
     })
 
-    // The leading ink of the header, the tray and the sidebar's section labels stands on one line, which
-    // --bar-ink-x names. Each surface takes its own inset off that token rather than writing a number of
-    // its own, because what has to meet the line is the artwork and each box insets its artwork by a
-    // different amount: 8px for a header control, 11px for the donate mark in the tray, none for a label.
-    // Three plain numbers would read as three margins and drift the moment one was tuned. jsdom lays
-    // nothing out, so what is held is the arithmetic that decides the line.
-    it('take every bar\'s leading padding from the one ink line', async () => {
+    // The bars and the sidebar's section labels start on one line, which --bar-ink-x names. Two things
+    // decide it and neither is visible to a rendered test: both bars take their leading inset from the
+    // token rather than a number of their own; the empty leading group is taken out of the flow. That
+    // group holds the unread badge alone, so with nothing unread it was an empty box contributing a gap,
+    // which put the first control eight pixels right of every label under it.
+    it('start both bars and the section labels on the one leading line', async () => {
         const {readFileSync} = await nodeFs()
         const root = withoutComments(readFileSync('src/style.css', 'utf8'))
         expect(root).toMatch(/--bar-ink-x:/)
-        const bars = withoutComments(readFileSync(`${STYLESHEET_DIR}/titlebar-and-menus.css`, 'utf8'))
-        const header = bars.slice(bars.indexOf('header.titlebar {')).split('}')[0]
-        expect(header).toMatch(/padding-left:\s*calc\(var\(--bar-ink-x\) - \d+px\);/)
         const panes = withoutComments(readFileSync(`${STYLESHEET_DIR}/base-and-panes.css`, 'utf8'))
+        const bar = panes.slice(panes.indexOf('.titlebar {')).split('}')[0]
+        expect(bar).toMatch(/padding:\s*\d+px var\(--bar-ink-x\);/)
         const foot = panes.slice(panes.indexOf('.bottombar {')).split('}')[0]
-        expect(foot).toMatch(/padding-left:\s*calc\(var\(--bar-ink-x\) - \d+px\);/)
+        expect(foot).not.toMatch(/padding/)
         const label = panes.slice(panes.indexOf('.section-label {')).split('}')[0]
         expect(label).toMatch(/padding:\s*\d+px var\(--bar-ink-x\) \d+px;/)
+        const bars = withoutComments(readFileSync(`${STYLESHEET_DIR}/titlebar-and-menus.css`, 'utf8'))
+        const empty = bars.slice(bars.indexOf('.titlebar-left:empty {')).split('}')[0]
+        expect(empty).toMatch(/display:\s*none;/)
     })
 
     // The left group must not shrink. It carried min-width: 0 so it would give way first in a narrow
