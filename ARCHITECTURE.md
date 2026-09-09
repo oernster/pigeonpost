@@ -995,7 +995,7 @@ through `mailError`, which is what makes the SMTP refusal legible at the point i
   the Go guard holds, with the modules that predate it named in a shrinking exemption list. Two further
   structural tests read source rather than behaviour: one holds every dialog's action row and scrolling
   body, the other holds the stylesheets' hover gating, the pane watermark's stacking, pointer and
-  token declarations and the one ink line the two bars and the sidebar labels share (see Styles below).
+  token declarations and the leading line the two bars and the sidebar labels share (see Styles below).
 
 ## Styles (frontend)
 
@@ -1057,8 +1057,9 @@ its right so the working group stays on the left while `.titlebar-right` is push
 width between the two groups already separates them.
 
 The bar's leading control starts on the same line as the sidebar's section labels below it (ACCOUNTS,
-FOLDERS) and as the donate mark in the tray at the foot. `--bar-ink-x` in `style.css` names that line and
-all three surfaces take their leading inset from it, rather than each writing a number that drifts the
+FOLDERS) and as the donate mark in the tray at the foot, which is the header's own padding since the
+footer wears `.titlebar` too. `--bar-ink-x` in `style.css` names that line and the surfaces take their
+leading inset from it, rather than each writing a number that drifts the
 moment one of them is tuned. The token alone did not line them up, because `.titlebar-left` sits between
 the bar's edge and its first control: it holds the all-accounts unread badge and nothing else, so with
 nothing unread it was an empty box contributing a gap of its own and the File menu stood eight pixels
@@ -1102,8 +1103,7 @@ keeps the one size wearable in that narrower pane, which opens at 380px and does
 `BottomBar` is the footer at the foot of the window. It wears
 `.titlebar` itself rather than a stylesheet of its own, so the two match in height, padding and
 background by construction instead of by two sets of numbers kept in step by hand. `.bottombar` adds
-only what genuinely differs: the rule moves from the bottom edge to the top; its leading padding is the
-one the donate mark's wider box needs to stand on the shared ink line above; `margin-top: auto`
+only what genuinely differs: the rule moves from the bottom edge to the top and `margin-top: auto`
 pins the bar down on a screen whose body does not take the spare height itself (the welcome screen;
 `.panes` already holds it there with its own `flex: 1`). Its one control is the donate button, which
 hands the payment page to the browser through the same `OpenExternal` scheme allowlist every link in
