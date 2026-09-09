@@ -27,8 +27,16 @@
        base-and-panes.css). Both numbers live here rather than at the rule, so the mark is tuned in one
        place and cannot drift between the two panes. The size is capped as well as proportional, so a
        maximised window does not give it the whole pane; the opacity is what keeps it a ground rather than
-       a picture the message rows have to be read against. */
-    --watermark-size: min(46%, 340px);
+       a picture the message rows have to be read against.
+
+       The proportion is of the WINDOW, not of the pane. A background-size percentage resolves against the
+       element it paints, so the same token drew a smaller mark in the narrower message list than in the
+       reader beside it: one value, two sizes, which is exactly what a shared token is meant to prevent.
+       Viewport units resolve identically wherever they are read, so the two panes now draw one mark at one
+       size whatever the splitters are set to. The cap is what keeps that one size wearable in the narrower
+       of the two: the message list opens at 380px and does not widen with the window, so a mark free to
+       grow with the viewport would end up filling it while the reader still had room to spare. */
+    --watermark-size: min(20vw, 300px);
     --watermark-opacity: 0.1;
 }
 

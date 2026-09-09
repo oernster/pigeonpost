@@ -1079,7 +1079,10 @@ is the other half: the element covers the whole pane, so without it every click 
 the watermark rather than on the row under the cursor. Both declarations are held by `stylesheets.test.ts`.
 Its size and opacity are `--watermark-size` and `--watermark-opacity` in `style.css` beside the palette,
 so the two panes are tuned together and cannot drift apart; the size is capped as well as proportional, so
-a maximised window does not hand the mark the whole pane.
+a maximised window does not hand the mark the whole pane. The proportion is of the WINDOW rather than of the
+pane, because a `background-size` percentage resolves against the element it paints: one token drew the mark
+at half the size in the narrower message list, which is the drift a shared token exists to prevent. The cap
+keeps the one size wearable in that narrower pane, which opens at 380px and does not widen with the window.
 
 `BottomBar` is the footer at the foot of the window. It wears
 `.titlebar` itself rather than a stylesheet of its own, so the two match in height, padding and
@@ -1097,14 +1100,17 @@ centred, which is right everywhere above the fold and wrong in both axes here: m
 were cut off by the window edge. The tip is positioned against the button rather than the bar, so one
 `.bottombar` rule opening it upwards and anchoring its left edge covers both.
 
-An empty message list says so in the middle of the pane, as the reader does. `.empty-state` is a centring
-flex box taking `flex: 1`, which the reader's own column layout gives height from; the list's scroll region
-is a plain block, so `flex: 1` was inert there and the line sat at the top against a centred watermark. The
-region is not made a flex container to fix it, because the virtualised list is an absolutely positioned
-column of a measured height and a flex item would be shrunk to the pane, taking the scroll with it; the
-empty state alone takes a border-box `min-height: 100%` instead. Measured in the engine the app renders in:
-the line now centres on the region rather than some 24px below its middle, which is where a content-box height
-left it.
+An empty message list says so in the middle of the pane, on the mark, exactly as the reader does.
+`.empty-state` is a centring flex box taking `flex: 1`, which the reader's own column layout gives height
+from; the list's scroll region is a plain block, so `flex: 1` was inert there and the line sat at the top of
+the list against a mark centred behind it. The box is taken out of flow and stretched over the pane
+(`position: absolute; inset: 0`) rather than given a height inside the scroll region, so both panes centre
+their line on the same box the mark is centred in; sizing it to the region instead left it a couple of dozen
+pixels lower than the reader's, which is two panes saying the same kind of thing in two places. The region is
+not made a flex container either, because the virtualised list is an absolutely positioned column of a
+measured height and a flex item would be shrunk to the pane, taking the scroll with it; absolute positioning
+is safe because the list and the empty state are never rendered together. Measured in the engine the app
+renders in, with panes of 380px and 760px: both lines centre at the same height, each on its own pane.
 
 One sidebar layout rule: `.pane.sidebar` disables the pane's own overflow and scrolls an inner
 `.sidebar-scroll` region holding the folder tree alone, so the cross-account entries, the account picker

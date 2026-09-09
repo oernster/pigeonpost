@@ -374,17 +374,22 @@ body.pane-resizing iframe {
     overflow-y: auto;
 }
 
-/* An empty list says so in the middle of the pane, the way the reader does. .empty-state is already a
-   centring flex box that takes flex: 1, which the reader's own column layout gives it height from; here
-   the scroll region is a plain block, so flex: 1 is inert and the line sat at the top against a centred
-   watermark. min-height on the region's own height is what gives the box something to centre inside,
-   without making the scroll region a flex container: the virtualised list is an absolutely positioned
-   column of a measured height and a flex item would be shrunk to the pane, taking the scroll with it.
-   border-box is what keeps the height honest: the box carries its own padding, so a content-box height of
-   100% would stand 48px taller than the region it sits in and push the line half that far below centre. */
+/* An empty list says so in the middle of the pane, on the watermark, exactly as the reader does.
+   .empty-state is already a centring flex box that takes flex: 1, which the reader's own column layout
+   gives it height from; here the scroll region is a plain block, so flex: 1 is inert and the line sat at
+   the top of the list against a mark centred behind it.
+
+   The box is taken out of flow and stretched over the PANE rather than given a height inside the scroll
+   region, so the two panes centre their line on the same box the mark is centred in. Sizing it to the
+   region instead leaves it centred on the space under the search bar, which is a couple of dozen pixels
+   below the mark: two panes saying the same kind of thing in two places. The scroll region is deliberately
+   not made a flex container either: the virtualised list is an absolutely positioned column of a measured
+   height and a flex item would be shrunk to the pane, taking the scroll with it. Absolute positioning is
+   safe because the region holds the empty state alone: the list and this box are never rendered together. */
 .message-list-scroll > .empty-state {
+    position: absolute;
+    inset: 0;
     box-sizing: border-box;
-    min-height: 100%;
 }
 
 .selection-bar {
