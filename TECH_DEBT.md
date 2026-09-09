@@ -2,7 +2,7 @@
 
 A standing reference to the project's outstanding technical debt. It records what is still open, weighs whether each item is worth doing and gives the rationale. Every item is a behaviour-preserving internal refactor: nothing here proposes reverting a feature or changing any UI or UX behaviour. Scope is the whole repository (the Go core plus the React front end), read against the documented design and the structural tests.
 
-The sections below the open item are the standing record of what was weighed and deliberately left alone, so the same ground is not covered again. They carry no numbers, because a number here means an open item and a numbered heading that was not one made this file read as three open items when it held one.
+The sections below the open items are the standing record of what was weighed and deliberately left alone, so the same ground is not covered again. They carry no numbers, because a number here means an open item and a numbered heading that was not one made this file read as three open items when it held one.
 
 ---
 
@@ -34,7 +34,7 @@ The seven `ConfirmDialog` blocks have gone the same way, though not by lifting t
 
 One claim made when this was proposed turned out to be wrong and is withdrawn: it would not make the confirm-before-destroy rule checkable in one place. `ConfirmDialog` is used directly by nine other components (the compose discard, the contacts and rules and templates managers, the calendar's own editors), each a local confirmation belonging to its own dialog, so the list covers the main window's confirmations rather than the application's.
 
-The panes block has moved to `Panes`, which now owns the three-column grid, its CSS variables, the choice between the panes and the splitters that sit on their boundaries. It was taken with the cost measured and accepted rather than on a claim that it was cheap: it takes 18 lines out of `App.tsx` behind a 27-value interface and adds an 88-line module to the tree. It buys cohesion instead of length, since the grid and the splitters were previously stated in two places; it also takes the sidebar wiring out of `App` by passing the underlying values rather than a props object the caller would have to write out again.
+The panes block has moved to `Panes`, which now owns the three-column grid, its CSS variables, the choice between the panes and the splitters that sit on their boundaries. It was taken with the cost measured and accepted rather than on a claim that it was cheap: it takes 18 lines out of `App.tsx` behind a 27-value interface and adds a 106-line module to the tree. It buys cohesion instead of length, since the grid and the splitters were previously stated in two places; it also takes the sidebar wiring out of `App` by passing the underlying values rather than a props object the caller would have to write out again.
 
 Both right-click menus have gone the same way, into `ContextMenus`. The wiring of the two was untested at the `App` level before this, so five characterisation tests now hold it: the gesture that opens each menu, an entry reaching its handler and each menu's dismissal. It takes 16 lines out of `App.tsx` behind a 38-value interface and adds a 138-line module. The gain is that the whole right-click surface is in one place, including the message clipboard both menus read, which is now passed as the one object the hook already returns rather than as four separate values.
 

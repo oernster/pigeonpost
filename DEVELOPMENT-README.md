@@ -122,10 +122,11 @@ size the glyph as it needs, the folder list by height and the title bar inside a
 ARCHITECTURE.md). Dropping a new PNG into `assets/` is enough to generate it; naming it in `icons.ts` is
 what puts it on screen.
 
-The masters are held at 512px on their longest side. What actually bounds the generated height is the
-shortest ink height among them, which is `inbox` at 283px, since artwork is only ever reduced and never
-enlarged. Raising `--titlebar-glyph-size` means raising `glyphHeight` with it; 283px is the number it must
-stay under.
+The masters differ in size and need not match: most carry roughly 1254px on their longest side, while
+`File`, `compose` and `mail` are still the original 512px drawings. What actually bounds the generated
+height is the shortest ink height among them, since artwork is only ever reduced and never enlarged. That
+is `File` at 360px of ink. Raising `--titlebar-glyph-size` means raising `glyphHeight` with it; 360px is
+the number it must stay under.
 
 Run the tests (see [TESTING.md](TESTING.md) for detail):
 

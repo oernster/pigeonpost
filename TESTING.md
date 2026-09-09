@@ -225,18 +225,22 @@ npx vitest run --coverage   # enforce the pure-module coverage gate
   exempt while no longer over the limit fails, so an entry cannot outlive the debt it records; TECH_DEBT.md
   tracks the split. Test files are outside the limit by design. All four rules were
   verified by planting a violation against each.
-- **Stylesheet test.** `src/styles/stylesheets.test.ts` holds a rule the stylesheets state about
-  themselves: a `:hover` rule on a class worn by a button must also require `:enabled`. The app mark
-  borrows `.icon-btn` for its geometry and asks for a transparent border, which an ungated
+- **Stylesheet test.** `src/styles/stylesheets.test.ts` holds five rules the stylesheets state about
+  themselves. The first: a `:hover` rule on a class worn by a button must also require `:enabled`. The
+  app mark borrowed `.icon-btn` for its geometry and asked for a transparent border, which an ungated
   `.icon-btn:hover` repainted on specificity, so hovering the mark drew a rectangle round it; the
-  comment beside the mark already claimed the gate that no test held. It also asserts every class it
-  names still appears in the stylesheets, so a rename cannot empty the list into a sweep of nothing;
-  it also pins the mark's transparent border, which the gating rule alone would not miss. A fourth rule
-  holds `.titlebar-left` against shrinking: a bar too narrow for everything on it otherwise squeezes the
-  group carrying the mark until the controls after it are painted over the mark. Unlike the
+  comment beside the mark already claimed the gate that no test held. The second asserts every class it
+  names still appears in the stylesheets, so a rename cannot empty the list into a sweep of nothing. Two
+  more hold the pane watermark the mark became: it must sit at `z-index: -1` inside an isolated stacking
+  context, else it is painted behind the application's background and vanishes, it must take no pointer,
+  else it swallows every click meant for a message row; its size and opacity must come from the
+  shared tokens rather than from numbers written out once per pane. Neither failure is visible to a
+  rendered-component test, because jsdom computes neither stacking nor hit testing. The fifth holds
+  `.titlebar-left` against shrinking: a bar too narrow for everything on it otherwise squeezes the
+  leading group until the controls after it are painted over what it holds. Unlike the
   boundary and module-size tests it reads the files through `node:fs` rather than Vite's glob: measured,
   a raw glob of the stylesheets finds every file and returns an empty string for each, because Vitest
-  does not process CSS. All four rules were verified by planting a violation against each.
+  does not process CSS. All five rules were verified by planting a violation against each.
 - **Modal layout test.** `src/components/modalLayout.test.ts` scans the dialog source and holds two
   rules: every modal carrying an action row pins it; every pinned modal has something that
   actually scrolls. Both matter because a dialog that scrolls as one block takes its buttons off a

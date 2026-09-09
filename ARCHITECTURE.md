@@ -983,7 +983,8 @@ through `mailError`, which is what makes the SMTP refusal legible at the point i
   structural boundary test that keeps them pure and a module-size test holding the same 400-line limit
   the Go guard holds, with the modules that predate it named in a shrinking exemption list. Two further
   structural tests read source rather than behaviour: one holds every dialog's action row and scrolling
-  body, the other holds the stylesheets' hover gating (see Styles below).
+  body, the other holds the stylesheets' hover gating and the pane watermark's stacking, pointer and
+  token declarations (see Styles below).
 
 ## Styles (frontend)
 
@@ -1001,11 +1002,12 @@ A `:hover` rule on a class worn by a button must also require `:enabled`;
 `frontend/src/styles/stylesheets.test.ts` fails the suite when one does not. It reads the stylesheets
 themselves rather than a rendered component, because the defect it exists for is a rule that wins on
 specificity over another rule in the same file. The app mark shipped with a rectangle drawn round it
-under the mouse this way: the mark borrows `.icon-btn` for its geometry and asks for a transparent
+under the mouse this way: the mark borrowed `.icon-btn` for its geometry and asked for a transparent
 border, which an ungated `.icon-btn:hover` then repainted. The comment beside the mark already said the
 hover rule was gated, so the intent was written down while the code disagreed with it. A comment cannot
-fail. The same test pins the mark's transparent border, since the gating rule alone would still pass
-with that declaration deleted.
+fail. The same test now pins the pane watermark that mark became, for the same reason: its two
+load-bearing declarations are invisible to a rendered-component test, because jsdom computes neither
+stacking nor hit testing.
 
 Every control in the header and every row in the folder list carries drawn artwork rather than an emoji.
 An emoji is rendered by whichever font the platform happens to ship, so neither its weight nor its
@@ -1029,32 +1031,44 @@ row of 22px ones, with sent and inbox close behind.
 The header's size rule is scoped to the `header.titlebar` element rather than the class, because the
 footer is built from `.titlebar` too and its donate mark keeps the smaller `--titlebar-icon-size`.
 
-The window is topped and tailed by the same bar. `TitleBar` is the header carrying the app mark, the
-menus and the working controls. The mark borrows an icon button's geometry so it sits in that row as one
-of them while painting no box of its own; the border is made transparent rather than dropped, so the box
-keeps its size and nothing after it shifts. It is a span rather than a button, which is what keeps it out
-of the tab order and off the focus ring without any markup to exclude it. The all-accounts unread badge
-sits beside it. There is no wordmark: the window title names the application in text.
+The window is topped and tailed by the same bar. `TitleBar` is the header carrying the menus and the
+working controls. The application's own icon is not on it: it stood in the left corner wearing an icon
+button's box, where it repeated at 61px what the window title already says in text while taking room from
+the controls. It is now the watermark behind the two working panes (below), so the identity is stated once
+and stated large. There is no wordmark either, for the same reason.
 
-The mark holds the left corner alone and the controls read left to right from it: the File, Edit and View
-menus, then the rules and templates pair, then the Mail menu with compose, add account and sync, then
-Contacts and Calendar. The theme toggle and Help close the bar at the far end. `margin-right: auto` on
-`.titlebar-actions` is what holds that shape, taking the spare width on its right so the working group
-stays welded to the mark while `.titlebar-right` is pushed to the edge. Three `.titlebar-sep` rules
-group the working controls; no rule stands before the theme toggle, because the width between the two
-groups already separates them.
+`.titlebar-left` therefore holds the all-accounts unread badge alone; the controls read left to right
+from it: the File, Edit and View menus, then the rules and templates pair, then the Mail menu with
+compose, add account and sync, then Contacts and Calendar. The theme toggle and Help close the bar at the
+far end. `margin-right: auto` on `.titlebar-actions` is what holds that shape, taking the spare width on
+its right so the working group stays on the left while `.titlebar-right` is pushed to the edge. Three
+`.titlebar-sep` rules group the working controls; no rule stands before the theme toggle, because the
+width between the two groups already separates them.
 
-`.titlebar-left` carries `flex-shrink: 0`, so the group holding the mark keeps its width whatever else
-is on the bar. Without it a window too narrow for the full run squeezes that group first and the
-controls after it are painted over the mark; `stylesheets.test.ts` holds the rule.
+`.titlebar-left` carries `flex-shrink: 0`, so the leading group keeps its width whatever else is on the
+bar. Without it a window too narrow for the full run squeezes that group first and the controls after it
+are painted over what it holds; `stylesheets.test.ts` holds the rule.
 
 Three other arrangements were tried and none survived a maximised window. The first left the menus in the
 left group and moved only the working controls to the centre, which split one sequence into two with a
 gap in the middle of it. The second moved the menus too and held the whole run dead centre with a
 three-column grid, which measured exactly centred and still read as a row floating in an empty bar. The
 third gathered every control against the right edge, which put the whole run a screen's width from the
-mark and grew worse the wider the window got. All three are recorded in `TitleBar.tsx` and in the
+left corner and grew worse the wider the window got. All three are recorded in `TitleBar.tsx` and in the
 stylesheet so the ground is not covered again.
+
+The message list and the reader each carry the application's icon as a watermark, centred and fixed in
+the pane while its contents scroll inside it. It is painted by a `::before` on the pane rather than as a
+background image on it, because a background cannot be faded on its own and `opacity` on the pane would
+take the message rows down with it. The pseudo-element sits at `z-index: -1` inside a stacking context the
+pane is given explicitly (`isolation: isolate`), which is what puts the mark after the pane's own
+background and before every child of it; without the stacking context that negative index escapes to the
+nearest one and the mark disappears behind the application's background instead. `pointer-events: none`
+is the other half: the element covers the whole pane, so without it every click in the list would land on
+the watermark rather than on the row under the cursor. Both declarations are held by `stylesheets.test.ts`.
+Its size and opacity are `--watermark-size` and `--watermark-opacity` in `style.css` beside the palette,
+so the two panes are tuned together and cannot drift apart; the size is capped as well as proportional, so
+a maximised window does not hand the mark the whole pane.
 
 `BottomBar` is the footer at the foot of the window. It wears
 `.titlebar` itself rather than a stylesheet of its own, so the two match in height, padding and

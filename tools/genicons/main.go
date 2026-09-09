@@ -68,7 +68,7 @@ const (
 // on the same reasoning as donateHeight: crisp under display scaling without carrying a megabyte-scale
 // master into the binary. Raising that CSS token means raising this with it; the two are kept in step by
 // hand, since neither language can read the other's constant. The masters cap it: the shortest of them,
-// inbox, carries 283px of ink height; artwork is never enlarged.
+// File, carries 360px of ink height; artwork is never enlarged.
 const glyphHeight = 244
 
 // glyphAlphaFloor is the alpha, on the usual 0 to 255 scale, at or below which a pixel is treated as
