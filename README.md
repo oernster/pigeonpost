@@ -238,6 +238,10 @@ concern, so read it before attaching it to anything.
   actually write, so accented names survive. Importing the same export twice updates the contacts it
   matches instead of duplicating them; a match is merged so an import never overwrites what you
   have already recorded.
+- **Guide**: Help > Guide names every picture the window draws (each menu and control on the top bar,
+  every folder mark and the donate button) beside what it does, then states the rules the windows cannot
+  state for themselves: what is held on your machine, what a permanent delete means, when a rule acts and
+  what a snooze or a scheduled send needs from the app.
 - **Trust**: a dark theme with a light toggle, passwords held in the OS keychain (never the database)
   and external links opened in your browser. The app checks GitHub's releases shortly after launch and
   once a day while running; only a formally published release can prompt and the request carries

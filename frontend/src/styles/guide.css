@@ -1,0 +1,57 @@
+/* The Guide dialog (Help > Guide): the icon inventory and the rules behind the behaviour. It is wider
+   than the other help dialogs because every entry is a picture followed by a sentence: at the shared
+   modal's 460px a 30px picture and its gap leave a narrow column of text, which breaks a one-line
+   description into three and stops the icons reading as a column. Everything else about it (the pinned Close, the scrolling body, the self-reading cycle) is the
+   shared pinned-actions layout, so nothing here restates it. */
+.modal.guide {
+    max-width: 720px;
+    text-align: left;
+}
+
+.guide-section {
+    margin-bottom: 22px;
+}
+
+.guide-section:last-child {
+    margin-bottom: 0;
+}
+
+.guide-heading {
+    margin: 0 0 8px;
+    font-size: 15px;
+}
+
+.guide-intro,
+.guide-rule,
+.guide-para {
+    margin: 0 0 10px;
+    font-size: 13px;
+    line-height: 1.55;
+    color: var(--text-dim);
+}
+
+/* An entry is a picture and a sentence on one row. The picture is drawn at 30px, half again the size of
+   the bar it is copied from: this screen exists to tell two icons apart, which is the one thing the
+   artwork cannot do at list size. It is aligned to the top of the text rather than centred on it, so a
+   sentence that wraps keeps its icon beside its first line instead of drifting down the paragraph. */
+.guide-entry {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    margin: 0 0 8px;
+    font-size: 13px;
+    line-height: 1.55;
+    color: var(--text-dim);
+}
+
+.guide-icon {
+    width: 30px;
+    height: 30px;
+    flex: none;
+    object-fit: contain;
+}
+
+.guide-entry b,
+.guide-rule b {
+    color: var(--text);
+}

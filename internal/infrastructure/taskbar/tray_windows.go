@@ -15,7 +15,7 @@ import (
 )
 
 // Tray is a persistent Windows notification-area icon. Left-clicking it restores the main window;
-// right-clicking opens a menu mirroring the Help menu plus Open and Quit; and Notify raises a balloon
+// right-clicking opens a menu carrying About, Licence and Check for Updates plus Open and Quit; and Notify raises a balloon
 // for a due reminder. It owns a hidden window on its own message-pumping thread, since tray callbacks
 // arrive as window messages on the thread that created the icon.
 type Tray struct {

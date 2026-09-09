@@ -594,8 +594,8 @@ Neither this nor the drop flash is gated on `prefers-reduced-motion`: on Windows
 general "Animation effects" switch, which people turn off for performance rather than motion
 sensitivity, so gating on it silently removed both features on a machine that had it off. Stopping the
 cycle is what touching the pane is for. The self-reading cycle, unlike the pinned layout above, is worn
-by the About and Licence panes only; every other scrollable surface in the app is a work or decision
-surface, where content that moves on its own would fight the user.
+by the three Help panes only (the guide, About and Licence); every other scrollable surface in the app
+is a work or decision surface, where content that moves on its own would fight the user.
 
 Undo, redo and the message clipboard (front end): the reported destination ids are what make undo
 possible. `undoStack.ts` (a gated pure module) models the undo and redo stacks: entries for the
@@ -929,6 +929,17 @@ reports what would be added, what would be replaced, what would arrive switched 
 or destroy mail. That last group is why the confirmation exists at all: an imported rule runs unattended
 on the next sync, so agreeing to a file is agreeing to whatever its rules do.
 
+**The guide.** Help > Guide is the first entry on the menu: it names every picture the title bar, the
+folder list and the foot strip draw, then states the rules the windows cannot state for themselves (what
+is cached locally, what needs the app running, what a permanent delete does). It is the one Help panel
+with nothing to fetch, since its words ship with the front end; `useHelpPanels` holds it as a flag beside
+the two loaded panels so App carries one value for the whole menu.
+
+The words live in `guideContent.ts` as data and `GuideModal.tsx` only draws them, so what the app says
+about itself is one document rather than markup. Every entry takes its picture from `icons.ts`, the same
+mapping the surfaces themselves read, which is what stops the guide showing something other than the icon
+it names; `HelpModals.test.tsx` holds that, asserting each drawn image against the entry that declared it.
+
 **Update check.** The application `UpdateService` compares the embedded VERSION against the newest
 published GitHub release through the `ReleaseSource` port, implemented by
 `infrastructure/update.GitHubReleaseSource` (a 5 second `net/http` GET of the latest-release
@@ -1085,6 +1096,15 @@ centred, which is right everywhere above the fold and wrong in both axes here: m
 742px and rendered off-screen; centred on a button held at the far left of the bar its first words
 were cut off by the window edge. The tip is positioned against the button rather than the bar, so one
 `.bottombar` rule opening it upwards and anchoring its left edge covers both.
+
+An empty message list says so in the middle of the pane, as the reader does. `.empty-state` is a centring
+flex box taking `flex: 1`, which the reader's own column layout gives height from; the list's scroll region
+is a plain block, so `flex: 1` was inert there and the line sat at the top against a centred watermark. The
+region is not made a flex container to fix it, because the virtualised list is an absolutely positioned
+column of a measured height and a flex item would be shrunk to the pane, taking the scroll with it; the
+empty state alone takes a border-box `min-height: 100%` instead. Measured in the engine the app renders in:
+the line now centres on the region rather than some 24px below its middle, which is where a content-box height
+left it.
 
 One sidebar layout rule: `.pane.sidebar` disables the pane's own overflow and scrolls an inner
 `.sidebar-scroll` region holding the folder tree alone, so the cross-account entries, the account picker
@@ -1272,8 +1292,9 @@ sound is left to the desktop's own notification service, which chooses it from t
 there is nothing to override.
 
 **Close to tray.** On Windows the `Tray` is a persistent, clickable
-notification-area icon: left-clicking it reopens the window; its right-click menu mirrors the Help
-menu (About, Licence, Check for Updates) plus Open and Quit. Where a restorable tray icon exists (only
+notification-area icon: left-clicking it reopens the window; its right-click menu carries About,
+Licence and Check for Updates plus Open and Quit. It does not carry the guide, which explains the
+window's own furniture and so has nothing to say to somebody whose window is hidden. Where a restorable tray icon exists (only
 Windows, gated by `Tray.CanHideToTray`), the window's close button does not quit: `OnBeforeClose` keeps
 the window open and emits `app:close-request`; the front end shows its own dark-themed dialog
 offering Minimise to tray or Quit. The dialog renders last in App's overlay list on a raised backdrop

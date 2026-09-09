@@ -241,6 +241,10 @@ npx vitest run --coverage   # enforce the pure-module coverage gate
   boundary and module-size tests it reads the files through `node:fs` rather than Vite's glob: measured,
   a raw glob of the stylesheets finds every file and returns an empty string for each, because Vitest
   does not process CSS. All five rules were verified by planting a violation against each.
+- **The guide is held to its own claim.** `HelpModals.test.tsx` asserts every entry in the guide is drawn
+  with the icon it declares, taken from the same `icons.ts` mapping the title bar and folder list read. The
+  screen exists to tell one picture from another, so an entry showing anything but its own icon would be
+  worse than no guide at all.
 - **Modal layout test.** `src/components/modalLayout.test.ts` scans the dialog source and holds two
   rules: every modal carrying an action row pins it; every pinned modal has something that
   actually scrolls. Both matter because a dialog that scrolls as one block takes its buttons off a

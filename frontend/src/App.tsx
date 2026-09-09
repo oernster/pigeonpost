@@ -19,6 +19,7 @@ import {WelcomeScreen} from './components/WelcomeScreen'
 import {SelectionSummary} from './components/SelectionSummary'
 import {DraftRecoveryDialog} from './components/DraftRecoveryDialog'
 import {AboutModal} from './components/AboutModal'
+import {GuideModal} from './components/GuideModal'
 import {UpdateModal} from './components/UpdateModal'
 import {LicenceModal} from './components/LicenceModal'
 import {arrangeByConversation, sortByDate} from './threads'
@@ -41,7 +42,7 @@ import {useMessageExport} from './hooks/useMessageExport'
 import {useManagedCollection} from './hooks/useManagedCollection'
 import {useSearch} from './hooks/useSearch'
 import {useSplash} from './hooks/useSplash'
-import {useLoadedPanel} from './hooks/useLoadedPanel'
+import {useHelpPanels} from './hooks/useHelpPanels'
 import {rangeIds, toggleId, useSelection} from './hooks/useSelection'
 import {useMessageActions} from './hooks/useMessageActions'
 import {useBulkActions} from './hooks/useBulkActions'
@@ -152,12 +153,10 @@ function App() {
         return owner?.protocol === 'pop3'
     }
     const [theme, setTheme] = useState<Theme>(loadTheme())
-    // About and the licence text are the Help menu's two read-only panels: each is fetched when its menu
-    // item is chosen and dropped when its dialog closes.
-    const aboutPanel = useLoadedPanel<AboutInfo>(api.about, setError)
-    const licencePanel = useLoadedPanel<string>(api.licence, setError)
-    const about = aboutPanel.value
-    const licence = licencePanel.value
+    // The Help menu's three read-only panels: the guide, About and the licence text.
+    const help = useHelpPanels(setError)
+    const about = help.about.value
+    const licence = help.licence.value
     // The four backend-backed collections the menus manage share one shape (load on mount, reload after
     // the manager dialog changes them, a flag for whether that dialog is open), so they share one hook.
     const rulesCollection = useManagedCollection<Rule>(api.listRules, setError)
@@ -814,7 +813,7 @@ function App() {
         isWindows,
         closeChoice, setCloseChoice,
     } = useAppEvents({
-        showAbout: aboutPanel.open, showLicence: licencePanel.open, checkUpdates,
+        showAbout: help.about.open, showLicence: help.licence.open, checkUpdates,
         selectedFolder, reloadFolder: loadFolderMessages, refreshFolders,
         loadUnread, loadEvents, setError,
     })
@@ -1144,7 +1143,7 @@ function App() {
         attachFiles, setAttachPickerOpen, displayMessages,
         moveMessage, copyMessage, markJunk, markNotJunk, snoozeTo, unsnooze, setSnoozePickerFor,
         setMessageToCancelSend, requestDelete, setMessageToPurge,
-        showAbout: aboutPanel.open, showLicence: licencePanel.open, checkUpdates,
+        showGuide: help.showGuide, showAbout: help.about.open, showLicence: help.licence.open, checkUpdates,
     })
 
     return (
@@ -1235,14 +1234,15 @@ function App() {
                     onCancel={() => setAttachPickerOpen(false)}
                 />
             )}
-            <AboutModal about={about} onClose={aboutPanel.close}/>
+            <GuideModal open={help.guideOpen} onClose={help.closeGuide}/>
+            <AboutModal about={about} onClose={help.about.close}/>
             <UpdateModal
                 status={updateStatus}
                 onClose={() => setUpdateStatus(null)}
                 onDownload={(url) => void api.openExternal(url)}
                 onSkip={skipUpdate}
             />
-            <LicenceModal text={licence} onClose={licencePanel.close}/>
+            <LicenceModal text={licence} onClose={help.licence.close}/>
             {launchedEmail && <EmailViewerModal email={launchedEmail} autoLoadImages={autoLoadImages} dark={theme === 'dark'} onClose={() => setLaunchedEmail(null)}/>}
             {popoutOpen && selectedMessage && !multiSelected && (
                 <div className="modal-backdrop" {...popoutDismiss}>

@@ -331,6 +331,16 @@ describe('App: about and licence', () => {
         expect(within(dialog).getByText(/GNU GENERAL PUBLIC LICENSE/)).toBeInTheDocument()
     })
 
+    it('opens the Guide from the top of the Help menu', async () => {
+        await openHelp('Guide')
+        const dialog = await screen.findByRole('dialog', {name: 'Guide'})
+        expect(within(dialog).getByText('How PigeonPost works')).toBeInTheDocument()
+        // Nothing is fetched for it: the guide ships with the front end.
+        expect(apiSpies.about).not.toHaveBeenCalled()
+        fireEvent.click(within(dialog).getAllByRole('button', {name: 'Close'})[1])
+        await waitFor(() => expect(screen.queryByRole('dialog', {name: 'Guide'})).toBeNull())
+    })
+
     it('reports a failed About read through the error bar', async () => {
         apiSpies.about.mockRejectedValue('about unavailable')
         await openHelp('About PigeonPost')

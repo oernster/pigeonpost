@@ -95,6 +95,7 @@ export interface MenusDeps {
     requestDelete: (message: Message) => void
     setMessageToPurge: Dispatch<SetStateAction<Message | null>>
     // Help menu.
+    showGuide: () => void
     showAbout: () => Promise<void>
     showLicence: () => Promise<void>
     checkUpdates: () => void
@@ -126,7 +127,7 @@ export function useMenus(deps: MenusDeps): Menus {
         attachFiles, setAttachPickerOpen, displayMessages,
         moveMessage, copyMessage, markJunk, markNotJunk, snoozeTo, unsnooze, setSnoozePickerFor,
         setMessageToCancelSend, requestDelete, setMessageToPurge,
-        showAbout, showLicence, checkUpdates,
+        showGuide, showAbout, showLicence, checkUpdates,
     } = deps
 
     // menuShortcutsRef holds the current menu items so the global accelerator handler always sees the
@@ -420,7 +421,11 @@ export function useMenus(deps: MenusDeps): Menus {
             onClick: () => activeMessage && setMessageToCancelSend(activeMessage),
         },
     ]
+    // Guide leads the menu: it is the entry someone meeting the app reaches for; it explains the
+    // pictures the other surfaces are made of rather than reporting on the application itself.
     const helpMenu: MenuItem[] = [
+        {label: 'Guide', onClick: showGuide},
+        {label: '', separator: true},
         {label: 'About PigeonPost', onClick: () => void showAbout()},
         {label: 'Licence', onClick: () => void showLicence()},
         {label: 'Check for Updates', onClick: checkUpdates},

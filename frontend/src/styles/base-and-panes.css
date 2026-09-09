@@ -374,6 +374,19 @@ body.pane-resizing iframe {
     overflow-y: auto;
 }
 
+/* An empty list says so in the middle of the pane, the way the reader does. .empty-state is already a
+   centring flex box that takes flex: 1, which the reader's own column layout gives it height from; here
+   the scroll region is a plain block, so flex: 1 is inert and the line sat at the top against a centred
+   watermark. min-height on the region's own height is what gives the box something to centre inside,
+   without making the scroll region a flex container: the virtualised list is an absolutely positioned
+   column of a measured height and a flex item would be shrunk to the pane, taking the scroll with it.
+   border-box is what keeps the height honest: the box carries its own padding, so a content-box height of
+   100% would stand 48px taller than the region it sits in and push the line half that far below centre. */
+.message-list-scroll > .empty-state {
+    box-sizing: border-box;
+    min-height: 100%;
+}
+
 .selection-bar {
     display: flex;
     align-items: center;
