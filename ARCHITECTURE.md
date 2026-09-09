@@ -994,8 +994,8 @@ through `mailError`, which is what makes the SMTP refusal legible at the point i
   structural boundary test that keeps them pure and a module-size test holding the same 400-line limit
   the Go guard holds, with the modules that predate it named in a shrinking exemption list. Two further
   structural tests read source rather than behaviour: one holds every dialog's action row and scrolling
-  body, the other holds the stylesheets' hover gating and the pane watermark's stacking, pointer and
-  token declarations (see Styles below).
+  body, the other holds the stylesheets' hover gating, the pane watermark's stacking, pointer and
+  token declarations and the one ink line the two bars and the sidebar labels share (see Styles below).
 
 ## Styles (frontend)
 
@@ -1056,6 +1056,16 @@ its right so the working group stays on the left while `.titlebar-right` is push
 `.titlebar-sep` rules group the working controls; no rule stands before the theme toggle, because the
 width between the two groups already separates them.
 
+The bar's leading artwork stands on the same line as the sidebar's section labels below it (ACCOUNTS,
+FOLDERS) and as the donate mark in the tray at the foot. `--bar-ink-x` in `style.css` names that line and
+each of the three surfaces takes its own inset off it, because what has to meet the line is the ink rather
+than the box drawn round it: a header control insets its picture by a border plus 7px of padding, the
+donate mark by a border plus 10px, a label by nothing at all. Aligning the boxes instead left the File
+glyph eight pixels right of every label under it, which is how it read. The empty leading group is taken
+out of the flow (`.titlebar-left:empty`) rather than left to contribute a gap of its own; when the badge
+is there its own padding puts it on the same line, one pixel out. `stylesheets.test.ts` holds the
+arithmetic, since jsdom lays nothing out.
+
 `.titlebar-left` carries `flex-shrink: 0`, so the leading group keeps its width whatever else is on the
 bar. Without it a window too narrow for the full run squeezes that group first and the controls after it
 are painted over what it holds; `stylesheets.test.ts` holds the rule.
@@ -1087,7 +1097,8 @@ keeps the one size wearable in that narrower pane, which opens at 380px and does
 `BottomBar` is the footer at the foot of the window. It wears
 `.titlebar` itself rather than a stylesheet of its own, so the two match in height, padding and
 background by construction instead of by two sets of numbers kept in step by hand. `.bottombar` adds
-only what genuinely differs: the rule moves from the bottom edge to the top and `margin-top: auto`
+only what genuinely differs: the rule moves from the bottom edge to the top; its leading padding is the
+one the donate mark's wider box needs to stand on the shared ink line above; `margin-top: auto`
 pins the bar down on a screen whose body does not take the spare height itself (the welcome screen;
 `.panes` already holds it there with its own `flex: 1`). Its one control is the donate button, which
 hands the payment page to the browser through the same `OpenExternal` scheme allowlist every link in

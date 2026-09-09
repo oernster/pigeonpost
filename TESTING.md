@@ -225,7 +225,7 @@ npx vitest run --coverage   # enforce the pure-module coverage gate
   exempt while no longer over the limit fails, so an entry cannot outlive the debt it records; TECH_DEBT.md
   tracks the split. Test files are outside the limit by design. All four rules were
   verified by planting a violation against each.
-- **Stylesheet test.** `src/styles/stylesheets.test.ts` holds five rules the stylesheets state about
+- **Stylesheet test.** `src/styles/stylesheets.test.ts` holds six rules the stylesheets state about
   themselves. The first: a `:hover` rule on a class worn by a button must also require `:enabled`. The
   app mark borrowed `.icon-btn` for its geometry and asked for a transparent border, which an ungated
   `.icon-btn:hover` repainted on specificity, so hovering the mark drew a rectangle round it; the
@@ -237,10 +237,13 @@ npx vitest run --coverage   # enforce the pure-module coverage gate
   shared tokens rather than from numbers written out once per pane. Neither failure is visible to a
   rendered-component test, because jsdom computes neither stacking nor hit testing. The fifth holds
   `.titlebar-left` against shrinking: a bar too narrow for everything on it otherwise squeezes the
-  leading group until the controls after it are painted over what it holds. Unlike the
+  leading group until the controls after it are painted over what it holds. The sixth holds the line the
+  window's leading ink stands on: the header, the foot tray and the sidebar's section labels each derive
+  their leading padding from `--bar-ink-x` rather than writing a number, since each box insets its own
+  artwork by a different amount and three plain numbers would read as three margins. Unlike the
   boundary and module-size tests it reads the files through `node:fs` rather than Vite's glob: measured,
   a raw glob of the stylesheets finds every file and returns an empty string for each, because Vitest
-  does not process CSS. All five rules were verified by planting a violation against each.
+  does not process CSS. All six rules were verified by planting a violation against each.
 - **The guide is held to its own claim.** `HelpModals.test.tsx` asserts every entry in the guide is drawn
   with the icon it declares, taken from the same `icons.ts` mapping the title bar and folder list read. The
   screen exists to tell one picture from another, so an entry showing anything but its own icon would be

@@ -38,6 +38,11 @@
        grow with the viewport would end up filling it while the reader still had room to spare. */
     --watermark-size: min(20vw, 300px);
     --watermark-opacity: 0.1;
+    /* The line the window's leading ink stands on: the sidebar's section labels (ACCOUNTS, FOLDERS)
+       and the artwork on the leading control of the bar above them and of the tray below. It is one
+       token because three surfaces have to agree on it; each takes its own inset off it, since what
+       must land on the line is the ink rather than the box drawn around it. */
+    --bar-ink-x: 14px;
 }
 
 :root[data-theme="light"] {

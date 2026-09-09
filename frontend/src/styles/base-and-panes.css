@@ -81,9 +81,14 @@
 /* The bottom tray, built from .titlebar so it matches the header's height, padding and background
    exactly; only the edge it draws its rule on differs. margin-top: auto pins it to the foot of the
    window on the screens whose body does not itself take the spare height (the welcome screen), while
-   the panes' own flex: 1 already holds it there everywhere else. */
+   the panes' own flex: 1 already holds it there everywhere else.
+
+   Its leading padding is the exception; it differs from the header's for the two bars to LOOK the
+   same: the donate mark keeps the wider .icon-btn padding, so its box has to start further left for
+   its artwork to stand on the same line the header's does. See --bar-ink-x. */
 .bottombar {
     margin-top: auto;
+    padding-left: calc(var(--bar-ink-x) - 11px);
     border-bottom: none;
     border-top: 1px solid var(--border);
 }
@@ -482,7 +487,7 @@ body.pane-resizing iframe {
 }
 
 .section-label {
-    padding: 12px 14px 4px;
+    padding: 12px var(--bar-ink-x) 4px;
     font-size: 11px;
     text-transform: uppercase;
     letter-spacing: 0.6px;

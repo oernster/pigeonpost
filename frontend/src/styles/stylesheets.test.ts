@@ -125,6 +125,26 @@ describe('the stylesheets', () => {
         expect(root).toMatch(/--watermark-opacity:/)
     })
 
+    // The leading ink of the header, the tray and the sidebar's section labels stands on one line, which
+    // --bar-ink-x names. Each surface takes its own inset off that token rather than writing a number of
+    // its own, because what has to meet the line is the artwork and each box insets its artwork by a
+    // different amount: 8px for a header control, 11px for the donate mark in the tray, none for a label.
+    // Three plain numbers would read as three margins and drift the moment one was tuned. jsdom lays
+    // nothing out, so what is held is the arithmetic that decides the line.
+    it('take every bar\'s leading padding from the one ink line', async () => {
+        const {readFileSync} = await nodeFs()
+        const root = withoutComments(readFileSync('src/style.css', 'utf8'))
+        expect(root).toMatch(/--bar-ink-x:/)
+        const bars = withoutComments(readFileSync(`${STYLESHEET_DIR}/titlebar-and-menus.css`, 'utf8'))
+        const header = bars.slice(bars.indexOf('header.titlebar {')).split('}')[0]
+        expect(header).toMatch(/padding-left:\s*calc\(var\(--bar-ink-x\) - \d+px\);/)
+        const panes = withoutComments(readFileSync(`${STYLESHEET_DIR}/base-and-panes.css`, 'utf8'))
+        const foot = panes.slice(panes.indexOf('.bottombar {')).split('}')[0]
+        expect(foot).toMatch(/padding-left:\s*calc\(var\(--bar-ink-x\) - \d+px\);/)
+        const label = panes.slice(panes.indexOf('.section-label {')).split('}')[0]
+        expect(label).toMatch(/padding:\s*\d+px var\(--bar-ink-x\) \d+px;/)
+    })
+
     // The left group must not shrink. It carried min-width: 0 so it would give way first in a narrow
     // window, which measured badly: the group shrank to 45px while the picture inside it stayed its own
     // 75px, so it slid under the button beside it and was painted over. The picture has since moved to the
