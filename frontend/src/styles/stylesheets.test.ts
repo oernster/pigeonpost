@@ -1,11 +1,12 @@
 import {describe, expect, it} from 'vitest'
 
 // A structural test over the stylesheets themselves rather than over a rendered component. It exists
-// because the app mark shipped with a rectangle drawn round it under the mouse: the mark borrows
-// .icon-btn for its geometry and asks for a transparent border, which an ungated .icon-btn:hover then
+// because the app mark shipped with a rectangle drawn round it under the mouse: the mark borrowed
+// .icon-btn for its geometry and asked for a transparent border, which an ungated .icon-btn:hover then
 // repainted on specificity. The comment beside the mark already claimed the hover rule was gated on
 // :enabled, so the intent was written down and the code quietly disagreed with it. A comment cannot
-// fail; this can.
+// fail; this can. The mark itself has since become the watermark behind the panes, whose own two
+// declarations are held at the foot of this file for the same reason: neither is visible to jsdom.
 //
 // The invariant: a :hover rule on a class worn by a button must also require :enabled. That closes both
 // halves of the same defect. A span borrowing a button class never matches :enabled, so it stays inert
@@ -93,22 +94,43 @@ describe('the stylesheets', () => {
         expect(BUTTON_CLASSES.filter((cls) => !mentions(all, cls))).toEqual([])
     })
 
-    // The invariant a user actually sees. The gating test above would still pass with this declaration
-    // deleted, because the mark would then simply inherit the border it is meant to refuse.
-    it('keep the app mark asking for no border', async () => {
+    // The watermark's two load-bearing declarations. A negative z-index only stays inside the pane while
+    // the pane is a stacking context; drop the isolation and the mark is painted behind the application's
+    // own background instead, which is invisible rather than subtle. The pointer gate is the other half:
+    // the pseudo-element covers the whole pane, so without it every click in the list would land on the
+    // watermark rather than on the row under the cursor. Neither failure is one a rendered-component test
+    // would catch, because jsdom computes no stacking and no hit testing.
+    it('keep the pane watermark isolated and untouchable', async () => {
         const {readFileSync} = await nodeFs()
-        const css = withoutComments(readFileSync(`${STYLESHEET_DIR}/titlebar-and-menus.css`, 'utf8'))
-        const block = css.slice(css.indexOf('.titlebar-mark {')).split('}')[0]
-        expect(block).toMatch(/border-color:\s*transparent;/)
-        expect(block).toMatch(/background-color:\s*transparent;/)
+        const css = withoutComments(readFileSync(`${STYLESHEET_DIR}/base-and-panes.css`, 'utf8'))
+        const panes = css.slice(css.indexOf('.pane.message-list,')).split('}')[0]
+        expect(panes).toMatch(/isolation:\s*isolate;/)
+        expect(panes).toMatch(/position:\s*relative;/)
+        const mark = css.slice(css.indexOf('.pane.message-list::before,')).split('}')[0]
+        expect(mark).toMatch(/z-index:\s*-1;/)
+        expect(mark).toMatch(/pointer-events:\s*none;/)
+        expect(mark).toMatch(/background-image:\s*url\('\.\.\/assets\/pigeonpost\.png'\);/)
     })
 
-    // The group holding the app mark must not shrink. It carried min-width: 0 so it would give way first
-    // in a narrow window, which measured badly: the group shrank to 45px while the mark inside it stayed
-    // its own 75px, because the artwork is a fixed size, so the mark slid under the button beside it and
-    // the application's own icon was painted over. Nothing here computes layout, so what is held is the
-    // declaration that decides it.
-    it('keep the group holding the app mark from shrinking', async () => {
+    // Both panes wear the same mark at the same size, so the size and the opacity are tokens rather than
+    // numbers written out twice. Two literals here would drift the moment one pane was tuned alone.
+    it('take the watermark size and opacity from the shared tokens', async () => {
+        const {readFileSync} = await nodeFs()
+        const css = withoutComments(readFileSync(`${STYLESHEET_DIR}/base-and-panes.css`, 'utf8'))
+        const mark = css.slice(css.indexOf('.pane.message-list::before,')).split('}')[0]
+        expect(mark).toMatch(/background-size:\s*var\(--watermark-size\);/)
+        expect(mark).toMatch(/opacity:\s*var\(--watermark-opacity\);/)
+        const root = withoutComments(readFileSync('src/style.css', 'utf8'))
+        expect(root).toMatch(/--watermark-size:/)
+        expect(root).toMatch(/--watermark-opacity:/)
+    })
+
+    // The left group must not shrink. It carried min-width: 0 so it would give way first in a narrow
+    // window, which measured badly: the group shrank to 45px while the picture inside it stayed its own
+    // 75px, so it slid under the button beside it and was painted over. The picture has since moved to the
+    // panes; the declaration stays, because the badge that is left would give way the same way. Nothing
+    // here computes layout, so what is held is the declaration that decides it.
+    it('keep the leading title-bar group from shrinking', async () => {
         const {readFileSync} = await nodeFs()
         const css = withoutComments(readFileSync(`${STYLESHEET_DIR}/titlebar-and-menus.css`, 'utf8'))
         const block = css.slice(css.indexOf('.titlebar-left {')).split('}')[0]

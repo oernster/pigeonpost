@@ -1,6 +1,5 @@
 import {Dispatch, SetStateAction} from 'react'
 import {UnreadCountsResult} from '../api'
-import appMark from '../assets/pigeonpost.png'
 import {icons} from '../icons'
 import {Theme} from '../theme'
 import {ComposeInitial} from './ComposeModal'
@@ -37,12 +36,12 @@ export interface TitleBarProps {
     setTheme: Dispatch<SetStateAction<Theme>>
 }
 
-// TitleBar is the header in three groups: the app mark with the all-accounts unread badge, then the
-// File/Edit/View/Mail menus running straight into the working controls (compose, add account, sync,
-// Contacts and Calendar), all reading left to right from the mark, then the app-level pair held at the
-// far end (the theme toggle and Help). The spare width between them is the separation; a rule there was
-// tried and dropped, because with the controls back on the left it stood against the toggle rather than
-// between the two things it was meant to divide.
+// TitleBar is the header in three groups: the all-accounts unread badge, then the File/Edit/View/Mail
+// menus running straight into the working controls (compose, add account, sync, Contacts and Calendar),
+// all reading left to right, then the app-level pair held at the far end (the theme toggle and Help).
+// The spare width between them is the separation; a rule there was tried and dropped, because with the
+// controls back on the left it stood against the toggle rather than between the two things it was meant
+// to divide.
 //
 // Three other arrangements were tried and none survived a maximised window. Centring only the working
 // controls split one sequence into two with a gap in the middle. Centring the menus with them held the
@@ -50,12 +49,11 @@ export interface TitleBarProps {
 // whole run to the right edge put every control a screen's width from the mark, worse the wider the
 // window got. A toolbar goes on the left.
 //
-// The mark borrows an icon button's box so it sizes and aligns with the controls beside it while
-// painting none of it: no background and no border, because a frame says a thing can be pressed and
-// this one cannot. It is a span rather than a button for the same reason, which is what keeps it out of the tab
-// order and off the focus ring, with no markup needed to exclude it. It stands where the wordmark used to;
-// the window title names the application in text.
-// It is presentational: every action is a prop.
+// The application's own icon is not in this bar. It stood at the far left wearing an icon button's box,
+// where it repeated what the window title already says in text while taking room from the controls. It is
+// now the watermark centred behind the message list and behind the reader, where it is the largest thing
+// on screen rather than the smallest; see base-and-panes.css.
+// The bar is presentational: every action is a prop.
 //
 // Every control in the tray carries drawn artwork from ../icons rather than an emoji, so the whole bar is
 // one set in one hand: an emoji is drawn by whichever font the platform happens to have and neither its
@@ -75,9 +73,6 @@ export function TitleBar(props: TitleBarProps) {
     return (
             <header className="titlebar">
                 <div className="titlebar-left">
-                    <span className="icon-btn icon-btn-image titlebar-mark" aria-hidden="true">
-                        <img src={appMark} alt="" draggable={false}/>
-                    </span>
                     {unreadCounts.total > 0 && (
                         <span className="titlebar-unread" title={`${unreadCounts.total} unread across all accounts`}>
                             {unreadCounts.total}

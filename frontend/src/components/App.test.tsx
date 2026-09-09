@@ -412,18 +412,17 @@ describe('App: mount and splash', () => {
         for (const menu of ['File', 'Edit', 'View', 'Mail']) {
             expect(centreLabels).toContain(menu)
         }
-        // The left group holds the mark alone. A menu appearing here is the old arrangement returning.
+        // The left group holds the unread badge alone. A menu appearing here is the old arrangement
+        // returning.
         const left = container.querySelector('.titlebar-left')
         expect(left?.querySelectorAll('.menu-title')).toHaveLength(0)
         const right = container.querySelector('.titlebar-right')
         expect(right?.querySelectorAll('button')).toHaveLength(2)
-        // The app mark stands where the wordmark did. It is a picture and not a control, so the two
-        // properties worth pinning are that it is not a button and that nothing can focus it: a span
-        // with no tabindex takes no click and no place in the tab order.
-        const mark = container.querySelector('.titlebar-left .titlebar-mark')
-        expect(mark).toBeInTheDocument()
-        expect(mark!.tagName).toBe('SPAN')
-        expect(mark!.hasAttribute('tabindex')).toBe(false)
+        // The application's own icon is NOT in the bar. It stood at the far left until it became the
+        // watermark behind the message list and the reader; a picture reappearing here is that change
+        // being undone by half, leaving the icon in two places at once.
+        expect(container.querySelector('.titlebar-mark')).toBeNull()
+        expect(left?.querySelectorAll('img')).toHaveLength(0)
     })
 
     it('shows the welcome empty-state after the splash when there are no accounts', async () => {

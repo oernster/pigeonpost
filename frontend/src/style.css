@@ -23,6 +23,13 @@
        noticeably heavier and clearer than classic Segoe UI at UI sizes in WebView2. The classic face and
        the Apple/generic entries remain as fallbacks for Windows 10 and the planned macOS/Linux builds. */
     --font: "Segoe UI Variable Text", "Segoe UI", -apple-system, BlinkMacSystemFont, "Roboto", "Helvetica Neue", sans-serif;
+    /* The watermark: the application's own icon standing behind the message list and the reader (see
+       base-and-panes.css). Both numbers live here rather than at the rule, so the mark is tuned in one
+       place and cannot drift between the two panes. The size is capped as well as proportional, so a
+       maximised window does not give it the whole pane; the opacity is what keeps it a ground rather than
+       a picture the message rows have to be read against. */
+    --watermark-size: min(46%, 340px);
+    --watermark-opacity: 0.1;
 }
 
 :root[data-theme="light"] {
@@ -69,7 +76,7 @@ button {
 
 /* Light-teal ring on keyboard focus and mouse hover for every interactive element, so where you are is
    always visible whether you tab or point. Outline is used (not box-shadow) so it never clashes with a
-   component's own shadow, and an inset offset keeps it from being clipped by a scrolling pane. */
+   component's own shadow; an inset offset keeps it from being clipped by a scrolling pane. */
 /* Disabled controls are excluded from both the hover and focus rings (:enabled), so a disabled button
    keeps its red disabled ring and never flips to teal on hover, anywhere in the app including dialogs. */
 button:enabled:focus-visible,

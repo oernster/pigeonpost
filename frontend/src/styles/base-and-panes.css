@@ -70,7 +70,7 @@
        cover the bar as they should. */
     position: relative;
     z-index: 30;
-    /* One row read left to right: the app mark, then the menus and the working controls carrying
+    /* One row read left to right: the unread badge, then the menus and the working controls carrying
        straight on from it, with the theme toggle and Help held at the far end. The gap here is the same
        8px used between buttons inside a group, so a group is told apart by a .titlebar-sep rule rather
        than by a stretch of empty bar. */
@@ -250,6 +250,41 @@ body.pane-resizing iframe {
     display: flex;
     flex-direction: column;
     overflow: hidden;
+}
+
+/* The watermark: the application's own icon, centred behind the message list and behind the reader. It
+   used to be a 61px picture in the corner of the title bar, where it repeated what the window title
+   already says in text while taking room from the controls; here it is the largest thing on screen and
+   the two panes the user actually works in carry it.
+
+   It is painted by a pseudo-element rather than a background-image on the pane, because a background
+   cannot be faded on its own: opacity on the pane would take the message rows down with it. isolation is
+   what makes the negative z-index safe. The pane creates a stacking context, so the mark is painted after
+   the pane's own background and before every in-flow child of it; it stays inside the pane too. Without
+   the stacking context a z-index of -1 escapes to the nearest one and the mark disappears behind the
+   application's background instead. The panes scroll their contents in an inner element, so the mark is
+   fixed in the pane rather than travelling with the list.
+
+   Nothing here is announced or hit: the pseudo-element carries no content for a screen reader to read and
+   takes no pointer, so a click over it reaches the row underneath. */
+.pane.message-list,
+.pane.reader {
+    position: relative;
+    isolation: isolate;
+}
+
+.pane.message-list::before,
+.pane.reader::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background-image: url('../assets/pigeonpost.png');
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: var(--watermark-size);
+    opacity: var(--watermark-opacity);
+    pointer-events: none;
 }
 
 .message-search {
