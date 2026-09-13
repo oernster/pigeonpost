@@ -5,6 +5,11 @@ local-first. A calmer, more predictable alternative to Thunderbird.
 
 ![Released](https://img.shields.io/badge/status-released-brightgreen)
 
+> **Commercial licences available.** PigeonPost is free and open source under GPL-3.0. If those
+> terms do not suit what you are building, such as a closed-source product, a commercial licence can
+> be bought from me separately. It covers my own code; third-party libraries keep their own
+> licences. See [commercial licensing](https://ernster.dev/commercial-licensing.html).
+
 ## Who it is for
 
 - IMAP/POP3 mailbox users (self-hosted, ISP, Fastmail, corporate) who want a fast, native,
@@ -295,6 +300,8 @@ in your browser; the app itself sends nothing and asks for nothing. Donations su
 continued development. Nothing in PigeonPost is withheld behind one: there is no paid tier, no licence
 key and no feature that a donation unlocks.
 
+<a href="https://www.paypal.com/ncp/payment/6QEJKCEQ3ZFZ8"><img src="frontend/src/assets/donate.png" alt="Donate to PigeonPost" width="120"></a>
+
 ## Licence
 
 GPL-3.0. See [LICENSE](LICENSE); the full text is also in the app under Help > Licence.
@@ -303,3 +310,6 @@ Credit to the original author (Oliver Ernster) must be retained in all copies an
 under all circumstances. Removing or omitting this attribution is not permitted. The requirement is
 stated in the LICENSE file's own licensing notice as a GPLv3 section 7(b) additional term and repeated
 in Help > About.
+
+A commercial licence for my own code is also available, separately from the open-source licence: see
+[commercial licensing](https://ernster.dev/commercial-licensing.html).
