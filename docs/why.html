@@ -51,30 +51,34 @@
 
     <section class="section" id="exists">
         <h2>The three shapes desktop email settled into</h2>
-        <p class="lead">The short version of the reasoning; the full essay lives on crankthecode.com.</p>
-        <p>Desktop email settled into three unsatisfying shapes. Webmail is convenient yet answers to an
-            engagement model: it wants your attention and it changes under you. Outlook wants a
-            subscription and pulls your mail deeper into an account you rent. Thunderbird earned two
-            decades of trust yet its priorities sit in someone else's queue, so the things a daily user
-            reaches for most can stay buried for years.</p>
+        <p class="lead">The short version of the reasoning.</p>
+        <p>Desktop email settled into three unsatisfying shapes.</p>
+        <ul class="promise-list">
+            <li><b>Webmail</b> is convenient yet answers to an engagement model: it wants your attention
+                and it changes under you.</li>
+            <li><b>Outlook</b> wants a subscription and pulls your mail deeper into an account you
+                rent.</li>
+            <li><b>Thunderbird</b> earned two decades of trust yet its priorities sit in someone else's
+                queue, so the things a daily user reaches for most can stay buried for years.</li>
+        </ul>
         <p>PigeonPost is a refusal of all three shapes at once. The brief was narrow: email as a calm,
             predictable, local tool. Your mail stays with your provider; the client reads it, caches it
-            and gets out of the way. There is no PigeonPost account, no cloud relay in the path and no
-            telemetry. Each temptation layered onto modern mail (accounts you do not need, notifications
-            tuned for engagement, rendering that phones home) is declined structurally rather than by
-            policy, so it cannot quietly creep back in.</p>
+            and gets out of the way.</p>
+        <p>There is no PigeonPost account, no cloud relay in the path and no telemetry. Each temptation
+            layered onto modern mail (accounts you do not need, notifications tuned for engagement,
+            rendering that phones home) is declined structurally rather than by policy, so it cannot
+            quietly creep back in.</p>
         <p>The engineering carries the same discipline. A Go core sits behind a Wails shell with a React
             and TypeScript front end; mail speaks IMAP, POP3 and SMTP through explicit protocol
             libraries; summaries and bodies cache to a pure-Go SQLite store for instant offline search;
-            credentials live in the OS keychain rather than any database. One clean-architecture boundary
-            separates the mail engine from the UI and structural tests enforce it, with a 100% coverage
-            gate on the core logic.</p>
+            credentials live in the OS keychain rather than any database.</p>
+        <p>One clean-architecture boundary separates the mail engine from the UI and structural tests
+            enforce it, with a 100% coverage gate on the core logic.</p>
         <p>What works now is a fast, native client for mail, calendar and contacts on Windows, macOS and
             Linux, each with its own installer. Provider presets cover Gmail, iCloud, Yahoo, Zoho,
-            Fastmail and StartMail through app passwords; Microsoft accounts sign in over OAuth. Because
-            the server remains the source of truth, the local cache is disposable: trying PigeonPost
-            costs nothing and leaving costs nothing.</p>
-        <p>Full reasoning at <a href="https://www.crankthecode.com/posts/pigeonpost">crankthecode.com</a>.</p>
+            Fastmail and StartMail through app passwords; Microsoft accounts sign in over OAuth.</p>
+        <p>Because the server remains the source of truth, the local cache is disposable: trying
+            PigeonPost costs nothing and leaving costs nothing.</p>
     </section>
 
     <section class="section" id="why">
@@ -82,8 +86,9 @@
         <p class="lead">I wanted a desktop client that was free, dependable and laid out the way I actually
             work. The mainstream options did not fit. Outlook 365 wanted a subscription. Thunderbird is free
             and open but community-governed, so a bug I hit waits in someone else's queue and the things I
-            reach for most are buried. PigeonPost is my answer: GPL-3.0 and free, a calm predictable
-            interface where everything is easy to find. Oliver Ernster.</p>
+            reach for most are buried.</p>
+        <p class="lead">PigeonPost is my answer: GPL-3.0 and free, a calm predictable interface where
+            everything is easy to find. Oliver Ernster.</p>
         <div class="grid">
             <div class="card">
                 <div class="ico">✅</div>
