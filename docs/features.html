@@ -54,7 +54,7 @@
         <p class="lead">Grouped by surface: mail, calendar and contacts.</p>
         <div class="groups">
             <div class="group">
-                <h3>📥 Mail</h3>
+                <h3>📥 Mail accounts</h3>
                 <ul>
                     <li>Multiple accounts, each a separate inbox, with send-as addresses. The accounts
                         dropdown carries each account's unread count; picking one opens its inbox,
@@ -64,10 +64,17 @@
                         it</li>
                     <li>An optional unified mailbox that merges every inbox into one list, each row dotted
                         with its account's colour</li>
-                    <li>Send later from presets or an exact time; the message waits in the Outbox with
-                        Cancel send and leaves while the app runs or at the next launch after that time</li>
-                    <li>Snooze hides a message until a chosen time then returns it untouched, with a
-                        banner in the window you can click to open it and a desktop notification</li>
+                    <li>Instant new mail over IMAP IDLE, a desktop notification and a taskbar badge</li>
+                    <li>On Windows each of the three things PigeonPost announces has its own chime, so new
+                        mail, a calendar reminder and a returning snoozed message are told apart by ear;
+                        elsewhere the sound is the one your desktop theme chooses</li>
+                    <li>Registers as your system's default email app on Windows, macOS and Linux, so a
+                        mailto: link on a web page opens a new message here, ready addressed</li>
+                </ul>
+            </div>
+            <div class="group">
+                <h3>✍️ Writing and sending</h3>
+                <ul>
                     <li>Rich-text compose with To, Cc and Bcc, per-account signatures, reply, reply-all and
                         forward</li>
                     <li>Paste an image and it embeds in the body right where the cursor is, sent as a
@@ -77,6 +84,15 @@
                         suggested; accepting one just inserts text, so you can still edit it freely;
                         the list flows on so the next address can be typed straight away</li>
                     <li>Attach files or forward a message as an attachment</li>
+                    <li>The compose window moves: drag it by its title bar to uncover the message you
+                        are answering; every new message still opens centred</li>
+                    <li>Send later from presets or an exact time; the message waits in the Outbox with
+                        Cancel send and leaves while the app runs or at the next launch after that time</li>
+                </ul>
+            </div>
+            <div class="group">
+                <h3>📄 Templates and drafts</h3>
+                <ul>
                     <li>Reusable message templates, a local crash autosave and a discard
                         confirmation, so a part-written message is never lost silently</li>
                     <li>A template carries its attachments as well as its subject and body, so inserting
@@ -87,16 +103,31 @@
                     <li>Save a half-written message as a draft and pick it up later: a draft reopens
                         in the compose window exactly as it was saved and finishing it replaces the
                         stored copy, so the Drafts folder never fills with stale versions</li>
-                    <li>The compose window moves: drag it by its title bar to uncover the message you
-                        are answering; every new message still opens centred</li>
+                </ul>
+            </div>
+            <div class="group">
+                <h3>🗂️ Folders and tags</h3>
+                <ul>
                     <li>Colour tags that sync across devices as IMAP keywords, plus read, star and junk marks</li>
                     <li>Nested folders you create and reorganise by drag: the plus beside the Folders
                         heading makes one at the top level and New subfolder on a folder's right-click
                         menu makes one inside it; the arrangement you settle on
                         is remembered per account and survives updates and reinstalls</li>
+                    <li>Drag mail into a folder and it goes at once: the message leaves the list on the
+                        drop rather than after the server has caught up, the folder that took it flashes
+                        so you can see where it went; holding a drag near the edge of the folder
+                        pane scrolls it so anything below the fold is still reachable</li>
+                    <li>Drag one message or a whole selection: Ctrl-click picks scattered rows and
+                        Shift-click picks a run, then dragging any row of that selection takes all of it</li>
+                </ul>
+            </div>
+            <div class="group">
+                <h3>🧹 Filter rules</h3>
+                <ul>
                     <li>Filter rules that combine as many conditions as you need, matched on all or
                         any of them, against the sender, the recipients, the subject, the sender's whole
-                        domain or every field at once, with case matching per condition. A rule can mark
+                        domain or every field at once, with case matching per condition.</li>
+                    <li>A rule can mark
                         read, flag, move to a folder of your choice or delete permanently, run on every
                         account or only the ones you pick and be reordered, switched off or set to stop
                         later rules. Left to themselves they act on the Inbox and only on mail arriving
@@ -105,43 +136,46 @@
                     <li>Filter rules and message templates each have their own button on the title bar,
                         so neither is buried in a menu</li>
                     <li>A NOT switch on each condition, so every comparison has its opposite: is not,
-                        does not start with, does not end with, does not contain. A negated condition is
+                        does not start with, does not end with, does not contain.</li>
+                    <li>A negated condition is
                         an exclusion and a rule always applies it, so one rule says any of these, never
                         those: keep filing the two shops you buy music from while excluding a sender you
                         never want filed. The editor prints the joining word between the rows and marks
                         an exclusion as one, so a rule reads as what it does rather than leaving you to
                         work it out</li>
+                </ul>
+            </div>
+            <div class="group">
+                <h3>▶️ Applying and sharing rules</h3>
+                <ul>
                     <li>A Now button on each rule applies it to the mail you already have, across every
                         folder of every account that rule covers. It shows you what the rule found first,
                         counting the stored messages it was checked against and the ones it would mark,
                         flag, move or delete, then acts only once you agree; a rule that would change
-                        nothing says so rather than asking. A rule that deletes says plainly that the
+                        nothing says so rather than asking.</li>
+                    <li>A rule that deletes says plainly that the
                         deletion is permanent and cannot be undone. A progress bar counts folders while
                         it checks and messages while it applies, so a long run says how far along it is
                         rather than leaving you guessing; Cancel stops one that is taking longer than
-                        you want. Stopping is not an undo: the report then tells you what had already been
+                        you want.</li>
+                    <li>Stopping is not an undo: the report then tells you what had already been
                         done, because that part really did happen. Either way you are told what actually
                         happened, so a run the server partly refused names the part that landed</li>
                     <li>Export your rules to a file and import them on another machine. The file is
                         readable JSON naming a move's destination as the account and mailbox path, so
-                        you can open it, read it and hand-edit it. An import tells you what the file
+                        you can open it, read it and hand-edit it.</li>
+                    <li>An import tells you what the file
                         holds before it writes anything: what arrives, what replaces a rule of the same
-                        name, what comes in switched off and which of them move or delete mail. A rule
+                        name, what comes in switched off and which of them move or delete mail.</li>
+                    <li>A rule
                         that cannot run here, because it names a folder or accounts this installation
                         does not have, arrives switched off rather than silently doing nothing, so it
                         works once that folder syncs or that account is added</li>
-                    <li>Drag mail into a folder and it goes at once: the message leaves the list on the
-                        drop rather than after the server has caught up, the folder that took it flashes
-                        so you can see where it went; holding a drag near the edge of the folder
-                        pane scrolls it so anything below the fold is still reachable</li>
-                    <li>Drag one message or a whole selection: Ctrl-click picks scattered rows and
-                        Shift-click picks a run, then dragging any row of that selection takes all of it</li>
-                    <li>Instant new mail over IMAP IDLE, a desktop notification and a taskbar badge</li>
-                    <li>On Windows each of the three things PigeonPost announces has its own chime, so new
-                        mail, a calendar reminder and a returning snoozed message are told apart by ear;
-                        elsewhere the sound is the one your desktop theme chooses</li>
-                    <li>Registers as your system's default email app on Windows, macOS and Linux, so a
-                        mailto: link on a web page opens a new message here, ready addressed</li>
+                </ul>
+            </div>
+            <div class="group">
+                <h3>👀 Reading</h3>
+                <ul>
                     <li>Message HTML renders faithfully in a sandboxed frame that keeps the sender's own
                         styling while running no scripts, with remote images and CSS backgrounds held back
                         until you load them</li>
@@ -155,6 +189,8 @@
                         whole: every message of the thread gathered from across the account's folders, so
                         the reply you sent sits with the message it answers instead of staying out of
                         sight in Sent. Each one names the folder it lives in and opens in place to read</li>
+                    <li>Snooze hides a message until a chosen time then returns it untouched, with a
+                        banner in the window you can click to open it and a desktop notification</li>
                     <li>Print a message through the system print dialog</li>
                     <li>Help &gt; Guide names every picture the window draws, from the menus and controls
                         along the top bar to each mark in the folder list; it states the rules the
