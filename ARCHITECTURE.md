@@ -13,17 +13,18 @@ enforced by a test in `tests/structural/boundary_test.go`, not by convention.
 | Domain is pure: no net, os, database/sql, time.Now, math/rand | `TestDomainIsPure` |
 | Application never imports infrastructure or wails | `TestApplicationDoesNotImportInfrastructure` |
 | No Go source file exceeds the module-size limit | `TestNoFileExceedsLineLimit` |
-| The composition root is the only place that wires concrete adapters | `TestCompositionRootIsWhitelisted` |
+| Only the composition root (package `main` at the repo root) may import both application and infrastructure | `TestCompositionRootIsWhitelisted` |
 
 ## Layers
 
 - **Domain** (`internal/domain`): pure Go, standard library only. Immutable value objects validated
   on construction (`With*` copy methods for change). No IO, no wall-clock reads; time enters through
-  the injected `Clock`. This is where correctness lives and where the 100% coverage gate applies.
+  the injected `Clock`. This is where correctness lives and where the 100% coverage gate applies,
+  together with the Application layer.
 - **Application** (`internal/application`): use cases plus the port interfaces they depend on
   (`AccountStore`, `CredentialStore`, `AccountVerifier`, `MailStore`, `MailSource`, `MailActions`,
-  `MailTransport`, `FolderActions`, `DraftSaver`, `OutboxStore`, `TagStore`, `RuleStore`, `Clock`,
-  plus the later feature ports for contacts, calendar, recurrence, scheduling, draft recovery,
+  `MailTransport`, `FolderActions`, `DraftSaver`, `OutboxStore`, `TagStore`, `RuleStore` and the domain
+  `Clock`, plus the later feature ports for contacts, calendar, recurrence, scheduling, draft recovery,
   remote images, CalDAV, the folder display state and the update check's `ReleaseSource`, each
   introduced with its feature below). The
   `MailSource`, `MailActions` and `AccountVerifier` ports are satisfied by the `mailrouter` adapter,
@@ -42,7 +43,8 @@ enforced by a test in `tests/structural/boundary_test.go`, not by convention.
   synthesised WAV per announcement kind, played through `winmm` on Windows and a no-op elsewhere), the OS keychain (`keychain`), the
   calendar and contacts codecs (`ics`, `recurrence`, `vcard` and `csv`), the CalDAV sync client
   (`caldav`), the Microsoft OAuth token flow (`oauth`), the SSRF-guarded remote-image fetcher
-  (`remoteimage`) and the mail error log (`errlog`, which keeps the raw text of an error the facade is
+  (`remoteimage`), the rule-set file codec (`rulefile`), the GitHub latest-release source behind the
+  update check (`update`) and the mail error log (`errlog`, which keeps the raw text of an error the facade is
   about to replace with one fit to read). Never imported by Domain or Application. The
   separate `internal/installer` package holds the setup program's install logic and is consumed by the
   `installer/` Wails setup app.
@@ -50,15 +52,17 @@ enforced by a test in `tests/structural/boundary_test.go`, not by convention.
   file per feature surface: accounts, mail, folders, send, draft recovery, outbox, snooze, tags, rules,
   the rule-set file (`rulesfileapi.go`, the export and import of a rule set), templates and their
   attachments, calendar, CalDAV, contacts, scheduling, export, `.eml` files, updates and About, plus the
-  `dto.go` DTO mappers and the `clock.go` clock). The facade is a client of the Application use cases only; it
-  maps domain results to DTOs and holds no business logic.
+  `dto.go` DTO mappers and the `clock.go` clock). The facade calls the Application use cases plus, for a few
+  things, infrastructure directly: the stateless codecs (`ics`, `vcard`, `csv`, `rulefile`), `mailparse`
+  helpers and the tray and sound surfaces. It maps domain results to DTOs and holds no business logic.
 
 ## Composition root
 
 `main.go` is the single composition root. It constructs concrete infrastructure adapters and injects
 them into the application use cases by constructor injection, then hands the assembled facade to
 Wails. There are no global singletons, no service locator and no auto-wiring. The structural test
-whitelists this file as the only one permitted to import both `application` and `infrastructure`.
+allows only files in package `main` at the repo root to import both `application` and `infrastructure`:
+`main.go` wires the long-lived adapters while a few facade files build a stateless codec on demand.
 
 ## Dependency direction
 
@@ -109,7 +113,7 @@ Add account:
 2. The facade maps the wire strings to domain enums and builds a validated `Account` (its id is the
    email address), then calls the `AccountSetupService`.
 3. The setup use case verifies the credentials against the incoming server through the
-   `AccountVerifier` port (IMAP login) *first*, then stores the password through the `CredentialStore`
+   `AccountVerifier` port (an IMAP or POP3 login) *first*, then stores the password through the `CredentialStore`
    port (keychain) and persists the account through `AccountStore`. Because nothing is written until
    the password is known good, a failed verify leaves the keychain and store untouched.
 
@@ -231,14 +235,15 @@ Read a message body:
    empty one resolves against the document itself) while painting nothing, so testing for `none` would
    suppress the repair on exactly the elements that lost their backdrop.
 
-Printing a message reuses the same sanitised HTML. The message's parked remote images are restored for the
-printed copy; the document is rendered into a hidden iframe that is invoked through the browser's print
+Printing a message reuses the same sanitised HTML. The message's parked remote images (not its parked CSS
+backgrounds) are restored for the printed copy; the document is rendered into a hidden iframe that is invoked through the browser's print
 dialog, so only the message prints rather than the whole app window. The frame is parked far off-screen but
 given a real page-sized layout box (a zero-size frame has no viewport for the engine to lay the document into
 and prints blank) and is pinned to a light colour scheme so it does not inherit the app's dark scheme and
-prints as dark text on white paper. Its `srcdoc` is set before the frame is inserted so its only load is the
-print document rather than the empty `about:blank` a fresh iframe momentarily holds. The print fires only once
-a marker element from the print document is present, so the dialog never captures a blank page.
+prints as dark text on white paper. The frame is inserted and its document written directly
+(`open()/write()/close()`, as the reader does), because WebKit does not reliably fire load for a `srcdoc`
+navigation. The print fires only once a marker element from the print document is present, so the momentary
+`about:blank` load is ignored and the dialog never captures a blank page.
 
 Send (also reply, reply-all and forward, which just pre-fill the same compose window before the
 identical send path runs: reply pre-fills the sender; reply-all pre-fills the sender plus the original
@@ -389,12 +394,12 @@ operation through the `OutboxStore` port (the `outbox` table, which also carries
 attachments so a queued message keeps them on replay) and returns success; the UI surfaces the
 queue as a per-account outbox folder where the waiting messages can be reviewed or cancelled. After the
 next successful sync the UI calls replay, which drains the queue oldest-first: each item is re-sent or
-re-appended, removed on success, left in place if still offline and dropped (with its error reported)
-if it can never succeed. A replayed send keeps the same best-effort Sent copy a direct send leaves. The
-queue covers outgoing mail only; message flag/delete/move actions remain online-only by design. Every
-connection attempt is bounded by a short dial timeout (DNS plus the TCP and TLS handshake), so an action
-taken while offline fails within seconds rather than blocking on the client library's or the operating
-system's default wait. Because the online-only actions cannot be queued, their `ErrOffline` is translated
+re-appended, removed on success, left in place if still offline; one that can never succeed is kept but marked failed (its reason
+shown in the Outbox and not retried). A replayed send keeps the same best-effort Sent copy a direct send leaves. The
+queue covers outgoing mail only; delete and move remain online-only by design, while flag changes are
+replayed through their own intent table (below). IMAP and POP3 dials are bounded by a 10-second timeout
+(DNS plus the TCP and TLS handshake), so an action taken while offline fails within seconds rather than
+blocking on the operating system's default wait; SMTP relies on go-smtp's own 30-second dial timeout. Because the online-only actions cannot be queued, their `ErrOffline` is translated
 once at the Wails facade into a plain, user-facing message (the technical dial detail never reaches the
 interface); a batched action carries an offline flag alongside its error so the front end shows that
 message on its own rather than wrapping it in a "N of M could not be ..." line. Whatever the source,
@@ -405,8 +410,8 @@ Send later: a send can be held rather than delivered. The composer's Send later 
 date-time field) passes `sendAtMs` on the compose request; `ComposeService.ScheduleSend` validates the
 instant is in the future and queues the message in the same outbox with a hold instant
 (`hold_until_ms`), returning the queued id. A held item is invisible to the ordinary replay (no path may
-send it early); once the hold elapses, a small dispatcher goroutine in the composition root
-(`runOutboxDispatcher`, woken by a short tick and gated on the store's earliest hold) sends it and
+send it early); once the hold elapses, a small dispatcher goroutine in the facade
+(`runOutboxDispatcher`, started at app start-up, woken by a short tick and gated on the store's earliest hold) sends it and
 announces the change over the `outbox:changed` event. The Outbox shows the item with its send time and
 offers Cancel send, which reports whether the item was still queued so a cancel that lost the race is
 told so. A due item that finds the server unreachable has its hold cleared, degrading it to an ordinary
@@ -474,8 +479,8 @@ mirrors the grouping client-side so it updates instantly with optimistic changes
 function as the single tested definition.
 
 Large folders: the message list is fully virtualised (`@tanstack/react-virtual`) so only on-screen rows
-exist in the DOM and it loads in pages of 200 through keyset pagination. `Store.ListMessagesPage`, exposed
-as `MailboxService.MessagesPage`, walks an indexed `(folder_id, date_ms, id)` order (the
+exist in the DOM and it loads in pages of 200 through keyset pagination. `Store.ListMessagesPageVisible` (the
+snooze-aware form of `ListMessagesPage`), exposed as `MailboxService.MessagesPage`, walks an indexed `(folder_id, date_ms, id)` order (the
 `idx_message_folder_date` index) and resumes strictly after the last row returned, its `(date_ms, id)` tie-break a
 total order so no row is skipped or repeated. Toggling a message read or unread mutates the row in place and
 refreshes only the unread counts rather than refetching the folder, so a folder of tens of thousands of
@@ -483,7 +488,7 @@ messages never reloads every row.
 
 Unified mailbox: a View tick shows an All-inboxes entry in the sidebar whose list merges every account's
 inbox, newest first. It is read-side aggregation only: `UnifiedMailboxService` fans the same keyset
-cursor out to each inbox folder through the existing `MailStore.ListMessagesPage`, merges the returned
+cursor out to each inbox folder through the existing `MailStore.ListMessagesPageVisible`, merges the returned
 pages in the store's `(date_ms, id)` order and keeps the first page-worth, so the walk stays total and
 no storage changes. In the UI the view is the synthetic folder `__unified__` (the Outbox pattern): the
 api module routes its listing, paging and sync calls to the unified endpoints, so pagination, the
@@ -515,7 +520,7 @@ rule executor's destroy) keep their original single-step route on every other pr
 shape to carry it. The hop is skipped where it cannot help: inside Trash, where an expunge already
 deletes; also on an account with no Trash folder, where there is nowhere to hop to. A message the server moves
 without reporting where it landed cannot be addressed in the Trash afterwards, so it is left there and
-named in the error rather than counted as destroyed: recoverable and stated.
+included in the error's count rather than reported as destroyed: recoverable and stated.
 
 Move a message: the UI offers the account's other folders; choosing one routes through the
 `MessageActionService`, which checks the destination is in the same account, moves the message on the
@@ -582,8 +587,8 @@ is the self-reading cycle for long help content, at the pace the desktop apps us
 read down a pixel every second tick, hold at the tail, rewind fast, repeat. `useAutoScroll` adds what is
 a property of the page rather than the cycle: any manual reading input suspends it for a stillness
 window and it resumes from wherever the reader left it (never switches off); a surface underneath
-another modal is frozen rather than suspended so its phase and position survive the modal above. Both
-panes put the cycle on their inner body and pin their action row beneath it (`.modal.pinned-actions`, a
+another modal is frozen rather than suspended so its phase and position survive the modal above. All three
+Help panes put the cycle on their inner body and pin their action row beneath it (`.modal.pinned-actions`, a
 flex column whose body is the scroller), so Close never drifts off as the content reads itself. That
 layout is no longer particular to these two: every dialog carrying an action row now wears it, so a
 tall dialog scrolls its body instead of taking its buttons off the bottom of a short window. The
@@ -598,8 +603,8 @@ by the three Help panes only (the guide, About and Licence); every other scrolla
 is a work or decision surface, where content that moves on its own would fight the user.
 
 Undo, redo and the message clipboard (front end): the reported destination ids are what make undo
-possible. `undoStack.ts` (a gated pure module) models the undo and redo stacks: entries for the
-move-shaped actions plus the read, star and tag toggles, capped at a fixed depth, each labelled with
+possible. `undoStack.ts` (a gated pure module) models the undo and redo stacks: entries for move,
+delete, junk and not-junk (copy is not undoable) plus the read, star and tag toggles, capped at a fixed depth, each labelled with
 what it will unwind ("Undo delete"). `useUndoRedo` executes an entry through the same api actions and
 rebinds the entry's message ids from each execution's own COPYUID reply, so undo and redo can
 ping-pong indefinitely; an action whose server reported no id is simply never recorded, so the menu
@@ -620,7 +625,7 @@ Folder operations: the `FolderService` creates, renames and deletes mailboxes on
 captured from the IMAP `LIST` response, so the leaf name and a rename's destination path are
 derived with the real separator ("." on StartMail, not the default "/"); a folder with an unknown
 delimiter falls back to "/". A folder is created either way round: `Create` takes an account and a
-path and lands at the top level, while `CreateChild` takes a parent folder id and a LEAF name and
+full path (the plus beside the Folders heading passes a bare name, which lands at the top level), while `CreateChild` takes a parent folder id and a LEAF name and
 joins the two with that parent's own delimiter (`Folder.ChildPath`), so the caller never has to know
 what the server's delimiter is. A leaf holding the delimiter is refused
 (`ErrFolderNameHasSeparator`) rather than quietly nesting deeper than the name asked for; the parent
@@ -655,9 +660,9 @@ archive would mark the whole mailbox read, the inbox included. It must never be 
 archive is not a subset of the mail, it is all of it.
 
 Mark read/unread and star/flag: the UI calls the facade, which routes through the
-`MessageActionService`. It writes the flag (`\Seen` or `\Flagged`) to the IMAP server first (via the
-`MailActions` port) and only then updates the local cache, so the change is durable: a later sync
-mirrors server state back and preserves it rather than overwriting a local-only flag. The unread
+`MessageActionService`. It writes the flag to the local cache together with a pending intent, then pushes `\Seen` or
+`\Flagged` to the server best-effort (via the `MailActions` port); the intent keeps the change durable
+until a fetch shows the server agreeing, so a sync never overwrites it with stale server state. The unread
 (bold) state and the star follow the cached flags. A flag change is applied to every cached copy of that
 message in the account rather than to the named row alone. A server can present one message in several
 mailboxes, which Gmail does for every label: a message labelled Work sits in Work, in the Inbox and in All
@@ -936,9 +941,9 @@ with nothing to fetch, since its words ship with the front end; `useHelpPanels` 
 the two loaded panels so App carries one value for the whole menu.
 
 The words live in `guideContent.ts` as data and `GuideModal.tsx` only draws them, so what the app says
-about itself is one document rather than markup. Every entry takes its picture from `icons.ts`, the same
-mapping the surfaces themselves read, which is what stops the guide showing something other than the icon
-it names; `HelpModals.test.tsx` holds that, asserting each drawn image against the entry that declared it.
+about itself is one document rather than markup. Every entry takes its picture from the same source as the
+surface it describes (`icons.ts` for the title bar and folder list, the donate artwork itself for the foot
+tray), which is what stops the guide showing something other than the icon it names; `HelpModals.test.tsx` holds that, asserting each drawn image against the entry that declared it.
 
 **Update check.** The application `UpdateService` compares the embedded VERSION against the newest
 published GitHub release through the `ReleaseSource` port, implemented by
@@ -962,7 +967,8 @@ custom error types beyond sentinels.
 A message the cache no longer holds is one of those sentinels (`application.ErrMessageNotCached`) rather
 than a bare `sql.ErrNoRows`, because it is a state the interface meets in normal use: a list read before
 a sync, a move or a folder rename still shows rows whose messages the store no longer has; every
-action on such a row then asks for a message that is not there. `friendlyMailError` turns it into a sentence
+action on such a row then asks for a message that is not there. On the bindings that route through
+`mailError` (below), `friendlyMailError` turns it into a sentence
 saying the message has moved on, so the reader is never shown the query that failed. The front end
 re-reads the open folder when a body cannot be read, so the row leaves the list instead of staying there
 unusable. A message that is still cached and merely failed to fetch survives that re-read.
@@ -978,14 +984,18 @@ detail, so it is not recorded and the log stays a list of the cases where someth
 
 The send surface reaches the translator through the same wrapper as every other binding. It did not
 always: send and Save draft returned the raw transport error, so a mailbox refusing authenticated
-submission surfaced as the server's own text with no reading of it. Every mail-facing binding now routes
-through `mailError`, which is what makes the SMTP refusal legible at the point it happens.
+submission surfaced as the server's own text with no reading of it. Send, Save draft, sync and the
+message actions now route through `mailError`, which is what makes the SMTP refusal legible at the point it
+happens. Not every mail-facing binding does yet: the folder bindings (create, rename, delete, move), account
+add and update (bar the Microsoft sign-in path) and the read, flag, replied and forwarded marks in
+`app_actions.go` still return the raw error.
 
 ## Quality enforcement
 
 - `internal/domain` and `internal/application` at 100% test coverage, enforced by `./test.ps1`, which
   fails the run when either drops below it. The same script checks formatting and runs `go vet` first,
-  each failing it outright. A bare `go test ./...` applies none of the three.
+  each failing it outright. A bare `go test ./...` checks no formatting, applies no coverage gate and
+  runs only the small subset of vet analysers `go test` carries.
 - Application use cases tested against hand-written fakes (no mock libraries).
 - Infrastructure tested against a real SQLite database in a temp directory.
 - Structural AST tests enforce layering, domain purity, the module-size limit and the composition
@@ -1036,8 +1046,9 @@ which normalises on the longer side and is what keeps every button identical.
 
 Squaring in the generator was tried first and is the thing to avoid: it bakes the padding into the file,
 so both surfaces are forced to normalise the same way and a wide drawing pays for its width in height.
-Measured across this set the ink aspect runs from 0.93 to 1.46, which put the snooze mark at 15px in a
-row of 22px ones, with sent and inbox close behind.
+Measured across this set the ink aspect runs from 0.94 (deleted items) to 1.49 (sent), with inbox next at
+1.34, so a square box sizes each mark by whichever side happens to be longer and the wide marks stand
+visibly shorter than their square neighbours.
 
 The header's size rule is scoped to the `header.titlebar` element rather than the class, because the
 footer is built from `.titlebar` too and its donate mark keeps the smaller `--titlebar-icon-size`.
@@ -1157,8 +1168,8 @@ calendar then reuses.
 
 **Domain.** New pure value objects, immutable and validated on construction like the mail entities.
 Address book first: `Contact` (id, vCard UID for lossless round-trip, formatted name, given/family
-name, organisation, title, note and slices of `ContactEmail` and `ContactPhone`, each a labelled
-value) and `ContactGroup` (id, name, member contact ids, with `With*` copy methods for membership).
+name, organisation, title, note, birthday and slices of `ContactEmail`, `ContactPhone` and postal
+addresses, each a labelled value) and `ContactGroup` (id, name, member contact ids, with `With*` copy methods for membership).
 Calendar: `Calendar` and `Event` (id, ICS UID, summary, start/end, all-day flag, location,
 description and an optional recurrence rule), with time entering only as already-resolved values, the
 domain still reads no wall clock.
@@ -1167,17 +1178,19 @@ domain still reads no wall clock.
 and groups) and `CalendarStore` (calendars, events and preserved passthrough components). Import and export sit behind a codec seam
 so the use case is format-agnostic: a `ContactCodec` interface with `Decode([]byte) ([]domain.Contact,
 error)` and `Encode([]domain.Contact) ([]byte, error)`, implemented once per format and a
-`CalendarCodec` likewise. An `ImportContacts` / `ExportContacts` use case selects the codec by the
-chosen format and reconciles by UID so a re-import updates rather than duplicates.
+`CalendarCodec` likewise. The facade picks the codec for the chosen format
+(`contactCodec`) and hands it to the `ImportContacts` / `ExportContacts` use case, which reconciles by id,
+then a shared email address, then display name for a contact with no email, so a re-import updates rather
+than duplicates.
 
 **Infrastructure.** New adapters implementing the ports: `storage` gains `contact`, `contact_email`,
-`contact_phone`, `contact_group` and `contact_group_member` tables, plus `calendar` and
+`contact_phone`, `contact_address`, `contact_group` and `contact_group_member` tables, plus `calendar` and
 `event` tables. Codec adapters: `vcard` (emersion/go-vcard) and `csv`
-(stdlib `encoding/csv`) for contacts, plus `ical` (emersion/go-ical) for calendar. Two contact codecs
+(stdlib `encoding/csv`) for contacts, plus `ics` (emersion/go-ical) for calendar. Two contact codecs
 exist deliberately: vCard covers Thunderbird and single-contact Outlook; CSV covers Outlook's bulk
 contact export/import (Outlook exports the address book as CSV, not vCard; Thunderbird reads CSV too).
-The pure decode/encode logic lives in these packages and is covered to 100%; only genuine file or OS
-edges are excluded.
+The pure decode/encode logic lives in these packages and is unit-tested (between 92% and 97% each; see
+TESTING.md). They sit outside the 100% gate, which covers the domain and application layers only.
 
 **Automatic collection.** `ContactService.CollectAddresses` adds a minimal contact (the address as
 its display name) for each given address not already anywhere in the address book, case-insensitively
@@ -1192,7 +1205,8 @@ holds the column-alias tables and the row-to-contact rules, `encoding.go` normal
 and silently drops that column), `dates.go` normalises birthdays to the ISO form the editor accepts
 and `csv.go` orchestrates. Reconciling a re-import is deliberately NOT the codec's job: CSV carries no
 stable per-contact id, so matching is a policy over the whole address book and lives in
-`ContactService.ImportContacts`, which matches on id or shared email address and merges through the
+`ContactService.ImportContacts`, which matches on id, shared email address or (for a contact with no
+email) display name and merges through the
 pure `Contact.MergedWith` in the domain.
 
 **UI.** A contacts dialog and calendar month, week and day views, both clients of the Application
@@ -1260,8 +1274,8 @@ round-trip even though PigeonPost does not yet display them.
 (stored as comma-separated seconds; the facade exposes them to the UI as whole
 minutes-before). The `ics` codec reads relative-trigger `VALARM` children into alarms and re-emits one
 `DISPLAY VALARM` per modelled alarm with a friendly duration (`-PT15M`, not the library's `-PT900S`);
-because it owns the property it strips existing VALARMs first, so an exotic imported alarm (an absolute
-trigger, an email action) is not preserved.
+it replaces only the alarms it models (a relative trigger with a DISPLAY action), so an exotic imported
+alarm (an absolute trigger, an EMAIL or AUDIO action) is left untouched and survives the round trip.
 
 **Reminder scheduling.** `CalendarService.DueReminders(since, now)` expands events and
 returns the reminders whose trigger falls in that window; a scheduler goroutine in the composition root

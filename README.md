@@ -81,8 +81,8 @@ concern, so read it before attaching it to anything.
 
 - **Accounts**: IMAP and POP3 from a two-step wizard (presets for Gmail, iCloud, Yahoo, Zoho, Fastmail
   and StartMail, plus a manual host/port/security path), credentials verified before saving. A preset
-  whose provider needs an app password says so plainly (a normal login password will not work) and links
-  to the page that creates one. Microsoft accounts
+  whose provider needs an app password says so plainly (a normal login password will not work); for Gmail,
+  iCloud and Yahoo it also links to the page that creates one. Microsoft accounts
   via one-click OAuth. Each account keeps its own inbox, with an optional unified mailbox (a View tick)
   that merges every inbox into one list, each row dotted with its account's colour; replies from it send
   from the row's own account. Send-as addresses. The accounts section is a dropdown holding the account
@@ -144,7 +144,7 @@ concern, so read it before attaching it to anything.
   for a run); dragging any row of that selection takes all of it. A
   dragged message leaves the list the moment you drop it rather than when the server has finished, the
   folder that took it flashes twice so you can see where it went, dragging onto a collapsed folder springs
-  it open and holding a drag near the top or bottom of the folder pane scrolls it. Undo and redo (Ctrl+Z, Ctrl+Y) unwind the mail
+  it open and holding a drag near the top or bottom of the folder pane scrolls it. Undo and redo (Ctrl+Z; Ctrl+Y or Ctrl+Shift+Z) unwind the mail
   actions: delete, move, junk and its rescue, their bulk forms and the read, star and tag toggles,
   with each menu entry naming what it will unwind. Cut, copy and paste messages file-manager style
   (Ctrl+X/C/V, the Edit menu or a right-click): cut or copy a selection, then paste it into the
@@ -220,7 +220,7 @@ concern, so read it before attaching it to anything.
   and a snoozed message coming back. They differ in how many notes sound and in their rhythm, so they
   are told apart by ear from each other and from every other app's notification; elsewhere the sound is
   the one your desktop theme chooses.
-- **Calendar**: month, week and day views (a multi-day event is drawn as one bar across its days), recurring events with per-event time zones, nine
+- **Calendar**: month, week and day views (a multi-day event is drawn as one bar across its days), recurring events with per-event time zones (every so many days, weeks, months or years, such as every two weeks; a monthly or yearly one lands on a date or on a weekday such as the third Tuesday), nine
   emoji-labelled event categories, on-screen reminders at a lead you choose (from the moment the event
   starts out to a week before) and ICS import/export (RFC 5545) that round-trips
   with Outlook and Thunderbird. Every date field in the app (event times, repeat-until, a contact's

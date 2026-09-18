@@ -126,7 +126,7 @@ documented here.
 - **Composition root and startup** (the whole `main` package: `main.go` plus the Wails facade files,
   namely `app.go`, one binding file per feature surface (accounts, mail, folders, send, draft recovery,
   outbox, snooze, tags, rules, rules files, templates and their files, calendar, CalDAV, contacts, scheduling, export, `.eml`
-  files and updates), the background goroutines (the new-mail notifier, the reminder scheduler, the outbox
+  files, updates and About), the background goroutines (the new-mail notifier, the reminder scheduler, the outbox
   dispatcher and the snooze scheduler) plus the DTO mappers and clock) and the **icon tool**
   (`tools/genicons`): wiring and one-shot programs, verified by the app and the build succeeding. The
   exclusion is the wiring, not the whole package: the pure helpers that do live here carry their own
