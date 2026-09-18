@@ -385,6 +385,13 @@
     white-space: nowrap;
 }
 
+/* The interval box stays on screen while the event does not repeat, dimmed so it reads as inactive. */
+.recur-label.disabled,
+.recur-interval-num:disabled {
+    opacity: 0.4;
+    cursor: default;
+}
+
 .recur-weekdays {
     display: flex;
     flex-wrap: wrap;

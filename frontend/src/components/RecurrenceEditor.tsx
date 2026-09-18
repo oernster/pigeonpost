@@ -4,7 +4,7 @@
 // date picked yet). It covers the common calendar cases (daily; weekly on chosen weekdays; monthly or
 // yearly on a day-of-month or an Nth weekday derived from the event start; monthly presets for the last
 // day, first weekday or last weekday of the month using BYSETPOS/BYMONTHDAY; an interval; and an end of
-// never, after a count, or on a date). Rarer rule parts are not offered but are preserved only if the
+// never, after a count or on a date). Rarer rule parts are not offered but are preserved only if the
 // parent does not overwrite them, so this editor is used for app-authored rules; the monthly and yearly
 // weekday patterns are recomputed from the event start rather than preserved verbatim.
 import {useEffect, useState} from 'react'
@@ -43,7 +43,7 @@ const DAY_CODES = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA']
 type Frequency = '' | 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'YEARLY'
 type EndMode = 'never' | 'count' | 'until'
 // MonthPattern selects how a monthly or yearly rule lands. The first two derive from the event start:
-// the same day-of-month, or the same ordinal weekday (the third Tuesday, the last Friday). The last
+// the same day-of-month or the same ordinal weekday (the third Tuesday, the last Friday). The last
 // three are absolute monthly presets built with BYSETPOS/BYMONTHDAY: the last day, the first weekday
 // (Mon-Fri) and the last weekday of the month.
 type MonthPattern = 'day' | 'weekday' | 'lastDay' | 'firstWeekday' | 'lastWeekday'
@@ -132,7 +132,7 @@ function parseRule(value: string): RuleState {
             state.until = untilToDateInput(val)
         }
     }
-    // The absolute monthly presets (BYMONTHDAY=-1, or a weekday set with BYSETPOS) take precedence; then a
+    // The absolute monthly presets (BYMONTHDAY=-1 or a weekday set with BYSETPOS) take precedence; then a
     // BYDAY carrying an ordinal (3TU, -1FR) means the start-derived weekday pattern.
     if (bymonthday === '-1') state.pattern = 'lastDay'
     else if (bysetpos === '1' && isWeekdaySet(state.byday)) state.pattern = 'firstWeekday'
@@ -155,7 +155,7 @@ function dateInputToUntil(value: string): string {
     return `${parts[0]}${pad(Number(parts[1]))}${pad(Number(parts[2]))}T235959Z`
 }
 
-// buildRule renders editor state back into an RRULE value, or an empty string when the event does not
+// buildRule renders editor state back into an RRULE value; an empty string when the event does not
 // repeat. The monthly and yearly patterns are derived from the event start (facts), so they are omitted
 // when the start is unknown.
 function buildRule(state: RuleState, facts: StartFacts | undefined): string {
@@ -201,7 +201,7 @@ interface RecurrenceEditorProps {
     value: string
     onChange: (rule: string) => void
     // startDate is the event's start (a date or date-time input value). Weekly rules default to its
-    // weekday, and monthly and yearly rules anchor their day and ordinal to it.
+    // weekday; monthly and yearly rules anchor their day and ordinal to it.
     startDate: string
 }
 
@@ -259,15 +259,13 @@ export function RecurrenceEditor({value, onChange, startDate}: RecurrenceEditorP
 
     return (
         <div className="recurrence-editor">
+            {/* The interval is always shown so it is discoverable before a unit is chosen ("every 2 weeks" is
+                the box plus the unit); it is disabled while the event does not repeat. */}
             <div className="rule-form-row recur-first">
-                {state.freq !== '' && (
-                    <>
-                        <span className="recur-label">Repeat every</span>
-                        <input className="tag-name-input recur-interval-num" type="number" min={MIN_INTERVAL}
-                               aria-label="Interval" value={state.interval}
-                               onChange={(e) => update({interval: Math.max(MIN_INTERVAL, Number(e.target.value) || MIN_INTERVAL)})}/>
-                    </>
-                )}
+                <span className={'recur-label' + (state.freq === '' ? ' disabled' : '')}>Repeat every</span>
+                <input className="tag-name-input recur-interval-num" type="number" min={MIN_INTERVAL}
+                       aria-label="Interval" value={state.interval} disabled={state.freq === ''}
+                       onChange={(e) => update({interval: Math.max(MIN_INTERVAL, Number(e.target.value) || MIN_INTERVAL)})}/>
                 <select className="tag-name-input" aria-label="Repeat" value={state.freq}
                         onChange={(e) => changeFreq(e.target.value as Frequency)}>
                     <option value="">Does not repeat</option>
