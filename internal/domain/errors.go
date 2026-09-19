@@ -1,6 +1,9 @@
 package domain
 
-import "errors"
+import (
+	"errors"
+	"strings"
+)
 
 // Sentinel errors returned by domain constructors. Callers match with errors.Is.
 var (
@@ -105,3 +108,37 @@ var ErrIMAPRefused = errors.New("server refused an imap session")
 // refused while everything else about the account worked. Whatever is added here, it must not put a
 // cause back into the name.
 var ErrSMTPRefused = errors.New("server refused authenticated smtp submission")
+
+// ErrSignInRefused marks a server that declined the credential offered for a mailbox. It says only that
+// the sign-in was refused, never why: a tagged refusal carries no machine-readable reason, so a wrong
+// password, a revoked app password and a provider that has stopped accepting plain passwords all arrive
+// the same way. It is distinct from ErrIMAPRefused, which is the credential being ACCEPTED and a session
+// refused after it.
+var ErrSignInRefused = errors.New("server refused the sign-in")
+
+// ErrAppPasswordRequired marks a sign-in the server refused with its own statement that an
+// application-specific password is wanted in place of the account password. It is raised only on those
+// words, so the message it selects reports what the server said rather than a cause guessed from a
+// generic refusal.
+var ErrAppPasswordRequired = errors.New("server requires an application-specific password")
+
+// appPasswordResponse is the wording a provider uses when a mailbox with two-step verification is
+// offered the account password instead of an application-specific one. It is matched as a substring
+// because it arrives as free text inside a tagged refusal, which carries no code for the condition.
+// Matching case-insensitively costs nothing and removes one way for the match to lapse silently.
+//
+// It lives here, beside the sentinel it raises, because both the IMAP reader and the SMTP sender meet
+// the same refusal and one phrase cannot be allowed to drift into two copies.
+const appPasswordResponse = "application-specific password"
+
+// IsAppPasswordRequired reports whether err carries the server's own statement that an
+// application-specific password is wanted. A false negative costs the specific message and leaves the
+// general refusal in its place, so the match is kept narrow rather than clever.
+func IsAppPasswordRequired(err error) bool {
+	return err != nil && strings.Contains(strings.ToLower(err.Error()), appPasswordResponse)
+}
+
+// ErrUnreadableResponse marks a server reply the mail client could not decode. It is a fault in the
+// exchange rather than in the mailbox: nothing the reader owns is wrong and nothing they change will
+// alter it, so the message it selects says what happened and stops there.
+var ErrUnreadableResponse = errors.New("server sent a reply the client could not read")

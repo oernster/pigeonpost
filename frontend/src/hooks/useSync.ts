@@ -40,7 +40,7 @@ export interface Sync {
     accountSyncing: boolean
 }
 
-// useSync owns the mailbox sync (a manual full-account sync, and the periodic light refresh of the folder on
+// useSync owns the mailbox sync (a manual full-account sync plus the periodic light refresh of the folder on
 // screen) and the per-account "is syncing" state. A full sync flushes the outbox, refreshes the folder list
 // and the open folder and updates the unread counts; the background poll re-syncs just the open folder.
 export function useSync(deps: SyncDeps): Sync {
@@ -58,10 +58,19 @@ export function useSync(deps: SyncDeps): Sync {
         const accountId = selectedAccount
         setSyncingAccounts((prev) => new Set(prev).add(accountId))
         setError('')
+        let synced = true
         try {
             await api.syncAccount(accountId)
             // Connectivity is back: flush anything queued while offline, then refresh views.
             await api.replayOutbox()
+        } catch (e) {
+            synced = false
+            setError(String(e))
+        }
+        try {
+            // A sync that stopped at a bad folder has still cached the folder list and every folder it
+            // reached, so the views are refreshed whether or not it finished. Skipping this on failure
+            // left the sidebar reporting no folders cached while the store held them.
             applyFolders(accountId, await api.listFolders(accountId))
             if (selectedFolder) {
                 await reloadFolder(selectedFolder, {skipSync: true})
@@ -69,7 +78,11 @@ export function useSync(deps: SyncDeps): Sync {
             await refreshOutbox()
             await loadUnread()
         } catch (e) {
-            setError(String(e))
+            // The sync's own failure is the one worth reading, so a refresh failure behind it is not
+            // allowed to overwrite it.
+            if (synced) {
+                setError(String(e))
+            }
         } finally {
             setSyncingAccounts((prev) => {
                 const next = new Set(prev)

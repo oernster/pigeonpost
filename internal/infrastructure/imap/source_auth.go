@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/emersion/go-imap/v2"
 	"github.com/emersion/go-imap/v2/imapclient"
 
 	"github.com/oernster/pigeonpost/internal/domain"
@@ -85,14 +86,34 @@ func authenticate(client *imapclient.Client, account domain.Account, secret stri
 			if isIMAPRefused(err) {
 				return fmt.Errorf("imap: xoauth2 %q: %w", account.ID(), errors.Join(err, domain.ErrIMAPRefused))
 			}
-			return fmt.Errorf("imap: xoauth2 %q: %w", account.ID(), err)
+			return fmt.Errorf("imap: xoauth2 %q: %w", account.ID(), markRefusal(err))
 		}
 		return nil
 	}
 	if err := client.Login(account.Address().Address(), secret).Wait(); err != nil {
-		return fmt.Errorf("imap: login %q: %w", account.ID(), err)
+		return fmt.Errorf("imap: login %q: %w", account.ID(), markRefusal(err))
 	}
 	return nil
+}
+
+// markRefusal labels an authentication failure with the domain sentinel that fits it, so the interface
+// can replace the server's own words with a sentence the reader can act on. A tagged NO is the server
+// declining the credential; it carries no machine-readable reason, so the sentinel says only that it was
+// refused. A refusal whose text states that an application-specific password is wanted carries the
+// narrower sentinel as well, since there the server named the remedy itself. Anything else is returned
+// untouched, so a genuine fault keeps its detail.
+func markRefusal(err error) error {
+	if err == nil {
+		return nil
+	}
+	var status *imap.Error
+	if !errors.As(err, &status) || status.Type != imap.StatusResponseTypeNo {
+		return err
+	}
+	if domain.IsAppPasswordRequired(err) {
+		return errors.Join(err, domain.ErrAppPasswordRequired, domain.ErrSignInRefused)
+	}
+	return errors.Join(err, domain.ErrSignInRefused)
 }
 
 // imapRefusedResponse is the text Microsoft's IMAP front end returns when it has accepted the

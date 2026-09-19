@@ -92,3 +92,20 @@ func TestAuthErrorLeavesAnOrdinaryFailureUnmarked(t *testing.T) {
 		t.Errorf("the server's response was lost: %v", got)
 	}
 }
+
+// A server that names an application-specific password has stated the remedy, so the send marks it the
+// same way the reader does. The phrase lives in the domain, so this also holds the two packages to one
+// spelling of it.
+func TestAuthErrorMarksAnAppPasswordRefusal(t *testing.T) {
+	t.Parallel()
+	got := authError(errorOf("535 5.7.8 Application-specific password required"))
+	if !errors.Is(got, domain.ErrAppPasswordRequired) {
+		t.Fatalf("the server asking for an app password was not marked: %v", got)
+	}
+	if !errors.Is(got, domain.ErrSignInRefused) {
+		t.Fatalf("an app-password refusal is still a refused sign-in: %v", got)
+	}
+	if !strings.Contains(got.Error(), "Application-specific password required") {
+		t.Errorf("the server's response was lost: %v", got)
+	}
+}

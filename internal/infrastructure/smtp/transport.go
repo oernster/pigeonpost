@@ -91,6 +91,12 @@ func authError(err error) error {
 	if isSMTPRefused(err) {
 		return fmt.Errorf("smtp: authenticate: %w", errors.Join(err, domain.ErrSMTPRefused))
 	}
+	// A server that names an application-specific password has stated the remedy itself, so the marking
+	// carries that rather than the server's own line about credentials. The phrase is the one the IMAP
+	// reader matches, held once in the domain, because the same mailbox refuses both the same way.
+	if domain.IsAppPasswordRequired(err) {
+		return fmt.Errorf("smtp: authenticate: %w", errors.Join(err, domain.ErrAppPasswordRequired, domain.ErrSignInRefused))
+	}
 	return fmt.Errorf("smtp: authenticate: %w", err)
 }
 
