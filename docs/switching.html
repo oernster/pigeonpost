@@ -34,7 +34,7 @@
             {"@type": "Question", "name": "What if I try it and want to go back?",
              "acceptedAnswer": {"@type": "Answer", "text": "Then you close it and nothing has changed. Your accounts were never moved, so they are still live in your old client. Your calendar and contacts export back out in standard files."}},
             {"@type": "Question", "name": "Does my Gmail or iCloud account work?",
-             "acceptedAnswer": {"@type": "Answer", "text": "Yes, through an app password. A wizard fills in the servers for Gmail, iCloud, Yahoo, Zoho, Fastmail and StartMail. Microsoft accounts (Outlook.com, Hotmail) sign in through Microsoft OAuth."}},
+             "acceptedAnswer": {"@type": "Answer", "text": "Yes, through an app password. A wizard fills in the servers for Gmail, iCloud, Yahoo, Zoho, Fastmail and StartMail. A server that turns the sign-in down is reported in plain words rather than as the server's own reply, so offering an ordinary account password by mistake tells you what to do next. Microsoft accounts (Outlook.com, Hotmail) sign in through Microsoft OAuth."}},
             {"@type": "Question", "name": "Does a Google Workspace work account function?",
              "acceptedAnswer": {"@type": "Answer", "text": "No. Workspace is OAuth-only, so an app password is refused by Google. Personal Gmail works with an app password."}},
             {"@type": "Question", "name": "Is my Microsoft password safe?",
@@ -151,7 +151,9 @@
             <div class="item">
                 <p class="q">Does my Gmail or iCloud account work?</p>
                 <p class="a">Yes, through an app password. A wizard fills in the servers for Gmail, iCloud,
-                    Yahoo, Zoho, Fastmail and StartMail.</p>
+                    Yahoo, Zoho, Fastmail and StartMail. A server that turns the sign-in down is reported
+                    in plain words rather than as the server's own reply, so offering an ordinary account
+                    password by mistake tells you what to do next.</p>
             </div>
             <div class="item">
                 <p class="q">I use a Google Workspace account for work.</p>

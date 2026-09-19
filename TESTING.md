@@ -48,8 +48,8 @@ documented here.
 | `internal/infrastructure/message` | unit on the RFC 5322 MIME builder | none |
 | `internal/infrastructure/mailparse` | unit on the MIME body parsing, HTML sanitising, URL linkifying (bare and markdown-labelled links, solo-line button marking), image and CSS-background parking, hidden-preheader removal that keeps MJML layout wrappers and the outgoing embedded-image extraction (data: URI to cid part) | none |
 | `internal/infrastructure/mailrouter` | unit on the per-protocol dispatch | none |
-| `internal/infrastructure/smtp` | unit on the mailbox-refused detector and the marking it feeds (the rest is live send only; MIME building lives in `message`) | none |
-| `internal/infrastructure/imap` | unit on the source adapter's pure helpers (parsing moved to `mailparse`) | none |
+| `internal/infrastructure/smtp` | unit on the mailbox-refused and app-password detectors and the marking they feed (the rest is live send only; MIME building lives in `message`) | none |
+| `internal/infrastructure/imap` | unit on the source adapter's pure helpers (parsing moved to `mailparse`), plus the fetch and sign-in paths driven against a scripted local IMAP server | local TCP server |
 | `internal/infrastructure/pop3` | unit on the response and UIDL parsing; live download excluded | none |
 | `internal/infrastructure/ics` | unit on the RFC 5545 codec round-trip, recurrence and scheduling payloads | none |
 | `internal/infrastructure/recurrence` | unit on RRULE expansion and truncation | none |
@@ -65,7 +65,7 @@ documented here.
 | `internal/infrastructure/taskbar` | unit on the pure label formatting and the balloon-suppression rule, plus a source scan holding the chime call in `Notify` rather than in the balloon; Win32 overlay excluded | none |
 | `internal/infrastructure/sound` | unit on the three chimes' synthesis and WAV encoding, including that they are scored with different note counts and render to different audio; the winmm playback call excluded | none |
 | `internal/installer` | unit on payload extraction and paths | temp dir |
-| `main` (the Wails facade) | unit on its pure helpers only: mailto parsing, attachment decoding, the offline-error translation with its recording of the error it replaces, the resurfaced-snooze notification text with its wire mapping, the rule-backfill error summariser, plus the DTO wire shape | none |
+| `main` (the Wails facade) | unit on its pure helpers only: mailto parsing, attachment decoding, the mail-error translations with their recording of the error each replaces, the resurfaced-snooze notification text with its wire mapping, the rule-backfill error summariser, plus the DTO wire shape; two source scans hold the send and account-setup surfaces to routing their errors through the translator | none |
 | `tests/structural` | AST scan of the source tree | file reads |
 
 ## Coverage snapshot
@@ -92,18 +92,22 @@ documented here.
 | internal/infrastructure/storage | ~79% | logic and error paths covered, including keyset message pagination, the atomic tag-keyword and flag-pending sync writes, the folder-baseline mark, the archive reporting no unread on any surface and a flag change reaching every cached copy of its message; see exclusions |
 | internal/infrastructure/pop3 | ~40% | response and UIDL parsing covered; the live dial and download excluded |
 | internal/installer | ~22% | extract and paths covered; Win32 side effects excluded |
-| internal/infrastructure/imap | ~27% | the source adapter's pure helpers; the wire-to-domain and HTML logic now lives in `mailparse`; live fetch/append plus the IDLE watcher are excluded |
+| internal/infrastructure/imap | ~39% | the source adapter's pure helpers plus the fetch and sign-in paths against a scripted local server (the body-structure fallback, the refusal marking); the wire-to-domain and HTML logic now lives in `mailparse`; live append plus the IDLE watcher are excluded |
 | internal/infrastructure/taskbar | ~17% | the pure label formatting, the balloon-suppression rule and the no-op stub covered; the Windows-only Win32 overlay excluded, with a source scan standing in for the chime's placement inside it |
-| internal/infrastructure/smtp | ~10% | the mailbox-refused detector and `authError`, which marks a refusal so the interface can translate it; the transport around them is live `Send` only and MIME building lives in `message` |
-| main package | ~8% | composition root and the Wails facade, excluded; the covered statements are the package's own pure helpers, which carry unit tests of their own (mailto parsing, attachment decoding, the offline-error translation, the resurfaced-snooze announcement text with its wire mapping, the rule-backfill error summariser, plus the rule DTO's wire shape) |
+| internal/infrastructure/smtp | ~15% | the mailbox-refused and app-password detectors and `authError`, which marks a refusal so the interface can translate it; the transport around them is live `Send` only and MIME building lives in `message` |
+| main package | ~9% | composition root and the Wails facade, excluded; the covered statements are the package's own pure helpers, which carry unit tests of their own (mailto parsing, attachment decoding, the mail-error translations, the resurfaced-snooze announcement text with its wire mapping, the rule-backfill error summariser, plus the rule DTO's wire shape) |
 | installer app, tools/genicons | 0% | GUI and one-shot tooling, excluded |
 
 ## Documented exclusions (and why)
 
-- **Live IMAP fetch/append and the IDLE watcher** (`imap/source.go`, `imap/idle.go`), **live POP3
+- **Live IMAP append and the IDLE watcher** (`imap/source_actions.go`, `imap/idle.go`), **live POP3
   download** (`pop3/`) and **live SMTP send**
   (`smtp/transport.go`): these dial a real server, authenticate and stream data. They cannot be
-  unit-tested without a network, so the IMAP path sits behind a skippable integration test (below). The
+  unit-tested without a network, so the IMAP path also sits behind a skippable integration test (below).
+  The read path is the exception and is no longer excluded: `fakeserver_test.go` scripts just enough of
+  an IMAP server on a loopback port to drive a real client through it, which is what lets the
+  body-structure fallback and the sign-in marking be proved against errors the mail library itself
+  produced rather than against strings written beside the assertions. The
   pure logic is separated out and covered independently: MIME body parsing plus HTML sanitising and
   image-blocking in the shared `internal/infrastructure/mailparse` package, the RFC 5322 MIME builder in
   `internal/infrastructure/message`, plus the response and UIDL parsing in `pop3`.
@@ -167,7 +171,7 @@ until the test caught that `schemaVersion` had not been bumped with it.
 
 ## Skippable live integration tests
 
-Two tests connect to real servers and are skipped unless the environment is configured.
+One test connects to a real server and is skipped unless the environment is configured.
 
 IMAP (`internal/infrastructure/imap`):
 

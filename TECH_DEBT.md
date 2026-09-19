@@ -56,6 +56,29 @@ Blocked on that library work being worth doing. Until then the composite key sta
 
 ---
 
+## 3. A folder's summaries are fetched in one FETCH, so the body-structure fallback costs the whole folder
+
+`Source.FetchMessages` asks for every message in a folder in a single FETCH. One message whose structure
+the client cannot decode ends that response and closes the connection, so the fallback re-fetches the
+folder without the body structure and the paperclip is lost for every message in it, not just for the one
+the client could not read. On Gmail's All Mail that is the whole mailbox.
+
+Fetching in batches would confine the loss to the batch holding the bad message; it would also stop a
+folder of tens of thousands of messages being collected into memory as one slice. It is a behaviour-
+preserving change to the adapter alone: the batch size is one constant, the fallback already exists and
+the summaries are concatenated either way.
+
+Measured before writing this: the fallback itself is proved by
+`TestFetchMessagesFallsBackWhenBodyStructureUnreadable` against a scripted server, so the behaviour is
+pinned and a batched version has a test to answer to. What is not measured is how often a mailbox
+actually carries such a message, which is the number that says whether this is worth doing; one report
+is not a rate. Left open rather than taken, on that ground.
+
+The alternative fix, reading the Gmail message identity the mail library cannot request, is blocked on
+the same upstream work as item 2.
+
+---
+
 ## Looks like debt, not worth touching
 
 - The `application.MailSource.FetchBody` four-value return `(plain, html, invite, attachments, err)` could be reshaped into a body struct to save the destructure-and-re-thread; a four-value return is idiomatic Go and the port shape is fine as it stands, so it is left.

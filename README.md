@@ -71,11 +71,13 @@ account as it was added. It is the mailbox's age again, so the answer is the sam
 try later.
 
 If an account still will not add, `mail-errors.log` beside the database holds what the mail server
-actually said, one failure per line. PigeonPost replaces a server's own words with a message naming a
-setting and the steps, which is easier to act on but asserts a cause that can be wrong; the log is the
-copy kept so a wrong reading can be seen for what it is. It records only the errors that were
-replaced, it is created on the first one and it holds mail server responses and the address they
-concern, so read it before attaching it to anything.
+actually said, one failure per line. PigeonPost replaces a server's own words with a message fit to
+read; where that message names a setting and the steps it asserts a cause, which can be wrong, so the
+log is the copy kept and a wrong reading can be seen for what it is. Some of the messages assert
+nothing: a refused sign-in says it was refused and points at the address and password rather than
+claiming which of them is at fault. It records only the errors that were replaced, it is created on the
+first one and it holds mail server responses and the address they concern, so read it before attaching
+it to anything.
 
 ## Capabilities
 
@@ -253,7 +255,11 @@ concern, so read it before attaching it to anything.
   nothing about you or your mail. A newer release offers the download for your platform, with Skip
   This Version remembered and Later; Help > Check for Updates runs the same check on demand and also
   reports up to date or unreachable. An action that fails (a move the server refused, say) is
-  reported in a banner under the toolbar with its own dismiss control, so a stale error never lingers. Closing the window while something is still open (a
+  reported in a banner under the toolbar with its own dismiss control, so a stale error never lingers.
+  A mail server's own words are not what you read there: a server that turns down a sign-in says so and
+  points at the address and password, naming an app password where the server itself asked for one;
+  a reply the app cannot read says that rather than showing you the protocol. What the server actually
+  said is kept in `mail-errors.log` for a bug report. Closing the window while something is still open (a
   half-written message, say) surfaces the keep-in-tray-or-quit choice on top at once and warns that
   unsaved work may be lost, with Go back as the default so nothing is lost silently.
 

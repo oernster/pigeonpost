@@ -51,8 +51,11 @@ func (a *App) AddAccount(req AccountSetupRequest) error {
 	if err != nil {
 		return err
 	}
+	// Through friendlyMailError, not raw: the whole point of this call is a credential the server has
+	// never seen, so a refusal is the ordinary outcome rather than a fault; the server's own line
+	// about credentials tells the reader nothing about the app password most providers now require.
 	if err := a.setup.Configure(a.ctx, account, secret); err != nil {
-		return err
+		return a.mailError(err)
 	}
 	// Start the IDLE watcher now so an account added after launch gets instant push straight away rather
 	// than waiting for the next restart; a POP3 account is a no-op and stays on the backstop poll.
@@ -125,8 +128,10 @@ func (a *App) UpdateAccount(req AccountSetupRequest) error {
 	if err != nil {
 		return err
 	}
+	// Translated for the same reason AddAccount is: an edit is where a password is corrected, so a
+	// refusal here is the reader being told the new one is no better than the old.
 	if err := a.setup.Update(a.ctx, account, strings.TrimSpace(req.Password)); err != nil {
-		return err
+		return a.mailError(err)
 	}
 	// Restart the watcher so changed server settings take effect without a restart; a switch to POP3
 	// leaves no stale IMAP watcher running.

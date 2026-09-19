@@ -106,6 +106,23 @@ Sync and read:
    folder-list write is claimed by the account it was fetched for, so a fetch that outlives an account
    switch is discarded rather than putting the previous account's folders under the new selection.
 
+A folder's summaries are asked for whole, with the extended body structure that tells the list whether
+each message carries an attachment. One message the client cannot decode ends the entire FETCH and
+closes the connection with it, so `Source.FetchMessages` asks again on a fresh connection for everything
+except the structure (`fetchSummaries`, gated on `isBodyStructureError`). A message/rfc822 part carrying
+NIL where its envelope belongs is the measured case, reproduced against the pinned library: without the
+second attempt a single such message costs the folder every summary it holds, which is what emptied a
+Gmail All Mail. The trade is stated rather than hidden: the fallback loses the paperclip for that folder,
+since nothing read a structure, while every message still arrives. It is whole-folder rather than
+per-message because the parse takes the connection down; confining the loss would mean fetching in
+batches, which is recorded as debt rather than done. A folder that syncs normally is unaffected, since
+the second attempt is made only after the first has failed in that particular way.
+
+A sync that stops part way has still cached the folder list and every folder it reached before it
+stopped, so the front end refreshes its views whether or not the sync finished; only the failure itself
+is reported. Skipping the refresh on failure left the sidebar saying no folders were cached while the
+store held them, which reads as the account having lost its mail.
+
 Add account:
 
 1. The UI submits the setup wizard payload (identity, password, incoming and outgoing servers) to the
@@ -159,7 +176,8 @@ Read a message body:
    first open. The parser also extracts attachment parts, cached alongside the body (the
    `message_attachment` table) so a received attachment can be saved offline from the reader; the list
    shows a paperclip for a message whose fetched IMAP body structure (BODYSTRUCTURE) has an
-   attachment-disposition part. A one-off migration clears the cached bodies so each re-fetches with the
+   attachment-disposition part, where one was read at all (see the fallback under Sync and read).
+   A one-off migration clears the cached bodies so each re-fetches with the
    attachment-aware parser. Subjects and display names are RFC 2047 decoded (through a charset reader, so
    windows-1252 and the like decode) and HTML-entity unescaped in the mail-source mapping via
    `mailparse.DecodeHeader`, shared by the IMAP envelope path and POP3, so encoded-word and
@@ -973,22 +991,43 @@ saying the message has moved on, so the reader is never shown the query that fai
 re-reads the open folder when a body cannot be read, so the row leaves the list instead of staying there
 unusable. A message that is still cached and merely failed to fetch survives that re-read.
 
-`friendlyMailError` (`mailerrors.go`) translates four cases and returns every other error unchanged so a
+`friendlyMailError` (`mailerrors.go`) translates seven cases and returns every other error unchanged so a
 genuine fault keeps its detail: a connectivity failure becomes the plain offline message, a mailbox with
 IMAP switched off becomes the message naming that setting, a server that takes the sign-in then refuses
-to accept mail becomes `errSMTPRefused` and an uncached message becomes the message-has-moved-on
-sentence. `App.mailError` wraps it: where the translation replaces the original it records the original
-through `errlog` first, because a message fit to read asserts a cause and asserting a cause is exactly
-when the evidence for it stops being available. An error passed through unchanged still carries its own
-detail, so it is not recorded and the log stays a list of the cases where something was hidden.
+to accept mail becomes `errSMTPRefused`, an uncached message becomes the message-has-moved-on sentence,
+a server that declines the credential becomes `errSignInRefused`, a server that states it wants an
+application-specific password becomes `errAppPasswordRequired` and a reply the client cannot decode
+becomes `errUnreadableResponse`. `App.mailError` wraps it: where the translation replaces the original it
+records the original through `errlog` first, because a message fit to read asserts a cause and asserting
+a cause is exactly when the evidence for it stops being available. An error passed through unchanged
+still carries its own detail, so it is not recorded and the log stays a list of the cases where something
+was hidden.
+
+The last three are worded to assert as little as the failure carries, which is what the recording above
+exists to compensate for and is better than needing it. A tagged refusal names no reason, so
+`errSignInRefused` says the sign-in was refused and points at the two fields worth checking rather than
+claiming the password is wrong: a mistyped password, an app password since revoked and a provider that
+has stopped taking plain passwords all arrive identically. `errAppPasswordRequired` is the one case where
+a remedy may be named; it is named only because the server named it: `domain.IsAppPasswordRequired` matches the
+provider's own words, held in the domain beside the sentinel so the IMAP reader and the SMTP sender
+cannot spell the phrase two ways. `errUnreadableResponse` asserts nothing at all, since the exchange
+failed rather than anything the reader owns.
+
+The marking happens where the library error is produced, never by reading text at the facade:
+`imap.markRefusal` reads a tagged NO off the client's own `*imap.Error`, `smtp.authError` does the
+equivalent for a refused submission and `imap.markUnreadable` labels a decode failure by the library's
+decoder prefix, that last being a string match only because the library raises no sentinel for it.
 
 The send surface reaches the translator through the same wrapper as every other binding. It did not
 always: send and Save draft returned the raw transport error, so a mailbox refusing authenticated
-submission surfaced as the server's own text with no reading of it. Send, Save draft, sync and the
-message actions now route through `mailError`, which is what makes the SMTP refusal legible at the point it
-happens. Not every mail-facing binding does yet: the folder bindings (create, rename, delete, move), account
-add and update (bar the Microsoft sign-in path) and the read, flag, replied and forwarded marks in
-`app_actions.go` still return the raw error.
+submission surfaced as the server's own text with no reading of it. Send, Save draft, sync, the
+message actions and the account wizard's add and update now route through `mailError`, which is what
+makes a refusal legible at the point it happens. The wizard was the last of those and mattered most: it
+is where a credential is first offered, so a refusal there is the ordinary outcome rather than a fault; a sign-in message that never reached it would have missed the case it was written for.
+`TestSendSurfaceTranslatesItsErrors` and `TestAccountSetupSurfaceTranslatesItsErrors` scan the source to
+hold both, since a detector that is right and wired to nothing reads exactly like one that works. Not
+every mail-facing binding routes through it yet: the folder bindings (create, rename, delete, move) and
+the read, flag, replied and forwarded marks in `app_actions.go` still return the raw error.
 
 ## Quality enforcement
 

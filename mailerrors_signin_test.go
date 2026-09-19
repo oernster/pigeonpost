@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 	"testing"
 
@@ -65,6 +66,26 @@ func TestFriendlyMailErrorTranslatesAnUnreadableReply(t *testing.T) {
 	for _, leak := range []string{"imapwire", "body-type", "expected"} {
 		if strings.Contains(got.Error(), leak) {
 			t.Fatalf("message %q still shows the reader %q", got.Error(), leak)
+		}
+	}
+}
+
+// The sign-in message only reaches anyone if the bindings that meet a refusal translate their errors,
+// and the add-account wizard is where a credential is first offered. The detector being right is not
+// enough: this holds the two together, the same way the send surface is held.
+func TestAccountSetupSurfaceTranslatesItsErrors(t *testing.T) {
+	t.Parallel()
+	source, err := os.ReadFile("accountsetup.go")
+	if err != nil {
+		t.Fatalf("read accountsetup.go: %v", err)
+	}
+	text := string(source)
+	for _, want := range []string{
+		"a.setup.Configure(a.ctx, account, secret); err != nil {\n\t\treturn a.mailError(err)",
+		"a.setup.Update(a.ctx, account, strings.TrimSpace(req.Password)); err != nil {\n\t\treturn a.mailError(err)",
+	} {
+		if !strings.Contains(text, want) {
+			t.Errorf("accountsetup.go no longer translates a refusal at %q, so a refused sign-in reaches the wizard as protocol text", want)
 		}
 	}
 }
