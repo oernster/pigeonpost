@@ -101,6 +101,7 @@ describe('TemplateManagerModal', () => {
     // need this test edited; what it holds is that the template editor renders THAT strip.
     it('gives the body editor the compose window formatting strip', () => {
         renderModal()
+        fireEvent.click(screen.getByRole('button', {name: 'New template'}))
         const strip = screen.getByLabelText('Formatting')
         const names = [...strip.querySelectorAll('button')].map((b) => b.getAttribute('aria-label'))
         for (const tool of formattingTools(null, () => {})) {
@@ -114,6 +115,43 @@ describe('TemplateManagerModal', () => {
         expect(screen.getByDisplayValue('Chasing an invoice')).toBeTruthy()
         expect(screen.getByDisplayValue('Invoice 41 is overdue')).toBeTruthy()
         expect(screen.getByRole('button', {name: 'Save template'})).toBeTruthy()
+    })
+})
+
+// The editor is a dialog stacked on the list, its name and subject pinned above a scrolling body and its
+// actions below it. jsdom lays nothing out, so what is held is the structure the pinning rests on. Inline,
+// the form sat below the whole list, so an edited template's name could be off screen.
+describe('the template editor dialog', () => {
+    it('opens an edit in its own dialog with name and subject pinned and Save outside the body', () => {
+        renderModal()
+        fireEvent.click(screen.getByRole('button', {name: 'Edit Chasing an invoice'}))
+        const dialog = screen.getByRole('dialog', {name: 'Edit template'})
+        for (const value of ['Chasing an invoice', 'Invoice 41 is overdue']) {
+            const field = screen.getByDisplayValue(value)
+            expect(dialog.contains(field)).toBe(true)
+            expect(field.closest('.pinned-form-header')).not.toBeNull()
+            expect(field.closest('.modal-body')).toBeNull()
+        }
+        expect(screen.getByLabelText('Formatting').closest('.modal-body')).not.toBeNull()
+        expect(screen.getByRole('button', {name: 'Save template'}).closest('.modal-body')).toBeNull()
+    })
+
+    it('closes only the editor on Escape, leaving the list open', () => {
+        renderModal()
+        fireEvent.click(screen.getByRole('button', {name: 'New template'}))
+        expect(screen.getByRole('dialog', {name: 'New template'})).toBeTruthy()
+        fireEvent.keyDown(document, {key: 'Escape'})
+        expect(screen.queryByRole('dialog', {name: 'New template'})).toBeNull()
+        expect(screen.getByRole('dialog', {name: 'Message templates'})).toBeTruthy()
+    })
+
+    it('closes the editor and reports the change once a save lands', async () => {
+        const {onChanged} = renderModal()
+        fireEvent.click(screen.getByRole('button', {name: 'Edit Chasing an invoice'}))
+        expect(screen.getByRole('dialog', {name: 'Edit template'})).toBeTruthy()
+        fireEvent.click(screen.getByRole('button', {name: 'Save template'}))
+        await waitFor(() => expect(screen.queryByRole('dialog', {name: 'Edit template'})).toBeNull())
+        expect(onChanged).toHaveBeenCalledTimes(1)
     })
 })
 
@@ -156,6 +194,7 @@ describe('the files a template carries', () => {
     it('adds a chosen file as a path, its bytes read by the backend at save time', async () => {
         apiSpies.pickAttachments.mockResolvedValue(['/home/me/quote.pdf'])
         renderModal()
+        fireEvent.click(screen.getByRole('button', {name: 'New template'}))
         fireEvent.change(screen.getByPlaceholderText('Template name'), {target: {value: 'New one'}})
         fireEvent.click(screen.getByRole('button', {name: 'Attach files'}))
 
@@ -171,12 +210,14 @@ describe('the files a template carries', () => {
     })
 
     // Starting a new template must not carry the last edited one's files into it.
-    it('clears the files when the edit is cancelled', () => {
+    it('carries no files from a cancelled edit into a new template', () => {
         renderModal()
         fireEvent.click(screen.getByRole('button', {name: 'Edit Chasing an invoice'}))
         expect(screen.getByText('terms.pdf')).toBeTruthy()
 
-        fireEvent.click(screen.getByRole('button', {name: 'Cancel edit'}))
+        fireEvent.click(screen.getByRole('button', {name: 'Cancel'}))
+        expect(screen.queryByText('terms.pdf')).toBeNull()
+        fireEvent.click(screen.getByRole('button', {name: 'New template'}))
         expect(screen.queryByText('terms.pdf')).toBeNull()
     })
 })

@@ -6,12 +6,7 @@
 }
 
 /* The contact and group editors are dialogs stacked on the address book. The contact editor takes the
-   compose window's width, room enough for the three-column address grid. */
-.modal.contact-form {
-    max-width: 640px;
-    text-align: left;
-}
-
+   compose window's width (see .modal.compose). */
 .modal.contact-group-form {
     text-align: left;
 }

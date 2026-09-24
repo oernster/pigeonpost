@@ -240,7 +240,11 @@
     gap: 10px;
 }
 
-.modal.compose {
+/* The composer's width, shared by the editors that need the room: the template editor carries the same
+   editor and formatting strip; the contact editor's address grid runs three columns. */
+.modal.compose,
+.modal.template-editor,
+.modal.contact-form {
     max-width: 640px;
     text-align: left;
 }
