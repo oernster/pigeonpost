@@ -174,6 +174,22 @@ describe('the stylesheets', () => {
         expect(list).toMatch(/overflow-y:\s*auto;/)
     })
 
+    // The guide's section headings hold at the top of the scrolling body while their section is read.
+    // Measured in a browser on the real stylesheets at 1280 by 700: mid-section the heading sat at the
+    // body's top edge and was the element painted there; the next section's heading pushed it off. Sticky
+    // needs an opaque background (else the text shows through) plus a gap that is painted, so both are held
+    // along with the position.
+    it('keep each guide section heading sticky and opaque', async () => {
+        const {readFileSync} = await nodeFs()
+        const css = withoutComments(readFileSync(`${STYLESHEET_DIR}/guide.css`, 'utf8'))
+        const heading = css.slice(css.indexOf('.guide-heading {')).split('}')[0]
+        expect(heading).toMatch(/position:\s*sticky;/)
+        expect(heading).toMatch(/top:\s*0;/)
+        expect(heading).toMatch(/background-color:\s*var\(--bg\);/)
+        expect(heading).toMatch(/padding-bottom:/)
+        expect(heading).toMatch(/margin:\s*0;/)
+    })
+
     // The attached-email viewer keeps its subject, its From/To/Date lines and its close button on screen
     // by being a column that never scrolls, with the body the one part that gives way. Measured in a
     // browser at 800 by 400 on the real stylesheets: as a scrolling modal it scrolled 81px and carried the

@@ -16,8 +16,17 @@
     margin-bottom: 0;
 }
 
+/* The heading of the section being read holds at the top of the scrolling body until the next section's
+   heading pushes it away (sticky stays within its own section), so a long section never loses its title.
+   It sits on the dialog's background so the text passing under it does not show through; its gap to the
+   text is padding rather than margin for the same reason, since a margin is not painted. */
 .guide-heading {
-    margin: 0 0 8px;
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    margin: 0;
+    padding-bottom: 8px;
+    background-color: var(--bg);
     font-size: 15px;
 }
 
