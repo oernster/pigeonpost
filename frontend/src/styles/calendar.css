@@ -11,8 +11,10 @@
     flex-direction: column;
 }
 
-/* The event editor is its own dialog stacked on the calendar, wide enough for the two date fields. */
-.modal.event-form {
+/* The event editor is its own dialog stacked on the calendar, wide enough for the two date fields. The
+   remote calendars list and its add form share the width. */
+.modal.event-form,
+.modal.caldav-form {
     max-width: 520px;
     text-align: left;
 }

@@ -1,8 +1,9 @@
 import type {Dispatch, SetStateAction} from 'react'
 import {CalDAVAccount} from '../api'
-import {CalDAVAccountForm, validateCalDAVAccountForm} from '../caldavAccount'
+import {CalDAVAccountForm} from '../caldavAccount'
 import {ModalClose} from './ModalClose'
 import {ConfirmDialog} from './ConfirmDialog'
+import {CalDAVAccountFormModal} from './CalDAVAccountFormModal'
 
 interface CalDAVAccountsManagerProps {
     accounts: CalDAVAccount[]
@@ -26,14 +27,14 @@ interface CalDAVAccountsManagerProps {
 }
 
 // CalDAVAccountsManager is the remote-calendars (CalDAV) sub-feature's modal: the list of configured DAV
-// accounts each with a two-way Sync and a Remove, plus the add-account form and the remove confirmation. It
-// is the presentational surface over useCalDAVAccounts; all its state and actions are injected. A sync is
-// two-way (local changes go up, server changes come down), which the hint makes explicit.
+// accounts each with a two-way Sync and a Remove, plus the remove confirmation. The add-account form is its
+// own dialog stacked on this one (see CalDAVAccountFormModal). It is the presentational surface over
+// useCalDAVAccounts; all its state and actions are injected. A sync is two-way (local changes go up, server
+// changes come down), which the hint makes explicit.
 export function CalDAVAccountsManager({
     accounts, adding, startAdd, cancelAdd, form, setForm, submitAdd, sync, syncingId,
     pendingDelete, setPendingDelete, confirmRemove, onClose, busy, error, status,
 }: CalDAVAccountsManagerProps) {
-    const problem = validateCalDAVAccountForm(form)
     return (
         <>
             <div className="modal-backdrop">
@@ -48,11 +49,8 @@ export function CalDAVAccountsManager({
                             server's changes are brought in. If the same event changed in both places, the server's
                             version wins and your local version is kept as a separate copy so nothing is lost.
                         </p>
-                        {error && <div className="compose-error">{error}</div>}
-                        {status && <div className="setup-hint">{status}</div>}
-
                         <div className="caldav-accounts">
-                            {accounts.length === 0 && !adding && (
+                            {accounts.length === 0 && (
                                 <p className="field-hint">No remote calendars yet.</p>
                             )}
                             {accounts.map((account) => (
@@ -70,53 +68,28 @@ export function CalDAVAccountsManager({
                                 </div>
                             ))}
                         </div>
-                        {adding && (
-                            <div className="rule-form">
-                                <label className="field">
-                                    <span>Name</span>
-                                    <input value={form.displayName} autoFocus placeholder="Fastmail calendar"
-                                           onChange={(e) => setForm((f) => ({...f, displayName: e.target.value}))}/>
-                                </label>
-                                <label className="field">
-                                    <span>Server address</span>
-                                    <input value={form.baseUrl} placeholder="https://caldav.fastmail.com"
-                                           onChange={(e) => setForm((f) => ({...f, baseUrl: e.target.value}))}/>
-                                </label>
-                                <label className="field">
-                                    <span>Username</span>
-                                    <input value={form.username} placeholder="you@example.com"
-                                           onChange={(e) => setForm((f) => ({...f, username: e.target.value}))}/>
-                                </label>
-                                <label className="field">
-                                    <span>Password</span>
-                                    <input type="password" value={form.password}
-                                           onChange={(e) => setForm((f) => ({...f, password: e.target.value}))}/>
-                                </label>
-                                <p className="field-hint">
-                                    Many providers need an app-specific password rather than your normal one. Your
-                                    password is stored in the operating system keychain, never in the app database.
-                                </p>
-                            </div>
-                        )}
                     </div>
+                    {/* Beside the actions rather than in the scrolling body, so a sync's outcome shows
+                        however far down the list is. While the add form is open its error shows there. */}
+                    {error && !adding && <div className="compose-error">{error}</div>}
+                    {status && <div className="setup-hint">{status}</div>}
                     <div className="modal-actions spread">
-                        {adding ? (
-                            <>
-                                <button className="btn" onClick={cancelAdd} disabled={busy}>Cancel</button>
-                                <button className="btn primary" onClick={() => void submitAdd()}
-                                        disabled={busy || problem !== ''}>
-                                    {busy ? 'Adding…' : 'Add account'}
-                                </button>
-                            </>
-                        ) : (
-                            <>
-                                <button className="btn" onClick={onClose}>Done</button>
-                                <button className="btn primary" onClick={startAdd} disabled={busy}>Add account</button>
-                            </>
-                        )}
+                        <button className="btn" onClick={onClose}>Done</button>
+                        <button className="btn primary" onClick={startAdd} disabled={busy}>Add account</button>
                     </div>
                 </div>
             </div>
+
+            {adding && (
+                <CalDAVAccountFormModal
+                    form={form}
+                    setForm={setForm}
+                    busy={busy}
+                    error={error}
+                    onSubmit={submitAdd}
+                    onCancel={cancelAdd}
+                />
+            )}
 
             {pendingDelete && (
                 <ConfirmDialog

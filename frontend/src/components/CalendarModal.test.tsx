@@ -385,11 +385,13 @@ describe('CalendarModal: remote calendars', () => {
         await waitFor(() => expect(apiSpies.listCalDAVAccounts).toHaveBeenCalledTimes(1))
         const mgr = await openManager()
         fireEvent.click(within(mgr).getByRole('button', {name: 'Add account'}))
-        fireEvent.change(within(mgr).getByPlaceholderText('Fastmail calendar'), {target: {value: '  Work  '}})
-        fireEvent.change(within(mgr).getByPlaceholderText('https://caldav.fastmail.com'), {target: {value: '  https://d.example.com  '}})
-        fireEvent.change(within(mgr).getByPlaceholderText('you@example.com'), {target: {value: '  u@example.com  '}})
-        fireEvent.change(mgr.querySelector('input[type="password"]')!, {target: {value: 'secret'}})
-        fireEvent.click(within(mgr).getByRole('button', {name: 'Add account'}))
+        // The add form is its own dialog stacked on the manager.
+        const form = screen.getByRole('dialog', {name: 'Add remote calendar'})
+        fireEvent.change(within(form).getByPlaceholderText('Fastmail calendar'), {target: {value: '  Work  '}})
+        fireEvent.change(within(form).getByPlaceholderText('https://caldav.fastmail.com'), {target: {value: '  https://d.example.com  '}})
+        fireEvent.change(within(form).getByPlaceholderText('you@example.com'), {target: {value: '  u@example.com  '}})
+        fireEvent.change(form.querySelector('input[type="password"]')!, {target: {value: 'secret'}})
+        fireEvent.click(within(form).getByRole('button', {name: 'Add account'}))
         await waitFor(() =>
             expect(apiSpies.addCalDAVAccount).toHaveBeenCalledWith('Work', 'https://d.example.com', 'u@example.com', 'secret'))
         await waitFor(() => expect(apiSpies.listCalDAVAccounts).toHaveBeenCalledTimes(2))

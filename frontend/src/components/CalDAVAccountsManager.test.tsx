@@ -94,7 +94,9 @@ describe('CalDAVAccountsManager', () => {
             )
         }
         const {container} = render(<Harness/>)
-        const submit = () => screen.getByRole('button', {name: 'Add account'})
+        // The list behind keeps its own Add account, so the submit is found inside the add dialog.
+        const submit = () => within(screen.getByRole('dialog', {name: 'Add remote calendar'}))
+            .getByRole('button', {name: 'Add account'})
         // The empty form cannot be submitted.
         expect(submit()).toHaveProperty('disabled', true)
 
@@ -119,8 +121,38 @@ describe('CalDAVAccountsManager', () => {
     it('submits a valid add form', () => {
         const form = {displayName: 'W', baseUrl: 'https://d.example.com', username: 'u', password: 'p'}
         const {props} = renderManager({adding: true, form})
-        fireEvent.click(screen.getByRole('button', {name: 'Add account'}))
+        const dialog = screen.getByRole('dialog', {name: 'Add remote calendar'})
+        fireEvent.click(within(dialog).getByRole('button', {name: 'Add account'}))
         expect(props.submitAdd).toHaveBeenCalledOnce()
+    })
+
+    // The add form is a dialog stacked on the list, its name pinned above a scrolling body and its actions
+    // below it. jsdom lays nothing out, so what is held is the structure the pinning rests on. Inline, the
+    // form opened under the hint and the whole account list.
+    it('opens the add form in its own dialog with the name pinned and Add outside the body', () => {
+        renderManager({adding: true})
+        const dialog = screen.getByRole('dialog', {name: 'Add remote calendar'})
+        const name = screen.getByPlaceholderText('Fastmail calendar')
+        expect(dialog.contains(name)).toBe(true)
+        expect(name.closest('.pinned-form-header')).not.toBeNull()
+        expect(name.closest('.modal-body')).toBeNull()
+        expect(screen.getByPlaceholderText('https://caldav.fastmail.com').closest('.modal-body')).not.toBeNull()
+        expect(within(dialog).getByRole('button', {name: 'Add account'}).closest('.modal-body')).toBeNull()
+    })
+
+    it('cancels only the add form on Escape', () => {
+        const {props} = renderManager({adding: true})
+        expect(screen.getByRole('dialog', {name: 'Add remote calendar'})).toBeTruthy()
+        fireEvent.keyDown(document, {key: 'Escape'})
+        expect(props.cancelAdd).toHaveBeenCalledOnce()
+        expect(props.onClose).not.toHaveBeenCalled()
+    })
+
+    it('shows an add error in the add dialog, beside its actions', () => {
+        renderManager({adding: true, error: 'server refused'})
+        const error = screen.getByText('server refused')
+        expect(screen.getByRole('dialog', {name: 'Add remote calendar'}).contains(error)).toBe(true)
+        expect(error.closest('.modal-body')).toBeNull()
     })
 
     it('confirms a removal through the confirmation dialog', () => {
@@ -133,6 +165,6 @@ describe('CalDAVAccountsManager', () => {
 
     it('surfaces an error banner', () => {
         renderManager({error: 'boom'})
-        expect(screen.getByText('boom')).toBeTruthy()
+        expect(screen.getByText('boom').closest('.modal-body')).toBeNull()
     })
 })
