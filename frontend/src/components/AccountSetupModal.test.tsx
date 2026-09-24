@@ -196,7 +196,8 @@ describe('AccountSetupModal: manual add', () => {
         setValue(screen.getByPlaceholderText('jane@example.com'), 'jane@acme.com')
         setValue(passwordInput(), 'secret')
         fireEvent.click(screen.getByRole('button', {name: 'Add account'}))
-        expect(await screen.findByText('server unreachable')).toBeInTheDocument()
+        // Beside the actions rather than in the scrolling body, so it shows however far down the form is.
+        expect((await screen.findByText('server unreachable')).closest('.modal-body')).toBeNull()
         expect(onSaved).not.toHaveBeenCalled()
     })
 
@@ -257,6 +258,20 @@ describe('AccountSetupModal: editing', () => {
         expect(apiSpies.updateAccount).toHaveBeenCalledWith(expect.objectContaining({
             email: 'user@example.com', displayName: 'New Name',
         }))
+    })
+
+    // jsdom lays nothing out, so what is held is the structure the pinning rests on: whose account it is
+    // sits above the scrolling settings, the settings inside them and Save outside them. Inside the body,
+    // the name and email scrolled away on the way down to the signature.
+    it('pins the name and email above the scrolling settings', () => {
+        renderModal({account: makeAccount()})
+        for (const value of ['Existing User', 'user@example.com']) {
+            const field = screen.getByDisplayValue(value)
+            expect(field.closest('.account-identity')).not.toBeNull()
+            expect(field.closest('.modal-body')).toBeNull()
+        }
+        expect(screen.getByText(/Leave the password blank/).closest('.modal-body')).not.toBeNull()
+        expect(screen.getByRole('button', {name: 'Save changes'}).closest('.modal-body')).toBeNull()
     })
 })
 

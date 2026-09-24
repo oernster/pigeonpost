@@ -106,6 +106,25 @@ export function AccountDetailsForm({form, onClose}: AccountDetailsFormProps) {
                 <h2 className="modal-title">
                     {editing ? 'Edit account' : msAdd ? 'Add Microsoft' : provider ? `Add ${provider.name}` : 'Add account'}
                 </h2>
+                {/* Whose account this is stays pinned above the scrolling settings. */}
+                <div className="account-identity">
+                    <label className="field">
+                        <span>Your name</span>
+                        <input value={displayName} onChange={(e) => setDisplayName(e.target.value)} autoFocus placeholder="Jane Doe"/>
+                    </label>
+                    {!msAdd && (
+                        <label className="field">
+                            <span>Email</span>
+                            <input
+                                value={email}
+                                readOnly={editing}
+                                className={editing ? 'locked' : undefined}
+                                onChange={(e) => onEmailChange(e.target.value)}
+                                placeholder="jane@example.com"
+                            />
+                        </label>
+                    )}
+                </div>
                 <div className="modal-body">
                 {oauthMode ? (
                     <p className="setup-hint">
@@ -154,40 +173,6 @@ export function AccountDetailsForm({form, onClose}: AccountDetailsFormProps) {
                             How to turn on IMAP
                         </a>
                     </div>
-                )}
-                {error && (
-                    <div className="compose-error">
-                        {error}
-                        {msAdd && (
-                            <a
-                                className="provider-note-link"
-                                href={MICROSOFT_IMAP_HELP_URL}
-                                onClick={(e) => {
-                                    e.preventDefault()
-                                    void api.openExternal(MICROSOFT_IMAP_HELP_URL)
-                                }}
-                            >
-                                How to turn on IMAP
-                            </a>
-                        )}
-                    </div>
-                )}
-
-                <label className="field">
-                    <span>Your name</span>
-                    <input value={displayName} onChange={(e) => setDisplayName(e.target.value)} autoFocus placeholder="Jane Doe"/>
-                </label>
-                {!msAdd && (
-                    <label className="field">
-                        <span>Email</span>
-                        <input
-                            value={email}
-                            readOnly={editing}
-                            className={editing ? 'locked' : undefined}
-                            onChange={(e) => onEmailChange(e.target.value)}
-                            placeholder="jane@example.com"
-                        />
-                    </label>
                 )}
                 {!oauthMode && (
                     <>
@@ -238,6 +223,25 @@ export function AccountDetailsForm({form, onClose}: AccountDetailsFormProps) {
                 </fieldset>
 
                 </div>
+                {/* The error sits beside the actions rather than in the scrolling body, so a failed
+                    sign-in is on screen however far down the settings were scrolled. */}
+                {error && (
+                    <div className="compose-error">
+                        {error}
+                        {msAdd && (
+                            <a
+                                className="provider-note-link"
+                                href={MICROSOFT_IMAP_HELP_URL}
+                                onClick={(e) => {
+                                    e.preventDefault()
+                                    void api.openExternal(MICROSOFT_IMAP_HELP_URL)
+                                }}
+                            >
+                                How to turn on IMAP
+                            </a>
+                        )}
+                    </div>
+                )}
                 <div className="modal-actions spread">
                     {editing ? (
                         <button className="btn" onClick={onClose} disabled={saving}>Cancel</button>
