@@ -53,6 +53,33 @@ export function useEscapeToClose(onClose: () => void, active: boolean = true) {
     }, [active])
 }
 
+// useReturnFocus hands focus back to whatever opened the calling dialog once it closes, so keyboard focus
+// does not fall back to nothing (which would leave the next Tab with no starting point in the ring).
+function useReturnFocus() {
+    // Capture the element that had focus when the dialog opened. The initialiser runs during the first
+    // render, before the dialog's own autoFocus moves focus inside it, so this is the opener rather than a
+    // control within the dialog.
+    const [opener] = useState<HTMLElement | null>(() => document.activeElement as HTMLElement | null)
+
+    // On close, return focus to the opener if it is still on the page.
+    useEffect(() => {
+        return () => {
+            if (opener && opener.isConnected && typeof opener.focus === 'function') {
+                opener.focus()
+            }
+        }
+    }, [opener])
+}
+
+// useNestedDialogClose is the close contract for an editor stacked on another dialog (a contact, a group,
+// a template, a remote calendar): Escape closes it and focus returns to its opener; a click beside it does
+// nothing, so a stray click cannot drop what was typed. Nothing is spread on its backdrop. The
+// calendar's event form keeps the same contract through CalendarModal's own Escape registration.
+export function useNestedDialogClose(onClose: () => void) {
+    useEscapeToClose(onClose)
+    useReturnFocus()
+}
+
 // useBackdropDismiss returns handlers for a modal backdrop that close the dialog only when a full press
 // and release both happen on the backdrop itself (not on the dialog content; not a drag that started
 // inside it) and only after a short arming delay. It also closes the dialog on Escape and returns focus to
@@ -64,12 +91,8 @@ export function useBackdropDismiss(onClose: () => void) {
     const armedRef = useRef(false)
     const pressedOnBackdropRef = useRef(false)
 
-    // Capture the element that had focus when the dialog opened. The initialiser runs during the first
-    // render, before the dialog's own autoFocus moves focus inside it, so this is the opener rather than a
-    // control within the dialog.
-    const [opener] = useState<HTMLElement | null>(() => document.activeElement as HTMLElement | null)
-
     useEscapeToClose(onClose)
+    useReturnFocus()
 
     useEffect(() => {
         armedRef.current = false
@@ -78,16 +101,6 @@ export function useBackdropDismiss(onClose: () => void) {
         }, DISMISS_ARM_MS)
         return () => window.clearTimeout(timer)
     }, [])
-
-    // On close, return focus to the opener if it is still on the page, so keyboard focus does not fall back
-    // to nothing (which would leave the next Tab with no starting point in the ring).
-    useEffect(() => {
-        return () => {
-            if (opener && opener.isConnected && typeof opener.focus === 'function') {
-                opener.focus()
-            }
-        }
-    }, [opener])
 
     const onMouseDown = useCallback((e: MouseEvent) => {
         pressedOnBackdropRef.current = e.target === e.currentTarget

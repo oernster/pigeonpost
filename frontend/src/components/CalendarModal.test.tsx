@@ -417,6 +417,18 @@ describe('CalendarModal: remote calendars', () => {
         expect(onClose).not.toHaveBeenCalled()
     })
 
+    // Closing the add form hands focus back to the Add account button that opened it.
+    it('returns focus to Add account once the add form closes', async () => {
+        renderCalendar()
+        const mgr = await openManager()
+        const add = within(mgr).getByRole('button', {name: 'Add account'})
+        add.focus()
+        fireEvent.click(add)
+        expect(screen.getByRole('dialog', {name: 'Add remote calendar'})).toBeInTheDocument()
+        fireEvent.keyDown(document, {key: 'Escape'})
+        expect(document.activeElement).toBe(add)
+    })
+
     // Three layers deep, Escape still peels one: the add form goes, the manager and the calendar stay.
     it('closes only the add form on Escape, leaving the manager open', async () => {
         const {onClose} = renderCalendar()

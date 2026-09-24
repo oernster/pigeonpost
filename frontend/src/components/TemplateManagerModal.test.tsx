@@ -11,6 +11,7 @@ import {TemplateManagerModal} from './TemplateManagerModal'
 import type {Template} from '../api'
 import {formattingTools} from '../editorTools'
 import {spiesNotInApi, unstubbedNames} from '../test/apiMock'
+import {clickBesideDialog} from '../test/backdrop'
 
 const apiSpies = vi.hoisted(() => ({
     saveTemplate: vi.fn(),
@@ -143,6 +144,20 @@ describe('the template editor dialog', () => {
         fireEvent.keyDown(document, {key: 'Escape'})
         expect(screen.queryByRole('dialog', {name: 'New template'})).toBeNull()
         expect(screen.getByRole('dialog', {name: 'Message templates'})).toBeTruthy()
+    })
+
+    // Like the calendar's nested dialogs, the editor closes on Escape but not on a click beside it, so a
+    // stray click does not drop a half-written template.
+    it('keeps the editor open on a click beside it', () => {
+        vi.useFakeTimers()
+        try {
+            renderModal()
+            fireEvent.click(screen.getByRole('button', {name: 'New template'}))
+            clickBesideDialog('New template')
+            expect(screen.getByRole('dialog', {name: 'New template'})).toBeTruthy()
+        } finally {
+            vi.useRealTimers()
+        }
     })
 
     it('closes the editor and reports the change once a save lands', async () => {

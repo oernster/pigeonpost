@@ -1,6 +1,6 @@
 import type {Dispatch, SetStateAction} from 'react'
 import {CalDAVAccountForm, validateCalDAVAccountForm} from '../caldavAccount'
-import {useEscapeToClose} from './useBackdropDismiss'
+import {useNestedDialogClose} from './useBackdropDismiss'
 import {ModalClose} from './ModalClose'
 
 interface CalDAVAccountFormModalProps {
@@ -15,10 +15,10 @@ interface CalDAVAccountFormModalProps {
 // CalDAVAccountFormModal is the add-a-remote-calendar form, a dialog stacked on the remote calendars list
 // the way the contact editor stacks on the address book. The account's name is pinned above the scrolling
 // connection fields and the actions below them. Like the list, it is presentational: the form state and
-// the add itself belong to useCalDAVAccounts. Like the calendar's other nested dialogs it closes on
-// Escape but not on a backdrop click, so a stray click beside it does not drop the typed details.
+// the add itself belong to useCalDAVAccounts. It closes on Escape but not on a click beside it (see
+// useNestedDialogClose).
 export function CalDAVAccountFormModal({form, setForm, busy, error, onSubmit, onCancel}: CalDAVAccountFormModalProps) {
-    useEscapeToClose(onCancel)
+    useNestedDialogClose(onCancel)
     const problem = validateCalDAVAccountForm(form)
     return (
         <div className="modal-backdrop">

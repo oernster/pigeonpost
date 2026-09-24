@@ -1,5 +1,5 @@
 import {Contact} from '../api'
-import {useBackdropDismiss} from './useBackdropDismiss'
+import {useNestedDialogClose} from './useBackdropDismiss'
 import {ModalClose} from './ModalClose'
 
 // GroupForm backs the group editor: a name and the ids of the contacts in the group (a mailing list).
@@ -22,15 +22,16 @@ interface ContactGroupFormModalProps {
 
 // ContactGroupFormModal is the group editor, a dialog stacked on the address book. The group name is
 // pinned above the scrolling member list and the actions below it, so a long address book never scrolls
-// the name or the Save button out of view. Saving belongs to the address book.
+// the name or the Save button out of view. Saving belongs to the address book. It closes on Escape but
+// not on a click beside it (see useNestedDialogClose).
 export function ContactGroupFormModal({
     form, contacts, busy, error, onNameChange, onToggleMember, onSave, onCancel,
 }: ContactGroupFormModalProps) {
-    const dismiss = useBackdropDismiss(onCancel)
+    useNestedDialogClose(onCancel)
     const title = form.id ? 'Edit group' : 'New group'
 
     return (
-        <div className="modal-backdrop" {...dismiss}>
+        <div className="modal-backdrop">
             <div className="modal contact-group-form pinned-actions" role="dialog" aria-label={title}
                  onClick={(e) => e.stopPropagation()}>
                 <ModalClose onClose={onCancel}/>

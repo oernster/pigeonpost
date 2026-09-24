@@ -7,6 +7,7 @@ import {ContactsModal} from './ContactsModal'
 import {AUTO_COLLECT_KEY} from '../autoCollect'
 import type {Contact} from '../api'
 import {spiesNotInApi, unstubbedNames} from '../test/apiMock'
+import {clickBesideDialog} from '../test/backdrop'
 
 const apiSpies = vi.hoisted(() => ({
     listContactGroups: vi.fn(),
@@ -136,6 +137,36 @@ describe('ContactsModal: stacked editors', () => {
         expect(screen.getByPlaceholderText('Group name').closest('.pinned-form-header')).not.toBeNull()
         expect(screen.getByRole('checkbox', {name: 'Jane Doe'}).closest('.modal-body')).not.toBeNull()
         expect(screen.getByRole('button', {name: 'Create group'}).closest('.modal-body')).toBeNull()
+    })
+
+    // Like the calendar's nested dialogs, the editors close on Escape but not on a click beside them, so a
+    // stray click does not drop what was typed.
+    it('keeps the contact and group editors open on a click beside them', () => {
+        vi.useFakeTimers()
+        try {
+            renderContacts()
+            fireEvent.click(screen.getByRole('button', {name: 'Edit Jane Doe'}))
+            clickBesideDialog('Edit contact')
+            expect(screen.getByRole('dialog', {name: 'Edit contact'})).toBeInTheDocument()
+
+            fireEvent.click(screen.getByRole('button', {name: 'Cancel'}))
+            fireEvent.click(screen.getByRole('button', {name: '+ New group'}))
+            clickBesideDialog('New group')
+            expect(screen.getByRole('dialog', {name: 'New group'})).toBeInTheDocument()
+        } finally {
+            vi.useRealTimers()
+        }
+    })
+
+    // Closing an editor hands focus back to what opened it, so the keyboard ring resumes where it left off.
+    it('returns focus to the pencil that opened the editor once it closes', () => {
+        renderContacts()
+        const pencil = screen.getByRole('button', {name: 'Edit Jane Doe'})
+        pencil.focus()
+        fireEvent.click(pencil)
+        expect(screen.getByRole('dialog', {name: 'Edit contact'})).toBeInTheDocument()
+        fireEvent.keyDown(document, {key: 'Escape'})
+        expect(document.activeElement).toBe(pencil)
     })
 
     it('keeps the address book Close button outside its scrolling body', () => {

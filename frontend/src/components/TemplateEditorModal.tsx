@@ -1,7 +1,7 @@
 import {useState} from 'react'
 import {useEditor} from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
-import {useBackdropDismiss} from './useBackdropDismiss'
+import {useNestedDialogClose} from './useBackdropDismiss'
 import {api, Template, TemplateInput} from '../api'
 import {formatBytes} from '../readerFormat'
 import {
@@ -26,9 +26,10 @@ interface TemplateEditorModalProps {
 // TemplateEditorModal edits one message template, a dialog stacked on the template list the way the
 // contact editor stacks on the address book. The name and subject are pinned above the scrolling body and
 // attachments, the actions below them, so what is being edited and the Save button stay on screen however
-// long the body grows. It mounts fresh for each template opened, so nothing carries over between them.
+// long the body grows. It mounts fresh for each template opened, so nothing carries over between them. It
+// closes on Escape but not on a click beside it (see useNestedDialogClose).
 export function TemplateEditorModal({template, onSaved, onCancel}: TemplateEditorModalProps) {
-    const dismiss = useBackdropDismiss(onCancel)
+    useNestedDialogClose(onCancel)
     const [name, setName] = useState(template?.name ?? '')
     const [subject, setSubject] = useState(template?.subject ?? '')
     const [error, setError] = useState('')
@@ -75,7 +76,7 @@ export function TemplateEditorModal({template, onSaved, onCancel}: TemplateEdito
 
     const title = template ? 'Edit template' : 'New template'
     return (
-        <div className="modal-backdrop" {...dismiss}>
+        <div className="modal-backdrop">
             <div className="modal template-editor pinned-actions" role="dialog" aria-label={title}
                  onClick={(e) => e.stopPropagation()}>
                 <ModalClose onClose={onCancel}/>

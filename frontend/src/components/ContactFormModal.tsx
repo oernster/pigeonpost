@@ -1,6 +1,6 @@
 import type {Dispatch, SetStateAction} from 'react'
 import {Contact, ContactInput, ContactEmailInput, ContactPhoneInput, ContactAddressInput} from '../api'
-import {useBackdropDismiss} from './useBackdropDismiss'
+import {useNestedDialogClose} from './useBackdropDismiss'
 import {ModalClose} from './ModalClose'
 import {DateField} from './DateField'
 
@@ -87,15 +87,16 @@ interface ContactFormModalProps {
 // ContactFormModal is the contact editor, a dialog stacked on the address book the way the event editor
 // stacks on the calendar. The name rows are pinned above the scrolling details and the actions below them,
 // so who is being edited and the Save button stay on screen however many emails, phones and addresses the
-// contact carries. It edits the form it is given; saving and deleting belong to the address book.
+// contact carries. It edits the form it is given; saving and deleting belong to the address book. It
+// closes on Escape but not on a click beside it (see useNestedDialogClose).
 export function ContactFormModal({form, setForm, busy, error, onSave, onDelete, onCancel}: ContactFormModalProps) {
-    const dismiss = useBackdropDismiss(onCancel)
+    useNestedDialogClose(onCancel)
     const set = <K extends keyof ContactForm>(key: K, value: ContactForm[K]) =>
         setForm((f) => (f ? {...f, [key]: value} : f))
     const title = form.id ? 'Edit contact' : 'New contact'
 
     return (
-        <div className="modal-backdrop" {...dismiss}>
+        <div className="modal-backdrop">
             <div className="modal contact-form pinned-actions" role="dialog" aria-label={title}
                  onClick={(e) => e.stopPropagation()}>
                 <ModalClose onClose={onCancel}/>
