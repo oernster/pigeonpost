@@ -324,11 +324,14 @@ describe('App: about and licence', () => {
         await waitFor(() => expect(screen.queryByRole('dialog', {name: 'About PigeonPost'})).toBeNull())
     })
 
-    it('opens the licence text from the Help menu', async () => {
+    it('opens the licence text from the Help menu, titled with its name', async () => {
         apiSpies.licence.mockResolvedValue('GNU GENERAL PUBLIC LICENSE')
+        apiSpies.about.mockResolvedValue(about)
         await openHelp('Licence')
         const dialog = await screen.findByRole('dialog', {name: 'Licence'})
         expect(within(dialog).getByText(/GNU GENERAL PUBLIC LICENSE/)).toBeInTheDocument()
+        // The name comes from About's licence field, its one home, not from the text.
+        expect(within(dialog).getByRole('heading', {name: 'Licence: GPL-3.0'})).toBeInTheDocument()
     })
 
     it('opens the Guide from the top of the Help menu', async () => {
@@ -346,6 +349,15 @@ describe('App: about and licence', () => {
         await openHelp('About PigeonPost')
         expect(await screen.findByText(/about unavailable/)).toBeInTheDocument()
         expect(screen.queryByRole('dialog', {name: 'About PigeonPost'})).toBeNull()
+    })
+
+    it('still opens the licence under the plain title when its name cannot be read', async () => {
+        apiSpies.licence.mockResolvedValue('GNU GENERAL PUBLIC LICENSE')
+        apiSpies.about.mockRejectedValue('about unavailable')
+        await openHelp('Licence')
+        const dialog = await screen.findByRole('dialog', {name: 'Licence'})
+        expect(within(dialog).getByRole('heading', {name: 'Licence'})).toBeInTheDocument()
+        expect(within(dialog).getByText(/GNU GENERAL PUBLIC LICENSE/)).toBeInTheDocument()
     })
 
     it('reports a failed licence read through the error bar', async () => {

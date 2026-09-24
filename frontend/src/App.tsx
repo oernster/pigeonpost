@@ -1242,7 +1242,7 @@ function App() {
                 onDownload={(url) => void api.openExternal(url)}
                 onSkip={skipUpdate}
             />
-            <LicenceModal text={licence} onClose={help.licence.close}/>
+            <LicenceModal licence={licence} onClose={help.licence.close}/>
             {launchedEmail && <EmailViewerModal email={launchedEmail} autoLoadImages={autoLoadImages} dark={theme === 'dark'} onClose={() => setLaunchedEmail(null)}/>}
             {popoutOpen && selectedMessage && !multiSelected && (
                 <div className="modal-backdrop" {...popoutDismiss}>

@@ -3,10 +3,11 @@ import {AboutInfo, Account, Folder, Message} from '../api'
 import {stepFocusRing, trapTab} from '../focusRing'
 import {isOutboxMessage} from '../outbox'
 import type {FolderPrompt} from './useFolders'
+import type {LicenceView} from './useHelpPanels'
 
 // MessageListKeyboardDeps is what the window keyboard handler reads: the current view (the list the arrows and
 // Ctrl+A act on) and its selection, every overlay state (keyboard handling for the list is suppressed while any
-// is open), and the handlers a key fires (open, delete, the folder delete). The setters and openMessage are
+// is open) plus the handlers a key fires (open, delete, the folder delete). The setters and openMessage are
 // stable, so they are used but deliberately kept out of the effect's dependency array.
 export interface MessageListKeyboardDeps {
     searchActive: boolean
@@ -28,7 +29,7 @@ export interface MessageListKeyboardDeps {
     managingContacts: boolean
     managingCalendar: boolean
     about: AboutInfo | null
-    licence: string | null
+    licence: LicenceView | null
     folderPrompt: FolderPrompt | null
     messageToCancelSend: Message | null
     messageToDelete: Message | null
@@ -62,7 +63,7 @@ export interface MessageListKeyboardDeps {
 
 // useMessageListKeyboard installs the window keydown handler that drives the message list and the main-window
 // focus ring: Tab and the arrows step the ring (mirroring each other), Up/Down move the message selection,
-// Ctrl+A selects the view, Ctrl+Space toggles a row, Enter or Space opens the focused message, and Delete
+// Ctrl+A selects the view, Ctrl+Space toggles a row, Enter or Space opens the focused message; Delete
 // deletes the selection (or the focused custom folder). Handling is suppressed while a dialog is open or the
 // user is typing, so it never competes with text entry or a modal.
 export function useMessageListKeyboard(deps: MessageListKeyboardDeps): void {
@@ -78,7 +79,7 @@ export function useMessageListKeyboard(deps: MessageListKeyboardDeps): void {
     } = deps
 
     // Keyboard control for the message list: Arrow Up/Down move the selection, Delete asks to delete
-    // the selected message (to Trash where possible), and Shift+Delete asks to delete it permanently.
+    // the selected message (to Trash where possible); Shift+Delete asks to delete it permanently.
     // Handling is suppressed while any dialog is open or while the user is typing in a field, so it
     // never competes with text entry or a modal.
     useEffect(() => {
@@ -169,7 +170,7 @@ export function useMessageListKeyboard(deps: MessageListKeyboardDeps): void {
                 ['c', 'x', 'v'].includes(e.key.toLowerCase())) {
                 // Ctrl/Cmd+C, X and V at the message level: cut or copy takes the selection onto the
                 // message clipboard and paste files the clipboard into the open folder. Text always
-                // wins: a text field consumed the key above (isText), and selected reader text keeps
+                // wins: a text field consumed the key above (isText); selected reader text keeps
                 // the native copy, so Ctrl+C over a highlighted passage still copies the passage.
                 const key = e.key.toLowerCase()
                 if (key === 'v') {
@@ -194,7 +195,7 @@ export function useMessageListKeyboard(deps: MessageListKeyboardDeps): void {
                 return
             }
             if ((e.key === 'a' || e.key === 'A') && (e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey) {
-                // Ctrl/Cmd+A selects every message in the current view (the open folder, or the search
+                // Ctrl/Cmd+A selects every message in the current view (the open folder; else the search
                 // results) so the whole lot can be deleted or moved at once. Delete then opens the
                 // count-named bulk confirm. Suppressed inside text fields above, so it never steals the
                 // native select-all while typing.

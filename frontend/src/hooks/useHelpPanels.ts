@@ -18,7 +18,25 @@ export interface HelpPanels {
     closeGuide: () => void
     // about and licence each fetch on open and drop their content on close.
     about: LoadedPanel<AboutInfo>
-    licence: LoadedPanel<string>
+    licence: LoadedPanel<LicenceView>
+}
+
+// LicenceView is what the licence dialog shows: the licence's name for its title and the full text.
+export interface LicenceView {
+    name: string
+    text: string
+}
+
+// loadLicence fetches the licence text with its name. The name is About's licence field, its one home on
+// the backend, rather than a second statement of it or a guess parsed from the text's opening lines. The
+// name only titles the dialog, so a failed About read leaves it empty (the plain title) rather than
+// keeping the licence itself from opening; a failed text read still fails the load.
+async function loadLicence(): Promise<LicenceView> {
+    const [text, name] = await Promise.all([
+        api.licence(),
+        api.about().then((about) => about.licence, () => ''),
+    ])
+    return {name, text}
 }
 
 export function useHelpPanels(setError: (message: string) => void): HelpPanels {
@@ -26,6 +44,6 @@ export function useHelpPanels(setError: (message: string) => void): HelpPanels {
     const showGuide = useCallback(() => setGuideOpen(true), [])
     const closeGuide = useCallback(() => setGuideOpen(false), [])
     const about = useLoadedPanel<AboutInfo>(api.about, setError)
-    const licence = useLoadedPanel<string>(api.licence, setError)
+    const licence = useLoadedPanel<LicenceView>(loadLicence, setError)
     return {guideOpen, showGuide, closeGuide, about, licence}
 }

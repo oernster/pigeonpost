@@ -59,12 +59,12 @@ describe('AboutModal', () => {
 
 describe('LicenceModal', () => {
     it('renders nothing until there is a licence to show', () => {
-        const {container} = render(<LicenceModal text={null} onClose={vi.fn()}/>)
+        const {container} = render(<LicenceModal licence={null} onClose={vi.fn()}/>)
         expect(container.firstChild).toBeNull()
     })
 
     it('scrolls the licence text and keeps Close outside it', () => {
-        const {container} = render(<LicenceModal text={'GPL-3.0\nterms'} onClose={vi.fn()}/>)
+        const {container} = render(<LicenceModal licence={{name: 'GPL-3.0', text: 'GPL-3.0\nterms'}} onClose={vi.fn()}/>)
         const close = container.querySelector('.modal-actions .btn')!
         expect(close.textContent).toBe('Close')
         expect(close.closest('.licence-text')).toBeNull()
@@ -72,8 +72,20 @@ describe('LicenceModal', () => {
     })
 
     it('shows an empty licence rather than nothing, so a missing file is visible', () => {
-        const {container} = render(<LicenceModal text={''} onClose={vi.fn()}/>)
+        const {container} = render(<LicenceModal licence={{name: 'GPL-3.0', text: ''}} onClose={vi.fn()}/>)
         expect(container.querySelector('.licence-text')).not.toBeNull()
+    })
+
+    // The licence's own opening lines scroll away with the text, so the pinned title carries its name.
+    it('names the licence in the pinned title, outside the scrolling text', () => {
+        render(<LicenceModal licence={{name: 'GPL-3.0', text: 'terms'}} onClose={vi.fn()}/>)
+        const title = screen.getByRole('heading', {name: 'Licence: GPL-3.0'})
+        expect(title.closest('.licence-text')).toBeNull()
+    })
+
+    it('falls back to the plain title when no name came with the text', () => {
+        render(<LicenceModal licence={{name: '', text: 'terms'}} onClose={vi.fn()}/>)
+        expect(screen.getByRole('heading', {name: 'Licence'})).toBeInTheDocument()
     })
 })
 
