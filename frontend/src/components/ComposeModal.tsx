@@ -462,7 +462,10 @@ export function ComposeModal({accountId, senders, initial, canSaveDraft, onMarkR
                  }}>
                 <ModalClose onClose={requestClose}/>
                 <h2 {...drag.handleProps} className={`modal-title ${drag.handleProps.className}`}>{title}</h2>
-                <div className="modal-body">
+                {/* The address block is pinned above the scrolling body, so who the message is from, who it
+                    goes to and its subject stay on screen however long the message grows. Measured at the
+                    700px minimum window, a long message scrolled the body and carried From and To away. */}
+                <div className="compose-header">
                 {error && <div className="compose-error">{error}</div>}
                 {correction.pending && (
                     <div className="compose-correction">
@@ -511,7 +514,9 @@ export function ComposeModal({accountId, senders, initial, canSaveDraft, onMarkR
                         setSubject(e.target.value)
                     }}/>
                 </label>
+                </div>
 
+                <div className="modal-body">
                 <div className="compose-toolbar" aria-label="Formatting" {...toolbar.toolbarProps}>
                     {tools.map((tool, index) => (
                         <Fragment key={tool.name}>

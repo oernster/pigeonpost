@@ -138,6 +138,19 @@ describe('ComposeModal: basics', () => {
         )
         expect(screen.getByText('From')).toBeInTheDocument()
     })
+
+    // jsdom lays nothing out, so the pinning itself cannot be measured here; what can be held is the
+    // structure it rests on. The address fields sit in the pinned header, outside the scrolling body,
+    // while the formatting toolbar stays in the body with the editor it is drawn joined to.
+    it('keeps the address fields pinned above the scrolling body', () => {
+        const {toInput} = renderCompose({initial: {subject: 'Hello'}})
+        const subject = screen.getByDisplayValue('Hello')
+        for (const field of [toInput(), subject]) {
+            expect(field.closest('.compose-header')).not.toBeNull()
+            expect(field.closest('.modal-body')).toBeNull()
+        }
+        expect(screen.getByRole('toolbar', {name: 'Formatting'}).closest('.modal-body')).not.toBeNull()
+    })
 })
 
 describe('ComposeModal: send', () => {
