@@ -145,8 +145,7 @@ export function EventFormModal({
     const removeAttendee = (index: number) =>
         setForm((f) => (f ? {...f, attendees: f.attendees.filter((_, i) => i !== index)} : f))
 
-    // organizerLabel is the organiser shown in the meeting section: the loaded meeting's organiser, or the
-    // active account that will own a newly organised meeting.
+    // organizerLabel is the meeting section's organiser: the loaded one; else the account a new meeting gets.
     const organizerLabel = (): string => {
         if (form.organizerAddress) return form.organizerName || form.organizerAddress
         return accountName ? `${accountName} (${accountEmail})` : accountEmail
@@ -179,9 +178,8 @@ export function EventFormModal({
             // carries no zone.
             const startISO = form.allDay ? toISO(form.start) : zonedWallToISO(form.start, form.timeZone)
             const endISO = form.allDay ? toISO(form.end) : (form.end ? zonedWallToISO(form.end, form.timeZone) : '')
-            // A meeting (any attendees) needs an organiser to be replied to: keep the loaded one, or adopt
-            // the active account when newly organising. An event with no attendees stays a plain entry with
-            // an empty organiser.
+            // A meeting (any attendees) needs an organiser to be replied to: the loaded one, else the active
+            // account when newly organising. With no attendees it stays a plain entry with no organiser.
             const hasAttendees = form.attendees.length > 0
             const organizerAddress = form.organizerAddress || (hasAttendees ? accountEmail : '')
             const organizerName = form.organizerAddress ? form.organizerName : (hasAttendees ? accountName : '')
@@ -345,8 +343,7 @@ export function EventFormModal({
                      aria-label={form.id ? 'Edit event' : 'New event'} onClick={(e) => e.stopPropagation()}>
                     <ModalClose onClose={() => setForm(null)}/>
                     <h2 className="modal-title">{form.id ? 'Edit event' : 'New event'}</h2>
-                    <div className="modal-body">
-                    <div className="rule-form">
+                    <div className="rule-form event-form-header">
                         <input className="tag-name-input" placeholder="Event title" value={form.summary} autoFocus
                                onChange={(e) => set('summary', e.target.value)}/>
                         {calendars.length > 0 && (
@@ -358,6 +355,9 @@ export function EventFormModal({
                                 ))}
                             </select>
                         )}
+                    </div>
+                    <div className="modal-body">
+                    <div className="rule-form">
                         <label className="cal-allday">
                             <input type="checkbox" checked={form.allDay}
                                    onChange={(e) => set('allDay', e.target.checked)}/> All day
@@ -503,20 +503,20 @@ export function EventFormModal({
                             <div className={error ? 'compose-error' : 'setup-hint'}>{error || status}</div>
                         )}
                     </div>
-                        <div className="modal-actions spread">
-                            <span>
-                                {form.id && (
-                                    <button className="btn danger" onClick={requestDelete}>Delete</button>
-                                )}
-                            </span>
-                            <span className="cal-form-actions">
-                                <button className="btn" onClick={() => setForm(null)}>Cancel</button>
-                                <button className="btn primary" onClick={() => void save()}
-                                        disabled={busy || form.summary.trim() === '' || form.start === ''}>
-                                    {busy ? 'Saving…' : primaryActionLabel()}
-                                </button>
-                            </span>
-                        </div>
+                    </div>
+                    <div className="modal-actions spread">
+                        <span>
+                            {form.id && (
+                                <button className="btn danger" onClick={requestDelete}>Delete</button>
+                            )}
+                        </span>
+                        <span className="cal-form-actions">
+                            <button className="btn" onClick={() => setForm(null)}>Cancel</button>
+                            <button className="btn primary" onClick={() => void save()}
+                                    disabled={busy || form.summary.trim() === '' || form.start === ''}>
+                                {busy ? 'Saving…' : primaryActionLabel()}
+                            </button>
+                        </span>
                     </div>
                 </div>
             </div>

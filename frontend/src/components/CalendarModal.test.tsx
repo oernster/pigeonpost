@@ -156,6 +156,19 @@ describe('CalendarModal: event form', () => {
         expect(screen.getByPlaceholderText('Event title')).toBeInTheDocument()
     })
 
+    // jsdom lays nothing out, so what is held is the structure the pinning rests on: the title sits in the
+    // pinned header and the action row outside the scrolling body, with the rest of the form inside it.
+    // The action row once sat inside the body, so Save scrolled away with the form.
+    it('pins the title above the scrolling body and the actions below it', async () => {
+        renderCalendar()
+        fireEvent.click(screen.getByRole('button', {name: 'New event'}))
+        const title = await screen.findByPlaceholderText('Event title')
+        expect(title.closest('.event-form-header')).not.toBeNull()
+        expect(title.closest('.modal-body')).toBeNull()
+        expect(screen.getByRole('button', {name: 'Add event'}).closest('.modal-body')).toBeNull()
+        expect(screen.getByPlaceholderText('Location').closest('.modal-body')).not.toBeNull()
+    })
+
     it('creates an event, saves it and refetches', async () => {
         const {onChanged} = renderCalendar()
         fireEvent.click(screen.getByRole('button', {name: 'New event'}))
