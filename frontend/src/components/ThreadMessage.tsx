@@ -79,6 +79,9 @@ export function ThreadMessage({entry, position, expanded, onToggle, onOpen, auto
 
     return (
         <li className={'thread-message' + (expanded ? ' expanded' : '') + (message.read ? '' : ' unread')}>
+            {/* The message's top: its head row plus, once open, who it went to. It holds at the top of the
+                thread while this message's body scrolls beneath it, until the next message's top arrives. */}
+            <div className="thread-message-top">
             <div className="thread-message-head">
                 <button
                     type="button"
@@ -100,14 +103,15 @@ export function ThreadMessage({entry, position, expanded, onToggle, onOpen, auto
                     Open
                 </button>
             </div>
+            {expanded && message.to.length > 0 && (
+                <div className="thread-recipients">
+                    <span className="reader-label">To</span>
+                    <span>{formatAddressList(message.to)}</span>
+                </div>
+            )}
+            </div>
             {expanded ? (
                 <div className="thread-message-body">
-                    {message.to.length > 0 && (
-                        <div className="thread-recipients">
-                            <span className="reader-label">To</span>
-                            <span>{formatAddressList(message.to)}</span>
-                        </div>
-                    )}
                     <MessageBodyView
                         messageId={message.id}
                         body={body}

@@ -140,6 +140,21 @@ describe('ThreadView', () => {
         expect(screen.getByText(/Gathering the conversation/)).toBeTruthy()
     })
 
+    // jsdom lays nothing out, so the stickiness itself cannot be measured here; what can be pinned is the
+    // structure it depends on: an open message's head and its To line share the pinned top, while the
+    // body that scrolls beneath them sits outside it.
+    it('keeps an open message\'s head and recipients in its pinned top, clear of the body', async () => {
+        const {container} = renderView()
+        await waitFor(() => expect(screen.getByText('3 messages')).toBeTruthy())
+        // m2 is the reply in Sent, the one message of the fixture with a recipient to show.
+        fireEvent.click(screen.getAllByRole('button', {expanded: false})[1])
+        await waitFor(() => expect(container.querySelector('.thread-recipients')).not.toBeNull())
+        const open = container.querySelector('.thread-recipients')!.closest('.thread-message')!
+        expect(open.querySelector('.thread-message-head')!.closest('.thread-message-top')).not.toBeNull()
+        expect(open.querySelector('.thread-recipients')!.closest('.thread-message-top')).not.toBeNull()
+        expect(open.querySelector('.thread-message-body')!.closest('.thread-message-top')).toBeNull()
+    })
+
     it('survives a body that fails to load', async () => {
         apiSpies.messageBody.mockRejectedValue(new Error('gone'))
         renderView()
