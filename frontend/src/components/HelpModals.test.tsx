@@ -44,6 +44,17 @@ describe('AboutModal', () => {
         render(<AboutModal about={ABOUT} onClose={vi.fn()}/>)
         expect(screen.getByText('React').closest('.modal-body')).not.toBeNull()
     })
+
+    // The icon, name and tagline say what the dialog is about, so they are pinned above the body rather
+    // than reading away with the credits.
+    it('pins the icon, name and tagline above the scrolling body', () => {
+        render(<AboutModal about={ABOUT} onClose={vi.fn()}/>)
+        for (const element of [screen.getByAltText('PigeonPost'), screen.getByText('PigeonPost'), screen.getByText('A calm mail client')]) {
+            expect(element.closest('.about-identity')).not.toBeNull()
+            expect(element.closest('.modal-body')).toBeNull()
+        }
+        expect(screen.getByText('0.0.0-test').closest('.modal-body')).not.toBeNull()
+    })
 })
 
 describe('LicenceModal', () => {

@@ -27,10 +27,13 @@ export function AboutModal({about, onClose}: AboutModalProps) {
                 onClick={(e) => e.stopPropagation()}
             >
                 <ModalClose onClose={onClose}/>
-                <div className="modal-body" ref={autoScroll}>
+                {/* What the dialog is about stays pinned above the body while the credits read past. */}
+                <div className="about-identity">
                     <img className="about-icon" src={icon} alt="PigeonPost"/>
                     <h2 className="about-name">{about.name}</h2>
                     <p className="about-tagline">{about.tagline}</p>
+                </div>
+                <div className="modal-body" ref={autoScroll}>
                     <div className="about-lines">
                         <div><span className="about-label">Version</span>{about.version}</div>
                         <div><span className="about-label">Author</span>{about.author}</div>
