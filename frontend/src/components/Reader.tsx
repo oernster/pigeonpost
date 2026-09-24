@@ -109,9 +109,9 @@ export function Reader({message, onToggleRead, isDraft, onEditDraft, onReply, on
                     }}
                 />
             )}
-            {/* Everything that reads as the message scrolls together inside this region; the pinned base
-                below it stays put. */}
-            <div className="reader-scroll">
+            {/* The pinned top: the tabs and the message header stay in place while the email scrolls
+                beneath them, so the sender, subject and toolbar are on screen however far down you read. */}
+            <div className="reader-top">
             {tabStrip}
             <div className="reader-header">
                 <ReaderToolbar
@@ -179,6 +179,10 @@ export function Reader({message, onToggleRead, isDraft, onEditDraft, onReply, on
                     onOpen={onOpenConversationEntry}
                 />
             </div>
+            </div>
+            {/* The message body scrolls alone inside this region, between the pinned top and the pinned
+                base. */}
+            <div className="reader-scroll">
             <div
                 ref={bodyRef}
                 className="reader-body"

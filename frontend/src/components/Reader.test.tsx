@@ -331,12 +331,14 @@ describe('Reader: the pinned base', () => {
         expect(attachments.closest('.reader-scroll')).toBeNull()
     })
 
-    it('scrolls the message itself, header and body together', () => {
+    it('scrolls the body alone, with the header pinned above it', () => {
         const {container} = withAttachments(
             {index: 0, filename: 'report.pdf', contentType: 'application/pdf', size: 2048},
         )
         expect(container.querySelector('.reader-body')!.closest('.reader-scroll')).not.toBeNull()
-        expect(container.querySelector('.reader-header')!.closest('.reader-scroll')).not.toBeNull()
+        const header = container.querySelector('.reader-header')!
+        expect(header.closest('.reader-top')).not.toBeNull()
+        expect(header.closest('.reader-scroll')).toBeNull()
     })
 
     it('renders no base at all for a message with nothing to put in it', () => {

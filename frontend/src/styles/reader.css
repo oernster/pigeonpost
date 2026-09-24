@@ -6,6 +6,18 @@
     display: flex;
     flex-direction: column;
     overflow: hidden;
+    /* The most either pinned edge (the header above, the foot below) may take of the pane before its own
+       contents scroll, so neither can squeeze the email itself off the screen. */
+    --reader-pinned-max: 40%;
+}
+
+/* The pinned top holds the tabs and the message header, so who sent it, what it is about and the toolbar
+   stay on screen while a long email scrolls. A long thread's conversation strip lives in the header, so
+   past its share of the pane the top scrolls on its own rather than crowding out the body. */
+.reader-top {
+    flex: none;
+    max-height: var(--reader-pinned-max);
+    overflow-y: auto;
 }
 
 .reader-scroll {
@@ -16,10 +28,10 @@
 
 /* The pinned base takes no more than its share of the pane: past that its own contents scroll, so a
    message carrying twenty attachments cannot squeeze the email itself off the screen. It sits on the
-   pane background rather than floating, and each block inside it keeps its own top border. */
+   pane background rather than floating; each block inside it keeps its own top border. */
 .reader-footer {
     flex: none;
-    max-height: 40%;
+    max-height: var(--reader-pinned-max);
     overflow-y: auto;
     background-color: var(--bg);
 }
