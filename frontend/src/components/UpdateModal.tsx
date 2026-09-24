@@ -29,10 +29,11 @@ export function UpdateModal({status, onClose, onDownload, onSkip}: UpdateModalPr
                 onClick={(e) => e.stopPropagation()}
             >
                 <ModalClose onClose={onClose}/>
+                {/* The heading sits above the body as every dialog's title does, rather than inside it. */}
+                <h2 className="modal-title">{status.updateAvailable ? 'Update available' : 'Check for updates'}</h2>
                 {status.updateAvailable ? (
                     <>
                         <div className="modal-body">
-                            <h2>Update available</h2>
                             <p>PigeonPost {status.latest} is available. You are running {status.current}.</p>
                         </div>
                         <div className="modal-actions">
@@ -58,7 +59,6 @@ export function UpdateModal({status, onClose, onDownload, onSkip}: UpdateModalPr
                 ) : (
                     <>
                         <div className="modal-body">
-                            <h2>Check for updates</h2>
                             <p>
                                 {status.latest
                                     ? 'You are running the latest version.'

@@ -96,4 +96,17 @@ describe('UpdateModal', () => {
         )
         expect(screen.getByText(/could not reach GitHub/)).toBeTruthy()
     })
+
+    // Like every other dialog, the heading is the shared title above the body rather than part of it.
+    it('titles both outcomes above the body', () => {
+        const {rerender} = render(<UpdateModal status={status()} onClose={noop} onDownload={noop} onSkip={noop}/>)
+        let title = screen.getByRole('heading', {name: 'Update available'})
+        expect(title.classList.contains('modal-title')).toBe(true)
+        expect(title.closest('.modal-body')).toBeNull()
+
+        rerender(<UpdateModal status={status({updateAvailable: false})} onClose={noop} onDownload={noop} onSkip={noop}/>)
+        title = screen.getByRole('heading', {name: 'Check for updates'})
+        expect(title.classList.contains('modal-title')).toBe(true)
+        expect(title.closest('.modal-body')).toBeNull()
+    })
 })
