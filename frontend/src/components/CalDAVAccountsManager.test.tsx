@@ -3,9 +3,10 @@
 // test drives the DOM and asserts which injected callback fired. It pins the add / sync / remove flows and the
 // empty state.
 import {afterEach, describe, expect, it, vi} from 'vitest'
-import {cleanup, fireEvent, render, screen, within} from '@testing-library/react'
+import {act, cleanup, fireEvent, render, screen, within} from '@testing-library/react'
 import {useState, type ComponentProps} from 'react'
 import {CalDAVAccountsManager} from './CalDAVAccountsManager'
+import {DISMISS_ARM_MS} from './useBackdropDismiss'
 import type {CalDAVAccount} from '../api'
 import {emptyCalDAVAccountForm} from '../caldavAccount'
 
@@ -146,6 +147,26 @@ describe('CalDAVAccountsManager', () => {
         fireEvent.keyDown(document, {key: 'Escape'})
         expect(props.cancelAdd).toHaveBeenCalledOnce()
         expect(props.onClose).not.toHaveBeenCalled()
+    })
+
+    // The calendar's nested dialogs are deliberately not dismissed by a backdrop click, so typed details are
+    // not dropped by a stray click beside the form. A backdrop only arms after DISMISS_ARM_MS, so the clock
+    // is run to it first; otherwise the click would be ignored whatever the rule and the test would pass for
+    // the wrong reason.
+    it('keeps the add form open on a click beside it', () => {
+        vi.useFakeTimers()
+        try {
+            const {props} = renderManager({adding: true})
+            act(() => {
+                vi.advanceTimersByTime(DISMISS_ARM_MS)
+            })
+            const backdrop = screen.getByRole('dialog', {name: 'Add remote calendar'}).parentElement!
+            fireEvent.mouseDown(backdrop)
+            fireEvent.click(backdrop)
+            expect(props.cancelAdd).not.toHaveBeenCalled()
+        } finally {
+            vi.useRealTimers()
+        }
     })
 
     it('shows an add error in the add dialog, beside its actions', () => {

@@ -5,7 +5,7 @@ import type {MouseEvent} from 'react'
 // second click of a double-click (or any rapid click used to open the dialog) from landing on the
 // just-rendered backdrop and closing the dialog before it is usable, which showed up as a dialog that
 // flashed open and vanished.
-const DISMISS_ARM_MS = 400
+export const DISMISS_ARM_MS = 400
 
 // escapeStack is a LIFO stack of the open dialogs' close callbacks (the newest sits last). Only the
 // topmost dialog reacts to Escape, so when dialogs are stacked (a confirm over the calendar, say) Escape
@@ -54,7 +54,7 @@ export function useEscapeToClose(onClose: () => void, active: boolean = true) {
 }
 
 // useBackdropDismiss returns handlers for a modal backdrop that close the dialog only when a full press
-// and release both happen on the backdrop itself (not on the dialog content, and not a drag that started
+// and release both happen on the backdrop itself (not on the dialog content; not a drag that started
 // inside it) and only after a short arming delay. It also closes the dialog on Escape and returns focus to
 // whatever opened it once it closes, so every dialog using it meets the keyboard-navigation contract.
 // Spread the mouse handlers onto the backdrop element:

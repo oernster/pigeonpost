@@ -169,6 +169,17 @@ describe('CalendarModal: event form', () => {
         expect(screen.getByPlaceholderText('Location').closest('.modal-body')).not.toBeNull()
     })
 
+    // Escape closes one dialog layer at a time: the event form over the calendar, never the calendar under
+    // it, which would drop the edit and the whole calendar with it.
+    it('closes only the event form on Escape', async () => {
+        const {onClose} = renderCalendar()
+        fireEvent.click(screen.getByRole('button', {name: 'New event'}))
+        expect(await screen.findByRole('dialog', {name: 'New event'})).toBeInTheDocument()
+        fireEvent.keyDown(document, {key: 'Escape'})
+        expect(screen.queryByRole('dialog', {name: 'New event'})).toBeNull()
+        expect(onClose).not.toHaveBeenCalled()
+    })
+
     it('creates an event, saves it and refetches', async () => {
         const {onChanged} = renderCalendar()
         fireEvent.click(screen.getByRole('button', {name: 'New event'}))
@@ -395,6 +406,27 @@ describe('CalendarModal: remote calendars', () => {
         await waitFor(() =>
             expect(apiSpies.addCalDAVAccount).toHaveBeenCalledWith('Work', 'https://d.example.com', 'u@example.com', 'secret'))
         await waitFor(() => expect(apiSpies.listCalDAVAccounts).toHaveBeenCalledTimes(2))
+    })
+
+    // As with the event form: Escape closes the manager layer, never the calendar under it.
+    it('closes only the manager on Escape', async () => {
+        const {onClose} = renderCalendar()
+        await openManager()
+        fireEvent.keyDown(document, {key: 'Escape'})
+        expect(screen.queryByRole('dialog', {name: 'Remote calendars'})).toBeNull()
+        expect(onClose).not.toHaveBeenCalled()
+    })
+
+    // Three layers deep, Escape still peels one: the add form goes, the manager and the calendar stay.
+    it('closes only the add form on Escape, leaving the manager open', async () => {
+        const {onClose} = renderCalendar()
+        const mgr = await openManager()
+        fireEvent.click(within(mgr).getByRole('button', {name: 'Add account'}))
+        expect(screen.getByRole('dialog', {name: 'Add remote calendar'})).toBeInTheDocument()
+        fireEvent.keyDown(document, {key: 'Escape'})
+        expect(screen.queryByRole('dialog', {name: 'Add remote calendar'})).toBeNull()
+        expect(screen.getByRole('dialog', {name: 'Remote calendars'})).toBeInTheDocument()
+        expect(onClose).not.toHaveBeenCalled()
     })
 
     it('removes an account after confirming', async () => {
