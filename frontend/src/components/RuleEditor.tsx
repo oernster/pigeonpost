@@ -35,7 +35,25 @@ function replaceAt<T>(list: T[], index: number, value: T): T[] {
     return list.map((item, i) => (i === index ? value : item))
 }
 
-// RuleEditor builds one rule: its name, how its conditions combine, the conditions themselves and the
+// RuleNameField is the rule's name. It is rendered apart from RuleEditor so the dialog can pin it above
+// the scrolling clauses, keeping the rule being edited named on screen however long it grows.
+export function RuleNameField({rule, onChange}: Pick<RuleEditorProps, 'rule' | 'onChange'>) {
+    return (
+        <section className="rule-section">
+            <label className="rule-label" htmlFor="rule-name">Rule name</label>
+            <input
+                id="rule-name"
+                className="tag-name-input rule-name-input"
+                placeholder="Give the rule a name you will recognise"
+                value={rule.name}
+                autoFocus
+                onChange={(e) => onChange({...rule, name: e.target.value} as Rule)}
+            />
+        </section>
+    )
+}
+
+// RuleEditor builds one rule: how its conditions combine, the conditions themselves and the
 // actions taken when they match. It holds no state of its own; the modal owns the draft and this
 // renders it, so there is one place a rule can be in an inconsistent state.
 //
@@ -99,18 +117,6 @@ export function RuleEditor({rule, folders, accounts, onChange}: RuleEditorProps)
 
     return (
         <div className="rule-editor">
-            <section className="rule-section">
-                <label className="rule-label" htmlFor="rule-name">Rule name</label>
-                <input
-                    id="rule-name"
-                    className="tag-name-input rule-name-input"
-                    placeholder="Give the rule a name you will recognise"
-                    value={rule.name}
-                    autoFocus
-                    onChange={(e) => onChange({...rule, name: e.target.value} as Rule)}
-                />
-            </section>
-
             <section className="rule-section">
                 <div className="rule-section-head">
                     <h3 className="rule-section-title">Applies to</h3>

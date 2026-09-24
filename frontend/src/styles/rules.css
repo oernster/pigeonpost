@@ -52,6 +52,12 @@
     width: 100%;
 }
 
+/* The rule name is pinned above the scrolling editor. Its lower margin plus the editor's 4px upper one
+   keeps the same 20px between it and the first clause that the editor puts between its own sections. */
+.rule-name-header {
+    margin-bottom: 16px;
+}
+
 /* One condition or action. The card carries the row's own border so a rule with several of each stays
    scannable: the eye counts cards, not select boxes. */
 .rule-card {

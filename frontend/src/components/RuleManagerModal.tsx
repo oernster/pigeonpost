@@ -3,7 +3,7 @@ import {useBackdropDismiss} from './useBackdropDismiss'
 import {api, Account, Folder, Rule, RuleInput} from '../api'
 import {ModalClose} from './ModalClose'
 import {ConfirmDialog} from './ConfirmDialog'
-import {RuleEditor, FolderChoice, AccountChoice} from './RuleEditor'
+import {RuleEditor, RuleNameField, FolderChoice, AccountChoice} from './RuleEditor'
 import {RuleBackfillDialogs, useRuleBackfill} from './RuleBackfill'
 import {RuleTransferDialogs, useRuleTransfer} from './RuleTransfer'
 import {destroys, emptyRule, isDestructive, ruleIsComplete, ruleSummary} from './ruleLabels'
@@ -135,8 +135,12 @@ export function RuleManagerModal({accounts, rules, onChanged, onClose}: RuleMana
                     <div className="modal rule-modal pinned-actions" role="dialog" aria-label="Edit filter rule" onClick={(e) => e.stopPropagation()}>
                         <ModalClose onClose={() => setDraft(null)}/>
                         <h2 className="modal-title">{draft.id === '' ? 'New rule' : 'Edit rule'}</h2>
+                        {/* The name is pinned above the scrolling clauses and the error beside the actions,
+                            so neither scrolls away on a rule with many conditions. */}
+                        <div className="rule-name-header">
+                            <RuleNameField rule={draft} onChange={setDraft}/>
+                        </div>
                         <div className="modal-body">
-                            {error && <div className="compose-error">{error}</div>}
                             <RuleEditor
                                 rule={draft}
                                 folders={folderChoices}
@@ -144,6 +148,7 @@ export function RuleManagerModal({accounts, rules, onChanged, onClose}: RuleMana
                                 onChange={setDraft}
                             />
                         </div>
+                        {error && <div className="compose-error">{error}</div>}
                         <div className="modal-actions spread">
                             <button className="btn" onClick={() => setDraft(null)}>Cancel</button>
                             <button
@@ -189,7 +194,6 @@ export function RuleManagerModal({accounts, rules, onChanged, onClose}: RuleMana
                             already in your mailbox until you ask them to: Now applies one rule to what is
                             already stored, in every folder of the accounts it covers.
                         </p>
-                        {error && <div className="compose-error">{error}</div>}
                         {rules.length === 0 ? (
                             <p className="empty-body">No rules yet.</p>
                         ) : (
@@ -267,6 +271,7 @@ export function RuleManagerModal({accounts, rules, onChanged, onClose}: RuleMana
                             </ul>
                         )}
                     </div>
+                    {error && <div className="compose-error">{error}</div>}
                     <div className="modal-actions spread">
                         <button className="btn" onClick={onClose}>Close</button>
                         <div className="rule-file-actions">

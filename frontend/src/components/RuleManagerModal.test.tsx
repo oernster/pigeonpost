@@ -407,6 +407,19 @@ describe('RuleManagerModal', () => {
         expect(screen.queryByLabelText('Remove action 1')).toBeNull()
     })
 
+    // jsdom lays nothing out, so what is held is the structure the pinning rests on: the rule's name sits
+    // above the scrolling body, the clauses inside it and Save outside it. Inside the body, the name
+    // scrolled away on a rule with many conditions.
+    it('pins the rule name above the scrolling clauses', async () => {
+        renderModal([buildRule()])
+        fireEvent.click(screen.getByLabelText('Edit Newsletters'))
+        const name = screen.getByLabelText('Rule name')
+        expect(name.closest('.rule-name-header')).not.toBeNull()
+        expect(name.closest('.modal-body')).toBeNull()
+        expect(screen.getByLabelText('Match text 1').closest('.modal-body')).not.toBeNull()
+        expect(screen.getByRole('button', {name: 'Save rule'}).closest('.modal-body')).toBeNull()
+    })
+
     it('removes the condition the cross belongs to', async () => {
         renderModal([buildRule()])
         fireEvent.click(screen.getByLabelText('Edit Newsletters'))
