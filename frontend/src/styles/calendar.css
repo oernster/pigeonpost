@@ -17,12 +17,6 @@
     text-align: left;
 }
 
-/* The pinned title and calendar share the form's row styling. Margins do not collapse between flex
-   siblings, so without this the header's lower margin and the form's upper one would stack. */
-.modal.event-form .event-form-header {
-    margin-bottom: 0;
-}
-
 .cal-toolbar {
     align-items: center;
     gap: 8px;

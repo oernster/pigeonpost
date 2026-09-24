@@ -1,79 +1,16 @@
 import {useEffect, useState} from 'react'
-import {api, Contact, ContactInput, ContactEmailInput, ContactPhoneInput, ContactAddressInput, ContactGroup, ContactGroupInput, ContactImportResult} from '../api'
+import {api, Contact, ContactGroup, ContactGroupInput, ContactImportResult} from '../api'
 import {useBackdropDismiss} from './useBackdropDismiss'
 import {ModalClose} from './ModalClose'
 import {ConfirmDialog} from './ConfirmDialog'
 import {AUTO_COLLECT_KEY, autoCollectStored, shouldAutoCollect} from '../autoCollect'
-import {DateField} from './DateField'
+import {ContactFormModal, type ContactForm, contactInputOf, emptyForm, formFor} from './ContactFormModal'
+import {ContactGroupFormModal, type GroupForm} from './ContactGroupFormModal'
 
 interface ContactsModalProps {
     contacts: Contact[]
     onChanged: () => void
     onClose: () => void
-}
-
-interface ContactForm {
-    id: string
-    uid: string
-    formattedName: string
-    givenName: string
-    familyName: string
-    organization: string
-    title: string
-    note: string
-    birthday: string
-    emails: ContactEmailInput[]
-    phones: ContactPhoneInput[]
-    addresses: ContactAddressInput[]
-}
-
-const emptyForm: ContactForm = {
-    id: '', uid: '', formattedName: '', givenName: '', familyName: '',
-    organization: '', title: '', note: '', birthday: '', emails: [], phones: [], addresses: [],
-}
-
-// GroupForm backs the group editor: a name and the ids of the contacts in the group (a mailing list).
-interface GroupForm {
-    id: string
-    name: string
-    members: string[]
-}
-
-// displayNameOf derives the vCard formatted name (FN), which is required for export and used as the list
-// title, from the parts the user fills. There is no separate full-name field: given and family name make
-// it, falling back to the organisation, then the first email address.
-function displayNameOf(f: ContactForm): string {
-    const person = [f.givenName, f.familyName].map((s) => s.trim()).filter(Boolean).join(' ')
-    if (person) return person
-    if (f.organization.trim() !== '') return f.organization.trim()
-    const firstEmail = f.emails.find((e) => e.address.trim() !== '')
-    return firstEmail ? firstEmail.address.trim() : ''
-}
-
-function formFor(c: Contact): ContactForm {
-    return {
-        id: c.id,
-        uid: c.uid,
-        formattedName: c.formattedName,
-        givenName: c.givenName,
-        familyName: c.familyName,
-        organization: c.organization,
-        title: c.title,
-        note: c.note,
-        birthday: c.birthday,
-        emails: (c.emails ?? []).map((e) => ({label: e.label, address: e.address})),
-        phones: (c.phones ?? []).map((p) => ({label: p.label, number: p.number})),
-        addresses: (c.addresses ?? []).map((a) => ({
-            label: a.label, street: a.street, locality: a.locality,
-            region: a.region, postalCode: a.postalCode, country: a.country,
-        })),
-    }
-}
-
-// addressIsEmpty is true when every component of an address row is blank after trimming, so such a row
-// is dropped on save rather than sent to the backend (which would reject it).
-function addressIsEmpty(a: ContactAddressInput): boolean {
-    return [a.street, a.locality, a.region, a.postalCode, a.country].every((s) => s.trim() === '')
 }
 
 // plural appends an s to a noun unless there is exactly one of them.
@@ -109,9 +46,6 @@ export function ContactsModal({contacts, onChanged, onClose}: ContactsModalProps
     const [error, setError] = useState('')
     const [status, setStatus] = useState('')
     const [busy, setBusy] = useState(false)
-
-    const set = <K extends keyof ContactForm>(key: K, value: ContactForm[K]) =>
-        setForm((f) => (f ? {...f, [key]: value} : f))
 
     // autoCollect mirrors the persisted add-recipients-to-contacts setting (on by default); the
     // composer reads the same key at send time.
@@ -196,14 +130,7 @@ export function ContactsModal({contacts, onChanged, onClose}: ContactsModalProps
         setBusy(true)
         setError('')
         try {
-            const req: ContactInput = {
-                ...form,
-                formattedName: displayNameOf(form),
-                emails: form.emails.filter((e) => e.address.trim() !== ''),
-                phones: form.phones.filter((p) => p.number.trim() !== ''),
-                addresses: form.addresses.filter((a) => !addressIsEmpty(a)),
-            }
-            await api.saveContact(req)
+            await api.saveContact(contactInputOf(form))
             setForm(null)
             setStatus('')
             onChanged()
@@ -269,7 +196,8 @@ export function ContactsModal({contacts, onChanged, onClose}: ContactsModalProps
                            }}/>
                     <span>Add people you email to contacts automatically</span>
                 </label>
-                {error && <div className="compose-error">{error}</div>}
+                {/* An error while an editor is open is shown in that editor, which sits over this one. */}
+                {error && !form && !groupForm && <div className="compose-error">{error}</div>}
                 {status && <div className="setup-hint">{status}</div>}
 
                 <div className="modal-actions">
@@ -335,135 +263,39 @@ export function ContactsModal({contacts, onChanged, onClose}: ContactsModalProps
                         ))}
                     </ul>
                 )}
-
-                {form && (
-                    <div className="rule-form">
-                        <div className="rule-form-row">
-                            <input className="tag-name-input" placeholder="First name" value={form.givenName} autoFocus
-                                   onChange={(e) => set('givenName', e.target.value)}/>
-                            <input className="tag-name-input" placeholder="Last name" value={form.familyName}
-                                   onChange={(e) => set('familyName', e.target.value)}/>
-                        </div>
-                        <div className="rule-form-row">
-                            <input className="tag-name-input" placeholder="Organisation" value={form.organization}
-                                   onChange={(e) => set('organization', e.target.value)}/>
-                            <input className="tag-name-input" placeholder="Job title" value={form.title}
-                                   onChange={(e) => set('title', e.target.value)}/>
-                        </div>
-                        <div className="rule-form-row">
-                            <DateField kind="date" ariaLabel="Birthday" pickerTitle="Birthday" compact
-                                       value={form.birthday} onChange={(v) => set('birthday', v)}/>
-                        </div>
-
-                        {form.emails.map((em, i) => (
-                            <div className="rule-form-row" key={`email-${i}`}>
-                                <input className="tag-name-input" placeholder="label (e.g. work)" value={em.label}
-                                       onChange={(e) => set('emails', form.emails.map((x, j) => j === i ? {...x, label: e.target.value} : x))}/>
-                                <input className="tag-name-input" placeholder="email address" value={em.address}
-                                       onChange={(e) => set('emails', form.emails.map((x, j) => j === i ? {...x, address: e.target.value} : x))}/>
-                                <button className="account-action delete" aria-label="Remove email" title="Remove email"
-                                        onClick={() => set('emails', form.emails.filter((_, j) => j !== i))}>&times;</button>
-                            </div>
-                        ))}
-                        {form.phones.map((ph, i) => (
-                            <div className="rule-form-row" key={`phone-${i}`}>
-                                <input className="tag-name-input" placeholder="label (e.g. mobile)" value={ph.label}
-                                       onChange={(e) => set('phones', form.phones.map((x, j) => j === i ? {...x, label: e.target.value} : x))}/>
-                                <input className="tag-name-input" placeholder="phone number" value={ph.number}
-                                       onChange={(e) => set('phones', form.phones.map((x, j) => j === i ? {...x, number: e.target.value} : x))}/>
-                                <button className="account-action delete" aria-label="Remove phone" title="Remove phone"
-                                        onClick={() => set('phones', form.phones.filter((_, j) => j !== i))}>&times;</button>
-                            </div>
-                        ))}
-                        {form.addresses.map((ad, i) => (
-                            <div className="contact-address" key={`address-${i}`}>
-                                <div className="contact-address-grid">
-                                    <input className="tag-name-input" placeholder="label (e.g. home)" value={ad.label}
-                                           onChange={(e) => set('addresses', form.addresses.map((x, j) => j === i ? {...x, label: e.target.value} : x))}/>
-                                    <input className="tag-name-input" placeholder="street" value={ad.street}
-                                           onChange={(e) => set('addresses', form.addresses.map((x, j) => j === i ? {...x, street: e.target.value} : x))}/>
-                                    <input className="tag-name-input" placeholder="city" value={ad.locality}
-                                           onChange={(e) => set('addresses', form.addresses.map((x, j) => j === i ? {...x, locality: e.target.value} : x))}/>
-                                    <input className="tag-name-input" placeholder="region" value={ad.region}
-                                           onChange={(e) => set('addresses', form.addresses.map((x, j) => j === i ? {...x, region: e.target.value} : x))}/>
-                                    <input className="tag-name-input" placeholder="postal code" value={ad.postalCode}
-                                           onChange={(e) => set('addresses', form.addresses.map((x, j) => j === i ? {...x, postalCode: e.target.value} : x))}/>
-                                    <input className="tag-name-input" placeholder="country" value={ad.country}
-                                           onChange={(e) => set('addresses', form.addresses.map((x, j) => j === i ? {...x, country: e.target.value} : x))}/>
-                                </div>
-                                <button className="account-action delete" aria-label="Remove address" title="Remove address"
-                                        onClick={() => set('addresses', form.addresses.filter((_, j) => j !== i))}>&times;</button>
-                            </div>
-                        ))}
-                        <div className="rule-form-row">
-                            <button className="btn" onClick={() => set('emails', [...form.emails, {label: '', address: ''}])}>
-                                Add email
-                            </button>
-                            <button className="btn" onClick={() => set('phones', [...form.phones, {label: '', number: ''}])}>
-                                Add phone
-                            </button>
-                            <button className="btn" onClick={() => set('addresses', [...form.addresses, {label: '', street: '', locality: '', region: '', postalCode: '', country: ''}])}>
-                                Add address
-                            </button>
-                        </div>
-                        <textarea className="tag-name-input" placeholder="Notes" value={form.note} rows={3}
-                                  onChange={(e) => set('note', e.target.value)}/>
-                        <div className="modal-actions spread">
-                            <button className="btn" onClick={() => setForm(null)}>Cancel</button>
-                            <div className="action-group">
-                                {form.id !== '' && (
-                                    <button className="btn danger"
-                                            onClick={() => {
-                                                const open = contacts.find((c) => c.id === form.id)
-                                                if (open) setPendingDelete(open)
-                                            }}>
-                                        Delete contact
-                                    </button>
-                                )}
-                                <button className="btn primary" onClick={() => void save()}
-                                        disabled={busy || displayNameOf(form) === ''}>
-                                    {busy ? 'Saving…' : (form.id ? 'Save changes' : 'Add contact')}
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                )}
-
-                {groupForm && (
-                    <div className="rule-form">
-                        <input className="tag-name-input" placeholder="Group name" value={groupForm.name} autoFocus
-                               onChange={(e) => setGroupForm((gf) => gf ? {...gf, name: e.target.value} : gf)}/>
-                        <p className="setup-hint">Choose the contacts in this group.</p>
-                        {contacts.length === 0 ? (
-                            <p className="empty-body">Add contacts first, then group them.</p>
-                        ) : (
-                            <div className="cg-members">
-                                {contacts.map((c) => (
-                                    <label key={c.id} className="cg-member">
-                                        <input type="checkbox" checked={groupForm.members.includes(c.id)}
-                                               onChange={() => toggleMember(c.id)}/>
-                                        <span>{c.formattedName}</span>
-                                    </label>
-                                ))}
-                            </div>
-                        )}
-                        <div className="modal-actions spread">
-                            <button className="btn" onClick={() => setGroupForm(null)}>Cancel</button>
-                            <button className="btn primary" onClick={() => void saveGroup()}
-                                    disabled={busy || groupForm.name.trim() === ''}>
-                                {busy ? 'Saving…' : (groupForm.id ? 'Save group' : 'Create group')}
-                            </button>
-                        </div>
-                    </div>
-                )}
-
-                {!form && !groupForm && (
-                    <div className="modal-actions spread">
-                        <button className="btn" onClick={onClose}>Close</button>
-                    </div>
-                )}
+                </div>
+                <div className="modal-actions spread">
+                    <button className="btn" onClick={onClose}>Close</button>
                 </div>
             </div>
+
+            {form && (
+                <ContactFormModal
+                    form={form}
+                    setForm={setForm}
+                    busy={busy}
+                    error={error}
+                    onSave={() => void save()}
+                    onDelete={() => {
+                        const open = contacts.find((c) => c.id === form.id)
+                        if (open) setPendingDelete(open)
+                    }}
+                    onCancel={() => setForm(null)}
+                />
+            )}
+
+            {groupForm && (
+                <ContactGroupFormModal
+                    form={groupForm}
+                    contacts={contacts}
+                    busy={busy}
+                    error={error}
+                    onNameChange={(name) => setGroupForm((gf) => gf ? {...gf, name} : gf)}
+                    onToggleMember={toggleMember}
+                    onSave={() => void saveGroup()}
+                    onCancel={() => setGroupForm(null)}
+                />
+            )}
 
             {pendingDelete && (
                 <ConfirmDialog

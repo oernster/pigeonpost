@@ -343,7 +343,7 @@ export function EventFormModal({
                      aria-label={form.id ? 'Edit event' : 'New event'} onClick={(e) => e.stopPropagation()}>
                     <ModalClose onClose={() => setForm(null)}/>
                     <h2 className="modal-title">{form.id ? 'Edit event' : 'New event'}</h2>
-                    <div className="rule-form event-form-header">
+                    <div className="rule-form pinned-form-header">
                         <input className="tag-name-input" placeholder="Event title" value={form.summary} autoFocus
                                onChange={(e) => set('summary', e.target.value)}/>
                         {calendars.length > 0 && (

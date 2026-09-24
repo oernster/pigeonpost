@@ -24,7 +24,6 @@ const EXEMPT: Record<string, number> = {
     'src/components/ComposeModal.tsx': 731,
     'src/api.ts': 604,
     'src/components/EventFormModal.tsx': 559,
-    'src/components/ContactsModal.tsx': 491,
     'src/components/FolderTree.tsx': 445,
     'src/hooks/useMenus.ts': 450,
     'src/components/CalendarModal.tsx': 436,

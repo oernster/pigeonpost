@@ -163,7 +163,7 @@ describe('CalendarModal: event form', () => {
         renderCalendar()
         fireEvent.click(screen.getByRole('button', {name: 'New event'}))
         const title = await screen.findByPlaceholderText('Event title')
-        expect(title.closest('.event-form-header')).not.toBeNull()
+        expect(title.closest('.pinned-form-header')).not.toBeNull()
         expect(title.closest('.modal-body')).toBeNull()
         expect(screen.getByRole('button', {name: 'Add event'}).closest('.modal-body')).toBeNull()
         expect(screen.getByPlaceholderText('Location').closest('.modal-body')).not.toBeNull()

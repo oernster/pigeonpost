@@ -104,6 +104,47 @@ describe('ContactsModal: layout and delete placement', () => {
     })
 })
 
+// The editors are dialogs stacked on the address book, each with its leading field pinned above a
+// scrolling body and its actions below it. jsdom lays nothing out, so what is held is the structure the
+// pinning rests on. Inline, the editor opened under the whole card grid with Save inside the scroller.
+describe('ContactsModal: stacked editors', () => {
+    it('opens a contact in its own dialog with the name pinned and Save outside the body', () => {
+        renderContacts()
+        fireEvent.click(screen.getByRole('button', {name: 'Edit Jane Doe'}))
+        const editor = screen.getByRole('dialog', {name: 'Edit contact'})
+        const first = screen.getByDisplayValue('Jane')
+        expect(editor.contains(first)).toBe(true)
+        expect(first.closest('.pinned-form-header')).not.toBeNull()
+        expect(first.closest('.modal-body')).toBeNull()
+        expect(screen.getByPlaceholderText('Organisation').closest('.modal-body')).not.toBeNull()
+        expect(screen.getByRole('button', {name: 'Save changes'}).closest('.modal-body')).toBeNull()
+    })
+
+    it('closes only the editor on Escape, leaving the address book open', () => {
+        renderContacts()
+        fireEvent.click(screen.getByRole('button', {name: 'Edit Jane Doe'}))
+        expect(screen.getByRole('dialog', {name: 'Edit contact'})).toBeInTheDocument()
+        fireEvent.keyDown(document, {key: 'Escape'})
+        expect(screen.queryByRole('dialog', {name: 'Edit contact'})).toBeNull()
+        expect(screen.getByRole('dialog', {name: 'Contacts'})).toBeInTheDocument()
+    })
+
+    it('opens the group editor with the name pinned and the members in the body', () => {
+        renderContacts()
+        fireEvent.click(screen.getByRole('button', {name: '+ New group'}))
+        expect(screen.getByRole('dialog', {name: 'New group'})).toBeInTheDocument()
+        expect(screen.getByPlaceholderText('Group name').closest('.pinned-form-header')).not.toBeNull()
+        expect(screen.getByRole('checkbox', {name: 'Jane Doe'}).closest('.modal-body')).not.toBeNull()
+        expect(screen.getByRole('button', {name: 'Create group'}).closest('.modal-body')).toBeNull()
+    })
+
+    it('keeps the address book Close button outside its scrolling body', () => {
+        renderContacts()
+        // By its text: the corner cross is also named Close.
+        expect(screen.getByText('Close', {selector: 'button'}).closest('.modal-body')).toBeNull()
+    })
+})
+
 describe('ContactsModal: the auto-collect toggle', () => {
     it('is on by default and persists turning it off and on', () => {
         renderContacts()

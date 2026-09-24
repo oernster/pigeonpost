@@ -5,6 +5,23 @@
     max-width: none;
 }
 
+/* The contact and group editors are dialogs stacked on the address book. The contact editor takes the
+   compose window's width, room enough for the three-column address grid. */
+.modal.contact-form {
+    max-width: 640px;
+    text-align: left;
+}
+
+.modal.contact-group-form {
+    text-align: left;
+}
+
+/* In the group editor the dialog body is the scroller, so the member list gives up its own height cap
+   rather than scrolling inside it. */
+.modal.contact-group-form .cg-members {
+    max-height: none;
+}
+
 /* The address book as a three-column card grid; each card stays a .list-item so the shared hover
    and text styles apply unchanged. On a narrow window the columns collapse before they crush. */
 .contacts-grid {
@@ -95,7 +112,7 @@
 }
 
 /* Contact-group filter bar: compact chips that filter the address book by group, plus the group
-   management actions. Chips wrap, and the spacer pushes the management actions to the right. */
+   management actions. Chips wrap; the spacer pushes the management actions to the right. */
 .cg-bar {
     display: flex;
     flex-wrap: wrap;
@@ -153,7 +170,7 @@
     background: var(--bg-elev-2);
 }
 
-/* Calendar colour swatch shown on a calendar chip, and the colour picker in the calendar editor. */
+/* Calendar colour swatch shown on a calendar chip; also the colour picker in the calendar editor. */
 .cal-swatch {
     display: inline-block;
     width: 10px;

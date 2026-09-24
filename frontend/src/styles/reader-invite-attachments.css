@@ -209,6 +209,13 @@
     flex: none;
 }
 
+/* A form's leading fields pinned above its body (the event title, a contact's name) keep the form's row
+   styling. Margins do not collapse between flex siblings, so the header drops its lower margin rather
+   than stacking it on the body form's upper one. */
+.modal.pinned-actions > .pinned-form-header {
+    margin-bottom: 0;
+}
+
 /* The licence text is its own scroller (it carries a max-height so a licence does not force a full-height
    dialog). Inside the pinned layout it must also be free to SHRINK, else on a short window the dialog would
    clip its own action row rather than giving the text less room. */
