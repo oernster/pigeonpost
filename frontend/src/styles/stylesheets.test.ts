@@ -159,6 +159,21 @@ describe('the stylesheets', () => {
         expect(block).not.toMatch(/min-width:\s*0;/)
     })
 
+    // The reader's pinned top never scrolls as a block: capped as a whole, a long thread scrolled the
+    // subject and sender out of view inside it. The conversation list is the one part that can grow long,
+    // so it carries the cap and scrolls within it. Nothing here lays anything out, so what is held is the
+    // pair of declarations that decide it.
+    it('keep the reader header whole with only its conversation list scrolling', async () => {
+        const {readFileSync} = await nodeFs()
+        const css = withoutComments(readFileSync(`${STYLESHEET_DIR}/reader.css`, 'utf8'))
+        const top = css.slice(css.indexOf('.reader-top {')).split('}')[0]
+        expect(top).not.toMatch(/max-height/)
+        expect(top).not.toMatch(/overflow/)
+        const list = css.slice(css.indexOf('.reader-top .conversation-list {')).split('}')[0]
+        expect(list).toMatch(/max-height:\s*var\(--conversation-list-max\);/)
+        expect(list).toMatch(/overflow-y:\s*auto;/)
+    })
+
     // The attached-email viewer keeps its subject, its From/To/Date lines and its close button on screen
     // by being a column that never scrolls, with the body the one part that gives way. Measured in a
     // browser at 800 by 400 on the real stylesheets: as a scrolling modal it scrolled 81px and carried the

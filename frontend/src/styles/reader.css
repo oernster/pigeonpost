@@ -6,17 +6,25 @@
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    /* The most either pinned edge (the header above, the foot below) may take of the pane before its own
-       contents scroll, so neither can squeeze the email itself off the screen. */
-    --reader-pinned-max: 40%;
+    /* The tallest a pinned header's conversation list grows before it scrolls within itself. Measured at
+       the 700px minimum window on a thirty-message thread: this leaves three rows of the list showing
+       and 327px of email, where 30vh left the email 201px. */
+    --conversation-list-max: 12vh;
 }
 
 /* The pinned top holds the tabs and the message header, so who sent it, what it is about and the toolbar
-   stay on screen while a long email scrolls. A long thread's conversation strip lives in the header, so
-   past its share of the pane the top scrolls on its own rather than crowding out the body. */
+   stay on screen while a long email scrolls. It takes its natural height and never scrolls itself: capped
+   as a whole, a long thread made the whole block scroll, which could carry the subject and sender out of
+   view inside it. The one part that can grow long is the conversation strip's list, capped below. */
 .reader-top {
     flex: none;
-    max-height: var(--reader-pinned-max);
+}
+
+/* A long thread's list of messages scrolls within its own cap rather than pushing the email down. The cap
+   is tied to the window rather than the pane: a percentage here resolves against the header's own height,
+   which is automatic, so it would cap nothing. */
+.reader-top .conversation-list {
+    max-height: var(--conversation-list-max);
     overflow-y: auto;
 }
 
@@ -31,7 +39,7 @@
    pane background rather than floating; each block inside it keeps its own top border. */
 .reader-footer {
     flex: none;
-    max-height: var(--reader-pinned-max);
+    max-height: 40%;
     overflow-y: auto;
     background-color: var(--bg);
 }
