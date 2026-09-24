@@ -5,6 +5,20 @@
     max-width: 92vw;
 }
 
+/* The viewer is a fixed frame with one scrolling body, never a scrolling modal. A modal scrolls as a
+   whole once its content passes the window, so in a short window the subject, the From/To/Date lines
+   and the close button all scrolled away with the email. As a column that does not scroll, everything
+   above the body keeps its height; the body alone gives way and scrolls. */
+.modal.email-viewer {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.email-viewer > :not(.email-viewer-body) {
+    flex: none;
+}
+
 .email-viewer-headers {
     margin-bottom: 12px;
     font-size: 13px;
@@ -23,6 +37,8 @@
 }
 
 .email-viewer-body {
+    flex: 1 1 auto;
+    min-height: 0;
     max-height: 60vh;
     overflow-y: auto;
     border-top: 1px solid var(--border);

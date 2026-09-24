@@ -158,4 +158,21 @@ describe('the stylesheets', () => {
         expect(block).toMatch(/flex-shrink:\s*0;/)
         expect(block).not.toMatch(/min-width:\s*0;/)
     })
+
+    // The attached-email viewer keeps its subject, its From/To/Date lines and its close button on screen
+    // by being a column that never scrolls, with the body the one part that gives way. Measured in a
+    // browser at 800 by 400 on the real stylesheets: as a scrolling modal it scrolled 81px and carried the
+    // headers and the close button above its top edge; as this column it did not scroll at all while the
+    // body shrank to 146px and scrolled alone. At 800 by 1000 the body held its 60vh either way.
+    it('keep the email viewer a fixed column with only its body scrolling', async () => {
+        const {readFileSync} = await nodeFs()
+        const css = withoutComments(readFileSync(`${STYLESHEET_DIR}/email-viewer.css`, 'utf8'))
+        const frame = css.slice(css.indexOf('.modal.email-viewer {')).split('}')[0]
+        expect(frame).toMatch(/display:\s*flex;/)
+        expect(frame).toMatch(/flex-direction:\s*column;/)
+        expect(frame).toMatch(/overflow:\s*hidden;/)
+        const body = css.slice(css.indexOf('.email-viewer-body {')).split('}')[0]
+        expect(body).toMatch(/min-height:\s*0;/)
+        expect(body).toMatch(/overflow-y:\s*auto;/)
+    })
 })
