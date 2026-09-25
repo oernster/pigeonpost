@@ -388,11 +388,17 @@ body.pane-resizing iframe {
    below the mark: two panes saying the same kind of thing in two places. The scroll region is deliberately
    not made a flex container either: the virtualised list is an absolutely positioned column of a measured
    height and a flex item would be shrunk to the pane, taking the scroll with it. Absolute positioning is
-   safe because the region holds the empty state alone: the list and this box are never rendered together. */
+   safe because the region holds the empty state alone: the list and this box are never rendered together.
+
+   Stretched over the pane, the box lies on top of the search bar and everything else above the scroll
+   region, so it must let the pointer through: without that it swallowed every click on the search box
+   and its clear button whenever a search found nothing, leaving the query impossible to edit or clear.
+   The box only ever holds a line of text, so nothing inside it needs the pointer either. */
 .message-list-scroll > .empty-state {
     position: absolute;
     inset: 0;
     box-sizing: border-box;
+    pointer-events: none;
 }
 
 .selection-bar {

@@ -112,6 +112,18 @@ describe('the stylesheets', () => {
         expect(mark).toMatch(/background-image:\s*url\('\.\.\/assets\/pigeonpost\.png'\);/)
     })
 
+    // The list's empty-state line is stretched over the whole pane to centre on the watermark, so it lies
+    // on top of the search bar. It shipped without a pointer gate and swallowed every click on the search
+    // box and its clear button whenever a search found nothing: the query could be neither edited nor
+    // cleared. jsdom does no hit testing, so the rule itself is what is held.
+    it('let the pointer through the stretched empty-list line', async () => {
+        const {readFileSync} = await nodeFs()
+        const css = withoutComments(readFileSync(`${STYLESHEET_DIR}/base-and-panes.css`, 'utf8'))
+        const empty = css.slice(css.indexOf('.message-list-scroll > .empty-state')).split('}')[0]
+        expect(empty).toMatch(/inset:\s*0;/)
+        expect(empty).toMatch(/pointer-events:\s*none;/)
+    })
+
     // Both panes wear the same mark at the same size, so the size and the opacity are tokens rather than
     // numbers written out twice. Two literals here would drift the moment one pane was tuned alone.
     it('take the watermark size and opacity from the shared tokens', async () => {
