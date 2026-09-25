@@ -11,6 +11,15 @@
     flex-direction: column;
 }
 
+/* The pinned-actions layout wraps the views in a `.modal-body`, which is a block box. The month grid and
+   the week/day time-grid size themselves with `flex: 1`, which does nothing inside a block box: the month
+   rows collapse to one line of text each and the time-grid grows to its full height. Making the body a
+   flex column hands its definite height on to whichever view it holds. */
+.calendar-modal .modal-body {
+    display: flex;
+    flex-direction: column;
+}
+
 /* The event editor is its own dialog stacked on the calendar, wide enough for the two date fields. The
    remote calendars list and its add form share the width. */
 .modal.event-form,
