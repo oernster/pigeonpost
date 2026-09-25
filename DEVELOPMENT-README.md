@@ -186,12 +186,15 @@ the DMG, then notarizes and staples that too, verifying the result with `stapler
 signing identity comes from `DEVELOPER_ID_APPLICATION` (a default is built in).
 
 Notarization is mandatory: since macOS 10.15 Gatekeeper rejects a signed-but-unnotarized app on
-every machine except the one that signed it, so the build stops before building anything unless
-`APPLE_ID` and `APPLE_APP_PASSWORD` (an app-specific password, checked for shape up front) are both
-set, with `APPLE_TEAM_ID` overridable. The notarization credential lives in the keychain under a
-per-app profile (created once with `xcrun notarytool store-credentials`; `APPLE_KEYCHAIN_PROFILE`
-overrides the name) and the password never reaches the logs. `ALLOW_UNNOTARIZED=1` builds without
-notarizing for local testing only; a DMG built that way must never be released.
+every machine except the one that signed it, so every build notarizes unless told otherwise. The
+credential comes from one of two places. With `APPLE_ID` and `APPLE_APP_PASSWORD` both set, the
+script notarizes as that Apple ID (`APPLE_TEAM_ID` overridable); the password must be an
+app-specific one and is checked for shape before anything is built, so a wrong one stops the build
+in a second rather than after a full `wails build`. With either unset, it notarizes through the
+keychain profile, created once with `xcrun notarytool store-credentials`
+(`APPLE_KEYCHAIN_PROFILE` overrides the name). Either way the password never reaches the logs.
+`ALLOW_UNNOTARIZED=1` builds without notarizing for local testing only; a DMG built that way must
+never be released.
 
 Output: `PigeonPost.dmg` in the repo root.
 

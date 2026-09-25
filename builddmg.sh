@@ -9,12 +9,14 @@
 #
 # Notarization is mandatory. A Developer ID signature alone is not enough: since macOS 10.15
 # Gatekeeper rejects signed-but-unnotarized apps with "Apple could not verify ... is free of
-# malware". APPLE_ID and APPLE_APP_PASSWORD must both be set or the build stops before
-# anything is built.
+# malware". With APPLE_ID and APPLE_APP_PASSWORD both set it notarizes as that Apple ID (a
+# password not shaped like an app-specific one stops the build before anything is built);
+# with either unset it notarizes through the keychain profile.
 #
 # Environment overrides:
 #   DEVELOPER_ID_APPLICATION   signing identity (defaults to Oliver's Developer ID)
-#   APPLE_ID, APPLE_APP_PASSWORD, APPLE_TEAM_ID   notarization credentials (required)
+#   APPLE_ID, APPLE_APP_PASSWORD, APPLE_TEAM_ID   notarization credentials (else the profile)
+#   APPLE_KEYCHAIN_PROFILE     keychain profile name (defaults to PigeonPost)
 #   ALLOW_UNNOTARIZED=1        build without notarizing; local testing only, never released
 #
 # Output: PigeonPost.dmg in the repo root
@@ -35,14 +37,14 @@ APPLE_APP_PASSWORD="${APPLE_APP_PASSWORD:-}"
 APPLE_TEAM_ID="${APPLE_TEAM_ID:-W7K465GKFJ}"
 # Escape hatch for local test builds. Distribution builds must never set this: an
 # unnotarized DMG is rejected by Gatekeeper on every machine but the one that signed
-# it, and the failure is invisible at build time.
+# it; the failure is invisible at build time.
 ALLOW_UNNOTARIZED="${ALLOW_UNNOTARIZED:-}"
 # The notarization credential for this app, created once with
 #   xcrun notarytool store-credentials PigeonPost \
 #     --apple-id <id> --team-id <team> --password <app-specific>
 # One profile per app means a leaked credential can be revoked for a single app. Stated
 # explicitly rather than derived from APP_NAME: the profile is a fact registered with
-# Apple, and deriving it would silently change which credential the build looks for if
+# Apple; deriving it would silently change which credential the build looks for if
 # that name were ever edited. APPLE_KEYCHAIN_PROFILE overrides it.
 NOTARY_PROFILE="${APPLE_KEYCHAIN_PROFILE:-PigeonPost}"
 # The notary service accepts only an app-specific password from appleid.apple.com and
@@ -57,12 +59,12 @@ NOTARIZING=1
 section() { printf '\n\033[1m== %s ==\033[0m\n' "$1"; }
 
 # notarytool_submit uploads a file to Apple and waits for the verdict. notarytool exits
-# non-zero on an Invalid verdict, and set -e then fails the build rather than leaving an
+# non-zero on an Invalid verdict; set -e then fails the build rather than leaving an
 # artifact that looks distributable. Stapling is a separate step because the file that is
 # submitted and the file that carries the ticket differ for a bundle: a zip goes up, the
 # .app gets stapled.
 # The password never reaches the echoed command: with a keychain profile it is not on
-# the command line at all, and the fallback branch prints a masked form.
+# the command line at all; the fallback branch prints a masked form.
 notarytool_submit() {
     if [ -n "${APPLE_ID}" ] && [ -n "${APPLE_APP_PASSWORD}" ]; then
         echo "\$ xcrun notarytool submit $1 --apple-id ${APPLE_ID} --password ******** --team-id ${APPLE_TEAM_ID} --wait"
@@ -124,8 +126,8 @@ Expected four lowercase groups of four, like abcd-efgh-ijkl-mnop.
 An Apple account password is rejected by the notary service with
 'HTTP status code: 401. Invalid credentials'.
 Generate one at https://appleid.apple.com (Sign-In and Security, App-Specific
-Passwords), or leave both variables unset and store the credential in the
-keychain as profile ${NOTARY_PROFILE}.
+Passwords). Alternatively leave both variables unset and store the credential
+in the keychain as profile ${NOTARY_PROFILE}.
 EOF
         exit 1
     fi

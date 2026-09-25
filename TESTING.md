@@ -230,7 +230,7 @@ npx vitest run --coverage   # enforce the pure-module coverage gate
   exempt while no longer over the limit fails, so an entry cannot outlive the debt it records; TECH_DEBT.md
   tracks the split. Test files are outside the limit by design. All four rules were
   verified by planting a violation against each.
-- **Stylesheet test.** `src/styles/stylesheets.test.ts` holds nine rules the stylesheets state about
+- **Stylesheet test.** `src/styles/stylesheets.test.ts` holds ten rules the stylesheets state about
   themselves. The first: a `:hover` rule on a class worn by a button must also require `:enabled`. The
   app mark borrowed `.icon-btn` for its geometry and asked for a transparent border, which an ungated
   `.icon-btn:hover` repainted on specificity, so hovering the mark drew a rectangle round it; the
@@ -239,10 +239,13 @@ npx vitest run --coverage   # enforce the pure-module coverage gate
   more hold the pane watermark the mark became: it must sit at `z-index: -1` inside an isolated stacking
   context, else it is painted behind the application's background and vanishes, it must take no pointer,
   else it swallows every click meant for a message row; its size and opacity must come from the
-  shared tokens rather than from numbers written out once per pane. Neither failure is visible to a
-  rendered-component test, because jsdom computes neither stacking nor hit testing. The fifth holds
+  shared tokens rather than from numbers written out once per pane. The fifth holds the message list's
+  empty line the same way: it is stretched over the whole pane to centre on the watermark, so it lies
+  over the search box and must take no pointer, else a search that finds nothing leaves the query
+  impossible to click into or clear. None of these failures is visible to a rendered-component test,
+  because jsdom computes neither stacking nor hit testing. The sixth holds
   `.titlebar-left` against shrinking: a bar too narrow for everything on it otherwise squeezes the
-  leading group until the controls after it are painted over what it holds. The sixth holds the window's leading
+  leading group until the controls after it are painted over what it holds. The seventh holds the window's leading
   line: both bars and the sidebar's section labels take their leading inset from `--bar-ink-x` rather than
   writing a number of their own; the leading title-bar group is taken out of the flow while it is
   empty, since an empty box between the bar's edge and its first control put that control eight pixels
@@ -255,7 +258,7 @@ npx vitest run --coverage   # enforce the pure-module coverage gate
   written down, since jsdom lays nothing out. Unlike the
   boundary and module-size tests it reads the files through `node:fs` rather than Vite's glob: measured,
   a raw glob of the stylesheets finds every file and returns an empty string for each, because Vitest
-  does not process CSS. The first six rules were verified by planting a violation against each.
+  does not process CSS. The first seven rules were verified by planting a violation against each.
 - **The guide is held to its own claim.** `HelpModals.test.tsx` asserts every entry in the guide is drawn
   with the icon it declares, taken from the same `icons.ts` mapping the title bar and folder list read. The
   screen exists to tell one picture from another, so an entry showing anything but its own icon would be
@@ -301,7 +304,8 @@ npx vitest run --coverage   # enforce the pure-module coverage gate
   naming the method. A companion test checks the other direction, that no spy is declared under a name the api
   does not have, since such a spy binds to nothing and every test configuring it passes for the wrong
   reason. Both directions were verified by planting a violation. Every one of the 28 test files that
-  mocks the api now uses it, each carrying the `afterEach` drain and the companion check. Converting
+  mocks the api now uses it, each carrying the `afterEach` drain; all but `hooks/useSync.test.ts` also
+  carry the companion check. Converting
   them found two more holes of exactly the kind it exists to catch. `MessageBodyView.test.tsx` declared
   a `messageInvite` spy under a name the api has never had. `Sidebar.test.tsx` spread the real `api`
   object into its mock, so any method beyond the two it overrode reached a live Wails binding rather

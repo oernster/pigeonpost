@@ -174,7 +174,9 @@ it to anything.
   touches Trash. Gmail is the exception: it treats its folders as labels and answers an expunge by
   archiving rather than deleting, so there PigeonPost moves the message to the Bin and empties it from
   the Bin, which is the only route Gmail honours as a deletion. Unattended, rules run on the Inbox and only on mail arriving
-  after the rule exists, so adding one never reaches back over the mail you have. A Now button on each rule
+  after the rule exists, so adding one never reaches back over the mail you have. Adding an account is
+  the one exception: its first sync applies your rules' mark-read and flag actions to what its Inbox
+  already holds, while their moves and deletions never touch that backlog. A Now button on each rule
   is how you ask it to: it applies that one rule to the mail you already have, across every folder of every
   account the rule covers. It first shows what the rule found (how many stored messages it was checked
   against and how many it would mark, flag, move or delete) and acts only once you agree; a rule that would

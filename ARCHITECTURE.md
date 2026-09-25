@@ -247,7 +247,7 @@ Read a message body:
    usually a background image that did not render: ClearScore's hero colours its heading `#ffffff` for a
    remote photo and leaves `#EAF5F5` as the fallback, so with the image absent the heading is white on
    near-white, which the invert turned into black on black. Text under a contrast ratio of 2 is reset to the
-   paper ink; the repair is skipped wherever a background image is actually painting, since the sender's
+   frame's dark ink on a light background or its light ink on a dark one; the repair is skipped wherever a background image is actually painting, since the sender's
    choice is then the right one. What counts as painting is a `data:` image or a gradient, not merely a
    computed `background-image` that is not `none`: a parked or emptied `url()` still computes as a url (an
    empty one resolves against the document itself) while painting nothing, so testing for `none` would
@@ -622,7 +622,7 @@ window and it resumes from wherever the reader left it (never switches off); a s
 another modal is frozen rather than suspended so its phase and position survive the modal above. All three
 Help panes put the cycle on their inner body and pin their action row beneath it (`.modal.pinned-actions`, a
 flex column whose body is the scroller), so Close never drifts off as the content reads itself. That
-layout is no longer particular to these two: every dialog carrying an action row now wears it, so a
+layout is no longer particular to these three: every dialog carrying an action row now wears it, so a
 tall dialog scrolls its body instead of taking its buttons off the bottom of a short window. The
 furniture around the body (a title, an intro, a toolbar above it, the action row below) is held at
 `flex: none` by one rule rather than one per element; `modalLayout.test.ts` scans the source so a
@@ -673,7 +673,9 @@ without a reported id the copy appears on the destination sync instead, so a row
 under an invented identity. `editClipboard.ts` (also gated pure) decides the text-versus-message
 context, so Cut, Copy and Paste act on a text selection first and messages otherwise. Menu
 accelerators are wired once in `useMenus` from the same item definitions the menus render (submenu
-children flattened in), so a hint and its key can never drift.
+children flattened in), so a hint and its key cannot drift. The exception is an item marked `hintOnly`
+(Cut, Copy, Paste and Select all among them): its key is owned by the native editor or the list's own
+keyboard handler, so the menu only displays it and the two are kept in step by hand.
 
 Folder operations: the `FolderService` creates, renames and deletes mailboxes on the server through the
 `FolderActions` port. Each cached `Folder` records the server's mailbox hierarchy delimiter,
@@ -718,8 +720,10 @@ Mark read/unread and star/flag: the UI calls the facade, which routes through th
 `MessageActionService`. It writes the flag to the local cache together with a pending intent, then pushes `\Seen` or
 `\Flagged` to the server best-effort (via the `MailActions` port); the intent keeps the change durable
 until a fetch shows the server agreeing, so a sync never overwrites it with stale server state. The unread
-(bold) state and the star follow the cached flags. A flag change is applied to every cached copy of that
-message in the account rather than to the named row alone. A server can present one message in several
+(bold) state and the star follow the cached flags. A flag change reaches every cached copy of that
+message in the account rather than the named row alone: the named row's whole flag set, with the change
+applied, is written onto each copy, so a flag one copy carried and the named row did not is overwritten
+along with it. A server can present one message in several
 mailboxes, which Gmail does for every label: a message labelled Work sits in Work, in the Inbox and in All
 Mail as three rows with three UIDs, so reading it in one left the others bold until each folder happened
 to be opened and synced, showing as unread mail the user had just read. Sameness is
@@ -1068,8 +1072,9 @@ makes a refusal legible at the point it happens. The wizard was the last of thos
 is where a credential is first offered, so a refusal there is the ordinary outcome rather than a fault; a sign-in message that never reached it would have missed the case it was written for.
 `TestSendSurfaceTranslatesItsErrors` and `TestAccountSetupSurfaceTranslatesItsErrors` scan the source to
 hold both, since a detector that is right and wired to nothing reads exactly like one that works. Not
-every mail-facing binding routes through it yet: the folder bindings (create, rename, delete, move) and
-the read, flag, replied and forwarded marks in `app_actions.go` still return the raw error.
+every mail-facing binding routes through it yet: the folder bindings in `foldersapi.go` (create,
+create subfolder, rename, delete, move) and the read, flag, replied and forwarded marks in
+`app_actions.go` still return the raw error.
 
 ## Quality enforcement
 
@@ -1086,19 +1091,19 @@ the read, flag, replied and forwarded marks in `app_actions.go` still return the
   the Go guard holds, with the modules that predate it named in a shrinking exemption list. Two further
   structural tests read source rather than behaviour: one holds every dialog's action row and scrolling
   body, the other holds the stylesheets' hover gating, the pane watermark's stacking, pointer and
-  token declarations, the leading line the two bars and the sidebar labels share (see Styles below)
+  token declarations, the empty-list line's pointer gate, the leading line the two bars and the sidebar labels share (see Styles below)
   and the pinned headers: the reader's whole top with its capped conversation list, the guide's sticky
   section headings and the attached-email viewer's fixed column.
 
 ## Styles (frontend)
 
-`frontend/src/App.css` is a manifest: nothing but `@import` lines pointing at per-concern files under
+`frontend/src/App.css` is a manifest: a header comment, then nothing but `@import` lines pointing at per-concern files under
 `frontend/src/styles/`, listed in the order the sections had in the original single stylesheet so the
 cascade is unchanged. The split is by concern, not by component, because shared globals (`.btn`, `.modal`,
 `.icon-btn`, the theme variables and the focus/hover rules) belong to no single component.
 
 Rule for new styles: add a file under `frontend/src/styles/` and `@import` it from `App.css` in the right
-place. Keep `App.css` a manifest (only `@import` lines); never inline component rules back into it or let a
+place. Keep `App.css` a manifest (its header comment and `@import` lines only); never inline component rules back into it or let a
 per-component file own a shared global. Split a concern file over ~500 lines again at a top-level comment
 boundary, keeping the import order intact.
 
@@ -1221,6 +1226,13 @@ not made a flex container either, because the virtualised list is an absolutely 
 measured height and a flex item would be shrunk to the pane, taking the scroll with it; absolute positioning
 is safe because the list and the empty state are never rendered together. Measured in the engine the app
 renders in, with panes of 380px and 760px: both lines centre at the same height, each on its own pane.
+
+Stretched over the pane, that box also lies over the search bar and everything else above the scroll
+region, so it carries `pointer-events: none`. It shipped without it and took every click meant for the
+search box and its clear button whenever a search found nothing, so the query could be neither edited
+nor cleared: hit testing at the cross and at the input both answered the empty-state box. The box only
+ever holds a line of text, so nothing inside it needs the pointer. `stylesheets.test.ts` holds the
+declaration, since jsdom does no hit testing.
 
 One sidebar layout rule: `.pane.sidebar` disables the pane's own overflow and scrolls an inner
 `.sidebar-scroll` region holding the folder tree alone, so the cross-account entries, the account picker
