@@ -6,25 +6,24 @@ The sections below the open items are the standing record of what was weighed an
 
 ---
 
-## 1. Nine front-end modules are over the module-size limit
+## 1. Eight front-end modules are over the module-size limit
 
-The limit is 400 lines. `tests/structural/boundary_test.go` has always enforced it; it parses Go, so the React front end was never held to it by anything. Nearly all of it stayed small anyway while nine grew past it, `App.tsx` furthest by a wide margin:
+The limit is 400 lines. `tests/structural/boundary_test.go` has always enforced it; it parses Go, so the React front end was never held to it by anything. Nearly all of it stayed small anyway while eight are still past it, `App.tsx` furthest by a wide margin:
 
 | Module | Lines |
 |---|---|
 | `src/App.tsx` | 1395 |
-| `src/components/ComposeModal.tsx` | 720 |
+| `src/components/ComposeModal.tsx` | 725 |
 | `src/api.ts` | 593 |
 | `src/components/EventFormModal.tsx` | 559 |
-| `src/components/ContactsModal.tsx` | 491 |
 | `src/components/FolderTree.tsx` | 445 |
 | `src/components/CalendarModal.tsx` | 436 |
 | `src/hooks/useMenus.ts` | 439 |
 | `src/components/MessageContextMenu.tsx` | 407 |
 
-`api.ts` has begun coming down the way the debt describes: the filter-rule calls left first (`apiRules`) and the message-template ones followed (`apiTemplates`), each a cohesive group of calls with its own types. `ComposeModal` gave up its formatting strip to `editorTools`, which the template editor renders too.
+`api.ts` has begun coming down the way the debt describes: the filter-rule calls left first (`apiRules`) and the message-template ones followed (`apiTemplates`), each a cohesive group of calls with its own types. `ComposeModal` gave up its formatting strip to `editorTools`, which the template editor renders too. `ContactsModal` is now under the limit, its contact and group editors having become dialogs of their own (`ContactFormModal`, `ContactGroupFormModal`), so it has left the list.
 
-The lengths above are what each module holds now; the guard records the length each held when it was written, which is the ceiling an exempt module may not exceed. The guard now exists (`src/test/loc.test.ts`) and holds every other module, with these nine named in an exemption list that may only shrink: a file leaves it when it is split; a file that is exempt while no longer over the limit fails too, so an entry cannot outlive the debt it records. Nothing new can join it. What is open is the splitting itself. Each is a behaviour-preserving decomposition along a concern boundary rather than an arbitrary slice, taken one module at a time and characterisation-first the way the original `App.tsx` decomposition was, so the front-end suite proves each move rather than review doing it. The four modals are alike enough to share an approach.
+The lengths above are what each module holds now; the guard records the length each held when it was written, which is the ceiling an exempt module may not exceed. The guard now exists (`src/test/loc.test.ts`) and holds every other module, with these eight named in an exemption list that may only shrink: a file leaves it when it is split; a file that is exempt while no longer over the limit fails too, so an entry cannot outlive the debt it records. Nothing new can join it. What is open is the splitting itself. Each is a behaviour-preserving decomposition along a concern boundary rather than an arbitrary slice, taken one module at a time and characterisation-first the way the original `App.tsx` decomposition was, so the front-end suite proves each move rather than review doing it. The three remaining modals are alike enough to share an approach.
 
 `App.tsx` is its own unit and is under way. Five concerns have left it: `useMessageExport`, the four managed collections collapsed onto `useManagedCollection`, `useSearch`, `useSplash` and the About and licence panels collapsed onto `useLoadedPanel`, then gathered with the guide behind `useHelpPanels` so the whole Help menu is one value. Each is pinned by characterisation tests written against the un-extracted code and proved by planting a violation.
 

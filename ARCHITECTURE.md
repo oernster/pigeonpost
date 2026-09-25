@@ -552,15 +552,29 @@ carries in its destination (`domain.MessageIDFor`, the single spelling of the fo
 identity). The facade returns it in `MoveResultDTO`/`BulkResultDTO`; a server without UIDPLUS
 reports nothing and the id is empty rather than guessed.
 
-The reader is a fixed frame with a scrolling middle, not one long scrolling column. `.reader-scroll`
-carries the header and the body; `.reader-footer` is its sibling and holds whatever the message offers at
-its base, so that stays on screen while the email scrolls behind it. As one column the foot came after the
-body, so on a long reply chain the attachment's Save button sat below every quoted round and could only be
-reached by scrolling past the lot. The base is capped at a share of the pane and scrolls internally past
-that, so a message with twenty attachments cannot squeeze the email off the screen; it is not rendered
-at all when the message has nothing to put in it. The message popout hosts the same reader and therefore
-stops scrolling it as one block; otherwise the foot would be below the fold again. Adding a new bottom-of-message
-control means extending the footer's condition, not the layout.
+The reader is a fixed frame with a scrolling middle, not one long scrolling column. Three siblings
+share the column: `.reader-top` holds the tabs and the message header (toolbar, sender, subject and the
+conversation strip), `.reader-scroll` holds the body alone and `.reader-footer` holds whatever the message
+offers at its base. Only the middle scrolls, so who sent a message, what it is about and its toolbar stay
+on screen however far down it is read, as does its foot. As one column the foot came after the body, so on
+a long reply chain the attachment's Save button sat below every quoted round and could only be reached by
+scrolling past the lot. The base is capped at a share of the pane and scrolls internally past that, so a
+message with twenty attachments cannot squeeze the email off the screen; it is not rendered at all when
+the message has nothing to put in it.
+
+The top is deliberately never capped as a whole. Capped, a long thread made the whole block scroll inside
+itself, which could carry the subject and sender out of view: the very thing it exists to keep. The one
+part of it that can grow long is the conversation strip's list, so that alone carries a cap
+(`--conversation-list-max`, tied to the window height because a percentage would resolve against the
+header's own automatic height and cap nothing) and scrolls within it. `stylesheets.test.ts` holds both
+halves. The message popout hosts the same reader and therefore stops scrolling it as one block; otherwise
+the header and the foot would leave the screen again. Adding a new bottom-of-message control means
+extending the footer's condition, not the layout.
+
+The thread view applies the same rule one level down: each open message's head and To line are sticky
+within that message (`.thread-message-top`), so a long message in the middle of a thread still says whose
+it is while it is read. The attached-email viewer is a fixed column whose body is the only part that
+scrolls, so its subject, its From, To and Date lines and its close control stay put.
 
 Dragging a message onto a folder is optimistic and says so. An IMAP move is a live server round trip
 that can take seconds, so `useBulkActions` takes the dropped rows out of every on-screen list at the
@@ -613,6 +627,23 @@ tall dialog scrolls its body instead of taking its buttons off the bottom of a s
 furniture around the body (a title, an intro, a toolbar above it, the action row below) is held at
 `flex: none` by one rule rather than one per element; `modalLayout.test.ts` scans the source so a
 new dialog that forgets the class fails on the day it is written.
+
+A form's leading fields belong to that furniture too, so they stay on screen while the rest of the form
+scrolls: the compose window's From, To, Cc, Bcc and Subject (`.compose-header`), the event form's title
+and calendar, the rule name, the account's name and email (`.account-identity`) and the title field of
+each stacked editor below. `.pinned-form-header` is the one rule that keeps such a header's row styling
+while dropping the lower margin it would otherwise stack on the body's. About pins its icon, name and
+tagline the same way above the scrolling credits; the licence names itself in its title (`Licence:
+GPL-3.0`, the name taken from About's licence field) because its opening lines scroll away.
+
+An editor that belongs to a list opens as its own dialog stacked over that list rather than as a form
+inside it: the contact and group editors over the address book (`ContactFormModal`,
+`ContactGroupFormModal`), the template editor over the template list (`TemplateEditorModal`, opened by
+New template) and the remote calendar add form over the remote calendar list
+(`CalDAVAccountFormModal`). A stacked editor closes on Escape and returns focus to what opened it; a
+click on the backdrop beside it does nothing (`useNestedDialogClose`), because it is where typing happens
+and a stray click must not drop what was typed. The list dialogs beneath keep the ordinary
+`useBackdropDismiss`, which shares that focus return through `useReturnFocus`.
 Neither this nor the drop flash is gated on `prefers-reduced-motion`: on Windows that query follows the
 general "Animation effects" switch, which people turn off for performance rather than motion
 sensitivity, so gating on it silently removed both features on a machine that had it off. Stopping the
@@ -963,6 +994,11 @@ about itself is one document rather than markup. Every entry takes its picture f
 surface it describes (`icons.ts` for the title bar and folder list, the donate artwork itself for the foot
 tray), which is what stops the guide showing something other than the icon it names; `HelpModals.test.tsx` holds that, asserting each drawn image against the entry that declared it.
 
+Each section heading is sticky within its own section, so the heading of the section being read holds at
+the top of the body until the next one pushes it away. It sits on the dialog's background with its gap
+below as padding rather than margin, because a margin is not painted and the text passing under it would
+show through; `stylesheets.test.ts` holds all three declarations.
+
 **Update check.** The application `UpdateService` compares the embedded VERSION against the newest
 published GitHub release through the `ReleaseSource` port, implemented by
 `infrastructure/update.GitHubReleaseSource` (a 5 second `net/http` GET of the latest-release
@@ -1044,7 +1080,9 @@ the read, flag, replied and forwarded marks in `app_actions.go` still return the
   the Go guard holds, with the modules that predate it named in a shrinking exemption list. Two further
   structural tests read source rather than behaviour: one holds every dialog's action row and scrolling
   body, the other holds the stylesheets' hover gating, the pane watermark's stacking, pointer and
-  token declarations and the leading line the two bars and the sidebar labels share (see Styles below).
+  token declarations, the leading line the two bars and the sidebar labels share (see Styles below)
+  and the pinned headers: the reader's whole top with its capped conversation list, the guide's sticky
+  section headings and the attached-email viewer's fixed column.
 
 ## Styles (frontend)
 
@@ -1250,10 +1288,11 @@ pure `Contact.MergedWith` in the domain.
 
 **UI.** A contacts dialog and calendar month, week and day views, both clients of the Application
 use cases only. The contacts dialog is wide, laying the address book out as a three-column card
-grid; each card opens its contact on click or via its edit pencil; deletion lives at the end of
-the open contact's editor beside Save (still behind the confirm-before-delete rule) rather than on
-the list rows. A postal address in the editor is a three-column field grid with its remove control
-alongside, so it cannot be squeezed out of view. Date entry
+grid; each card opens its contact on click or via its edit pencil, in an editor stacked over the
+address book (`ContactFormModal`; groups have `ContactGroupFormModal`). Deletion lives in that editor's
+action row beside Save (still behind the confirm-before-delete rule, whose confirmation belongs to the
+address book) rather than on the list rows. A postal address in the editor is a three-column field grid
+with its remove control alongside, so it cannot be squeezed out of view. Date entry
 everywhere in the app (a contact's birthday, an event's start and end, repeat-until, send later and
 the snooze picker) is the shared `DateField` component: the native input stays for typing, while its
 calendar button opens the themed `DatePickerDialog` instead of the engine's minimal native picker;

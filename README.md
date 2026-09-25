@@ -191,9 +191,11 @@ it to anything.
   else is appended in file order. A rule this installation cannot run, because it names a destination
   folder or accounts held nowhere here, arrives switched off and is named in the report, so it works once
   that folder syncs or that account is added.
-- **Read**: an optional reading pane (mark-on-view, F8 toggle) whose attachments stay pinned at the
-  foot of the message, so Open and Save are one click away however long the thread is rather than below
-  every quoted round, with draggable pane dividers
+- **Read**: an optional reading pane (mark-on-view, F8 toggle) where only the message body scrolls: the
+  tabs, the toolbar, the sender and the subject stay pinned above it, while its attachments stay pinned at
+  the foot, so Open and Save are one click away however long the thread is rather than below every quoted
+  round. The dialogs work the same way, a dialog's title and leading fields (the compose addresses, an
+  event's title, a rule's name) held on screen while the rest scrolls. The pane has draggable dividers
   (widths remembered, double-click to reset), a right-click context menu, in-app
   reader tabs, a double-click (or Enter) that pops the message out into its own dialog, mouse and
   keyboard multi-select with bulk actions, plus full keyboard control through an explicit focus ring;

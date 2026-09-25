@@ -224,12 +224,13 @@ npx vitest run --coverage   # enforce the pure-module coverage gate
   module, the other half of what `boundary_test.go` does for Go and what the front end previously had
   nothing enforcing. It also holds the band beneath the limit, derived from the limit rather than
   written as a second number so the two cannot drift: a module that creeps into the band is reduced
-  properly rather than shaved back under, since the next edit would otherwise break it again. The nine
-  modules that were already over the limit are named in an exemption list that may only shrink; a file
+  properly rather than shaved back under, since the next edit would otherwise break it again. The
+  modules still over the limit from before it existed (eight now) are named in an exemption list that
+  may only shrink; a file
   exempt while no longer over the limit fails, so an entry cannot outlive the debt it records; TECH_DEBT.md
   tracks the split. Test files are outside the limit by design. All four rules were
   verified by planting a violation against each.
-- **Stylesheet test.** `src/styles/stylesheets.test.ts` holds six rules the stylesheets state about
+- **Stylesheet test.** `src/styles/stylesheets.test.ts` holds nine rules the stylesheets state about
   themselves. The first: a `:hover` rule on a class worn by a button must also require `:enabled`. The
   app mark borrowed `.icon-btn` for its geometry and asked for a transparent border, which an ungated
   `.icon-btn:hover` repainted on specificity, so hovering the mark drew a rectangle round it; the
@@ -245,17 +246,24 @@ npx vitest run --coverage   # enforce the pure-module coverage gate
   line: both bars and the sidebar's section labels take their leading inset from `--bar-ink-x` rather than
   writing a number of their own; the leading title-bar group is taken out of the flow while it is
   empty, since an empty box between the bar's edge and its first control put that control eight pixels
-  right of every label under it. Unlike the
+  right of every label under it. The last three hold the headers that stay on screen while content
+  scrolls. The reader's top carries no height cap and no overflow of its own, while its conversation list
+  carries both: capped as a whole, a long thread scrolled the subject and sender out of view inside it.
+  The guide's section headings are sticky, opaque and spaced by padding, so the text passing under one
+  cannot show through. The attached-email viewer is a flex column that does not scroll, with the body the
+  one part that shrinks and scrolls. Each was measured in a browser on the real stylesheets before it was
+  written down, since jsdom lays nothing out. Unlike the
   boundary and module-size tests it reads the files through `node:fs` rather than Vite's glob: measured,
   a raw glob of the stylesheets finds every file and returns an empty string for each, because Vitest
-  does not process CSS. All six rules were verified by planting a violation against each.
+  does not process CSS. The first six rules were verified by planting a violation against each.
 - **The guide is held to its own claim.** `HelpModals.test.tsx` asserts every entry in the guide is drawn
   with the icon it declares, taken from the same `icons.ts` mapping the title bar and folder list read. The
   screen exists to tell one picture from another, so an entry showing anything but its own icon would be
   worse than no guide at all.
-- **Modal layout test.** `src/components/modalLayout.test.ts` scans the dialog source and holds two
+- **Modal layout test.** `src/components/modalLayout.test.ts` scans the dialog source and holds three
   rules: every modal carrying an action row pins it; every pinned modal has something that
-  actually scrolls. Both matter because a dialog that scrolls as one block takes its buttons off a
+  actually scrolls; the licence viewer is the only pinned dialog whose scroller is something other than
+  a `.modal-body`. Both matter because a dialog that scrolls as one block takes its buttons off a
   short window, which is invisible on a large screen and so cannot be left to review. It reads raw
   source through Vite's glob rather than `node:fs`, the same as the boundary test; it asserts it
   found panels at all so a rename cannot turn it into a vacuous pass.
@@ -292,7 +300,7 @@ npx vitest run --coverage   # enforce the pure-module coverage gate
   before; anything else records that it was reached and throws, then an `afterEach` fails the test
   naming the method. A companion test checks the other direction, that no spy is declared under a name the api
   does not have, since such a spy binds to nothing and every test configuring it passes for the wrong
-  reason. Both directions were verified by planting a violation. Every one of the 27 test files that
+  reason. Both directions were verified by planting a violation. Every one of the 28 test files that
   mocks the api now uses it, each carrying the `afterEach` drain and the companion check. Converting
   them found two more holes of exactly the kind it exists to catch. `MessageBodyView.test.tsx` declared
   a `messageInvite` spy under a name the api has never had. `Sidebar.test.tsx` spread the real `api`
