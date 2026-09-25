@@ -628,6 +628,12 @@ furniture around the body (a title, an intro, a toolbar above it, the action row
 `flex: none` by one rule rather than one per element; `modalLayout.test.ts` scans the source so a
 new dialog that forgets the class fails on the day it is written.
 
+A body that should fill the dialog rather than scroll needs one more rule. `.modal-body` is a block box,
+so a view inside it that sizes itself with `flex: 1` gets nothing from it and shrinks to its content. The
+calendar is the case: its month grid and its week and day time-grid are both sized that way, so once
+they moved into the body each week of the month view shrank to a single line of text. `.calendar-modal
+.modal-body` makes that body a flex column, which hands its height on to whichever view it holds.
+
 A form's leading fields belong to that furniture too, so they stay on screen while the rest of the form
 scrolls: the compose window's From, To, Cc, Bcc and Subject (`.compose-header`), the event form's title
 and calendar, the rule name, the account's name and email (`.account-identity`) and the title field of
