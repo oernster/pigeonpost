@@ -1,4 +1,5 @@
-import {ReactNode, useEffect, useLayoutEffect, useRef, useState} from 'react'
+import {ReactNode, useEffect, useRef, useState} from 'react'
+import {useContextMenuPlacement} from './useContextMenuPlacement'
 import {api, Folder, Message, Tag} from '../api'
 import {TAG_PALETTE, colourTagId} from '../tagColours'
 import {isOutboxMessage} from '../outbox'
@@ -25,8 +26,8 @@ interface MessageContextMenuProps {
     // canMoveCopy is false for POP3 accounts, which have a single inbox and no server-side move/copy.
     canMoveCopy: boolean
     onSetTag: (messageId: string, tagId: string, assigned: boolean) => void
-    // The message clipboard: Cut or Copy takes the acted-on messages (the selection, or the single
-    // row), Paste files the clipboard into the folder being viewed; canPaste is whether it holds
+    // The message clipboard: Cut or Copy takes the acted-on messages (the selection; failing that, the
+    // single row), Paste files the clipboard into the folder being viewed; canPaste is whether it holds
     // anything. Pasting onto a specific folder lives on the folder tree's own context menu.
     onCutMessages: (messages: Message[]) => void
     onCopyMessages: (messages: Message[]) => void
@@ -58,8 +59,6 @@ interface MessageContextMenuProps {
     onBulkDeletePermanent: (messages: Message[]) => void
 }
 
-// Keep the menu at least this far inside the viewport edges when clamping its position.
-const MENU_MARGIN = 8
 // Approximate width of the menu plus one flyout. When the menu opens within this distance of the right
 // edge, flyouts open leftwards instead so they stay on screen.
 const SUBMENU_REACH = 400
@@ -84,7 +83,7 @@ function SubMenu({label, scroll, children}: {label: string; scroll?: boolean; ch
 export function MessageContextMenu(props: MessageContextMenuProps) {
     const {message, folders, onClose} = props
     const ref = useRef<HTMLDivElement>(null)
-    const [pos, setPos] = useState({x: props.x, y: props.y})
+    const pos = useContextMenuPlacement(ref, props.x, props.y, onClose)
     const [assigned, setAssigned] = useState<Set<string>>(new Set())
 
     // Fetch the tags already on this message so the Tag flyout can show which are set.
@@ -101,48 +100,6 @@ export function MessageContextMenu(props: MessageContextMenuProps) {
             active = false
         }
     }, [message.id])
-
-    // Dismiss on an outside click or the Escape key.
-    useEffect(() => {
-        const onDown = (e: MouseEvent) => {
-            if (ref.current && !ref.current.contains(e.target as Node)) {
-                onClose()
-            }
-        }
-        const onKey = (e: KeyboardEvent) => {
-            if (e.key === 'Escape') {
-                onClose()
-            }
-        }
-        document.addEventListener('mousedown', onDown)
-        document.addEventListener('keydown', onKey)
-        return () => {
-            document.removeEventListener('mousedown', onDown)
-            document.removeEventListener('keydown', onKey)
-        }
-    }, [onClose])
-
-    // After the first render, nudge the menu back inside the viewport if the cursor was near an edge.
-    // Flyouts are absolutely positioned, so they do not change the menu's own size and this runs once.
-    useLayoutEffect(() => {
-        const el = ref.current
-        if (!el) {
-            return
-        }
-        const rect = el.getBoundingClientRect()
-        let nx = props.x
-        let ny = props.y
-        if (nx + rect.width > window.innerWidth - MENU_MARGIN) {
-            nx = Math.max(MENU_MARGIN, window.innerWidth - rect.width - MENU_MARGIN)
-        }
-        if (ny + rect.height > window.innerHeight - MENU_MARGIN) {
-            ny = Math.max(MENU_MARGIN, window.innerHeight - rect.height - MENU_MARGIN)
-        }
-        if (nx !== pos.x || ny !== pos.y) {
-            setPos({x: nx, y: ny})
-        }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [props.x, props.y])
 
     // act runs a menu action and then closes the menu.
     const act = (fn: () => void) => () => {
