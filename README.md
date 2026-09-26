@@ -200,7 +200,9 @@ it to anything.
   event's title, a rule's name) held on screen while the rest scrolls. The pane has draggable dividers
   (widths remembered, double-click to reset), a right-click context menu, in-app
   reader tabs, a double-click (or Enter) that pops the message out into its own dialog, mouse and
-  keyboard multi-select with bulk actions, plus full keyboard control through an explicit focus ring;
+  keyboard multi-select with bulk actions (Ctrl+A takes the whole folder, including rows not yet scrolled
+  into view; a bulk mark-read updates every unread badge at once), plus full keyboard control
+  through an explicit focus ring;
   after ten seconds without input the app settles back on the active account's Inbox: the Inbox becomes
   the selected folder with keyboard focus on its row (never while a dialog is open, while you are
   mid-entry in a text field or while a message is open in the reader), so the window always resumes

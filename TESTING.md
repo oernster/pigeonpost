@@ -49,7 +49,7 @@ documented here.
 | `internal/infrastructure/mailparse` | unit on the MIME body parsing, HTML sanitising, URL linkifying (bare and markdown-labelled links, solo-line button marking), image and CSS-background parking, hidden-preheader removal that keeps MJML layout wrappers and the outgoing embedded-image extraction (data: URI to cid part) | none |
 | `internal/infrastructure/mailrouter` | unit on the per-protocol dispatch | none |
 | `internal/infrastructure/smtp` | unit on the mailbox-refused and app-password detectors and the marking they feed (the rest is live send only; MIME building lives in `message`) | none |
-| `internal/infrastructure/imap` | unit on the source adapter's pure helpers (parsing moved to `mailparse`), plus the fetch and sign-in paths driven against a scripted local IMAP server | local TCP server |
+| `internal/infrastructure/imap` | unit on the source adapter's pure helpers (parsing moved to `mailparse`), plus the fetch and sign-in paths and the bulk commands (`SetSeenMany`, `MoveMany`, `DeleteMany`: one login per folder, UID chunking, the command each sends) driven against a scripted local IMAP server | local TCP server |
 | `internal/infrastructure/pop3` | unit on the response and UIDL parsing; live download excluded | none |
 | `internal/infrastructure/ics` | unit on the RFC 5545 codec round-trip, recurrence and scheduling payloads | none |
 | `internal/infrastructure/recurrence` | unit on RRULE expansion and truncation | none |
@@ -92,7 +92,7 @@ documented here.
 | internal/infrastructure/storage | ~79% | logic and error paths covered, including keyset message pagination, the atomic tag-keyword and flag-pending sync writes, the folder-baseline mark, the archive reporting no unread on any surface and a flag change reaching every cached copy of its message; see exclusions |
 | internal/infrastructure/pop3 | ~40% | response and UIDL parsing covered; the live dial and download excluded |
 | internal/installer | ~22% | extract and paths covered; Win32 side effects excluded |
-| internal/infrastructure/imap | ~39% | the source adapter's pure helpers plus the fetch and sign-in paths against a scripted local server (the body-structure fallback, the refusal marking); the wire-to-domain and HTML logic now lives in `mailparse`; live append plus the IDLE watcher are excluded |
+| internal/infrastructure/imap | ~51% | the source adapter's pure helpers plus the fetch, sign-in and bulk paths against a scripted local server (the body-structure fallback, the refusal marking, one connection per folder for a bulk mark-read, move or delete); the wire-to-domain and HTML logic now lives in `mailparse`; live append plus the IDLE watcher are excluded |
 | internal/infrastructure/taskbar | ~17% | the pure label formatting, the balloon-suppression rule and the no-op stub covered; the Windows-only Win32 overlay excluded, with a source scan standing in for the chime's placement inside it |
 | internal/infrastructure/smtp | ~15% | the mailbox-refused and app-password detectors and `authError`, which marks a refusal so the interface can translate it; the transport around them is live `Send` only and MIME building lives in `message` |
 | main package | ~9% | composition root and the Wails facade, excluded; the covered statements are the package's own pure helpers, which carry unit tests of their own (mailto parsing, attachment decoding, the mail-error translations, the resurfaced-snooze announcement text with its wire mapping, the rule-backfill error summariser, plus the rule DTO's wire shape) |
@@ -104,10 +104,14 @@ documented here.
   download** (`pop3/`) and **live SMTP send**
   (`smtp/transport.go`): these dial a real server, authenticate and stream data. They cannot be
   unit-tested without a network, so the IMAP path also sits behind a skippable integration test (below).
-  The read path is the exception and is no longer excluded: `fakeserver_test.go` scripts just enough of
-  an IMAP server on a loopback port to drive a real client through it, which is what lets the
-  body-structure fallback and the sign-in marking be proved against errors the mail library itself
-  produced rather than against strings written beside the assertions. The
+  The read path and the bulk commands are the exception and are no longer excluded: `fakeserver_test.go`
+  scripts just enough of an IMAP server on a loopback port to drive a real client through it, which is
+  what lets the body-structure fallback and the sign-in marking be proved against errors the mail
+  library itself produced rather than against strings written beside the assertions. It can also record
+  every command it receives and advertise extra capabilities, so `source_bulk_test.go` asserts what a
+  bulk mark-read, move or delete puts on the wire: one login per folder, UIDs chunked by
+  `bulkBatchSize`. Advertising MOVE matters there: without it the mail library falls back to COPY,
+  STORE `\Deleted` and EXPUNGE. The
   pure logic is separated out and covered independently: MIME body parsing plus HTML sanitising and
   image-blocking in the shared `internal/infrastructure/mailparse` package, the RFC 5322 MIME builder in
   `internal/infrastructure/message`, plus the response and UIDL parsing in `pop3`.
@@ -235,21 +239,21 @@ npx vitest run --coverage   # enforce the pure-module coverage gate
   app mark borrowed `.icon-btn` for its geometry and asked for a transparent border, which an ungated
   `.icon-btn:hover` repainted on specificity, so hovering the mark drew a rectangle round it; the
   comment beside the mark already claimed the gate that no test held. The second asserts every class it
-  names still appears in the stylesheets, so a rename cannot empty the list into a sweep of nothing. Two
-  more hold the pane watermark the mark became: it must sit at `z-index: -1` inside an isolated stacking
-  context, else it is painted behind the application's background and vanishes, it must take no pointer,
-  else it swallows every click meant for a message row; its size and opacity must come from the
-  shared tokens rather than from numbers written out once per pane. The fifth holds the message list's
+  names still appears in the stylesheets, so a rename cannot empty the list into a sweep of nothing. The
+  third holds the pane watermark the mark became: it must sit at `z-index: -1` inside an isolated
+  stacking context, else it is painted behind the application's background and vanishes; it must take no
+  pointer, else it swallows every click meant for a message row. The fourth holds the message list's
   empty line the same way: it is stretched over the whole pane to centre on the watermark, so it lies
   over the search box and must take no pointer, else a search that finds nothing leaves the query
   impossible to click into or clear. None of these failures is visible to a rendered-component test,
-  because jsdom computes neither stacking nor hit testing. The sixth holds
-  `.titlebar-left` against shrinking: a bar too narrow for everything on it otherwise squeezes the
-  leading group until the controls after it are painted over what it holds. The seventh holds the window's leading
-  line: both bars and the sidebar's section labels take their leading inset from `--bar-ink-x` rather than
-  writing a number of their own; the leading title-bar group is taken out of the flow while it is
-  empty, since an empty box between the bar's edge and its first control put that control eight pixels
-  right of every label under it. The last three hold the headers that stay on screen while content
+  because jsdom computes neither stacking nor hit testing. The fifth takes the watermark's size and
+  opacity from the shared tokens rather than from numbers written out once per pane. The sixth holds the
+  window's leading line: both bars and the sidebar's section labels take their leading inset from
+  `--bar-ink-x` rather than writing a number of their own; the leading title-bar group is taken out of
+  the flow while it is empty, since an empty box between the bar's edge and its first control put that
+  control eight pixels right of every label under it. The seventh holds `.titlebar-left` against
+  shrinking: a bar too narrow for everything on it otherwise squeezes the leading group until the
+  controls after it are painted over what it holds. The last three hold the headers that stay on screen while content
   scrolls. The reader's top carries no height cap and no overflow of its own, while its conversation list
   carries both: capped as a whole, a long thread scrolled the subject and sender out of view inside it.
   The guide's section headings are sticky, opaque and spaced by padding, so the text passing under one

@@ -98,8 +98,8 @@ Sync and read:
    opaque string that holds an IMAP UID or a POP3 UIDL. Folder unread and total counts are
    computed from the cached messages, so the per-folder, per-account and total badges are populated
    without a separate server STATUS pass. On the front end, every message action that can change an
-   unread count (mark read/unread, delete, junk, move, the bulk forms) refreshes the account badges and
-   the folder tree together through one shared refresher, so no badge surface can go stale alone. Mail
+   unread count (mark read/unread, delete, junk, move, the bulk forms, a paste and an undo) refreshes the
+   account badges and the folder tree together, so no badge surface can go stale alone. Mail
    arriving refreshes both surfaces too, whether it is announced by the poller (`mail:new`) or brought
    in by the background folder poll: the counts and the folder list are separate reads, so refreshing
    only the counts badges the titlebar and the account picker while leaving the folder row bare. Every
@@ -192,7 +192,7 @@ Read a message body:
    request. Between the prepare pass and the sanitiser, bare web addresses in the message text are
    linkified the way mainstream clients do (`mailparse` linkify: http, https, mailto and www hosts become
    anchors; markdown-style `[label](url)` links render as their label; text already inside an anchor,
-   script, style or form controls is left alone) and an anchor standing alone on its own line, between
+   a script, a style, a textarea or the title is left alone) and an anchor standing alone on its own line, between
    `<br>`s or block edges, is marked `pp-solo-link` so the reader presents it as a call-to-action button;
    the sanitiser then applies its usual scheme policy to the new anchors. The UI renders the sanitised
    HTML when present (links open in the external browser via the
@@ -240,7 +240,7 @@ Read a message body:
    carries it down and flips only where parity disagrees with the background the author gave that element.
    The invariant is uniform, every region ends up rendering dark. Media (`img`, `picture`, `video`, `svg`,
    `canvas`) is forced to an even parity so a photo or logo always shows true colour; media flipped back
-   inside an inverted region carries a mid-grey hairline (with `box-sizing: border-box` so it does not resize
+   inside an inverted region carries a 2px mid-grey frame (with `box-sizing: border-box` so it does not resize
    the image) so a genuinely dark image keeps an edge against the now-dark surround.
 
    The same walk repairs text that cannot be read against its own background, in both themes. The cause is
@@ -501,8 +501,17 @@ exist in the DOM and it loads in pages of 200 through keyset pagination. `Store.
 snooze-aware form of `ListMessagesPage`), exposed as `MailboxService.MessagesPage`, walks an indexed `(folder_id, date_ms, id)` order (the
 `idx_message_folder_date` index) and resumes strictly after the last row returned, its `(date_ms, id)` tie-break a
 total order so no row is skipped or repeated. Toggling a message read or unread mutates the row in place and
-refreshes only the unread counts rather than refetching the folder, so a folder of tens of thousands of
+refreshes the unread counts and the folder list (which carries each folder's count) rather than
+refetching the folder's messages, so a folder of tens of thousands of
 messages never reloads every row.
+
+Select all is the one action that must see past the loaded pages: marking only the rows paged in so far
+would select however much had been scrolled into view. `useSelectAll` (behind both Ctrl+A and Edit >
+Select all) therefore loads the rest of the folder first, through `FolderPagination.loadAll` and the
+whole-folder `api.listMessages`, then marks every row. The pagination remembers that folder as loaded
+whole, so the poll and sync reloads of it answer the whole folder rather than page one; otherwise the next
+background reload would shrink the list (and the selection with it) back to 200 rows. Opening another
+folder ends that and paging resumes. A search already holds its whole result set, so it loads nothing.
 
 Unified mailbox: a View tick shows an All-inboxes entry in the sidebar whose list merges every account's
 inbox, newest first. It is read-side aggregation only: `UnifiedMailboxService` fans the same keyset
@@ -721,7 +730,8 @@ Mark read/unread and star/flag: the UI calls the facade, which routes through th
 `\Flagged` to the server best-effort (via the `MailActions` port); the intent keeps the change durable
 until a fetch shows the server agreeing, so a sync never overwrites it with stale server state. The unread
 (bold) state and the star follow the cached flags. A bulk mark-read splits the two halves: `MarkReadMessages`
-writes the whole selection to the cache in one transaction (`SetFlagMany`) and returns. The front end then
+writes the whole selection to the cache (`SetFlagMany`, one transaction for the server-flagged accounts'
+rows with their pending intent and one for any POP3 rows, which carry none) and returns. The front end then
 refreshes the unread counts and the folders' own counts from it; only after that does
 `PushReadMessages` land the change on the server with one connection per folder (`SetSeenMany`). The
 badges therefore follow the list at once instead of waiting on a login per message. A flag change reaches every cached copy of that
@@ -1077,8 +1087,9 @@ is where a credential is first offered, so a refusal there is the ordinary outco
 `TestSendSurfaceTranslatesItsErrors` and `TestAccountSetupSurfaceTranslatesItsErrors` scan the source to
 hold both, since a detector that is right and wired to nothing reads exactly like one that works. Not
 every mail-facing binding routes through it yet: the folder bindings in `foldersapi.go` (create,
-create subfolder, rename, delete, move) and the read, flag, replied and forwarded marks in
-`app_actions.go` still return the raw error.
+create subfolder, rename, delete, move) and the single-message read, flag, replied and forwarded marks
+in `app_actions.go` still return the raw error. The bulk mark-read bindings (`MarkReadMessages`,
+`PushReadMessages`) do route through it.
 
 ## Quality enforcement
 
@@ -1126,8 +1137,9 @@ Every control in the header and every row in the folder list carries drawn artwo
 An emoji is rendered by whichever font the platform happens to ship, so neither its weight nor its
 palette can be relied on across Windows, macOS and Linux; a set of pictures the repository owns is the
 same set everywhere. `frontend/src/icons.ts` is the one home for the mapping from a name to a picture:
-it holds every import and the `folderIcon` map from a folder kind to its mark, so a component names a
-glyph rather than carrying a path of its own. The pictures themselves are generated from the masters in
+it holds every glyph import and the `folderIcon` map from a folder kind to its mark, so a component names
+a glyph rather than carrying a path of its own. The two pictures that are not glyphs are imported where
+they are drawn: the application icon (About, the splash) and the donate artwork (the foot tray, the guide). The pictures themselves are generated from the masters in
 `assets/` by `tools/genicons` (see DEVELOPMENT-README.md), which crops each to its visible pixels and
 scales it to one common ink height, its width following the artwork. A glyph file therefore carries ink
 and no padding, which is what lets each surface normalise as it wants; the two want different things.

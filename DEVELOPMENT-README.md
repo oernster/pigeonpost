@@ -64,6 +64,7 @@ internal/infrastructure/
     recurrence/             RRULE expansion over teambition/rrule-go
     vcard/                  emersion go-vcard contacts codec
     csv/                    Outlook CSV contacts codec
+    rulefile/               filter-rule set file codec (the readable JSON behind rule export and import)
     caldav/                 two-way CalDAV calendar sync client
     oauth/                  Microsoft OAuth token flow (authorization code + PKCE, loopback redirect)
     remoteimage/            SSRF-guarded fetcher that inlines blocked remote images and CSS backgrounds on request
