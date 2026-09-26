@@ -7,8 +7,9 @@ import {describe, expect, it} from 'vitest'
 //
 // EXEMPT names the files already over the limit when the guard was added. The list may only shrink:
 // a file is removed from it when it is split; a file that is exempt while no longer over the limit
-// fails too, so an entry cannot outlive the debt it records. Nothing new may join it. The open item in
-// TECH_DEBT.md tracks the split.
+// fails too, so an entry cannot outlive the debt it records. Nothing new may join it. The one entry left,
+// App.tsx, is kept by decision rather than awaiting a split: TECH_DEBT.md records why under "Looks like
+// debt, not worth touching". Its ceiling still stops it growing.
 
 // MAX_LINES is the module-size limit. DANGER_MIN derives the band beneath it rather than restating a
 // second number, so the two cannot drift: a file that creeps into the band is one edit from breaking

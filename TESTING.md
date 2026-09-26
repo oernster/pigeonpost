@@ -231,8 +231,8 @@ npx vitest run --coverage   # enforce the pure-module coverage gate
   properly rather than shaved back under, since the next edit would otherwise break it again. The
   one module still over the limit from before it existed (`App.tsx`) is named in an exemption list that
   may only shrink; a file
-  exempt while no longer over the limit fails, so an entry cannot outlive the debt it records; TECH_DEBT.md
-  tracks the split. Test files are outside the limit by design. All four rules were
+  exempt while no longer over the limit fails, so an entry cannot outlive the debt it records. `App.tsx` is
+  kept there by decision, held at its ceiling; TECH_DEBT.md records why. Test files are outside the limit by design. All four rules were
   verified by planting a violation against each.
 - **Stylesheet test.** `src/styles/stylesheets.test.ts` holds ten rules the stylesheets state about
   themselves. The first: a `:hover` rule on a class worn by a button must also require `:enabled`. The
