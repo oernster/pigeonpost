@@ -25,6 +25,9 @@ type script struct {
 	// commands, when set, records every command line the client sends, so a test can assert what went
 	// over the wire (how many logins, what a STORE carried).
 	commands *commandLog
+	// extraCaps is appended to the advertised capabilities (after IMAP4rev1), so a test can offer MOVE;
+	// without it the client falls back to COPY, STORE \Deleted and EXPUNGE.
+	extraCaps string
 }
 
 // commandLog collects the command lines a fake server received. The server runs on its own goroutine,
@@ -65,7 +68,8 @@ func fakeIMAPServer(conn net.Conn, s script) {
 		}
 		_ = writer.Flush()
 	}
-	write("* OK [CAPABILITY IMAP4rev1] ready")
+	caps := strings.TrimSpace("IMAP4rev1 " + s.extraCaps)
+	write("* OK [CAPABILITY " + caps + "] ready")
 	for {
 		line, err := reader.ReadString('\n')
 		if err != nil {
@@ -81,7 +85,7 @@ func fakeIMAPServer(conn net.Conn, s script) {
 		}
 		switch command {
 		case "CAPABILITY":
-			write("* CAPABILITY IMAP4rev1", tag+" OK done")
+			write("* CAPABILITY "+caps, tag+" OK done")
 		case "LOGIN":
 			if s.loginRefusal != "" {
 				write(tag + " NO " + s.loginRefusal)

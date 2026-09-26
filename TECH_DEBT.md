@@ -12,20 +12,20 @@ The limit is 400 lines. `tests/structural/boundary_test.go` has always enforced 
 
 | Module | Lines |
 |---|---|
-| `src/App.tsx` | 1395 |
+| `src/App.tsx` | 1390 |
 | `src/components/ComposeModal.tsx` | 725 |
-| `src/api.ts` | 593 |
+| `src/api.ts` | 586 |
 | `src/components/EventFormModal.tsx` | 559 |
 | `src/components/FolderTree.tsx` | 445 |
 | `src/components/CalendarModal.tsx` | 436 |
 | `src/hooks/useMenus.ts` | 439 |
 | `src/components/MessageContextMenu.tsx` | 407 |
 
-`api.ts` has begun coming down the way the debt describes: the filter-rule calls left first (`apiRules`) and the message-template ones followed (`apiTemplates`), each a cohesive group of calls with its own types. `ComposeModal` gave up its formatting strip to `editorTools`, which the template editor renders too. `ContactsModal` is now under the limit, its contact and group editors having become dialogs of their own (`ContactFormModal`, `ContactGroupFormModal`), so it has left the list.
+`api.ts` has begun coming down the way the debt describes: the filter-rule calls left first (`apiRules`), the message-template ones followed (`apiTemplates`) then the selection-wide calls (`apiBulk`), each a cohesive group of calls with its own types. `ComposeModal` gave up its formatting strip to `editorTools`, which the template editor renders too. `ContactsModal` is now under the limit, its contact and group editors having become dialogs of their own (`ContactFormModal`, `ContactGroupFormModal`), so it has left the list.
 
 The lengths above are what each module holds now; the guard records the length each held when it was written, which is the ceiling an exempt module may not exceed. The guard now exists (`src/test/loc.test.ts`) and holds every other module, with these eight named in an exemption list that may only shrink: a file leaves it when it is split; a file that is exempt while no longer over the limit fails too, so an entry cannot outlive the debt it records. Nothing new can join it. What is open is the splitting itself. Each is a behaviour-preserving decomposition along a concern boundary rather than an arbitrary slice, taken one module at a time and characterisation-first the way the original `App.tsx` decomposition was, so the front-end suite proves each move rather than review doing it. The three remaining modals are alike enough to share an approach.
 
-`App.tsx` is its own unit and is under way. Five concerns have left it: `useMessageExport`, the four managed collections collapsed onto `useManagedCollection`, `useSearch`, `useSplash` and the About and licence panels collapsed onto `useLoadedPanel`, then gathered with the guide behind `useHelpPanels` so the whole Help menu is one value. Each is pinned by characterisation tests written against the un-extracted code and proved by planting a violation.
+`App.tsx` is its own unit and is under way. Six concerns have left it: `useSelectAll`, `useMessageExport`, the four managed collections collapsed onto `useManagedCollection`, `useSearch`, `useSplash` and the About and licence panels collapsed onto `useLoadedPanel`, then gathered with the guide behind `useHelpPanels` so the whole Help menu is one value. Each is pinned by characterisation tests written against the un-extracted code and proved by planting a violation.
 
 The JSX split has started with `ManagerModals`, the four dialogs over the four managed collections. It works because the collections pass whole: a manager dialog needs nothing threaded through `App`; a fifth would be one entry there plus one `useManagedCollection` call.
 
@@ -86,10 +86,6 @@ the same upstream work as item 2.
 - The domain `calendar_passthrough` trim guard would change validation for whitespace-only input, so it is a behaviour decision rather than a refactor; it stays unless that behaviour change is intended.
 - **The nil-slice-to-JSON hazard on outbound DTOs.** A Go nil slice encodes as `null` rather than `[]` and the front end's generated types declare arrays; reading a length off `null` throws during render; with no error boundary above the app React unmounts the whole window rather than one dialog. This is a real failure mode (it took the window down when `RuleDTO.AccountIDs` shipped nil) but it is not open debt: every plural mapper already builds with `make([]T, 0, len(...))`, which cannot be nil; the two fields assigned straight from a domain accessor (`MessageDTO.TagColours` and `RuleDTO.AccountIDs`) each carry an explicit nil guard at their construction site, the second pinned by a test asserting on the marshalled bytes. A general guard was considered and left: enforcing it by reflection would flag every slice field on a zero-valued struct, since the safety comes from the mapper rather than the type; an AST rule proving each mapper uses `make` is fiddly for a convention already followed everywhere.
 - The remaining discretionary nits: the domain slice-copy idioms and the `close` builtin shadow; the `MailStore` 24-method interface (it was 17 when this entry was first written; the rules, folder-baseline and conversation-lookup work took it to 24, so the growth that was to trigger a rethink has happened and was weighed: it stays, because the methods are one cohesive local-cache abstraction and splitting it would churn every implementation and every hand-written fake for a tidier shape rather than a working difference); the codec-level clones (`generatedID` and `locationOf` across `ics`, `vcard`, `csv` and `recurrence`, whose dedup would couple otherwise-independent packages); the `csv` `[3]` phone-slot literal; the `schema`/`migrations` split; and the installer and genicons cosmetic nits.
-
-## Intentionally left: groupByFolder for DeleteMany / MoveMany
-
-`DeleteMany` and `MoveMany` share batch-by-folder scaffolding. A shared helper looks tempting but is ruled out: collapsing them would change error aggregation from one-per-folder to one overall, an observable behaviour change.
 
 ---
 

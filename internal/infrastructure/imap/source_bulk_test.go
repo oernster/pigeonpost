@@ -82,6 +82,77 @@ func TestSetSeenManyClearsSeen(t *testing.T) {
 	}
 }
 
+// MoveMany and DeleteMany share the connect, select and chunking helpers with SetSeenMany; these pin
+// that each still costs one login for the folder and sends the command its chunks call for.
+func TestMoveManyUsesOneConnectionAndChunks(t *testing.T) {
+	log := &commandLog{}
+	host, port := listenFake(t, script{commands: log, extraCaps: "MOVE"})
+
+	if _, err := fakeSource().MoveMany(context.Background(), fakeAccount(t, host, port), fakeFolder(t), uidRange(1, bulkBatchSize+1), "Archive"); err != nil {
+		t.Fatalf("MoveMany: %v", err)
+	}
+	if logins := log.matching("LOGIN"); len(logins) != 1 {
+		t.Errorf("logins = %d, want 1", len(logins))
+	}
+	moves := log.matching("UID MOVE")
+	if len(moves) != 2 || !strings.Contains(moves[0], "Archive") {
+		t.Errorf("moves = %v, want 2 chunks to Archive", moves)
+	}
+}
+
+func TestDeleteManyToTrashMoves(t *testing.T) {
+	log := &commandLog{}
+	host, port := listenFake(t, script{commands: log, extraCaps: "MOVE"})
+
+	if _, err := fakeSource().DeleteMany(context.Background(), fakeAccount(t, host, port), fakeFolder(t), []string{"7", "8"}, "Trash"); err != nil {
+		t.Fatalf("DeleteMany: %v", err)
+	}
+	if moves := log.matching("UID MOVE"); len(moves) != 1 || !strings.Contains(moves[0], "Trash") {
+		t.Errorf("moves = %v, want one move to Trash", moves)
+	}
+	if stores := log.matching("UID STORE"); len(stores) != 0 {
+		t.Errorf("a delete to Trash flagged messages \\Deleted: %v", stores)
+	}
+}
+
+func TestDeleteManyPermanentFlagsAndExpungesEachChunk(t *testing.T) {
+	log := &commandLog{}
+	host, port := listenFake(t, script{commands: log})
+
+	if _, err := fakeSource().DeleteMany(context.Background(), fakeAccount(t, host, port), fakeFolder(t), uidRange(1, bulkBatchSize+1), ""); err != nil {
+		t.Fatalf("DeleteMany: %v", err)
+	}
+	stores := log.matching("UID STORE")
+	if len(stores) != 2 || !strings.Contains(stores[0], `+FLAGS.SILENT (\Deleted)`) {
+		t.Errorf("stores = %v, want 2 chunks flagged \\Deleted", stores)
+	}
+	if expunges := log.matching("EXPUNGE"); len(expunges) != 2 {
+		t.Errorf("expunges = %d, want one per chunk", len(expunges))
+	}
+	if logins := log.matching("LOGIN"); len(logins) != 1 {
+		t.Errorf("logins = %d, want 1", len(logins))
+	}
+}
+
+func TestBulkCommandsRefuseAMalformedUIDBeforeConnecting(t *testing.T) {
+	log := &commandLog{}
+	host, port := listenFake(t, script{commands: log})
+	account, folder := fakeAccount(t, host, port), fakeFolder(t)
+
+	if _, err := fakeSource().MoveMany(context.Background(), account, folder, []string{"x"}, "Archive"); err == nil {
+		t.Error("MoveMany accepted a malformed uid")
+	}
+	if _, err := fakeSource().DeleteMany(context.Background(), account, folder, []string{"x"}, ""); err == nil {
+		t.Error("DeleteMany accepted a malformed uid")
+	}
+	if err := fakeSource().SetSeenMany(context.Background(), account, folder, []string{"x"}, true); err == nil {
+		t.Error("SetSeenMany accepted a malformed uid")
+	}
+	if logins := log.matching("LOGIN"); len(logins) != 0 {
+		t.Errorf("logged in %d times for malformed uids", len(logins))
+	}
+}
+
 func TestSetSeenManyWithNoUIDsDoesNotConnect(t *testing.T) {
 	log := &commandLog{}
 	host, port := listenFake(t, script{commands: log})

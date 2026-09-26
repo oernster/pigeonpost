@@ -14,48 +14,6 @@ import (
 // the push after refreshing the badges. The per-message MarkRead did both halves for every message in
 // turn, a login each, so the badges waited on the whole selection's round trips.
 
-// readBatch is one folder's share of a bulk mark-read: the folder, its account and the messages in it.
-type readBatch struct {
-	account domain.Account
-	folder  domain.Folder
-	ids     []string
-	uids    []string
-}
-
-// batchByFolder resolves each message and groups them by folder in first-seen order. A message that
-// cannot be resolved is left out and contributes an error, so one missing row never sinks the rest.
-func (s *MessageActionService) batchByFolder(ctx context.Context, messageIDs []string) ([]*readBatch, []error) {
-	byFolder := map[string]*readBatch{}
-	batches := make([]*readBatch, 0)
-	var errs []error
-	for _, id := range messageIDs {
-		msg, err := s.store.GetMessage(ctx, id)
-		if err != nil {
-			errs = append(errs, fmt.Errorf("locate message %q: %w", id, err))
-			continue
-		}
-		b, ok := byFolder[msg.FolderID()]
-		if !ok {
-			folder, err := s.store.GetFolder(ctx, msg.FolderID())
-			if err != nil {
-				errs = append(errs, fmt.Errorf("locate folder %q: %w", msg.FolderID(), err))
-				continue
-			}
-			account, err := s.accounts.GetAccount(ctx, folder.AccountID())
-			if err != nil {
-				errs = append(errs, fmt.Errorf("locate account %q: %w", folder.AccountID(), err))
-				continue
-			}
-			b = &readBatch{account: account, folder: folder}
-			byFolder[msg.FolderID()] = b
-			batches = append(batches, b)
-		}
-		b.ids = append(b.ids, id)
-		b.uids = append(b.uids, msg.UID())
-	}
-	return batches, errs
-}
-
 // hasServerFlags reports whether an account keeps read state on the server. POP3 has no server flags,
 // so its read state is purely local: no pending intent is recorded and nothing is pushed.
 func hasServerFlags(account domain.Account) bool {
@@ -67,7 +25,7 @@ func hasServerFlags(account domain.Account) bool {
 // does for one. It does not touch the server; PushReadMany does. It returns the ids written, so the
 // caller knows which rows now hold the new state.
 func (s *MessageActionService) MarkReadMany(ctx context.Context, messageIDs []string, read bool) ([]string, error) {
-	batches, errs := s.batchByFolder(ctx, messageIDs)
+	batches, errs := s.batchByFolder(ctx, messageIDs, batchRules{})
 	var pending, local []string
 	for _, b := range batches {
 		if hasServerFlags(b.account) {
@@ -97,7 +55,7 @@ func (s *MessageActionService) MarkReadMany(ctx context.Context, messageIDs []st
 // in MarkRead it is best effort: MarkReadMany already recorded the intent, so a folder whose push fails
 // (offline, say) is replayed by the next sync. The error names each failed folder for the caller to log.
 func (s *MessageActionService) PushReadMany(ctx context.Context, messageIDs []string, read bool) error {
-	batches, errs := s.batchByFolder(ctx, messageIDs)
+	batches, errs := s.batchByFolder(ctx, messageIDs, batchRules{})
 	for _, b := range batches {
 		if !hasServerFlags(b.account) {
 			continue

@@ -147,53 +147,22 @@ func (s *MessageActionService) delete(ctx context.Context, messageID string, per
 // the messages back. A folder whose batch fails leaves its messages in place and contributes the
 // returned error, so a partial failure is never silent.
 func (s *MessageActionService) DeleteMany(ctx context.Context, messageIDs []string, permanent bool) ([]string, map[string]string, error) {
-	type batch struct {
-		account       domain.Account
-		folder        domain.Folder
-		trashPath     string
-		trashFolderID string
-		uids          []string
-		ids           []string
-	}
-	batches := map[string]*batch{}
-	order := make([]string, 0)
-	var errs []error
-	for _, id := range messageIDs {
-		msg, err := s.store.GetMessage(ctx, id)
+	// trashOf holds each batched folder's Trash, keyed by source folder id; absent means delete permanently.
+	trashOf := map[string]domain.Folder{}
+	rules := batchRules{prepare: func(b *folderBatch) error {
+		if permanent {
+			return nil
+		}
+		trash, ok, err := s.trashFolder(ctx, b.folder)
 		if err != nil {
-			errs = append(errs, fmt.Errorf("locate message %q: %w", id, err))
-			continue
+			return fmt.Errorf("resolve trash for %q: %w", b.folder.ID(), err)
 		}
-		b, ok := batches[msg.FolderID()]
-		if !ok {
-			folder, err := s.store.GetFolder(ctx, msg.FolderID())
-			if err != nil {
-				errs = append(errs, fmt.Errorf("locate folder %q: %w", msg.FolderID(), err))
-				continue
-			}
-			account, err := s.accounts.GetAccount(ctx, folder.AccountID())
-			if err != nil {
-				errs = append(errs, fmt.Errorf("locate account %q: %w", folder.AccountID(), err))
-				continue
-			}
-			trashPath, trashFolderID := "", ""
-			if !permanent {
-				trash, ok, err := s.trashFolder(ctx, folder)
-				if err != nil {
-					errs = append(errs, fmt.Errorf("resolve trash for %q: %w", msg.FolderID(), err))
-					continue
-				}
-				if ok {
-					trashPath, trashFolderID = trash.Path(), trash.ID()
-				}
-			}
-			b = &batch{account: account, folder: folder, trashPath: trashPath, trashFolderID: trashFolderID}
-			batches[msg.FolderID()] = b
-			order = append(order, msg.FolderID())
+		if ok {
+			trashOf[b.folder.ID()] = trash
 		}
-		b.uids = append(b.uids, msg.UID())
-		b.ids = append(b.ids, id)
-	}
+		return nil
+	}}
+	batches, errs := s.batchByFolder(ctx, messageIDs, rules)
 	deleted := make([]string, 0, len(messageIDs))
 	newIDs := map[string]string{}
 	dropCached := func(ids []string) {
@@ -204,8 +173,13 @@ func (s *MessageActionService) DeleteMany(ctx context.Context, messageIDs []stri
 			deleted = append(deleted, id)
 		}
 	}
-	for _, folderID := range order {
-		b := batches[folderID]
+	for _, b := range batches {
+		folderID := b.folder.ID()
+		trash, hasTrash := trashOf[folderID]
+		trashPath := ""
+		if hasTrash {
+			trashPath = trash.Path()
+		}
 		if permanent {
 			handled, err := purgeViaTrash(ctx, s.remote, s.store, b.account, b.folder, b.uids)
 			if err != nil {
@@ -217,7 +191,7 @@ func (s *MessageActionService) DeleteMany(ctx context.Context, messageIDs []stri
 				continue
 			}
 		}
-		movedUIDs, err := s.remote.DeleteMany(ctx, b.account, b.folder, b.uids, b.trashPath)
+		movedUIDs, err := s.remote.DeleteMany(ctx, b.account, b.folder, b.uids, trashPath)
 		if err != nil {
 			errs = append(errs, fmt.Errorf("delete %d messages in %q on server: %w", len(b.uids), folderID, err))
 			continue
@@ -229,8 +203,8 @@ func (s *MessageActionService) DeleteMany(ctx context.Context, messageIDs []stri
 				errs = append(errs, fmt.Errorf("delete cached message %q: %w", id, err))
 			}
 			deleted = append(deleted, id)
-			if newUID, ok := movedUIDs[b.uids[i]]; ok && b.trashFolderID != "" {
-				newIDs[id] = domain.MessageIDFor(b.trashFolderID, newUID)
+			if newUID, ok := movedUIDs[b.uids[i]]; ok && hasTrash {
+				newIDs[id] = domain.MessageIDFor(trash.ID(), newUID)
 			}
 		}
 	}
@@ -253,45 +227,20 @@ func (s *MessageActionService) MoveMany(ctx context.Context, messageIDs []string
 	if err != nil {
 		return nil, nil, fmt.Errorf("locate account %q: %w", dest.AccountID(), err)
 	}
-	type batch struct {
-		folder domain.Folder
-		uids   []string
-		ids    []string
-	}
-	batches := map[string]*batch{}
-	order := make([]string, 0)
-	var errs []error
-	for _, id := range messageIDs {
-		msg, err := s.store.GetMessage(ctx, id)
-		if err != nil {
-			errs = append(errs, fmt.Errorf("locate message %q: %w", id, err))
-			continue
-		}
-		if msg.FolderID() == destFolderID {
-			continue
-		}
-		b, ok := batches[msg.FolderID()]
-		if !ok {
-			folder, err := s.store.GetFolder(ctx, msg.FolderID())
-			if err != nil {
-				errs = append(errs, fmt.Errorf("locate folder %q: %w", msg.FolderID(), err))
-				continue
-			}
+	rules := batchRules{
+		skip: func(msg domain.MessageSummary) bool { return msg.FolderID() == destFolderID },
+		admit: func(messageID string, folder domain.Folder) error {
 			if folder.AccountID() != account.ID() {
-				errs = append(errs, fmt.Errorf("cannot move message %q to a folder in another account", id))
-				continue
+				return fmt.Errorf("cannot move message %q to a folder in another account", messageID)
 			}
-			b = &batch{folder: folder}
-			batches[msg.FolderID()] = b
-			order = append(order, msg.FolderID())
-		}
-		b.uids = append(b.uids, msg.UID())
-		b.ids = append(b.ids, id)
+			return nil
+		},
 	}
+	batches, errs := s.batchByFolder(ctx, messageIDs, rules)
 	moved := make([]string, 0, len(messageIDs))
 	newIDs := map[string]string{}
-	for _, folderID := range order {
-		b := batches[folderID]
+	for _, b := range batches {
+		folderID := b.folder.ID()
 		movedUIDs, err := s.remote.MoveMany(ctx, account, b.folder, b.uids, dest.Path())
 		if err != nil {
 			errs = append(errs, fmt.Errorf("move %d messages from %q on server: %w", len(b.uids), folderID, err))
