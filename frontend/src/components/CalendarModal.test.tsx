@@ -475,6 +475,107 @@ describe('CalendarModal: error handling', () => {
 // The mock covers the api in both directions: the afterEach above catches a method reached with no
 // spy; this catches the opposite, a spy declared under a name the api does not have, which binds to
 // nothing, so every test configuring it would be configuring a stub the code can never call.
+// The event form's own editing and the paths the meeting tests above do not reach: the attendee and
+// reminder lists, a meeting saved with no account, a resend, a failed save and a cancellation whose
+// removal fails.
+describe('CalendarModal: the event form, beyond the main flows', () => {
+    const MEETING = () => makeEvent({
+        id: 'm1', summary: 'Review',
+        attendees: [{address: 'a@b.com', commonName: '', role: 'REQ-PARTICIPANT', status: 'NEEDS-ACTION', rsvp: true}],
+        organizer: {address: 'me@x.com', commonName: 'Me'},
+    })
+
+    async function openNewEvent(props: Partial<CalendarProps> = {}) {
+        renderCalendar(props)
+        fireEvent.click(screen.getByRole('button', {name: 'New event'}))
+        fireEvent.change(await screen.findByPlaceholderText('Event title'), {target: {value: 'Planning'}})
+    }
+    const draft = (value: string) => fireEvent.change(screen.getByPlaceholderText('Attendee email'), {target: {value}})
+    const attendees = () => Array.from(document.querySelectorAll('.attendee-email')).map((e) => e.textContent)
+
+    it('adds an attendee by button or Enter, refusing a malformed or repeated address', async () => {
+        await openNewEvent()
+        draft('not-an-address')
+        expect(screen.getByRole('button', {name: /Add attendee/})).toBeDisabled()
+        draft('a@b.com')
+        fireEvent.click(screen.getByRole('button', {name: /Add attendee/}))
+        draft('c@d.com')
+        fireEvent.keyDown(screen.getByPlaceholderText('Attendee email'), {key: 'Enter'})
+        draft('A@B.com')
+        fireEvent.click(screen.getByRole('button', {name: /Add attendee/}))
+        expect(attendees()).toEqual(['a@b.com', 'c@d.com'])
+        expect(screen.getByPlaceholderText<HTMLInputElement>('Attendee email').value).toBe('')
+        expect(screen.getByText('Organiser: Me (me@x.com)')).toBeInTheDocument()
+        fireEvent.click(screen.getAllByRole('button', {name: 'Remove attendee'})[0])
+        expect(attendees()).toEqual(['c@d.com'])
+    })
+
+    it('saves a new meeting with the account as its organiser and the attendee as a required invitee', async () => {
+        await openNewEvent({accountId: 'acc1'})
+        draft('a@b.com')
+        fireEvent.click(screen.getByRole('button', {name: /Add attendee/}))
+        fireEvent.click(screen.getByRole('button', {name: 'Send invitation'}))
+        await waitFor(() => expect(apiSpies.saveEvent).toHaveBeenCalledWith(expect.objectContaining({
+            organizer: {address: 'me@x.com', commonName: 'Me'},
+            attendees: [{address: 'a@b.com', commonName: '', role: 'REQ-PARTICIPANT', status: 'NEEDS-ACTION', rsvp: true}],
+        })))
+    })
+
+    it('saves the reminders as edited: added, changed and removed', async () => {
+        await openNewEvent()
+        fireEvent.click(screen.getByRole('button', {name: '+ Add reminder'}))
+        fireEvent.click(screen.getByRole('button', {name: '+ Add reminder'}))
+        fireEvent.change(screen.getAllByRole('combobox', {name: 'Reminder'})[1], {target: {value: '5'}})
+        fireEvent.click(screen.getAllByRole('button', {name: 'Remove reminder'})[0])
+        fireEvent.click(screen.getByRole('button', {name: 'Add event'}))
+        await waitFor(() => expect(apiSpies.saveEvent).toHaveBeenCalledWith(expect.objectContaining({reminders: [5]})))
+    })
+
+    it('keeps a meeting saved with no account open and says the invitation needs one', async () => {
+        await openNewEvent({accountId: ''})
+        draft('a@b.com')
+        fireEvent.click(screen.getByRole('button', {name: /Add attendee/}))
+        fireEvent.click(screen.getByRole('button', {name: 'Add event'}))
+        await waitFor(() => expect(apiSpies.saveEvent).toHaveBeenCalled())
+        // The banners are shared, so the calendar under the form shows the same words; the form's are the ones read.
+        expect(await within(screen.getByRole('dialog', {name: 'Edit event'})).findByText(/Meeting saved. Select an account/))
+            .toBeInTheDocument()
+        expect(apiSpies.sendMeetingRequest).not.toHaveBeenCalled()
+        expect(screen.getByRole('dialog', {name: 'Edit event'})).toBeInTheDocument()
+    })
+
+    it('resends the invitation for a saved meeting', async () => {
+        apiSpies.listEventInstances.mockResolvedValue([makeInstance(MEETING())])
+        renderCalendar({accountId: 'acc1'})
+        fireEvent.click(await screen.findByRole('button', {name: /Review/}))
+        fireEvent.click(screen.getByRole('button', {name: 'Resend invitation'}))
+        await waitFor(() => expect(apiSpies.sendMeetingRequest).toHaveBeenCalledWith('acc1', 'm1'))
+        expect(await within(screen.getByRole('dialog', {name: 'Edit event'})).findByText('Invitation sent to 1 attendee.'))
+            .toBeInTheDocument()
+    })
+
+    it('shows a failed save in the banner and keeps the form open', async () => {
+        apiSpies.saveEvent.mockRejectedValue('disk full')
+        await openNewEvent()
+        fireEvent.click(screen.getByRole('button', {name: 'Add event'}))
+        expect(await within(screen.getByRole('dialog', {name: 'New event'})).findByText(/disk full/)).toBeInTheDocument()
+        expect(screen.getByRole('dialog', {name: 'New event'})).toBeInTheDocument()
+    })
+
+    it('marks a meeting cancelled once the cancellation is sent, even when removing it then fails', async () => {
+        apiSpies.deleteEvent.mockRejectedValue('locked')
+        apiSpies.listEventInstances.mockResolvedValue([makeInstance(MEETING())])
+        renderCalendar({accountId: 'acc1'})
+        fireEvent.click(await screen.findByRole('button', {name: /Review/}))
+        fireEvent.click(screen.getByRole('button', {name: 'Cancel meeting'}))
+        fireEvent.click(within(screen.getByRole('alertdialog', {name: 'Cancel meeting'}))
+            .getByRole('button', {name: 'Send cancellation'}))
+        expect(await within(screen.getByRole('dialog', {name: 'Edit event'})).findByText(/locked/)).toBeInTheDocument()
+        expect(screen.getByRole('button', {name: 'Meeting cancelled'})).toBeDisabled()
+        expect(screen.getByRole('button', {name: 'Resend invitation'})).toBeDisabled()
+    })
+})
+
 // What a new or edited event opens with; how the header reads as the view moves. The clock is held on
 // Wednesday 23 September 2026 so the dates are fixed; a form's opening values are read off the request a
 // save sends without touching a field, which is the modal's own outer interface.

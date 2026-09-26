@@ -1,23 +1,22 @@
 import {useState} from 'react'
 import type {Dispatch, SetStateAction} from 'react'
-import {api, Calendar, CalendarEventInput, EventScope} from '../api'
+import {api, Calendar, EventScope} from '../api'
 import {EVENT_CATEGORIES} from '../categories'
-import {zonedWallToISO, zoneOptions} from '../tz'
+import {zoneOptions} from '../tz'
 import {ModalClose} from './ModalClose'
 import {ConfirmDialog} from './ConfirmDialog'
 import {ScopeChooser} from './ScopeChooser'
 import {RecurrenceEditor} from './RecurrenceEditor'
 import {DateField} from './DateField'
 import {
-    DEFAULT_ATTENDEE_ROLE,
-    DEFAULT_ATTENDEE_STATUS,
     DEFAULT_REMINDER_MINUTES,
     REMINDER_PRESETS,
-    attendeeStatusLabel,
     extractUrls,
     meetingProvider,
 } from '../calendarModel'
 import type {Banners} from '../hooks/useBanners'
+import {useEventFormActions} from '../hooks/useEventFormActions'
+import {EventFormAttendees} from './EventFormAttendees'
 
 // AttendeeRow is one invited party held in the edit form. It mirrors the fields the backend persists so a
 // loaded meeting round-trips its attendees' roles and reply statuses unchanged.
@@ -104,9 +103,6 @@ export function EventFormModal({
     // whether the attendees need an update at all. The modal mounts fresh for each opened event, so the
     // initializer runs exactly once per edit session.
     const [openedView] = useState(() => meetingView(form))
-    const [cancelMeeting, setCancelMeeting] = useState(false)
-    const [pendingDelete, setPendingDelete] = useState<{id: string; summary: string} | null>(null)
-    const [deleteScope, setDeleteScope] = useState<{seriesId: string; occurrence: string; summary: string} | null>(null)
 
     const set = <K extends keyof EventForm>(key: K, value: EventForm[K]) =>
         setForm((f) => (f ? {...f, [key]: value} : f))
@@ -117,39 +113,6 @@ export function EventFormModal({
         setForm((f) => (f ? {...f, reminders: [...f.reminders, DEFAULT_REMINDER_MINUTES]} : f))
     const removeReminder = (index: number) =>
         setForm((f) => (f ? {...f, reminders: f.reminders.filter((_, i) => i !== index)} : f))
-
-    // isAttendeeEmail is a light client-side check; the backend validates the address authoritatively.
-    const isAttendeeEmail = (value: string): boolean => {
-        const at = value.indexOf('@')
-        return at > 0 && at < value.length - 1
-    }
-
-    // addAttendee appends the drafted email as a required, not-yet-responded attendee, ignoring a blank or
-    // duplicate address.
-    const addAttendee = () => {
-        const address = attendeeDraft.trim()
-        if (!isAttendeeEmail(address)) return
-        setForm((f) => {
-            if (!f) return f
-            if (f.attendees.some((a) => a.address.toLowerCase() === address.toLowerCase())) return f
-            return {
-                ...f,
-                attendees: [...f.attendees, {
-                    address, commonName: '', role: DEFAULT_ATTENDEE_ROLE, status: DEFAULT_ATTENDEE_STATUS, rsvp: true,
-                }],
-            }
-        })
-        setAttendeeDraft('')
-    }
-
-    const removeAttendee = (index: number) =>
-        setForm((f) => (f ? {...f, attendees: f.attendees.filter((_, i) => i !== index)} : f))
-
-    // organizerLabel is the meeting section's organiser: the loaded one; else the account a new meeting gets.
-    const organizerLabel = (): string => {
-        if (form.organizerAddress) return form.organizerName || form.organizerAddress
-        return accountName ? `${accountName} (${accountEmail})` : accountEmail
-    }
 
     // meetingChangedSinceOpen says whether the attendees can see any difference: a new event is always a
     // change, an existing one only when its meeting view moved since the form opened. A reminder or
@@ -168,164 +131,15 @@ export function EventFormModal({
         return form.id ? 'Save changes' : 'Add event'
     }
 
-    const toISO = (value: string): string => (value ? new Date(value).toISOString() : '')
-
-    const save = async () => {
-        setBusy(true)
-        setError('')
-        try {
-            // A timed event's wall time is interpreted in its chosen zone; an all-day date is floating and
-            // carries no zone.
-            const startISO = form.allDay ? toISO(form.start) : zonedWallToISO(form.start, form.timeZone)
-            const endISO = form.allDay ? toISO(form.end) : (form.end ? zonedWallToISO(form.end, form.timeZone) : '')
-            // A meeting (any attendees) needs an organiser to be replied to: the loaded one, else the active
-            // account when newly organising. With no attendees it stays a plain entry with no organiser.
-            const hasAttendees = form.attendees.length > 0
-            const organizerAddress = form.organizerAddress || (hasAttendees ? accountEmail : '')
-            const organizerName = form.organizerAddress ? form.organizerName : (hasAttendees ? accountName : '')
-            const req: CalendarEventInput = {
-                id: form.id, uid: form.uid, calendarId: form.calendarId, summary: form.summary,
-                description: form.description, location: form.location, category: form.category,
-                allDay: form.allDay,
-                start: startISO, end: endISO, timeZone: form.allDay ? '' : form.timeZone,
-                reminders: form.reminders, recurrence: form.recurrence, extra: form.extra,
-                organizer: {address: organizerAddress, commonName: organizerName},
-                attendees: form.attendees.map((a) => ({
-                    address: a.address, commonName: a.commonName, role: a.role, status: a.status, rsvp: a.rsvp,
-                })),
-            }
-            let savedId = form.id
-            if (form.scope !== null) {
-                await api.saveEventScoped(req, form.scope, form.occurrence)
-            } else {
-                savedId = await api.saveEvent(req)
-                // Reflect the persisted id (freshly generated for a new event) back onto the form at once,
-                // so if the send below fails a retry reuses this id rather than creating a duplicate event.
-                setForm((f) => (f ? {...f, id: savedId, organizerAddress, organizerName} : f))
-            }
-            bumpReload()
-            onChanged()
-            // Saving a meeting sends its invitation: adding attendees and saving is what invites them, the
-            // same way a calendar app's meeting Send both saves and notifies. Re-saving sends an update,
-            // but only when something the attendees can see changed: a reminder or calendar tweak is a
-            // local detail and saving it must not email anyone.
-            if (hasAttendees && !cancelledSent) {
-                if (accountId === '') {
-                    console.warn('meeting invite: not sending, no account selected', {savedId})
-                    setStatus('Meeting saved. Select an account to send the invitation to the attendees.')
-                } else if (!meetingChangedSinceOpen) {
-                    console.info('meeting invite: not sending, no attendee-visible change', {savedId})
-                    setStatus('Saved. The attendees were not emailed: nothing they can see changed.')
-                    setForm(null)
-                } else {
-                    console.info('meeting invite: sending request', {accountId, savedId, attendees: form.attendees.length})
-                    await api.sendMeetingRequest(accountId, savedId)
-                    console.info('meeting invite: request sent', {savedId})
-                    const n = form.attendees.length
-                    setStatus(`Invitation sent to ${n} attendee${n === 1 ? '' : 's'}.`)
-                    setForm(null)
-                }
-            } else {
-                setForm(null)
-            }
-        } catch (e) {
-            setError(String(e))
-        } finally {
-            setBusy(false)
-        }
-    }
-
-    // requestDelete starts a delete from the edit form: a recurring occurrence asks the scope, a one-off is
-    // confirmed directly.
-    const requestDelete = () => {
-        if (form.series) {
-            setDeleteScope({seriesId: form.id, occurrence: form.occurrence, summary: form.summary})
-            return
-        }
-        // Confirm straight from the open form. A previous version looked the event up in the events prop
-        // first and silently did nothing when the lookup missed (a just-saved event not yet in that stale
-        // list), which made delete impossible; the form already holds the id and summary the confirm needs.
-        setPendingDelete({id: form.id, summary: form.summary})
-    }
-
-    const confirmDelete = async () => {
-        if (!pendingDelete) return
-        setBusy(true)
-        setError('')
-        try {
-            await api.deleteEvent(pendingDelete.id)
-            if (form.id === pendingDelete.id) setForm(null)
-            setPendingDelete(null)
-            bumpReload()
-            onChanged()
-        } catch (e) {
-            setError(String(e))
-        } finally {
-            setBusy(false)
-        }
-    }
-
-    const confirmDeleteScope = async (scope: EventScope) => {
-        if (!deleteScope) return
-        setBusy(true)
-        setError('')
-        try {
-            await api.deleteEventScoped(scope, deleteScope.seriesId, deleteScope.occurrence)
-            setForm(null)
-            setDeleteScope(null)
-            bumpReload()
-            onChanged()
-        } catch (e) {
-            setError(String(e))
-        } finally {
-            setBusy(false)
-        }
-    }
-
-    // sendInvitations emails a meeting REQUEST to the saved event's attendees from the active account. It
-    // is available only once the event exists (so it has an id to send) and an account is selected.
-    const sendInvitations = async () => {
-        if (form.id === '' || accountId === '') return
-        setBusy(true)
-        setError('')
-        setStatus('')
-        try {
-            await api.sendMeetingRequest(accountId, form.id)
-            const n = form.attendees.length
-            setStatus(`Invitation sent to ${n} attendee${n === 1 ? '' : 's'}.`)
-        } catch (e) {
-            setError(String(e))
-        } finally {
-            setBusy(false)
-        }
-    }
-
-    // confirmCancelMeeting emails a meeting CANCEL to the attendees, withdrawing the meeting. It is
-    // confirmed first because it is an outward action that cannot be recalled.
-    const confirmCancelMeeting = async () => {
-        if (form.id === '' || accountId === '') return
-        setBusy(true)
-        setError('')
-        setStatus('')
-        try {
-            await api.sendMeetingCancel(accountId, form.id)
-            // Mark it cancelled before the delete, so if the delete fails the attendees are known to have
-            // been notified and the meeting cannot be cancelled again.
-            setCancelledSent(true)
-            // A cancelled meeting is withdrawn: after notifying the attendees, remove it from the
-            // organiser's own calendar too, the way a calendar app deletes a meeting you cancel.
-            await api.deleteEvent(form.id)
-            setCancelMeeting(false)
-            setForm(null)
-            bumpReload()
-            onChanged()
-            setStatus('Meeting cancelled: the attendees were notified and it was removed from your calendar.')
-        } catch (e) {
-            setError(String(e))
-        } finally {
-            setBusy(false)
-        }
-    }
+    // Save, delete, resend and cancel, with the confirmations they raise, are their own hook.
+    const actions = useEventFormActions({
+        form, setForm, accountId, accountEmail, accountName, cancelledSent, setCancelledSent, banners,
+        onChanged, bumpReload, meetingChangedSinceOpen,
+    })
+    const {
+        save, requestDelete, confirmDelete, confirmDeleteScope, confirmCancelMeeting,
+        cancelMeeting, setCancelMeeting, pendingDelete, setPendingDelete, deleteScope, setDeleteScope,
+    } = actions
 
     // Meeting links for the open event: the join URL is the first known-provider link across the location
     // and description, falling back to the first location URL (often the venue or meeting link). The
@@ -441,64 +255,11 @@ export function EventFormModal({
                                 </div>
                             ))}
                         </div>
-                        <div className="meeting-section">
-                            <div className="reminders-head">
-                                <span>Attendees</span>
-                            </div>
-                            {form.attendees.length > 0 && (
-                                <p className="setup-hint">Organiser: {organizerLabel()}</p>
-                            )}
-                            {form.attendees.map((a, i) => (
-                                <div key={a.address} className="attendee-row">
-                                    <span className="attendee-email" title={a.address}>
-                                        {a.commonName || a.address}
-                                    </span>
-                                    <span className="attendee-status">{attendeeStatusLabel(a.status)}</span>
-                                    <button type="button" className="btn danger" aria-label="Remove attendee"
-                                            onClick={() => removeAttendee(i)}>×</button>
-                                </div>
-                            ))}
-                            <div className="attendee-add">
-                                <input className="tag-name-input" type="email" placeholder="Attendee email"
-                                       value={attendeeDraft}
-                                       onChange={(e) => setAttendeeDraft(e.target.value)}
-                                       onKeyDown={(e) => {
-                                           if (e.key === 'Enter') {
-                                               e.preventDefault()
-                                               addAttendee()
-                                           }
-                                       }}/>
-                                <button type="button" className="btn" onClick={addAttendee}
-                                        disabled={!isAttendeeEmail(attendeeDraft.trim())}>+ Add attendee</button>
-                            </div>
-                            {form.attendees.length > 0 && (
-                                accountId === '' ? (
-                                    <p className="setup-hint">Select an account to send the invitation to the attendees.</p>
-                                ) : (
-                                    <>
-                                        <p className="setup-hint">
-                                            {cancelledSent
-                                                ? 'This meeting has been cancelled. The attendees have been notified.'
-                                                : sendsOnSave
-                                                    ? (form.id === ''
-                                                        ? 'Saving this meeting sends an invitation to the attendees by email.'
-                                                        : 'Saving sends an update to the attendees by email.')
-                                                    : 'Saving keeps the change local. An update is emailed only when something the attendees can see changes.'}
-                                        </p>
-                                        {form.id !== '' && (
-                                            <div className="invite-card-actions">
-                                                <button type="button" className="btn" disabled={busy || cancelledSent}
-                                                        onClick={() => void sendInvitations()}>Resend invitation</button>
-                                                <button type="button" className="btn danger-outline" disabled={busy || cancelledSent}
-                                                        onClick={() => setCancelMeeting(true)}>
-                                                    {cancelledSent ? 'Meeting cancelled' : 'Cancel meeting'}
-                                                </button>
-                                            </div>
-                                        )}
-                                    </>
-                                )
-                            )}
-                        </div>
+                        <EventFormAttendees
+                            form={form} setForm={setForm} attendeeDraft={attendeeDraft} setAttendeeDraft={setAttendeeDraft}
+                            accountId={accountId} accountEmail={accountEmail} accountName={accountName} busy={busy}
+                            cancelledSent={cancelledSent} sendsOnSave={sendsOnSave}
+                            sendInvitations={actions.sendInvitations} setCancelMeeting={actions.setCancelMeeting}/>
                         {(error || status) && (
                             <div className={error ? 'compose-error' : 'setup-hint'}>{error || status}</div>
                         )}
