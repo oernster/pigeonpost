@@ -1547,6 +1547,27 @@ describe('App: message-list keyboard', () => {
         expect(await screen.findByText(/2 messages selected/)).toBeInTheDocument()
     })
 
+    it('selects the whole folder with Ctrl+A, pages not yet loaded included (useSelectAll)', async () => {
+        apiSpies.listAccounts.mockResolvedValue([makeAccount()])
+        apiSpies.listFolders.mockResolvedValue([makeFolder('inbox', 'Inbox', 'inbox')])
+        // Only two rows are loaded and more pages remain; the folder holds three.
+        apiSpies.listMessagesPage.mockReset().mockResolvedValue({
+            messages: [makeMessage({id: 'm1', subject: 'First'}), makeMessage({id: 'm2', subject: 'Second'})],
+            hasMore: true, nextCursorDateMs: 111, nextCursorId: 'c1',
+        })
+        apiSpies.listMessages.mockResolvedValue([
+            makeMessage({id: 'm1', subject: 'First'}), makeMessage({id: 'm2', subject: 'Second'}),
+            makeMessage({id: 'm3', subject: 'Third'}),
+        ])
+        const {container} = render(<App/>)
+        await screen.findByText('First')
+        await waitFor(() => expect(container.querySelector('.splash')).toBeNull(), {timeout: 3000})
+        fireEvent.keyDown(document.body, {key: 'a', ctrlKey: true})
+        // The count is the folder's, not the loaded page's.
+        expect(await screen.findByText(/3 messages selected/)).toBeInTheDocument()
+        expect(apiSpies.listMessages).toHaveBeenCalledWith('inbox')
+    })
+
     it('deletes the selected message with the Delete key (useMessageListKeyboard)', async () => {
         apiSpies.listAccounts.mockResolvedValue([makeAccount()])
         apiSpies.listFolders.mockResolvedValue([makeFolder('inbox', 'Inbox', 'inbox')])

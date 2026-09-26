@@ -8,8 +8,9 @@ import type {Message, MessagePage} from '../api'
 import {useFolderPagination} from './useFolderPagination'
 import {spiesNotInApi, unstubbedNames} from '../test/apiMock'
 
-const apiSpies = vi.hoisted(() => ({listMessagesPage: vi.fn()}))
+const apiSpies = vi.hoisted(() => ({listMessagesPage: vi.fn(), listMessages: vi.fn()}))
 const listMessagesPage = apiSpies.listMessagesPage
+const listMessages = apiSpies.listMessages
 
 // The mock is built from the real api rather than hand-listed here, so a method reached with no spy
 // fails the test by name instead of throwing a TypeError into the nearest catch and passing. The
@@ -39,6 +40,7 @@ function page(messages: Message[], hasMore: boolean, dateMs = 0, id = ''): Messa
 
 beforeEach(() => {
     listMessagesPage.mockReset()
+    listMessages.mockReset()
 })
 
 describe('useFolderPagination', () => {
@@ -167,6 +169,73 @@ describe('useFolderPagination', () => {
         })
         expect(none).toEqual([])
         expect(listMessagesPage).not.toHaveBeenCalled()
+    })
+
+    it('loadAll answers the whole folder and leaves no page to load', async () => {
+        listMessagesPage.mockResolvedValue(page([msg('a')], true, 1, 'c1'))
+        listMessages.mockResolvedValue([msg('a'), msg('b'), msg('c')])
+        const {result} = renderHook(() => useFolderPagination())
+
+        await act(async () => {
+            await result.current.loadFirst('inbox', false)
+        })
+        let all: Message[] = []
+        await act(async () => {
+            all = await result.current.loadAll('inbox')
+        })
+
+        expect(all.map((m) => m.id)).toEqual(['a', 'b', 'c'])
+        expect(listMessages).toHaveBeenCalledWith('inbox')
+        expect(result.current.hasMore()).toBe(false)
+    })
+
+    it('reloads a folder loaded whole as the whole folder, until another folder is opened', async () => {
+        listMessagesPage.mockResolvedValue(page([msg('a')], true, 1, 'c1'))
+        listMessages.mockResolvedValue([msg('a'), msg('b')])
+        const {result} = renderHook(() => useFolderPagination())
+
+        await act(async () => {
+            await result.current.loadAll('inbox')
+        })
+        // A poll or sync reload of the same folder must not shrink it back to page one.
+        let reloaded: Message[] = []
+        await act(async () => {
+            reloaded = await result.current.loadFirst('inbox', false)
+        })
+        expect(reloaded.map((m) => m.id)).toEqual(['a', 'b'])
+        expect(listMessagesPage).not.toHaveBeenCalled()
+
+        // Another folder pages as usual; so does the first one on its return.
+        await act(async () => {
+            await result.current.loadFirst('archive', false)
+        })
+        let back: Message[] = []
+        await act(async () => {
+            back = await result.current.loadFirst('inbox', false)
+        })
+        expect(back.map((m) => m.id)).toEqual(['a'])
+        expect(listMessagesPage).toHaveBeenCalledTimes(2)
+    })
+
+    it('answers the whole folder when loadAll lands while page one is in flight', async () => {
+        let resolveFirst!: (value: MessagePage) => void
+        listMessagesPage.mockImplementationOnce(() => new Promise<MessagePage>((resolve) => {
+            resolveFirst = resolve
+        }))
+        listMessages.mockResolvedValue([msg('a'), msg('b')])
+        const {result} = renderHook(() => useFolderPagination())
+
+        let firstCall!: Promise<Message[]>
+        await act(async () => {
+            firstCall = result.current.loadFirst('inbox', false)
+            await result.current.loadAll('inbox')
+            resolveFirst(page([msg('a')], true, 1, 'c1'))
+            await firstCall
+        })
+
+        // The stale page one is not answered: the reload would drop the rows a selection covers.
+        expect((await firstCall).map((m) => m.id)).toEqual(['a', 'b'])
+        expect(result.current.hasMore()).toBe(false)
     })
 })
 

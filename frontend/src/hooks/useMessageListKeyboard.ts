@@ -49,6 +49,8 @@ export interface MessageListKeyboardDeps {
     // openMessage opens a message in its own right (Enter or Space on a row); App wires it to the
     // popout dialog so the keyboard open matches the double-click.
     openMessage: (message: Message) => void
+    // selectAll marks the whole view for Ctrl+A (useSelectAll, shared with Edit > Select all).
+    selectAll: () => Promise<void>
     // The message clipboard behind Ctrl+X / Ctrl+C / Ctrl+V on the list: cut or copy takes the
     // selection, paste files the clipboard into the folder being viewed.
     onCutMessages: (targets: Message[]) => void
@@ -73,7 +75,7 @@ export function useMessageListKeyboard(deps: MessageListKeyboardDeps): void {
         splashVisible, composing, settingUp, accountToEdit, managingRules, managingTemplates, managingContacts, managingCalendar,
         about, licence, folderPrompt, messageToCancelSend, messageToDelete, accountToDelete, folderToDelete,
         messageToPurge, contextMenu, folderContextMenu, bulkToDelete, bulkToPurge, snoozePickerFor, folders,
-        requestDelete, openMessage, onCutMessages, onCopyMessages, onPasteMessages,
+        requestDelete, openMessage, selectAll, onCutMessages, onCopyMessages, onPasteMessages,
         setMessageToPurge, setBulkToPurge, setBulkToDelete, setFolderToDelete,
         togglePreview,
     } = deps
@@ -195,16 +197,15 @@ export function useMessageListKeyboard(deps: MessageListKeyboardDeps): void {
                 return
             }
             if ((e.key === 'a' || e.key === 'A') && (e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey) {
-                // Ctrl/Cmd+A selects every message in the current view (the open folder; else the search
-                // results) so the whole lot can be deleted or moved at once. Delete then opens the
-                // count-named bulk confirm. Suppressed inside text fields above, so it never steals the
-                // native select-all while typing.
+                // Ctrl/Cmd+A selects every message in the current view (the whole open folder, unloaded
+                // pages included; else the search results) so the whole lot can be deleted or moved at
+                // once. Delete then opens the count-named bulk confirm. Suppressed inside text fields
+                // above, so it never steals the native select-all while typing.
                 if (list.length === 0) {
                     return
                 }
                 e.preventDefault()
-                setMarkedIds(new Set(list.map((m) => m.id)))
-                setAnchorId(list[0].id)
+                void selectAll()
                 return
             }
             if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
@@ -352,6 +353,6 @@ export function useMessageListKeyboard(deps: MessageListKeyboardDeps): void {
         splashVisible, composing, settingUp, accountToEdit, managingRules, managingTemplates, managingContacts, managingCalendar, about,
         licence, folderPrompt, messageToDelete, accountToDelete, folderToDelete, messageToPurge,
         contextMenu, folderContextMenu, messageToCancelSend, bulkToDelete, bulkToPurge, snoozePickerFor, togglePreview, folders,
-        onCutMessages, onCopyMessages, onPasteMessages,
+        onCutMessages, onCopyMessages, onPasteMessages, selectAll,
     ])
 }

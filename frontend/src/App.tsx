@@ -61,6 +61,7 @@ import {useMenus} from './hooks/useMenus'
 import {useMessageListKeyboard} from './hooks/useMessageListKeyboard'
 import {usePaneWidths} from './hooks/usePaneWidths'
 import {useFolderPagination} from './hooks/useFolderPagination'
+import {useSelectAll} from './hooks/useSelectAll'
 import {isTypingTarget, useIdleRefocus} from './hooks/useIdleRefocus'
 import {useSnooze} from './hooks/useSnooze'
 import {useUndoRedo} from './hooks/useUndoRedo'
@@ -888,6 +889,10 @@ function App() {
         openPopout(message)
     }
 
+    // Ctrl+A and Edit > Select all mark the whole view, loading any unloaded pages of the folder first.
+    const visibleList = searchActive ? searchResults : displayMessages
+    const selectAll = useSelectAll({visibleList, searchActive, sortAscending, pagination, selectedFolderRef,
+        setMessages, setMarkedIds, setAnchorId, setError})
     // The window keydown handler for the message list and the main-window focus ring lives in
     // useMessageListKeyboard. It reads the current view and its selection, every overlay state (list
     // handling is suppressed while any is open) and the handlers a key fires (open, delete, folder delete).
@@ -897,7 +902,7 @@ function App() {
         splashVisible, composing, settingUp, accountToEdit, managingRules, managingTemplates, managingContacts, managingCalendar,
         about, licence, folderPrompt, messageToCancelSend, messageToDelete, accountToDelete, folderToDelete,
         messageToPurge, contextMenu, folderContextMenu, bulkToDelete, bulkToPurge, snoozePickerFor, folders,
-        requestDelete, openMessage: openMessageRow,
+        requestDelete, openMessage: openMessageRow, selectAll,
         onCutMessages: messageClipboard.cutMessages,
         onCopyMessages: messageClipboard.copyMessages,
         onPasteMessages: pasteMessages,
@@ -934,7 +939,6 @@ function App() {
     // the active message when there is none), the messages any bulk action operates on and whether more
     // than one is selected. menuSelection is what a right-click menu acts on: the whole set when the
     // clicked row is within a multi-selection, otherwise just that row.
-    const visibleList = searchActive ? searchResults : displayMessages
     const selectionIds = markedIds.size
         ? markedIds
         : (selectedMessage ? new Set<string>([selectedMessage.id]) : new Set<string>())
@@ -943,15 +947,6 @@ function App() {
     const menuSelection = contextMenu
         ? (markedIds.size > 1 && markedIds.has(contextMenu.message.id) ? selectedMessages : [contextMenu.message])
         : []
-
-    // Edit > Select all marks every row in the current view, the same gesture as Ctrl+A on the list.
-    const selectAll = useCallback(() => {
-        if (visibleList.length === 0) {
-            return
-        }
-        setMarkedIds(new Set(visibleList.map((m) => m.id)))
-        setAnchorId(visibleList[0].id)
-    }, [visibleList])
 
     // Edit > Cut / Copy / Paste dispatch by context, text first: with a text selection (or a
     // focused field for paste) they are the ordinary text commands; the menus never steal

@@ -10,10 +10,15 @@ export interface FolderPagination {
     // reset abandons the current cursor and any in-flight guard, so the next loadFirst starts a folder (or
     // a new sort direction) fresh and a stray loadNext before it does nothing.
     reset: () => void
-    // loadFirst fetches page one of a folder in the given direction, records the cursor and whether more
-    // pages remain, and returns the page's messages. hasCursor is false, so the backend ignores the cursor.
+    // loadFirst fetches page one of a folder in the given direction, records the cursor plus whether more
+    // pages remain, then returns the page's messages. hasCursor is false, so the backend ignores the cursor.
+    // For the folder loadAll last loaded whole it returns the whole folder again, so a poll or sync
+    // reload cannot shrink the list (and a selection over it) back to one page; any other folder ends that.
     loadFirst: (folderId: string, ascending: boolean) => Promise<Message[]>
-    // loadNext fetches the page after the recorded cursor, in the direction loadFirst was called with, and
+    // loadAll fetches every message in the folder, leaves no page to load and remembers the folder as
+    // loaded whole. Select all uses it, so the selection covers the folder rather than the loaded pages.
+    loadAll: (folderId: string) => Promise<Message[]>
+    // loadNext fetches the page after the recorded cursor (in the direction loadFirst was called with) then
     // returns only the rows not already in loadedIds. It fetches nothing and returns an empty array when no
     // more pages remain or a load is already running, so overlapping scroll triggers cannot double-fetch or
     // append duplicates.
@@ -36,6 +41,8 @@ function freshCursor(): Cursor {
 
 export function useFolderPagination(): FolderPagination {
     const cursorRef = useRef<Cursor>(freshCursor())
+    // wholeRef is the folder loadAll loaded whole; '' when none.
+    const wholeRef = useRef('')
 
     const record = (page: MessagePage) => {
         const cursor = cursorRef.current
@@ -48,12 +55,28 @@ export function useFolderPagination(): FolderPagination {
         cursorRef.current = freshCursor()
     }, [])
 
+    const loadAll = useCallback(async (folderId: string): Promise<Message[]> => {
+        const messages = await api.listMessages(folderId)
+        cursorRef.current = freshCursor()
+        wholeRef.current = folderId
+        return messages
+    }, [])
+
     const loadFirst = useCallback(async (folderId: string, ascending: boolean): Promise<Message[]> => {
+        if (wholeRef.current === folderId) {
+            return loadAll(folderId)
+        }
+        wholeRef.current = ''
         cursorRef.current = {...freshCursor(), ascending}
         const page = await api.listMessagesPage(folderId, false, 0, '', MESSAGE_PAGE_SIZE, ascending)
+        // Select all loaded this folder whole while page one was in flight: answer the whole folder rather
+        // than the stale page, since that page would drop the rows the selection covers.
+        if (wholeRef.current === folderId) {
+            return loadAll(folderId)
+        }
         record(page)
         return page.messages
-    }, [])
+    }, [loadAll])
 
     const loadNext = useCallback(async (folderId: string, loadedIds: Set<string>): Promise<Message[]> => {
         const cursor = cursorRef.current
@@ -82,5 +105,8 @@ export function useFolderPagination(): FolderPagination {
 
     // Memoise the facade so it is a stable dependency for the callers' useCallback/useEffect that reload
     // the folder; its methods are already stable, so this object never needs to change.
-    return useMemo(() => ({reset, loadFirst, loadNext, hasMore}), [reset, loadFirst, loadNext, hasMore])
+    return useMemo(
+        () => ({reset, loadFirst, loadAll, loadNext, hasMore}),
+        [reset, loadFirst, loadAll, loadNext, hasMore],
+    )
 }
