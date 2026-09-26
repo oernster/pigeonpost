@@ -8,6 +8,20 @@ func (a *App) MarkRead(messageID string, read bool) error {
 	return a.actions.MarkRead(a.ctx, messageID, read)
 }
 
+// MarkReadMessages sets or clears the read state of several messages in the local cache in one step,
+// without waiting on the server, so the unread counts can be refreshed straight after. It returns which
+// ids were written plus any error text. PushReadMessages lands the change on the server afterwards.
+func (a *App) MarkReadMessages(ids []string, read bool) BulkResultDTO {
+	written, err := a.actions.MarkReadMany(a.ctx, ids, read)
+	return a.bulkResult(ids, written, nil, err)
+}
+
+// PushReadMessages lands a MarkReadMessages change on the server with one connection per folder. It is
+// best effort: the pending intent MarkReadMessages recorded is replayed by the next sync on a failure.
+func (a *App) PushReadMessages(ids []string, read bool) error {
+	return a.mailError(a.actions.PushReadMany(a.ctx, ids, read))
+}
+
 // MarkFlagged sets or clears a message's flagged (starred) state on the server and in the local cache.
 func (a *App) MarkFlagged(messageID string, flagged bool) error {
 	return a.actions.MarkFlagged(a.ctx, messageID, flagged)

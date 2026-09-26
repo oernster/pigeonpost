@@ -59,7 +59,7 @@ func (s *MessageActionService) markFlag(ctx context.Context, messageID string, f
 	if err != nil {
 		return err
 	}
-	recordPending := account.Protocol() != domain.ProtocolPOP3
+	recordPending := hasServerFlags(account)
 	if err := s.store.SetFlag(ctx, messageID, flag, value, recordPending); err != nil {
 		return fmt.Errorf("set cached flag for %q: %w", messageID, err)
 	}

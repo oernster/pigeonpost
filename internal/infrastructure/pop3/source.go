@@ -160,6 +160,11 @@ func (s *Source) SetSeen(context.Context, domain.Account, domain.Folder, string,
 	return nil
 }
 
+// SetSeenMany is a no-op on the server, for the same reason as SetSeen: POP3 has no server-side flags.
+func (s *Source) SetSeenMany(context.Context, domain.Account, domain.Folder, []string, bool) error {
+	return nil
+}
+
 // SetFlagged is a no-op on the server, for the same reason as SetSeen: POP3 has no server-side flags.
 func (s *Source) SetFlagged(context.Context, domain.Account, domain.Folder, string, bool) error {
 	return nil

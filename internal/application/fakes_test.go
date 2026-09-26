@@ -557,6 +557,16 @@ func (f *fakeMailStore) SetFlag(_ context.Context, messageID string, flag domain
 	return nil
 }
 
+// SetFlagMany applies SetFlag to each id in turn, failing on the first error as the real transaction does.
+func (f *fakeMailStore) SetFlagMany(ctx context.Context, messageIDs []string, flag domain.Flag, value bool, recordPending bool) error {
+	for _, id := range messageIDs {
+		if err := f.SetFlag(ctx, id, flag, value, recordPending); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (f *fakeMailStore) ClearPendingFlagOp(_ context.Context, messageID string, flag domain.Flag) error {
 	if f.clearPendingFlagErr != nil {
 		return f.clearPendingFlagErr
@@ -874,6 +884,9 @@ type keywordCall struct {
 
 type fakeMailActions struct {
 	setSeenErr        error
+	seenManyErr       error
+	seenManyBatches   [][]string
+	seenManyValues    []bool
 	flaggedErr        error
 	answeredErr       error
 	forwardedErr      error
@@ -910,6 +923,15 @@ func (f *fakeMailActions) SetSeen(_ context.Context, _ domain.Account, _ domain.
 		return f.setSeenErr
 	}
 	f.seenCalls = append(f.seenCalls, seen)
+	return nil
+}
+
+func (f *fakeMailActions) SetSeenMany(_ context.Context, _ domain.Account, _ domain.Folder, uids []string, seen bool) error {
+	if f.seenManyErr != nil {
+		return f.seenManyErr
+	}
+	f.seenManyBatches = append(f.seenManyBatches, uids)
+	f.seenManyValues = append(f.seenManyValues, seen)
 	return nil
 }
 

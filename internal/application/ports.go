@@ -70,6 +70,9 @@ type MailStore interface {
 	// pending intent to land it on the server, in one transaction so the local change and its intent
 	// cannot drift apart (mirroring AssignMessageTag).
 	SetFlag(ctx context.Context, messageID string, flag domain.Flag, value bool, recordPending bool) error
+	// SetFlagMany is SetFlag for several messages in one transaction, so a bulk change reaches the cache
+	// (and the unread counts read from it) at once or not at all.
+	SetFlagMany(ctx context.Context, messageIDs []string, flag domain.Flag, value bool, recordPending bool) error
 	// ClearPendingFlagOp removes the pending intent for a (message, flag) pair, called once the server
 	// agrees with it.
 	ClearPendingFlagOp(ctx context.Context, messageID string, flag domain.Flag) error
@@ -194,6 +197,9 @@ type MailSource interface {
 // is separate from MailSource so read paths cannot accidentally mutate the server.
 type MailActions interface {
 	SetSeen(ctx context.Context, account domain.Account, folder domain.Folder, uid string, seen bool) error
+	// SetSeenMany is the batched form of SetSeen for several messages in one folder: one connection for
+	// the whole set rather than one per message.
+	SetSeenMany(ctx context.Context, account domain.Account, folder domain.Folder, uids []string, seen bool) error
 	SetFlagged(ctx context.Context, account domain.Account, folder domain.Folder, uid string, flagged bool) error
 	// SetAnswered marks a message replied-to (\Answered) on the server; SetForwarded marks it forwarded
 	// ($Forwarded keyword). Both are set after the corresponding message is sent.

@@ -720,7 +720,11 @@ Mark read/unread and star/flag: the UI calls the facade, which routes through th
 `MessageActionService`. It writes the flag to the local cache together with a pending intent, then pushes `\Seen` or
 `\Flagged` to the server best-effort (via the `MailActions` port); the intent keeps the change durable
 until a fetch shows the server agreeing, so a sync never overwrites it with stale server state. The unread
-(bold) state and the star follow the cached flags. A flag change reaches every cached copy of that
+(bold) state and the star follow the cached flags. A bulk mark-read splits the two halves: `MarkReadMessages`
+writes the whole selection to the cache in one transaction (`SetFlagMany`) and returns. The front end then
+refreshes the unread counts and the folders' own counts from it; only after that does
+`PushReadMessages` land the change on the server with one connection per folder (`SetSeenMany`). The
+badges therefore follow the list at once instead of waiting on a login per message. A flag change reaches every cached copy of that
 message in the account rather than the named row alone: the named row's whole flag set, with the change
 applied, is written onto each copy, so a flag one copy carried and the named row did not is overwritten
 along with it. A server can present one message in several

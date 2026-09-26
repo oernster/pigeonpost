@@ -44,6 +44,11 @@ func (r *recorder) SetSeen(context.Context, domain.Account, domain.Folder, strin
 	return nil
 }
 
+func (r *recorder) SetSeenMany(context.Context, domain.Account, domain.Folder, []string, bool) error {
+	r.calls = append(r.calls, "seen-many")
+	return nil
+}
+
 func (r *recorder) SetFlagged(context.Context, domain.Account, domain.Folder, string, bool) error {
 	r.calls = append(r.calls, "flagged")
 	return nil
@@ -133,6 +138,9 @@ func exercise(t *testing.T, router *Router, account domain.Account) {
 	if err := router.SetSeen(ctx, account, folder, "1", true); err != nil {
 		t.Fatalf("SetSeen: %v", err)
 	}
+	if err := router.SetSeenMany(ctx, account, folder, []string{"1"}, true); err != nil {
+		t.Fatalf("SetSeenMany: %v", err)
+	}
 	if err := router.SetFlagged(ctx, account, folder, "1", true); err != nil {
 		t.Fatalf("SetFlagged: %v", err)
 	}
@@ -168,7 +176,7 @@ func TestRouterRoutesImapToImapAdapter(t *testing.T) {
 
 	exercise(t, router, testAccount(t, domain.ProtocolIMAP))
 
-	want := []string{"folders", "messages", "body", "raw", "verify", "seen", "flagged", "answered", "forwarded", "keyword", "delete", "deletemany", "move", "movemany", "copy"}
+	want := []string{"folders", "messages", "body", "raw", "verify", "seen", "seen-many", "flagged", "answered", "forwarded", "keyword", "delete", "deletemany", "move", "movemany", "copy"}
 	if !reflect.DeepEqual(imapRec.calls, want) {
 		t.Errorf("imap adapter calls = %v, want %v", imapRec.calls, want)
 	}
@@ -183,7 +191,7 @@ func TestRouterRoutesPop3ToPop3Adapter(t *testing.T) {
 
 	exercise(t, router, testAccount(t, domain.ProtocolPOP3))
 
-	want := []string{"folders", "messages", "body", "raw", "verify", "seen", "flagged", "answered", "forwarded", "keyword", "delete", "deletemany", "move", "movemany", "copy"}
+	want := []string{"folders", "messages", "body", "raw", "verify", "seen", "seen-many", "flagged", "answered", "forwarded", "keyword", "delete", "deletemany", "move", "movemany", "copy"}
 	if !reflect.DeepEqual(pop3Rec.calls, want) {
 		t.Errorf("pop3 adapter calls = %v, want %v", pop3Rec.calls, want)
 	}

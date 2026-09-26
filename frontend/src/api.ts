@@ -10,8 +10,6 @@ import {
     Author,
     DeleteMessage,
     DeleteMessagePermanent,
-    DeleteMessages,
-    DeleteMessagesPermanent,
     DeleteTag,
     GetMessageBody,
     ListAccounts,
@@ -70,7 +68,6 @@ import {
     DeleteEventScoped,
     MoveFolder,
     MoveMessage,
-    MoveMessages,
     RenameFolder,
     CancelOutboxItem,
     CheckForUpdates,
@@ -117,6 +114,8 @@ import {isSnoozedFolder} from './snooze'
 import {rulesApi} from './apiRules'
 export type {Rule, RuleAction, RuleBackfill, RuleBackfillProgress, RuleCondition, RuleInput} from './apiRules'
 import {templatesApi} from './apiTemplates'
+import {bulkApi} from './apiBulk'
+export type {BulkResult} from './apiBulk'
 export type {Template, TemplateAttachment, TemplateFile, TemplateInput} from './apiTemplates'
 
 export type Account = main.AccountDTO
@@ -171,7 +170,6 @@ export type FolderUIStateResult = main.FolderUIStateDTO
 // of them you received and which you sent.
 export type ConversationEntry = main.ConversationEntryDTO
 
-export type BulkResult = main.BulkResultDTO
 // MoveResult reports where a move-shaped action (move, delete to Trash, junk, rescue) put the
 // message: the id it will carry in its destination folder; empty when the server did not say.
 // Undo entries are built from it.
@@ -470,12 +468,6 @@ export const api = {
     markForwarded: (messageId: string): Promise<void> => MarkForwarded(messageId),
     deleteMessage: (messageId: string): Promise<MoveResult> => DeleteMessage(messageId),
     deleteMessagePermanent: (messageId: string): Promise<void> => DeleteMessagePermanent(messageId),
-    // deleteMessages / deleteMessagesPermanent / moveMessages act on the whole selection in one batched
-    // backend call (grouped by folder, one server connection per folder) rather than a round trip per
-    // message, which is what keeps a large Gmail selection under its simultaneous-connection cap.
-    deleteMessages: (ids: string[]): Promise<BulkResult> => DeleteMessages(ids),
-    deleteMessagesPermanent: (ids: string[]): Promise<BulkResult> => DeleteMessagesPermanent(ids),
-    moveMessages: (ids: string[], destFolderId: string): Promise<BulkResult> => MoveMessages(ids, destFolderId),
     saveMessageAs: (messageId: string, suggestedName: string): Promise<void> =>
         SaveMessageAs(messageId, suggestedName),
     saveAttachment: (messageId: string, index: number): Promise<void> => SaveAttachment(messageId, index),
@@ -516,6 +508,7 @@ export const api = {
         SaveFolderUIState(accountId, order, collapsed),
     ...rulesApi,
     ...templatesApi,
+    ...bulkApi,
     about: (): Promise<AboutInfo> => About(),
     licence: (): Promise<string> => LicenceText(),
     version: (): Promise<string> => Version(),

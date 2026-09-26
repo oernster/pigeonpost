@@ -39,7 +39,8 @@ const apiSpies = vi.hoisted(() => ({
     folderUIState: vi.fn(), saveFolderUIState: vi.fn(),
     pickAttachments: vi.fn(), about: vi.fn(), licence: vi.fn(), openReleases: vi.fn(),
     checkForUpdates: vi.fn(async () => ({current: '', latest: '', updateAvailable: false, downloadUrl: '', pageUrl: ''})),
-    markRead: vi.fn(), moveMessages: vi.fn(), deleteMessagesPermanent: vi.fn(),
+    markRead: vi.fn(), markReadMessages: vi.fn(), pushReadMessages: vi.fn(),
+    moveMessages: vi.fn(), deleteMessagesPermanent: vi.fn(),
     deleteMessages: vi.fn(), showDefaultAppSettings: vi.fn(), minimiseToTray: vi.fn(),
     requestQuit: vi.fn(),
 }))
@@ -183,6 +184,8 @@ beforeEach(() => {
     apiSpies.licence.mockReset().mockResolvedValue('')
     apiSpies.openReleases.mockReset().mockResolvedValue(undefined)
     apiSpies.markRead.mockReset().mockResolvedValue(undefined)
+    apiSpies.markReadMessages.mockReset().mockImplementation(async (ids: string[]) => ({ids, failed: 0, error: ''}))
+    apiSpies.pushReadMessages.mockReset().mockResolvedValue(undefined)
     apiSpies.moveMessages.mockReset().mockResolvedValue({ids: [], failed: 0, error: ''})
     apiSpies.deleteMessagesPermanent.mockReset().mockResolvedValue({ids: [], failed: 0, error: ''})
     apiSpies.deleteMessages.mockReset().mockResolvedValue({ids: [], failed: 0, error: ''})
@@ -1017,11 +1020,27 @@ describe('App: bulk actions', () => {
         fireEvent.click(await screen.findByText('Weekly report'))
         // A Ctrl-click adds the second message, so the multi-selection summary replaces the reader.
         fireEvent.click(screen.getByText('Second message'), {ctrlKey: true})
-        // Mark unread persists read=false for each selected message. Opening a message auto-marks it read
-        // (always true), so asserting the false calls pins the bulk action rather than that auto-read.
+        // Mark unread writes read=false for the whole selection in one cache call. Opening a message
+        // auto-marks it read (always true), so asserting false pins the bulk action rather than that auto-read.
+        await waitFor(() => expect(apiSpies.listFolders).toHaveBeenCalled())
+        apiSpies.unreadCounts.mockClear()
+        apiSpies.listFolders.mockClear()
         fireEvent.click(await screen.findByRole('button', {name: 'Mark unread'}))
-        await waitFor(() => expect(apiSpies.markRead).toHaveBeenCalledWith('m1', false))
-        expect(apiSpies.markRead).toHaveBeenCalledWith('m2', false)
+        await waitFor(() => expect(apiSpies.pushReadMessages).toHaveBeenCalled())
+        expect(apiSpies.markReadMessages).toHaveBeenCalledTimes(1)
+        const [ids, read] = apiSpies.markReadMessages.mock.calls[0]
+        expect([...ids].sort()).toEqual(['m1', 'm2'])
+        expect(read).toBe(false)
+        // No per-message server round trip: the old path called markRead once per message and the badges
+        // waited on every one of them.
+        expect(apiSpies.markRead).not.toHaveBeenCalledWith(expect.anything(), false)
+        // Both badge sources refresh from the cache before the server push is started, so the badges
+        // follow the list at once: the unread counts and the folders (which carry each folder's count).
+        const pushedAt = apiSpies.pushReadMessages.mock.invocationCallOrder[0]
+        expect(apiSpies.unreadCounts.mock.invocationCallOrder[0]).toBeLessThan(pushedAt)
+        expect(apiSpies.listFolders.mock.invocationCallOrder[0]).toBeLessThan(pushedAt)
+        expect(apiSpies.markReadMessages.mock.invocationCallOrder[0]).toBeLessThan(apiSpies.unreadCounts.mock.invocationCallOrder[0])
+        expect(apiSpies.pushReadMessages).toHaveBeenCalledWith(ids, false)
     })
 
     // The multi-selection placeholder moves into SelectionSummary.tsx (Phase 3.16). The Mark unread path is

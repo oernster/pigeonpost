@@ -32,49 +32,67 @@ import (
 // where one does not, the next sync of that folder replaces its rows and the server's truth wins.
 func (s *Store) SetFlag(ctx context.Context, messageID string, flag domain.Flag, value bool, recordPending bool) error {
 	return s.inTx(ctx, func(tx *sql.Tx) error {
-		var (
-			raw                                 int
-			dateMS                              int64
-			msgID, fromAddress, subject, folder string
-		)
-		err := tx.QueryRowContext(ctx,
-			"SELECT flags, message_id, date_ms, from_address, subject, folder_id FROM message WHERE id = ?;",
-			messageID).Scan(&raw, &msgID, &dateMS, &fromAddress, &subject, &folder)
-		if errors.Is(err, sql.ErrNoRows) {
-			return fmt.Errorf("set flag: message %q not found", messageID)
-		}
-		if err != nil {
-			return fmt.Errorf("set flag: read flags: %w", err)
-		}
-		flags := domain.NewFlags(domain.Flag(raw))
-		if value {
-			flags = flags.With(flag)
-		} else {
-			flags = flags.Without(flag)
-		}
-		if _, err := tx.ExecContext(ctx, "UPDATE message SET flags = ? WHERE id = ?;", int(flags.Raw()), messageID); err != nil {
-			return fmt.Errorf("set flag: update %q: %w", messageID, err)
-		}
-		if msgID != "" {
-			if _, err := tx.ExecContext(ctx,
-				`UPDATE message SET flags = ?
-				 WHERE id != ?
-				   AND message_id = ? AND date_ms = ? AND from_address = ? AND subject = ?
-				   AND folder_id IN (SELECT id FROM folder WHERE account_id =
-				         (SELECT account_id FROM folder WHERE id = ?));`,
-				int(flags.Raw()), messageID, msgID, dateMS, fromAddress, subject, folder); err != nil {
-				return fmt.Errorf("set flag: update other copies of %q: %w", messageID, err)
-			}
-		}
-		if recordPending {
-			if _, err := tx.ExecContext(ctx,
-				"INSERT OR REPLACE INTO message_flag_pending (message_id, flag, value) VALUES (?, ?, ?);",
-				messageID, int(flag), boolToInt(value)); err != nil {
-				return fmt.Errorf("set flag: record pending for %q: %w", messageID, err)
+		return setFlagTx(ctx, tx, messageID, flag, value, recordPending)
+	})
+}
+
+// SetFlagMany is SetFlag for several messages in one transaction: a bulk mark-read lands in the cache
+// (and so in the unread counts read from it) all at once; when any message is missing, none of it lands.
+func (s *Store) SetFlagMany(ctx context.Context, messageIDs []string, flag domain.Flag, value bool, recordPending bool) error {
+	return s.inTx(ctx, func(tx *sql.Tx) error {
+		for _, id := range messageIDs {
+			if err := setFlagTx(ctx, tx, id, flag, value, recordPending); err != nil {
+				return err
 			}
 		}
 		return nil
 	})
+}
+
+// setFlagTx is the body SetFlag and SetFlagMany share, applied inside the caller's transaction.
+func setFlagTx(ctx context.Context, tx *sql.Tx, messageID string, flag domain.Flag, value bool, recordPending bool) error {
+	var (
+		raw                                 int
+		dateMS                              int64
+		msgID, fromAddress, subject, folder string
+	)
+	err := tx.QueryRowContext(ctx,
+		"SELECT flags, message_id, date_ms, from_address, subject, folder_id FROM message WHERE id = ?;",
+		messageID).Scan(&raw, &msgID, &dateMS, &fromAddress, &subject, &folder)
+	if errors.Is(err, sql.ErrNoRows) {
+		return fmt.Errorf("set flag: message %q not found", messageID)
+	}
+	if err != nil {
+		return fmt.Errorf("set flag: read flags: %w", err)
+	}
+	flags := domain.NewFlags(domain.Flag(raw))
+	if value {
+		flags = flags.With(flag)
+	} else {
+		flags = flags.Without(flag)
+	}
+	if _, err := tx.ExecContext(ctx, "UPDATE message SET flags = ? WHERE id = ?;", int(flags.Raw()), messageID); err != nil {
+		return fmt.Errorf("set flag: update %q: %w", messageID, err)
+	}
+	if msgID != "" {
+		if _, err := tx.ExecContext(ctx,
+			`UPDATE message SET flags = ?
+			 WHERE id != ?
+			   AND message_id = ? AND date_ms = ? AND from_address = ? AND subject = ?
+			   AND folder_id IN (SELECT id FROM folder WHERE account_id =
+			         (SELECT account_id FROM folder WHERE id = ?));`,
+			int(flags.Raw()), messageID, msgID, dateMS, fromAddress, subject, folder); err != nil {
+			return fmt.Errorf("set flag: update other copies of %q: %w", messageID, err)
+		}
+	}
+	if recordPending {
+		if _, err := tx.ExecContext(ctx,
+			"INSERT OR REPLACE INTO message_flag_pending (message_id, flag, value) VALUES (?, ?, ?);",
+			messageID, int(flag), boolToInt(value)); err != nil {
+			return fmt.Errorf("set flag: record pending for %q: %w", messageID, err)
+		}
+	}
+	return nil
 }
 
 // ClearPendingFlagOp removes the pending intent for a (message, flag) pair, called once a sync sees the

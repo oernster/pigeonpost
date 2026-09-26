@@ -1,5 +1,5 @@
 import {Dispatch, SetStateAction, useCallback, useRef, useState} from 'react'
-import {api, Folder, Message} from '../api'
+import {api, BulkResult, Folder, Message} from '../api'
 import {OUTBOX_FOLDER_ID, isOutboxMessage} from '../outbox'
 import {putBack, takeOut, type Lifted} from '../optimisticList'
 import type {MoveItem} from '../undoStack'
@@ -264,36 +264,46 @@ export function useBulkActions(deps: BulkActionsDeps): BulkActions {
         await refreshFolders()
     }, [removeIdsFromLists, recordBulkMove, loadUnread, refreshFolders])
 
-    // bulkSetRead sets the read flag on every selected message, updating the lists at once and then
-    // persisting each. bulkSetFlag does the same for the star. Both take an explicit value rather than
-    // toggling, so a mixed selection ends up uniform.
+    // bulkSetRead sets the read flag on every selected message. The lists update at once; the cache takes
+    // the whole selection in one call, then both badge sources (the unread counts and each folder's own
+    // count) are refreshed from it, so the badges follow the list straight away rather than after a
+    // server round trip per message. Only then is the change pushed to the server, one connection per
+    // folder. bulkSetFlag does the same for the star. Both take an explicit value rather than toggling,
+    // so a mixed selection ends up uniform.
     const bulkSetRead = useCallback(async (targets: Message[], read: boolean) => {
-        const ids = new Set(targets.map((t) => t.id))
-        applyToAllLists((m) => (ids.has(m.id) ? {...m, read} : m))
-        let failed = 0
-        for (const t of targets) {
-            try {
-                await api.markRead(t.id, read)
-            } catch {
-                failed += 1
-            }
+        const ids = targets.map((t) => t.id)
+        const idSet = new Set(ids)
+        applyToAllLists((m) => (idSet.has(m.id) ? {...m, read} : m))
+        let result: BulkResult
+        try {
+            result = await api.markReadMessages(ids, read)
+        } catch (e) {
+            setError(`Marking ${targets.length} messages failed: ${String(e)}`)
+            return
         }
+        const written = result.ids ?? []
+        const writtenSet = new Set(written)
         // One undo entry for the whole batch, remembering each message's prior value so a mixed
         // selection is restored message by message. Rows already at the target value have nothing
-        // to restore and are left out.
-        const changed = targets.filter((t) => t.read !== read)
+        // to restore and are left out, as are rows the cache did not take.
+        const changed = targets.filter((t) => writtenSet.has(t.id) && t.read !== read)
         if (changed.length > 0) {
             undo.push({kind: 'read', items: changed.map((t) => ({messageId: t.id, before: t.read})), after: read})
         }
         try {
-            await loadUnread()
+            await Promise.all([loadUnread(), refreshFolders()])
         } catch {
             // A count refresh is best effort; the optimistic list update already reflects the change.
         }
-        if (failed > 0) {
-            setError(`${failed} of ${targets.length} messages could not be updated on the server.`)
+        if (result.failed > 0) {
+            setError(`${result.failed} of ${targets.length} messages could not be updated: ${result.error}`)
         }
-    }, [undo, loadUnread])
+        // Best effort, as for a single message: the cache recorded the intent, so a push that fails
+        // (offline, say) is replayed by the next sync rather than reported here.
+        if (written.length > 0) {
+            api.pushReadMessages(written, read).catch(() => {})
+        }
+    }, [applyToAllLists, undo, loadUnread, refreshFolders, setError])
 
     const bulkSetFlag = useCallback(async (targets: Message[], flagged: boolean) => {
         const ids = new Set(targets.map((t) => t.id))

@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"net"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/oernster/pigeonpost/internal/domain"
@@ -21,6 +22,35 @@ type script struct {
 	// loginRefusal, when set, is the text of a tagged NO answering LOGIN, so a test can drive the
 	// sign-in refusal through the real client rather than constructing its error by hand.
 	loginRefusal string
+	// commands, when set, records every command line the client sends, so a test can assert what went
+	// over the wire (how many logins, what a STORE carried).
+	commands *commandLog
+}
+
+// commandLog collects the command lines a fake server received. The server runs on its own goroutine,
+// so the log is guarded.
+type commandLog struct {
+	mu    sync.Mutex
+	lines []string
+}
+
+func (c *commandLog) add(line string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.lines = append(c.lines, line)
+}
+
+// matching answers the recorded lines that start with the given command, after the tag.
+func (c *commandLog) matching(command string) []string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	found := make([]string, 0)
+	for _, line := range c.lines {
+		if _, rest, ok := strings.Cut(line, " "); ok && strings.HasPrefix(strings.ToUpper(rest), command) {
+			found = append(found, rest)
+		}
+	}
+	return found
 }
 
 // fakeIMAPServer scripts just enough of an IMAP server to drive the read paths: a greeting, a login, a
@@ -40,6 +70,9 @@ func fakeIMAPServer(conn net.Conn, s script) {
 		line, err := reader.ReadString('\n')
 		if err != nil {
 			return
+		}
+		if s.commands != nil {
+			s.commands.add(strings.TrimRight(line, crlf))
 		}
 		fields := strings.SplitN(strings.TrimRight(line, crlf), " ", 3)
 		tag, command := fields[0], ""

@@ -14,8 +14,8 @@ import (
 
 // movedUIDs pairs each source UID with its destination UID from a MOVE's COPYUID reply (RFC 4315),
 // so a caller can learn where each message landed and address it there (an undo moves it back). A
-// server without UIDPLUS sends no COPYUID, and a malformed reply may carry absent or unbalanced
-// sets; any of those yields nil (destinations unknown) rather than a guess.
+// server without UIDPLUS sends no COPYUID; a malformed reply may carry absent or unbalanced
+// sets. Any of those yields nil (destinations unknown) rather than a guess.
 func movedUIDs(data *imapclient.MoveData) map[string]string {
 	if data == nil {
 		return nil
@@ -55,33 +55,9 @@ func pairUIDs(src, dst imap.UIDSet) map[string]string {
 
 // storeFlag adds or removes a single IMAP flag for one message by UID on the server. It is the shared body of
 // the per-flag setters (SetSeen / SetFlagged / SetAnswered / SetForwarded); the mailbox is selected read-write
-// so the STORE is permitted.
+// so the STORE is permitted. It is the one-message case of storeFlagMany.
 func (s *Source) storeFlag(ctx context.Context, account domain.Account, folder domain.Folder, uid string, flag imap.Flag, set bool) error {
-	client, err := s.connect(ctx, account)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = client.Logout().Wait() }()
-
-	if _, err := client.Select(folder.Path(), nil).Wait(); err != nil {
-		return fmt.Errorf("imap: select %q: %w", folder.Path(), err)
-	}
-
-	u, err := parseUID(uid)
-	if err != nil {
-		return err
-	}
-	uidSet := imap.UIDSet{}
-	uidSet.AddNum(u)
-	op := imap.StoreFlagsDel
-	if set {
-		op = imap.StoreFlagsAdd
-	}
-	store := &imap.StoreFlags{Op: op, Silent: true, Flags: []imap.Flag{flag}}
-	if err := client.Store(uidSet, store, nil).Close(); err != nil {
-		return fmt.Errorf("imap: store %s uid %q: %w", flag, uid, err)
-	}
-	return nil
+	return s.storeFlagMany(ctx, account, folder, []string{uid}, flag, set)
 }
 
 // SetSeen sets or clears the \Seen flag for one message by UID on the server. It satisfies application.MailActions.
