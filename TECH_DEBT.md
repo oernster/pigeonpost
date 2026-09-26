@@ -78,6 +78,27 @@ the same upstream work as item 2.
 
 ---
 
+## 4. The badge refresh is written out six times rather than once
+
+The unread badges come from two separate reads: `loadUnread` (each account's count and the window total)
+and `refreshFolders` (the folder list, which carries each folder's own count). An action that changes an
+unread count has to run both; otherwise one surface goes stale while the other is right. That pairing has no
+single home in the front end. It is written out six times: a `refreshBadges` helper in
+`useMessageActions`, a second identical one in `useUndoRedo`, three direct pairs in `useBulkActions`
+and one in `useMessageClipboard`.
+
+The cost is that nothing makes a new action refresh both; each author has to remember the pair. That
+is not hypothetical: until 2.10.0 the bulk mark-read called `loadUnread` alone, so the folder badges
+stayed stale after it until the next sync. The behaviour is correct everywhere today, which is why this
+is minor.
+
+The fix is one `refreshBadges`, built once beside `loadUnread` and `refreshFolders` and passed to the
+hooks that need it, with the six copies becoming calls to it. It must keep two differences the call
+sites have now: the bulk mark-read deliberately swallows a failed refresh while the delete paths run the
+two reads in sequence. `App.tsx` is at its recorded ceiling (item 1), so the wiring may not lengthen it.
+
+---
+
 ## Looks like debt, not worth touching
 
 - The `application.MailSource.FetchBody` four-value return `(plain, html, invite, attachments, err)` could be reshaped into a body struct to save the destructure-and-re-thread; a four-value return is idiomatic Go and the port shape is fine as it stands, so it is left.
