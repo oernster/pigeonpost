@@ -23,7 +23,6 @@ const EXEMPT: Record<string, number> = {
     'src/App.tsx': 1395,
     'src/components/ComposeModal.tsx': 731,
     'src/components/EventFormModal.tsx': 559,
-    'src/components/FolderTree.tsx': 445,
 }
 
 // Every source module, read at build time by Vite (no node:fs, so the frontend stays browser-only).

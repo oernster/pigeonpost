@@ -494,12 +494,106 @@ describe('Sidebar: folder drag and drop', () => {
     // does not set on a drag event (clientY is a read-only getter there, so it stays undefined and the zone
     // maths degenerates to NaN). With jsdom's zero-height rect the pointer offset equals clientY, so
     // clientY 0 lands in the into zone (nest inside) and a positive clientY in the after zone (same level).
-    function dropOn(row: HTMLElement, dataTransfer: DataTransfer, clientY: number) {
-        const event = new Event('drop', {bubbles: true, cancelable: true})
+    // clientY below 0 lands in the before zone. dragOn fires any drag event that way; a dragover needs its
+    // pointer position for the same reason a drop does.
+    function dragOn(type: string, row: HTMLElement, dataTransfer: DataTransfer, clientY: number) {
+        const event = new Event(type, {bubbles: true, cancelable: true})
         Object.defineProperty(event, 'dataTransfer', {value: dataTransfer})
         Object.defineProperty(event, 'clientY', {value: clientY})
         fireEvent(row, event)
     }
+    const dropOn = (row: HTMLElement, dataTransfer: DataTransfer, clientY: number) =>
+        dragOn('drop', row, dataTransfer, clientY)
+    const nested = [
+        makeFolder('work', 'Work', 'custom'),
+        makeFolder('reports', 'Work/Reports', 'custom'),
+        makeFolder('personal', 'Personal', 'custom'),
+    ]
+    // cue is the drop cue a row wears: the message target, a folder zone or none.
+    const cue = (row: HTMLElement) =>
+        ['drag-over', 'drag-before', 'drag-into', 'drag-after'].filter((c) => row.classList.contains(c))
+
+    it('reparents a folder dropped into the gap beside one under another parent, keeping that place', () => {
+        const {folderRow, onReparentFolder} = renderSidebar({folders: nested})
+        dropOn(folderRow('reports')!, makeDataTransfer({[folderDragType]: 'personal'}), 10)
+        expect(onReparentFolder).toHaveBeenCalledWith('personal', 'work')
+        expect(localStorage.getItem(folderOrderKey('a1'))).toBe('["Work/Reports","Work/Personal"]')
+    })
+
+    it('cues the zone a dragged folder aims at and no zone it cannot land in', () => {
+        const {folderRow} = renderSidebar({folders: nested})
+        fireEvent.dragStart(folderRow('personal')!, {dataTransfer: makeDataTransfer()})
+        expect(folderRow('personal')!.classList.contains('dragging')).toBe(true)
+        const dragging = makeDataTransfer({[folderDragType]: 'personal'})
+        dragOn('dragover', folderRow('work')!, dragging, 0)
+        expect(cue(folderRow('work')!)).toEqual(['drag-into'])
+        dragOn('dragover', folderRow('work')!, dragging, -10)
+        expect(cue(folderRow('work')!)).toEqual(['drag-before'])
+        dragOn('dragover', folderRow('reports')!, dragging, 10)
+        expect(cue(folderRow('reports')!)).toEqual(['drag-after'])
+        dragOn('dragover', folderRow('personal')!, dragging, 0)
+        expect(cue(folderRow('personal')!)).toEqual([])
+        fireEvent.dragEnd(folderRow('personal')!)
+        expect(folderRow('personal')!.classList.contains('dragging')).toBe(false)
+        expect(cue(folderRow('reports')!)).toEqual([])
+    })
+
+    it('marks the folder a message is over and clears it when the message leaves', () => {
+        const {folderRow} = renderSidebar({folders: nested})
+        fireEvent.dragOver(folderRow('work')!, {dataTransfer: makeDataTransfer({[messageDragType]: 'm1'})})
+        expect(cue(folderRow('work')!)).toEqual(['drag-over'])
+        fireEvent.dragLeave(folderRow('work')!)
+        expect(cue(folderRow('work')!)).toEqual([])
+    })
+
+    it('does not spring a parent open once the message has moved on or left', () => {
+        vi.useFakeTimers()
+        try {
+            localStorage.setItem(collapseKey('a1'), '["Work"]')
+            const {folderRow} = renderSidebar({folders: nested})
+            const message = () => ({dataTransfer: makeDataTransfer({[messageDragType]: 'm1'})})
+            fireEvent.dragOver(folderRow('work')!, message())
+            fireEvent.dragOver(folderRow('personal')!, message())
+            act(() => {
+                vi.advanceTimersByTime(1000)
+            })
+            expect(folderRow('reports')).toBeNull()
+            fireEvent.dragOver(folderRow('work')!, message())
+            fireEvent.dragLeave(folderRow('work')!)
+            act(() => {
+                vi.advanceTimersByTime(1000)
+            })
+            expect(folderRow('reports')).toBeNull()
+        } finally {
+            vi.useRealTimers()
+        }
+    })
+
+    it('does not spring open the folder being dragged', () => {
+        vi.useFakeTimers()
+        try {
+            localStorage.setItem(collapseKey('a1'), '["Work"]')
+            const {folderRow} = renderSidebar({folders: nested})
+            fireEvent.dragStart(folderRow('work')!, {dataTransfer: makeDataTransfer()})
+            fireEvent.dragOver(folderRow('work')!, {dataTransfer: makeDataTransfer({[folderDragType]: 'work'})})
+            act(() => {
+                vi.advanceTimersByTime(1000)
+            })
+            expect(folderRow('reports')).toBeNull()
+        } finally {
+            vi.useRealTimers()
+        }
+    })
+
+    it('restarts the flash when a second message lands in the same folder', async () => {
+        const {folderRow} = renderSidebar({folders: nested})
+        dropOn(folderRow('work')!, makeDataTransfer({[messageDragType]: 'm1'}), 0)
+        await waitFor(() => expect(folderRow('work')!.classList.contains('drop-landed')).toBe(true))
+        dropOn(folderRow('work')!, makeDataTransfer({[messageDragType]: 'm2'}), 0)
+        // The class comes off at once and back on the next frame, so the animation plays again.
+        expect(folderRow('work')!.classList.contains('drop-landed')).toBe(false)
+        await waitFor(() => expect(folderRow('work')!.classList.contains('drop-landed')).toBe(true))
+    })
 
     it('drops a message onto a folder without touching the folder move', () => {
         const {folderRow, onDropMessage, onReparentFolder} = renderSidebar({folders: siblings})
