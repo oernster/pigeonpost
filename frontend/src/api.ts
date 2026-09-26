@@ -3,10 +3,6 @@
 import {
     About,
     AddAccount,
-    AddCalDAVAccount,
-    ListCalDAVAccounts,
-    SyncCalDAV,
-    RemoveCalDAVAccount,
     Author,
     DeleteMessage,
     DeleteMessagePermanent,
@@ -31,61 +27,24 @@ import {
     MessageTags,
     MinimiseToTray,
     RequestQuit,
-    CollectContacts,
     Conversation,
     CopyMessage,
     CreateFolder,
     CreateSubfolder,
-    DeleteCalendar,
-    DeleteContact,
-    DeleteContactGroup,
-    DeleteEvent,
     DeleteFolder,
-    ExportContactsToFile,
-    ExportEventsToFile,
     FolderUIState,
     SaveFolderUIState,
-    GetContact,
-    GetEvent,
-    GetInvitation,
-    RespondToInvitation,
-    RemoveCancelledMeeting,
-    ApplyMeetingReply,
-    SendMeetingRequest,
-    SendMeetingCancel,
-    ImportContactsFromFile,
-    ImportEventsFromFile,
-    ListCalendars,
-    ListContactGroups,
-    ListContacts,
-    ListEvents,
-    ListEventInstances,
-    SaveCalendar,
-    SaveContact,
-    SaveContactGroup,
-    SaveEvent,
-    SaveEventScoped,
-    DeleteEventScoped,
     MoveFolder,
     MoveMessage,
     RenameFolder,
-    CancelOutboxItem,
     CheckForUpdates,
-    ListOutbox,
     OpenExternal,
     OpenReleasesPage,
-    ClearDraftRecovery,
-    DraftRecovery,
-    OutboxCount,
-    PickAttachments,
     RemoveAccount,
-    ReplayOutbox,
     SignInMicrosoft,
     SnoozeMessage,
     SnoozedCount,
     UnsnoozeMessage,
-    SaveDraft,
-    SaveDraftRecovery,
     OpenAttachment,
     OpenEmailAttachment,
     SaveAllAttachments,
@@ -93,7 +52,6 @@ import {
     SaveMessageAs,
     SaveTag,
     SearchMessages,
-    SendMessage,
     SetMessageTag,
     ShowDefaultAppSettings,
     ShowDefaultMailAppSettings,
@@ -116,6 +74,20 @@ export type {Rule, RuleAction, RuleBackfill, RuleBackfillProgress, RuleCondition
 import {templatesApi} from './apiTemplates'
 import {bulkApi} from './apiBulk'
 export type {BulkResult} from './apiBulk'
+import {calendarApi} from './apiCalendar'
+export type {
+    CalDAVAccount, Calendar, CalendarEvent, CalendarEventInput, CalendarEventInstance, CalendarInput, Invitation,
+    MeetingAttendee, MeetingAttendeeInput, MeetingOrganizerInput, PartStat,
+} from './apiCalendar'
+// EventScope is an enum, a value rather than only a type, so it is re-exported as one.
+export {EventScope} from './apiCalendar'
+import {contactsApi} from './apiContacts'
+export type {
+    Contact, ContactAddressInput, ContactEmailInput, ContactGroup, ContactGroupInput, ContactImportResult,
+    ContactInput, ContactPhoneInput,
+} from './apiContacts'
+import {composeApi} from './apiCompose'
+export type {ComposeInput, DraftRecoveryInput, DraftRecoveryResult, OutboxItem} from './apiCompose'
 export type {Template, TemplateAttachment, TemplateFile, TemplateInput} from './apiTemplates'
 
 export type Account = main.AccountDTO
@@ -161,7 +133,6 @@ export type Tag = main.TagDTO
 // plain object literal; the nested AttachmentDTO array carries no helper of its own.
 export type MessageBody = Omit<main.MessageBodyDTO, 'convertValues'>
 export type Attachment = main.AttachmentDTO
-export type OutboxItem = main.OutboxItemDTO
 export type UnreadCountsResult = main.UnreadCountsDTO
 // FolderUIStateResult is an account's persisted folder display state: the custom folders' local order
 // and the collapsed folder paths.
@@ -174,168 +145,10 @@ export type ConversationEntry = main.ConversationEntryDTO
 // message: the id it will carry in its destination folder; empty when the server did not say.
 // Undo entries are built from it.
 export type MoveResult = main.MoveResultDTO
-export type Contact = main.ContactDTO
-export type ContactGroup = main.ContactGroupDTO
-// ContactImportResult separates records stored as new contacts from those merged into existing ones,
-// so the UI can say what an import actually changed rather than implying every row was new.
-export type ContactImportResult = main.ContactImportResult
-
-export interface ContactEmailInput {
-    label: string
-    address: string
-}
-
-export interface ContactPhoneInput {
-    label: string
-    number: string
-}
-
-export interface ContactAddressInput {
-    label: string
-    street: string
-    locality: string
-    region: string
-    postalCode: string
-    country: string
-}
-
-export interface ContactInput {
-    id: string
-    uid: string
-    formattedName: string
-    givenName: string
-    familyName: string
-    organization: string
-    title: string
-    note: string
-    birthday: string
-    emails: ContactEmailInput[]
-    phones: ContactPhoneInput[]
-    addresses: ContactAddressInput[]
-}
-
-export interface ContactGroupInput {
-    id: string
-    name: string
-    members: string[]
-}
-
-export type Calendar = main.CalendarDTO
-// CalDAVAccount is a configured remote CalDAV account. The password is never part of this view; it lives
-// in the OS keychain, exactly as for a mail account.
-export type CalDAVAccount = main.CalDAVAccountDTO
-export type CalendarEvent = main.EventDTO
-export type CalendarEventInstance = main.EventInstanceDTO
-export type Invitation = main.InvitationDTO
-export type MeetingAttendee = main.AttendeeDTO
-
-// PartStat is the ICS PARTSTAT reply value the reader sends when answering a meeting request.
-export type PartStat = 'ACCEPTED' | 'DECLINED' | 'TENTATIVE'
-
-// EventScope mirrors the Go application.EventScope: how far an edit or delete of a recurring occurrence
-// reaches. The integer values must match the Go constants.
-export enum EventScope {
-    This = 0,
-    Future = 1,
-    All = 2,
-}
-
-export interface CalendarInput {
-    id: string
-    name: string
-    colour: string
-}
-
-// MeetingOrganizerInput is the organiser written onto an event when it is a meeting. An empty address
-// marks an ordinary (non-meeting) event.
-export interface MeetingOrganizerInput {
-    address: string
-    commonName: string
-}
-
-// MeetingAttendeeInput is one invited party written onto a meeting event. role and status accept the ICS
-// ROLE and PARTSTAT values; empty strings take the domain defaults (REQ-PARTICIPANT and NEEDS-ACTION).
-export interface MeetingAttendeeInput {
-    address: string
-    commonName: string
-    role: string
-    status: string
-    rsvp: boolean
-}
-
-export interface CalendarEventInput {
-    id: string
-    uid: string
-    calendarId: string
-    summary: string
-    description: string
-    location: string
-    // category is the optional short lowercase category value (the primary iCalendar CATEGORIES value);
-    // empty means no category.
-    category: string
-    start: string
-    end: string
-    allDay: boolean
-    recurrence: string
-    timeZone: string
-    // reminders are lead times in whole minutes before the event start (0 means at the start).
-    reminders: number[]
-    extra: string
-    // organiser and attendees carry the meeting scheduling data. organiser.address is empty and attendees
-    // is empty for an ordinary calendar entry.
-    organizer: MeetingOrganizerInput
-    attendees: MeetingAttendeeInput[]
-}
-
 export interface TagInput {
     id: string
     name: string
     colour: string
-}
-
-export interface ComposeInput {
-    accountId: string
-    // from is the chosen sender address: empty means the account's primary address, otherwise it must be
-    // one of the account's identities. The backend validates it.
-    from: string
-    to: string[]
-    cc: string[]
-    bcc: string[]
-    subject: string
-    body: string
-    htmlBody: string
-    attachmentPaths: string[]
-    // attachmentData carries files pasted or dropped into the compose window, where the webview holds
-    // name and bytes but no filesystem path. content is base64 (AttachmentDataEntry in send.go).
-    attachmentData: {name: string; contentType: string; content: string}[]
-    attachmentMessageIds: string[]
-    // sendAtMs is send-later: a Unix-millisecond instant queues the send held until then (cancellable
-    // from the Outbox; send returns the queued id). Zero means no schedule; send returns ''.
-    sendAtMs: number
-}
-
-// DraftRecoveryInput is a local snapshot of the compose window, autosaved for crash and
-// accidental-close recovery. The recipient fields are the raw text as typed, not parsed lists.
-export interface DraftRecoveryInput {
-    accountId: string
-    to: string
-    cc: string
-    bcc: string
-    subject: string
-    bodyHtml: string
-}
-
-// DraftRecoveryResult is the stored compose snapshot. present is false when none is held, in which case
-// the other fields are empty and there is nothing to restore.
-export interface DraftRecoveryResult {
-    present: boolean
-    accountId: string
-    to: string
-    cc: string
-    bcc: string
-    subject: string
-    bodyHtml: string
-    savedMs: number
 }
 
 // Identity is one alternate sender address on an account: an email address with an optional display name.
@@ -509,6 +322,9 @@ export const api = {
     ...rulesApi,
     ...templatesApi,
     ...bulkApi,
+    ...composeApi,
+    ...contactsApi,
+    ...calendarApi,
     about: (): Promise<AboutInfo> => About(),
     licence: (): Promise<string> => LicenceText(),
     version: (): Promise<string> => Version(),
@@ -517,68 +333,6 @@ export const api = {
     checkForUpdates: (skippedVersion: string): Promise<UpdateStatus> => CheckForUpdates(skippedVersion),
     minimiseToTray: (): Promise<void> => MinimiseToTray(),
     requestQuit: (): Promise<void> => RequestQuit(),
-    send: (req: ComposeInput): Promise<string> => SendMessage(main.ComposeRequest.createFrom(req)),
-    saveDraft: (req: ComposeInput): Promise<void> => SaveDraft(main.ComposeRequest.createFrom(req)),
-    saveDraftRecovery: (req: DraftRecoveryInput): Promise<void> =>
-        SaveDraftRecovery(main.DraftRecoveryRequest.createFrom(req)),
-    draftRecovery: (): Promise<DraftRecoveryResult> => DraftRecovery(),
-    clearDraftRecovery: (): Promise<void> => ClearDraftRecovery(),
-    outboxCount: (): Promise<number> => OutboxCount(),
-    listOutbox: (): Promise<OutboxItem[]> => ListOutbox(),
-    // cancelOutboxItem resolves true when the item was still queued and is now stopped; false means the
-    // message had already been sent, so an undo that lost the race can say so.
-    cancelOutboxItem: (id: string): Promise<boolean> => CancelOutboxItem(id),
-    // A cancelled file dialog returns a Go nil slice, which arrives as null; coalesce it to an empty array
-    // so callers can always read .length and filter it.
-    pickAttachments: async (): Promise<string[]> => (await PickAttachments()) ?? [],
-    replayOutbox: (): Promise<number> => ReplayOutbox(),
-    listContacts: (): Promise<Contact[]> => ListContacts(),
-    getContact: (id: string): Promise<Contact> => GetContact(id),
-    saveContact: (req: ContactInput): Promise<void> => SaveContact(main.ContactRequest.createFrom(req)),
-    deleteContact: (id: string): Promise<void> => DeleteContact(id),
-    // collectContacts adds a minimal contact for each address not already in the address book,
-    // returning how many were added; called after a successful send when auto-collect is on.
-    collectContacts: (addresses: string[]): Promise<number> => CollectContacts(addresses),
-    listContactGroups: (): Promise<ContactGroup[]> => ListContactGroups(),
-    saveContactGroup: (req: ContactGroupInput): Promise<void> =>
-        SaveContactGroup(main.ContactGroupRequest.createFrom(req)),
-    deleteContactGroup: (id: string): Promise<void> => DeleteContactGroup(id),
-    importContactsFromFile: (): Promise<ContactImportResult> => ImportContactsFromFile(),
-    exportContactsToFile: (format: string): Promise<boolean> => ExportContactsToFile(format),
-    listCalendars: (): Promise<Calendar[]> => ListCalendars(),
-    saveCalendar: (req: CalendarInput): Promise<void> => SaveCalendar(main.CalendarRequest.createFrom(req)),
-    deleteCalendar: (id: string): Promise<void> => DeleteCalendar(id),
-    listEvents: (): Promise<CalendarEvent[]> => ListEvents(),
-    listEventInstances: (from: string, to: string): Promise<CalendarEventInstance[]> =>
-        ListEventInstances(from, to),
-    getEvent: (id: string): Promise<CalendarEvent> => GetEvent(id),
-    // saveEvent returns the saved event's id (freshly generated for a new event), so a newly created
-    // meeting can send its invitations without a reload.
-    saveEvent: (req: CalendarEventInput): Promise<string> => SaveEvent(main.EventRequest.createFrom(req)),
-    saveEventScoped: (req: CalendarEventInput, scope: EventScope, occurrence: string): Promise<void> =>
-        SaveEventScoped(main.EventRequest.createFrom(req), scope, occurrence),
-    deleteEvent: (id: string): Promise<void> => DeleteEvent(id),
-    deleteEventScoped: (scope: EventScope, seriesId: string, occurrence: string): Promise<void> =>
-        DeleteEventScoped(scope, seriesId, occurrence),
-    importEventsFromFile: (): Promise<number> => ImportEventsFromFile(),
-    exportEventsToFile: (): Promise<boolean> => ExportEventsToFile(),
-    getInvitation: (messageId: string): Promise<Invitation> => GetInvitation(messageId),
-    respondToInvitation: (messageId: string, status: PartStat): Promise<void> =>
-        RespondToInvitation(messageId, status),
-    removeCancelledMeeting: (messageId: string): Promise<void> => RemoveCancelledMeeting(messageId),
-    applyMeetingReply: (messageId: string): Promise<void> => ApplyMeetingReply(messageId),
-    sendMeetingRequest: (accountId: string, eventId: string): Promise<void> =>
-        SendMeetingRequest(accountId, eventId),
-    sendMeetingCancel: (accountId: string, eventId: string): Promise<void> =>
-        SendMeetingCancel(accountId, eventId),
-    // CalDAV remote calendars. listCalDAVAccounts returns the configured DAV accounts; addCalDAVAccount stores
-    // an account and its keychain password; removeCalDAVAccount deletes both; syncCalDAV runs the two-way sync
-    // for an account (pushes local changes, then reconciles the server's calendars into the local store).
-    listCalDAVAccounts: (): Promise<CalDAVAccount[]> => ListCalDAVAccounts(),
-    addCalDAVAccount: (displayName: string, baseUrl: string, username: string, password: string): Promise<void> =>
-        AddCalDAVAccount(displayName, baseUrl, username, password),
-    removeCalDAVAccount: (id: string): Promise<void> => RemoveCalDAVAccount(id),
-    syncCalDAV: (id: string): Promise<void> => SyncCalDAV(id),
     // clipboardText reads the system clipboard through the Wails runtime for Edit > Paste, which
     // the webview cannot do itself (execCommand('paste') is blocked and navigator.clipboard.readText
     // may prompt). An empty clipboard reads as an empty string.
