@@ -13,8 +13,8 @@ export interface MessageClipboardDeps {
     store: MessageStore
     selectedFolderId: string
     undo: UndoRecorder
-    loadUnread: () => Promise<void>
-    refreshFolders: () => Promise<void>
+    // refreshBadges refreshes the unread counts and the folder list together (see useUnreadBadges).
+    refreshBadges: () => Promise<void>
     // reloadFolder syncs a folder and re-reads its list from the local cache. A paste into the folder
     // on screen ends with this, so the optimistic rows are replaced by the messages the cache actually
     // holds rather than standing under ids only the server ever saw.
@@ -50,7 +50,7 @@ export interface MessageClipboard {
 // server that reports nothing shows its copies on the sync, as before (a duplicate row is never
 // shown under an invented identity).
 export function useMessageClipboard(deps: MessageClipboardDeps): MessageClipboard {
-    const {store, selectedFolderId, undo, loadUnread, refreshFolders, reloadFolder, setError} = deps
+    const {store, selectedFolderId, undo, refreshBadges, reloadFolder, setError} = deps
     const {messages, setMessages, applyToAllLists, removeFromAllLists} = store
     const [clip, setClip] = useState<{mode: 'move' | 'copy'; messages: Message[]} | null>(null)
 
@@ -135,7 +135,7 @@ export function useMessageClipboard(deps: MessageClipboardDeps): MessageClipboar
                     : `${result.failed} of ${taken.length} messages could not be pasted: ${result.error}`)
             }
             await syncDestination(destFolderId)
-            await Promise.all([loadUnread(), refreshFolders()])
+            await refreshBadges()
         } catch (e) {
             // The whole move failed: roll the optimistic rows back out and put the clipboard back
             // so the paste can be retried.
@@ -145,7 +145,7 @@ export function useMessageClipboard(deps: MessageClipboardDeps): MessageClipboar
             setClip({mode: 'move', messages: taken})
             setError(`Paste failed: ${String(e)}`)
         }
-    }, [messages, selectedFolderId, setMessages, removeFromAllLists, applyToAllLists, undo, syncDestination, loadUnread, refreshFolders, setError])
+    }, [messages, selectedFolderId, setMessages, removeFromAllLists, applyToAllLists, undo, syncDestination, refreshBadges, setError])
 
     // pasteCopy duplicates the clipboard messages into the destination. Each duplicate's row joins
     // the open folder's list as soon as its copy lands and the server reports the id it carries

@@ -5,13 +5,13 @@ import {OUTBOX_FOLDER_ID} from '../outbox'
 // autoSyncIntervalMs is how often the folder on screen is refreshed from the server in the background,
 // so new mail in the open folder appears without a manual sync.
 const millisPerMinute = 60 * 1000
-const autoSyncIntervalMs = 5 * millisPerMinute
+export const autoSyncIntervalMs = 5 * millisPerMinute
 
 // SyncDeps is what syncing needs from the rest of App: the selected account (whose mailbox is synced), the
 // selected folder and its ref (the folder a sync or the background poll reloads), the guarded folder-list
 // writer, the folder reloader (which resets the flat view's pagination and loads its first page, so a sync
-// does not pull every row of a huge folder), the folder-list refresher the background poll rebadges through,
-// the outbox refresher, the unread-count refresher and the error sink.
+// does not pull every row of a huge folder), the badge refresher the background poll rebadges through, the
+// outbox refresher, the unread-count refresher and the error sink.
 export interface SyncDeps {
     selectedAccount: string
     selectedFolder: string
@@ -23,10 +23,10 @@ export interface SyncDeps {
     // reloadFolder resets pagination and reloads the folder view; skipSync loads once without re-syncing,
     // because the caller here has already synced (the account or the folder in the background poll).
     reloadFolder: (id: string, opts?: {skipSync?: boolean}) => Promise<void>
-    // refreshFolders reloads the selected account's folder list, whose rows carry the per-folder unread
-    // badge. The background poll refreshes it as well as the counts, so mail arriving into the open folder
-    // badges its row rather than only the account and the titlebar.
-    refreshFolders: () => Promise<void>
+    // refreshBadges refreshes the unread counts and the folder list together (see useUnreadBadges). The
+    // background poll uses it, so mail arriving into the open folder badges its row rather than only the
+    // account and the titlebar; the manual sync refreshes the folder list itself and so needs loadUnread alone.
+    refreshBadges: () => Promise<void>
     refreshOutbox: () => Promise<void>
     loadUnread: () => Promise<void>
     setError: (message: string) => void
@@ -46,7 +46,7 @@ export interface Sync {
 export function useSync(deps: SyncDeps): Sync {
     const {
         selectedAccount, selectedFolder, selectedFolderRef, applyFolders, reloadFolder,
-        refreshFolders, refreshOutbox, loadUnread, setError,
+        refreshBadges, refreshOutbox, loadUnread, setError,
     } = deps
 
     const [syncingAccounts, setSyncingAccounts] = useState<Set<string>>(() => new Set<string>())
@@ -113,15 +113,14 @@ export function useSync(deps: SyncDeps): Sync {
                     if (selectedFolderRef.current === selectedFolder) {
                         await reloadFolder(selectedFolder, {skipSync: true})
                     }
-                    await loadUnread()
-                    await refreshFolders()
+                    await refreshBadges()
                 } catch {
                     // A background refresh failure (offline) must not disrupt the UI.
                 }
             })()
         }, autoSyncIntervalMs)
         return () => window.clearInterval(interval)
-    }, [selectedFolder, reloadFolder, refreshFolders, loadUnread])
+    }, [selectedFolder, reloadFolder, refreshBadges])
 
     return {syncingAccounts, sync, accountSyncing}
 }

@@ -1,6 +1,6 @@
 import {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from 'react'
 import './App.css'
-import {AboutInfo, api, CalendarEvent, Contact, Folder, Message, MessageBody, Rule, Template, UnreadCountsResult} from './api'
+import {AboutInfo, api, CalendarEvent, Contact, Folder, Message, MessageBody, Rule, Template} from './api'
 import {OUTBOX_FOLDER_ID, isOutboxMessage, outboxItemToMessage} from './outbox'
 import {UNIFIED_FOLDER_ID, accountChips, isUnifiedFolder} from './unified'
 import {SNOOZED_FOLDER_ID, isSnoozedFolder} from './snooze'
@@ -65,6 +65,7 @@ import {useSelectAll} from './hooks/useSelectAll'
 import {isTypingTarget, useIdleRefocus} from './hooks/useIdleRefocus'
 import {useSnooze} from './hooks/useSnooze'
 import {useUndoRedo} from './hooks/useUndoRedo'
+import {useUnreadBadges} from './hooks/useUnreadBadges'
 import {useEditContext} from './hooks/useEditContext'
 import {useMessageClipboard} from './hooks/useMessageClipboard'
 import {canCopy, canCut, canPaste, copySelection, cutSelection, pasteText} from './editClipboard'
@@ -89,9 +90,6 @@ function folderPromptTitle(prompt: FolderPrompt): string {
 
 function App() {
     const [selectedAccount, setSelectedAccount] = useState<string>('')
-    const [unreadCounts, setUnreadCounts] = useState<UnreadCountsResult>(
-        {total: 0, byAccount: {}, newestByAccount: {}},
-    )
     // watermarks records, per account, the last instant it was the selected account. The elsewhere
     // cue on the account picker lights only for unread mail newer than an account's watermark, so a
     // standing backlog never lights it; only arrivals since you last looked do.
@@ -126,6 +124,8 @@ function App() {
         confirmation: foldersConfirmation,
         refreshFolders, submitFolderPrompt, confirmDeleteFolder, reparentFolder,
     } = useFolders({selectedAccount, store, setError})
+    // The unread counts and the one refresh that updates them with the folder list live in useUnreadBadges.
+    const {unreadCounts, loadUnread, refreshBadges} = useUnreadBadges({refreshFolders, setError})
     // The outbox queue (surfaced as a per-account synthetic Outbox folder), the cancel-send confirm flow
     // and the folder list including that synthetic folder live in useOutbox. The effect that keeps the open
     // Outbox view in step with the queue stays in App below, because it drives folder navigation.
@@ -305,21 +305,6 @@ function App() {
         void loadEvents()
     }, [loadEvents])
 
-    // loadUnread refreshes the per-account and cross-account unread counts from the local cache. It is
-    // called after anything that can change read state (sync, mark read/unread, delete, opening a
-    // folder) so the sidebar and titlebar badges stay correct.
-    const loadUnread = useCallback(async () => {
-        try {
-            setUnreadCounts(await api.unreadCounts())
-        } catch (e) {
-            setError(String(e))
-        }
-    }, [])
-
-    useEffect(() => {
-        void loadUnread()
-    }, [loadUnread])
-
     // Persist the watermarks whenever they change, so "last looked" survives a restart.
     useEffect(() => {
         saveWatermarks(localStorage, watermarks)
@@ -343,7 +328,7 @@ function App() {
 
     // The Edit-menu undo and redo stacks live in useUndoRedo; every action hook below records its
     // completed actions through undoRedo.recorder.
-    const undoRedo = useUndoRedo({store, loadUnread, refreshFolders, setError})
+    const undoRedo = useUndoRedo({store, refreshBadges, setError})
 
     // The colour-tag palette, the selected message's tags and the tag-toggle handlers (on the open message
     // and on any message via the context menu) live in useTags.
@@ -365,7 +350,7 @@ function App() {
         requestDelete, deleteMessage, deletePermanent, toggleFlag, moveMessage, markJunk, markNotJunk, copyMessage,
         setReadState, toggleRead, markReadOnView, markReplied, markForwarded,
     } = useMessageActions({
-        store, displayMessages, searchActive, folders, loadUnread, refreshFolders, setError,
+        store, displayMessages, searchActive, folders, refreshBadges, setError,
         isPop3: messagePop3,
         undo: undoRedo.recorder,
     })
@@ -731,7 +716,7 @@ function App() {
     const {syncingAccounts, sync, accountSyncing} = useSync({
         selectedAccount, selectedFolder, selectedFolderRef, applyFolders,
         reloadFolder: loadFolderMessages,
-        refreshFolders, refreshOutbox, loadUnread, setError,
+        refreshBadges, refreshOutbox, loadUnread, setError,
     })
 
     // syncAfterSave holds the id of an account just saved, so the effect below can sync it once the
@@ -815,8 +800,7 @@ function App() {
         closeChoice, setCloseChoice,
     } = useAppEvents({
         showAbout: help.about.open, showLicence: help.licence.open, checkUpdates,
-        selectedFolder, reloadFolder: loadFolderMessages, refreshFolders,
-        loadUnread, loadEvents, setError,
+        selectedFolder, reloadFolder: loadFolderMessages, refreshBadges, loadEvents, setError,
     })
 
     // The bulk actions over a multi-selection (bulk delete, permanent delete, move, read, flag), the
@@ -827,7 +811,7 @@ function App() {
         bulkToDelete, setBulkToDelete, bulkDeleting,
         bulkToPurge, setBulkToPurge, bulkPurging,
         runBulkDelete, bulkSetRead, bulkSetFlag, bulkMove, dropMessageOnFolder,
-    } = useBulkActions({store, selection, folders, loadUnread, refreshFolders, setError, undo: undoRedo.recorder, isPop3})
+    } = useBulkActions({store, selection, folders, refreshBadges, setError, undo: undoRedo.recorder, isPop3})
 
     // The message-level half of Edit > Cut / Copy / Paste: cut or copy takes the selected messages
     // onto an internal clipboard and paste files them into the folder being viewed (a cut moves
@@ -835,7 +819,7 @@ function App() {
     // duplicates). pasteFolderId is the paste target: the open folder, else '' in the views that are
     // not one real folder (the outbox, the unified mailbox and Snoozed), which disables the paste.
     const messageClipboard = useMessageClipboard({
-        store, selectedFolderId: selectedFolder, undo: undoRedo.recorder, loadUnread, refreshFolders, setError,
+        store, selectedFolderId: selectedFolder, undo: undoRedo.recorder, refreshBadges, setError,
         // A paste into the folder on screen ends by reloading it, so the rows it shows are the rows the
         // cache holds rather than the ids the server predicted for them.
         reloadFolder: loadFolderMessages,

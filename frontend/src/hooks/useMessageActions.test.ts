@@ -8,6 +8,7 @@ import type {Message} from '../api'
 import {useMessageStore} from './useMessageStore'
 import {useMessageActions} from './useMessageActions'
 import {spiesNotInApi, unstubbedNames} from '../test/apiMock'
+import {badgeRefresh} from '../test/badgeRefresh'
 
 const apiSpies = vi.hoisted(() => ({
     markReplied: vi.fn(),
@@ -38,12 +39,9 @@ function makeMessage(overrides: Partial<Message> = {}): Message {
 }
 
 // harness wires the real message store to the actions under test, the way App does, exposing both so a
-// test can seed the lists and read them back after an action, plus the badge-refresher spies so a test
+// test can seed the lists and read them back after an action, plus the badge refresh stand-in so a test
 // can assert an action refreshed the unread badges.
-const badgeSpies = {
-    loadUnread: vi.fn<() => Promise<void>>(),
-    refreshFolders: vi.fn<() => Promise<void>>(),
-}
+const badges = badgeRefresh()
 
 // undoSpies stands in for the undo recorder, so a test can assert which actions were recorded
 // for Edit > Undo (and that automatic ones were not).
@@ -62,8 +60,7 @@ function harness() {
             // The account under test is IMAP, so its delete confirmation says Trash rather than gone.
             isPop3: () => false,
             folders: [],
-            loadUnread: badgeSpies.loadUnread,
-            refreshFolders: badgeSpies.refreshFolders,
+            ...badges.deps,
             setError: () => {},
             undo: undoSpies,
         })
@@ -76,8 +73,7 @@ beforeEach(() => {
     apiSpies.markForwarded.mockReset().mockResolvedValue(undefined)
     apiSpies.markRead.mockReset().mockResolvedValue(undefined)
     apiSpies.markFlagged.mockReset().mockResolvedValue(undefined)
-    badgeSpies.loadUnread.mockReset().mockResolvedValue(undefined)
-    badgeSpies.refreshFolders.mockReset().mockResolvedValue(undefined)
+    badges.reset()
     undoSpies.push.mockReset()
     undoSpies.registerTagExecutor.mockReset()
 })
@@ -144,8 +140,7 @@ describe('useMessageActions: unread badges', () => {
         expect(result.current.store.messages[0].read).toBe(true)
         // The folder tree carries the per-folder unread badge, so it must refresh alongside the account
         // badges: refreshing only one is the stale-badge bug this test pins.
-        expect(badgeSpies.refreshFolders).toHaveBeenCalledTimes(1)
-        expect(badgeSpies.loadUnread).toHaveBeenCalledTimes(1)
+        expect(badges.refreshed()).toBe(true)
     })
 
     it('does not touch the badges when the backend mark fails', async () => {
@@ -157,8 +152,7 @@ describe('useMessageActions: unread badges', () => {
         await act(async () => {
             await result.current.actions.setReadState(result.current.store.messages[0], true)
         })
-        expect(badgeSpies.refreshFolders).not.toHaveBeenCalled()
-        expect(badgeSpies.loadUnread).not.toHaveBeenCalled()
+        expect(badges.untouched()).toBe(true)
     })
 })
 

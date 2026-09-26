@@ -9,6 +9,9 @@ import {useMessageStore} from './useMessageStore'
 import {useUndoRedo} from './useUndoRedo'
 
 import {spiesNotInApi, unstubbedNames} from '../test/apiMock'
+import {badgeRefresh} from '../test/badgeRefresh'
+
+const badges = badgeRefresh()
 
 const apiSpies = vi.hoisted(() => ({
     moveMessages: vi.fn(),
@@ -46,8 +49,7 @@ function harness() {
         const store = useMessageStore()
         const undoRedo = useUndoRedo({
             store,
-            loadUnread: async () => {},
-            refreshFolders: async () => {},
+            ...badges.deps,
             setError: (message: string) => errors.push(message),
         })
         return {store, undoRedo}
@@ -56,6 +58,7 @@ function harness() {
 
 beforeEach(() => {
     errors.length = 0
+    badges.reset()
     apiSpies.moveMessages.mockReset().mockResolvedValue({ids: [], failed: 0, error: '', newIds: {}})
     apiSpies.deleteMessages.mockReset().mockResolvedValue({ids: [], failed: 0, error: '', newIds: {}})
     apiSpies.markJunk.mockReset().mockResolvedValue({newId: ''})
@@ -239,6 +242,46 @@ describe('useUndoRedo: toggles and tags', () => {
             result.current.undoRedo.recorder.push({kind: 'flag', items: [{messageId: 'b', before: true}], after: false})
         })
         expect(result.current.undoRedo.redoText).toBeNull()
+    })
+})
+
+// A move or a read change alters what is unread where, so executing one must refresh the unread
+// badges; a star changes no count, so it leaves them alone.
+describe('useUndoRedo: refreshing the unread badges', () => {
+    it('refreshes them after undoing a move', async () => {
+        const {result} = harness()
+        act(() => {
+            result.current.undoRedo.recorder.push({
+                kind: 'move', flavour: 'move',
+                items: [{messageId: 'a', sourceFolderId: 'f1'}], destFolderId: 'fd',
+            })
+        })
+        await act(async () => {
+            await result.current.undoRedo.undo()
+        })
+        expect(badges.refreshed()).toBe(true)
+    })
+
+    it('refreshes them after undoing a read change', async () => {
+        const {result} = harness()
+        act(() => {
+            result.current.undoRedo.recorder.push({kind: 'read', items: [{messageId: 'a', before: false}], after: true})
+        })
+        await act(async () => {
+            await result.current.undoRedo.undo()
+        })
+        expect(badges.refreshed()).toBe(true)
+    })
+
+    it('leaves them alone when undoing a star', async () => {
+        const {result} = harness()
+        act(() => {
+            result.current.undoRedo.recorder.push({kind: 'flag', items: [{messageId: 'a', before: false}], after: true})
+        })
+        await act(async () => {
+            await result.current.undoRedo.undo()
+        })
+        expect(badges.untouched()).toBe(true)
     })
 })
 

@@ -8,9 +8,10 @@ import type {UndoRecorder} from './useUndoRedo'
 
 // MessageActionsDeps is what the single-message actions need from the rest of App: the message store they
 // mutate, the visible list and the search flag (used to pick the next selection after a removal), the
-// two badge refreshers and the error sink. loadUnread refreshes the per-account and titlebar unread
-// badges; refreshFolders reloads the folder tree, whose rows carry the per-folder unread badge. Every
-// action that can change a folder's unread count must refresh both; otherwise the folder badge goes stale.
+// badge refresher and the error sink. refreshBadges refreshes every surface that shows an unread count
+// (the account and titlebar badges and the folder tree's per-folder badges; see useUnreadBadges), so every
+// action that can change a folder's unread count calls it rather than updating one badge and forgetting
+// the other.
 export interface MessageActionsDeps {
     store: MessageStore
     displayMessages: Message[]
@@ -18,8 +19,7 @@ export interface MessageActionsDeps {
     // folders lets an action resolve a message's account-mate folder (its Junk folder or its
     // Inbox) so the destination of a junk or rescue can be synced at once.
     folders: Folder[]
-    loadUnread: () => Promise<void>
-    refreshFolders: () => Promise<void>
+    refreshBadges: () => Promise<void>
     setError: (message: string) => void
     // undo records each completed action so Edit > Undo can unwind it.
     undo: UndoRecorder
@@ -59,7 +59,7 @@ export interface MessageActions {
 // it shows wherever the message appears. Bulk actions, tag actions and the outbox cancel live in their own
 // hooks.
 export function useMessageActions(deps: MessageActionsDeps): MessageActions {
-    const {store, displayMessages, searchActive, folders, loadUnread, refreshFolders, setError, undo, isPop3} = deps
+    const {store, displayMessages, searchActive, folders, refreshBadges, setError, undo, isPop3} = deps
     const {
         searchResults, setMessages, setSearchResults, setTabs, setSelectedMessage,
         applyToAllLists, removeFromAllLists,
@@ -69,14 +69,6 @@ export function useMessageActions(deps: MessageActionsDeps): MessageActions {
     const [deletingMessage, setDeletingMessage] = useState<boolean>(false)
     const [messageToPurge, setMessageToPurge] = useState<Message | null>(null)
     const [purgingMessage, setPurgingMessage] = useState<boolean>(false)
-
-    // refreshBadges refreshes every surface that shows an unread count (the account and titlebar badges
-    // and the folder tree's per-folder badges) after an action that can change one. It is one shared
-    // refresher precisely so no action can update one badge and forget the other, which is how a read
-    // message used to leave its folder's badge stale until relaunch.
-    const refreshBadges = useCallback(async () => {
-        await Promise.all([loadUnread(), refreshFolders()])
-    }, [loadUnread, refreshFolders])
 
     // syncDestination pulls a destination folder's listing straight away, so a moved, junked or
     // rescued message appears there (and counts toward its unread badge) immediately rather than on

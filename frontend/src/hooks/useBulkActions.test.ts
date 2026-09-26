@@ -10,10 +10,16 @@ import {useMessageStore} from './useMessageStore'
 import {useSelection} from './useSelection'
 import {useBulkActions} from './useBulkActions'
 import {spiesNotInApi, unstubbedNames} from '../test/apiMock'
+import {badgeRefresh} from '../test/badgeRefresh'
+
+const badges = badgeRefresh()
 
 const apiSpies = vi.hoisted(() => ({
     moveMessages: vi.fn(),
     syncFolder: vi.fn(),
+    deleteMessages: vi.fn(),
+    markReadMessages: vi.fn(),
+    pushReadMessages: vi.fn(),
 }))
 
 // The mock is built from the real api rather than hand-listed here, so a method reached with no spy
@@ -55,8 +61,7 @@ function harness() {
             folders,
             // The account under test is IMAP, so its delete confirmation says Trash rather than gone.
             isPop3: false,
-            loadUnread: async () => {},
-            refreshFolders: async () => {},
+            ...badges.deps,
             setError: (message: string) => errors.push(message),
             undo: undoSpies,
         })
@@ -86,8 +91,12 @@ function deferred() {
 beforeEach(() => {
     errors.length = 0
     undoSpies.push.mockReset()
+    badges.reset()
     apiSpies.moveMessages.mockReset().mockResolvedValue({ids: [], failed: 0, error: '', newIds: {}})
     apiSpies.syncFolder.mockReset().mockResolvedValue(undefined)
+    apiSpies.deleteMessages.mockReset().mockResolvedValue({ids: [], failed: 0, error: '', newIds: {}})
+    apiSpies.markReadMessages.mockReset().mockImplementation(async (ids: string[]) => ({ids, failed: 0, error: ''}))
+    apiSpies.pushReadMessages.mockReset().mockResolvedValue(undefined)
 })
 afterEach(() => {
     cleanup()
@@ -183,6 +192,40 @@ describe('useBulkActions: dropping a message on a folder', () => {
 // The mock covers the api in both directions: the afterEach above catches a method reached with no
 // spy; this catches the opposite, a spy declared under a name the api does not have, which binds to
 // nothing, so every test configuring it would be configuring a stub the code can never call.
+// Every action here can change an unread count, so each must refresh the badges once it has settled.
+describe('useBulkActions: refreshing the unread badges', () => {
+    it('refreshes them after a drop has moved the message', async () => {
+        const {result} = harness()
+        apiSpies.moveMessages.mockResolvedValueOnce({ids: ['m2'], failed: 0, error: '', newIds: {}})
+
+        await act(async () => {
+            result.current.bulk.dropMessageOnFolder('m2', 'work')
+            await vi.waitFor(() => expect(badges.refreshed()).toBe(true))
+        })
+    })
+
+    it('refreshes them after a bulk delete', async () => {
+        const {result} = harness()
+        apiSpies.deleteMessages.mockResolvedValueOnce({ids: ['m1'], failed: 0, error: '', newIds: {}})
+
+        await act(async () => {
+            await result.current.bulk.runBulkDelete([makeMessage('m1', 'inbox')], false)
+        })
+
+        expect(badges.refreshed()).toBe(true)
+    })
+
+    it('refreshes them after a bulk mark-read', async () => {
+        const {result} = harness()
+
+        await act(async () => {
+            await result.current.bulk.bulkSetRead([makeMessage('m1', 'inbox')], false)
+        })
+
+        expect(badges.refreshed()).toBe(true)
+    })
+})
+
 describe('the api mock', () => {
     it('declares no spy the real api does not have', async () => {
         const actual = await vi.importActual<typeof import('../api')>('../api')

@@ -4,7 +4,7 @@ import {UndoEntry, groupBySource, pushEntry, rebindMoveItems, redoLabel, undoLab
 import type {MessageStore} from './useMessageStore'
 
 // TagExecutor re-applies or reverts one colour tag. It lives with useTags, which owns the tag
-// palette the optimistic dot update needs, and is registered here so a tag entry can execute
+// palette the optimistic dot update needs; it is registered here so a tag entry can execute
 // without this hook depending on the tag hook (or the other way round).
 export type TagExecutor = (messageId: string, tagId: string, assigned: boolean) => Promise<void>
 
@@ -17,8 +17,8 @@ export interface UndoRecorder {
 
 export interface UndoRedoDeps {
     store: MessageStore
-    loadUnread: () => Promise<void>
-    refreshFolders: () => Promise<void>
+    // refreshBadges refreshes the unread counts and the folder list together (see useUnreadBadges).
+    refreshBadges: () => Promise<void>
     setError: (message: string) => void
 }
 
@@ -26,7 +26,7 @@ export interface UndoRedo {
     recorder: UndoRecorder
     undo: () => Promise<void>
     redo: () => Promise<void>
-    // undoText / redoText name the top entry ("Undo delete") for the menu items, or null when the
+    // undoText / redoText name the top entry ("Undo delete") for the menu items; null when the
     // stack is empty and the item is disabled.
     undoText: string | null
     redoText: string | null
@@ -40,7 +40,7 @@ export interface UndoRedo {
 // (moved on by another client, folder gone) reports through the error sink and is dropped rather
 // than wedging the stack. Only actions the server located are recorded, so Undo never lies.
 export function useUndoRedo(deps: UndoRedoDeps): UndoRedo {
-    const {store, loadUnread, refreshFolders, setError} = deps
+    const {store, refreshBadges, setError} = deps
     const {applyToAllLists, removeFromAllLists} = store
 
     const [undoStack, setUndoStack] = useState<UndoEntry[]>([])
@@ -60,10 +60,6 @@ export function useUndoRedo(deps: UndoRedoDeps): UndoRedo {
         tagExecutor.current = fn
     }, [])
 
-    const refreshBadges = useCallback(async () => {
-        await Promise.all([loadUnread(), refreshFolders()])
-    }, [loadUnread, refreshFolders])
-
     // syncFolder pulls a destination folder's listing straight away so the returned messages
     // appear there immediately, the same best-effort contract as the action hooks.
     const syncFolder = useCallback(async (folderId: string) => {
@@ -77,7 +73,7 @@ export function useUndoRedo(deps: UndoRedoDeps): UndoRedo {
     // executeMove carries a move-shaped entry out. Undoing returns each message to its source
     // folder; redoing re-applies the original action through the api that created it (a delete
     // re-resolves Trash, a junking rewrites the spam keywords). It returns the entry rebound to
-    // where the messages landed, or null when the server reported none of them (the entry is spent).
+    // where the messages landed; null when the server reported none of them (the entry is spent).
     const executeMove = useCallback(async (
         entry: Extract<UndoEntry, {kind: 'move'}>, direction: 'undo' | 'redo',
     ): Promise<UndoEntry | null> => {

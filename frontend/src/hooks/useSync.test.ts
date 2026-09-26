@@ -4,13 +4,17 @@
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 import {act, cleanup, renderHook} from '@testing-library/react'
 import type {Folder} from '../api'
-import {useSync} from './useSync'
+import {autoSyncIntervalMs, useSync} from './useSync'
 import {unstubbedNames} from '../test/apiMock'
+import {badgeRefresh} from '../test/badgeRefresh'
+
+const badges = badgeRefresh()
 
 const apiSpies = vi.hoisted(() => ({
     syncAccount: vi.fn(),
     replayOutbox: vi.fn(),
     listFolders: vi.fn(),
+    syncFolder: vi.fn(),
 }))
 
 // The mock is built from the real api rather than hand-listed here, so a method reached with no spy fails
@@ -29,16 +33,17 @@ const INBOX = {
 const errors: string[] = []
 const applied: {accountId: string, folders: Folder[]}[] = []
 
-function harness() {
+// harness opens `selectedFolder` (none by default, which keeps the background poll off).
+function harness(selectedFolder = '') {
     return renderHook(() => useSync({
         selectedAccount: 'a1',
-        selectedFolder: '',
-        selectedFolderRef: {current: ''},
+        selectedFolder,
+        selectedFolderRef: {current: selectedFolder},
         applyFolders: (accountId: string, folders: Folder[]) => applied.push({accountId, folders}),
         reloadFolder: async () => undefined,
-        refreshFolders: async () => undefined,
         refreshOutbox: async () => undefined,
         loadUnread: async () => undefined,
+        ...badges.deps,
         setError: (message: string) => errors.push(message),
     }))
 }
@@ -46,13 +51,16 @@ function harness() {
 beforeEach(() => {
     errors.length = 0
     applied.length = 0
+    badges.reset()
     apiSpies.syncAccount.mockReset().mockResolvedValue(undefined)
     apiSpies.replayOutbox.mockReset().mockResolvedValue(undefined)
     apiSpies.listFolders.mockReset().mockResolvedValue([INBOX])
+    apiSpies.syncFolder.mockReset().mockResolvedValue(undefined)
 })
 
 afterEach(() => {
     cleanup()
+    vi.useRealTimers()
     expect(unstubbedNames(unstubbedCalls), 'api methods reached with no stub: declare them in apiSpies')
         .toEqual([])
 })
@@ -106,5 +114,20 @@ describe('useSync: a sync that works', () => {
 
         expect(applied).toEqual([{accountId: 'a1', folders: [INBOX]}])
         expect(errors.filter((message) => message !== '')).toEqual([])
+    })
+})
+
+// Mail can arrive in the open folder between syncs, so each background poll refreshes the unread badges.
+describe('useSync: the background poll', () => {
+    it('refreshes the unread badges after re-syncing the open folder', async () => {
+        vi.useFakeTimers()
+        harness('f1')
+
+        await act(async () => {
+            await vi.advanceTimersByTimeAsync(autoSyncIntervalMs)
+        })
+
+        expect(apiSpies.syncFolder).toHaveBeenCalledWith('f1')
+        expect(badges.refreshed()).toBe(true)
     })
 })

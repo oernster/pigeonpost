@@ -16,8 +16,8 @@ export interface BulkActionsDeps {
     store: MessageStore
     selection: Selection
     folders: Folder[]
-    loadUnread: () => Promise<void>
-    refreshFolders: () => Promise<void>
+    // refreshBadges refreshes the unread counts and the folder list together (see useUnreadBadges).
+    refreshBadges: () => Promise<void>
     setError: (message: string) => void
     undo: UndoRecorder
     // isPop3 is whether the selected account has no Trash, which the bulk delete confirmation has to say.
@@ -57,7 +57,7 @@ interface MoveSnapshot {
 // change goes through the message store, so it shows wherever a message appears; the selection is
 // cleared after a delete or move. The single-message actions live in useMessageActions.
 export function useBulkActions(deps: BulkActionsDeps): BulkActions {
-    const {store, selection, folders, loadUnread, refreshFolders, setError, undo, isPop3} = deps
+    const {store, selection, folders, refreshBadges, setError, undo, isPop3} = deps
     const {
         messages, searchResults, tabs, selectedMessage,
         setMessages, setSearchResults, setTabs, setSelectedMessage,
@@ -194,9 +194,8 @@ export function useBulkActions(deps: BulkActionsDeps): BulkActions {
                 inFlightIds.current.delete(id)
             }
         }
-        await loadUnread()
-        await refreshFolders()
-    }, [liftFromLists, restoreToLists, sourceFolderOf, recordBulkMove, loadUnread, refreshFolders])
+        await refreshBadges()
+    }, [liftFromLists, restoreToLists, sourceFolderOf, recordBulkMove, refreshBadges])
 
     // dropMessageOnFolder is the drag-and-drop target handler. Dropping a row that is part of the
     // multi-selection moves the whole selection; dropping any other row moves just that one. Messages
@@ -260,9 +259,8 @@ export function useBulkActions(deps: BulkActionsDeps): BulkActions {
             }
             setBusy(false)
         }
-        await loadUnread()
-        await refreshFolders()
-    }, [removeIdsFromLists, recordBulkMove, loadUnread, refreshFolders])
+        await refreshBadges()
+    }, [removeIdsFromLists, recordBulkMove, refreshBadges])
 
     // bulkSetRead sets the read flag on every selected message. The lists update at once; the cache takes
     // the whole selection in one call, then both badge sources (the unread counts and each folder's own
@@ -291,7 +289,7 @@ export function useBulkActions(deps: BulkActionsDeps): BulkActions {
             undo.push({kind: 'read', items: changed.map((t) => ({messageId: t.id, before: t.read})), after: read})
         }
         try {
-            await Promise.all([loadUnread(), refreshFolders()])
+            await refreshBadges()
         } catch {
             // A count refresh is best effort; the optimistic list update already reflects the change.
         }
@@ -303,7 +301,7 @@ export function useBulkActions(deps: BulkActionsDeps): BulkActions {
         if (written.length > 0) {
             api.pushReadMessages(written, read).catch(() => {})
         }
-    }, [applyToAllLists, undo, loadUnread, refreshFolders, setError])
+    }, [applyToAllLists, undo, refreshBadges, setError])
 
     const bulkSetFlag = useCallback(async (targets: Message[], flagged: boolean) => {
         const ids = new Set(targets.map((t) => t.id))

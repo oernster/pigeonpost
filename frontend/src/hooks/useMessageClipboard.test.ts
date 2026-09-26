@@ -12,6 +12,9 @@ import {useMessageStore} from './useMessageStore'
 import {useMessageClipboard} from './useMessageClipboard'
 
 import {spiesNotInApi, unstubbedNames} from '../test/apiMock'
+import {badgeRefresh} from '../test/badgeRefresh'
+
+const badges = badgeRefresh()
 
 const apiSpies = vi.hoisted(() => ({
     moveMessages: vi.fn(),
@@ -57,8 +60,7 @@ function harness() {
             store,
             selectedFolderId: 'fd',
             undo: undoSpies,
-            loadUnread: async () => {},
-            refreshFolders: async () => {},
+            ...badges.deps,
             reloadFolder: async (folderId: string) => {
                 reloadCalls.push(folderId)
                 if (cachedRows !== null) {
@@ -76,6 +78,7 @@ beforeEach(() => {
     cachedRows = null
     reloadCalls.length = 0
     undoSpies.push.mockReset()
+    badges.reset()
     apiSpies.moveMessages.mockReset().mockResolvedValue({ids: [], failed: 0, error: '', newIds: {}})
     apiSpies.copyMessage.mockReset().mockResolvedValue({newId: ''})
     apiSpies.syncFolder.mockReset().mockResolvedValue(undefined)
@@ -210,6 +213,21 @@ describe('useMessageClipboard: pasting a cut', () => {
             await result.current.clipboard.pasteInto('fd')
         })
         expect(result.current.store.messages.map((m) => m.id)).toEqual(['n1'])
+    })
+})
+
+// A paste moves mail between folders, so it must refresh the unread badges once it has settled.
+describe('useMessageClipboard: refreshing the unread badges', () => {
+    it('refreshes them after a cut is pasted', async () => {
+        const {result} = harness()
+        apiSpies.moveMessages.mockResolvedValueOnce({ids: ['a'], failed: 0, error: '', newIds: {a: 'n1'}})
+        act(() => result.current.clipboard.cutMessages([makeMessage('a', 'f1')]))
+
+        await act(async () => {
+            await result.current.clipboard.pasteInto('fd')
+        })
+
+        expect(badges.refreshed()).toBe(true)
     })
 })
 
