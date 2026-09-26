@@ -1,4 +1,4 @@
-import {Fragment, useRef, useState} from 'react'
+import {useRef, useState} from 'react'
 import {useBackdropDismiss} from './useBackdropDismiss'
 import {EditorContent, useEditor} from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
@@ -8,21 +8,21 @@ import {EDITOR_LINK_OPTIONS, EDITOR_PASTE_PROPS} from '../richText'
 import {DataAttachment} from '../composeIntake'
 import {useComposeIntake} from '../hooks/useComposeIntake'
 import {useContactPool} from '../hooks/useContactPool'
-import {RecipientField} from './RecipientField'
-import {DateField} from './DateField'
 import {ModalClose} from './ModalClose'
 import {ConfirmDialog} from './ConfirmDialog'
-import {basename, isValidAddress, normaliseUrl} from '../composeAddresses'
+import {normaliseUrl} from '../composeAddresses'
 import {useLinkEditor} from '../hooks/useLinkEditor'
 import {useDraftAutosave} from '../hooks/useDraftAutosave'
 import {useSeparatorCorrection} from '../hooks/useSeparatorCorrection'
-import {fromDatetimeLocal, isSchedulable, sendLaterChoices} from '../schedule'
-import {ToolButton} from './ToolButton'
 import {EditorTool, formattingTools} from '../editorTools'
 import {useToolbarNav} from '../hooks/useToolbarNav'
 import {useModalDrag} from '../hooks/useModalDrag'
 import {useComposeSend} from '../hooks/useComposeSend'
 import {useComposeTemplates} from '../hooks/useComposeTemplates'
+import {ComposeHeader} from './ComposeHeader'
+import {ComposeToolbar} from './ComposeToolbar'
+import {ComposeAttachments} from './ComposeAttachments'
+import {SendLaterRow} from './SendLaterRow'
 
 // ComposeInitial pre-fills the compose window, used by reply, reply-all and forward.
 // MessageAttachment is an existing email attached to a new message: its id (fetched and rendered as a
@@ -284,211 +284,24 @@ export function ComposeModal({accountId, senders, initial, canSaveDraft, onMarkR
                 {/* The address block is pinned above the scrolling body, so who the message is from, who it
                     goes to and its subject stay on screen however long the message grows. Measured at the
                     700px minimum window, a long message scrolled the body and carried From and To away. */}
-                <div className="compose-header">
-                {error && <div className="compose-error">{error}</div>}
-                {correction.pending && (
-                    <div className="compose-correction">
-                        <div>Addresses should be separated by a comma or semicolon. Did you mean:</div>
-                        <div className="compose-correction-value">{correction.pending.preview}</div>
-                        <div className="compose-correction-actions">
-                            <button type="button" className="btn" onClick={correction.apply}>Use this</button>
-                            <button type="button" className="btn" onClick={correction.dismiss}>Dismiss</button>
-                        </div>
-                    </div>
-                )}
-                {senders.length > 1 && (
-                    <label className="field">
-                        <span>From</span>
-                        <select value={from} onChange={(e) => setFrom(e.target.value)}>
-                            {senders.map((s) => (
-                                <option key={s.address} value={s.address}>
-                                    {s.name ? `${s.name} <${s.address}>` : s.address}
-                                </option>
-                            ))}
-                        </select>
-                    </label>
-                )}
-                <RecipientField label="To" value={to} placeholder="name@example.com, other@example.com"
-                                pool={contacts.pool} ensurePool={contacts.ensurePool}
-                                onChange={(value) => {
-                                    autosave.markDirty()
-                                    setTo(value)
-                                }}/>
-                <RecipientField label="Cc" value={cc}
-                                pool={contacts.pool} ensurePool={contacts.ensurePool}
-                                onChange={(value) => {
-                                    autosave.markDirty()
-                                    setCc(value)
-                                }}/>
-                <RecipientField label="Bcc" value={bcc}
-                                pool={contacts.pool} ensurePool={contacts.ensurePool}
-                                onChange={(value) => {
-                                    autosave.markDirty()
-                                    setBcc(value)
-                                }}/>
-                <label className="field">
-                    <span>Subject</span>
-                    <input value={subject} onChange={(e) => {
-                        autosave.markDirty()
-                        setSubject(e.target.value)
-                    }}/>
-                </label>
-                </div>
+                <ComposeHeader
+                    error={error} correction={correction} senders={senders} from={from} setFrom={setFrom}
+                    to={to} setTo={setTo} cc={cc} setCc={setCc} bcc={bcc} setBcc={setBcc}
+                    subject={subject} setSubject={setSubject} contacts={contacts} markDirty={autosave.markDirty}/>
 
                 <div className="modal-body">
-                <div className="compose-toolbar" aria-label="Formatting" {...toolbar.toolbarProps}>
-                    {tools.map((tool, index) => (
-                        <Fragment key={tool.name}>
-                            <ToolButton
-                                active={tool.active}
-                                glyph={tool.glyph}
-                                name={tool.name}
-                                shortcut={tool.shortcut}
-                                tabIndex={toolbar.toolTabIndex(index)}
-                                onActivate={tool.run}
-                                hasPopup={tool.hasPopup}
-                                expanded={tool.hasPopup ? templatePicker : undefined}
-                            />
-                            {tool.sepAfter && <span className="compose-tool-sep"/>}
-                        </Fragment>
-                    ))}
-                </div>
-                {templatePicker && (
-                    <div className="compose-template-picker" role="menu" aria-label="Message templates">
-                        {templates.length === 0 ? (
-                            <div className="compose-template-empty">No templates yet.</div>
-                        ) : (
-                            templates.map((t) => (
-                                <button
-                                    key={t.id}
-                                    type="button"
-                                    role="menuitem"
-                                    className="compose-template-option"
-                                    onMouseDown={(e) => e.preventDefault()}
-                                    onClick={() => void insertTemplate(t)}
-                                >
-                                    <span className="compose-template-name">{t.name}</span>
-                                    <span className="compose-template-subject">{t.subject || '(no subject)'}</span>
-                                </button>
-                            ))
-                        )}
-                    </div>
-                )}
-                {link.open && (
-                    <div className="compose-link-row">
-                        <input
-                            className="tag-name-input"
-                            value={link.url}
-                            autoFocus
-                            placeholder="https://example.com"
-                            onChange={(e) => link.setUrl(e.target.value)}
-                            onKeyDown={(e) => {
-                                if (e.key === 'Enter') {
-                                    e.preventDefault()
-                                    link.applyLink()
-                                }
-                            }}
-                        />
-                        <button className="btn primary" onClick={link.applyLink}>Apply</button>
-                        <button className="btn" onClick={link.removeLink}>Remove</button>
-                    </div>
-                )}
+                <ComposeToolbar tools={tools} toolbar={toolbar} templatePicker={templatePicker} templates={templates}
+                                insertTemplate={insertTemplate} link={link}/>
                 <EditorContent editor={editor} className="compose-editor"/>
 
-                <div className="compose-attachments">
-                    <button type="button" className="btn" onClick={() => void addAttachments()}>
-                        Attach files
-                    </button>
-                    {hasAttachments() && (
-                        <ul className="attachment-list">
-                            {attachments.map((path) => (
-                                <li key={path} className="attachment-chip">
-                                    <span className="attachment-name" title={path}>{basename(path)}</span>
-                                    <button
-                                        type="button"
-                                        className="attachment-remove"
-                                        aria-label={`Remove ${basename(path)}`}
-                                        onClick={() => removeAttachment(path)}
-                                    >
-                                        &times;
-                                    </button>
-                                </li>
-                            ))}
-                            {intake.dataAttachments.map((a, index) => (
-                                <li key={`${index}-${a.name}`} className="attachment-chip">
-                                    <span className="attachment-name" title={a.name}>{a.name}</span>
-                                    <button
-                                        type="button"
-                                        className="attachment-remove"
-                                        aria-label={`Remove ${a.name}`}
-                                        onClick={() => intake.remove(index)}
-                                    >
-                                        &times;
-                                    </button>
-                                </li>
-                            ))}
-                            {messageAttachments.map((m) => (
-                                <li key={m.id} className="attachment-chip">
-                                    <span className="attachment-icon" aria-hidden="true">{'✉'}</span>
-                                    <span className="attachment-name" title={m.name}>{m.name}</span>
-                                    <button
-                                        type="button"
-                                        className="attachment-remove"
-                                        aria-label={`Remove ${m.name}`}
-                                        onClick={() => removeMessageAttachment(m.id)}
-                                    >
-                                        &times;
-                                    </button>
-                                </li>
-                            ))}
-                        </ul>
-                    )}
-                </div>
+                <ComposeAttachments
+                    attachments={attachments} messageAttachments={messageAttachments} intake={intake}
+                    hasAttachments={hasAttachments} addAttachments={addAttachments} removeAttachment={removeAttachment}
+                    removeMessageAttachment={removeMessageAttachment}/>
 
                 {sendLaterOpen && (
-                    <div className="compose-schedule-row" role="menu" aria-label="Send later">
-                        {sendLaterChoices(new Date()).map((choice) => (
-                            <button
-                                key={choice.label}
-                                type="button"
-                                role="menuitem"
-                                className="btn"
-                                onClick={() => {
-                                    setSendLaterOpen(false)
-                                    attemptSend(choice.at)
-                                }}
-                            >
-                                {choice.label}
-                            </button>
-                        ))}
-                        <DateField
-                            kind="datetime-local"
-                            className="compose-schedule-input"
-                            ariaLabel="Send at"
-                            pickerTitle="Send date"
-                            compact
-                            value={sendAtValue}
-                            onChange={setSendAtValue}
-                        />
-                        <button
-                            type="button"
-                            className="btn primary"
-                            disabled={!isSchedulable(fromDatetimeLocal(sendAtValue), new Date())}
-                            onClick={() => {
-                                const at = fromDatetimeLocal(sendAtValue)
-                                if (at) {
-                                    setSendLaterOpen(false)
-                                    attemptSend(at)
-                                }
-                            }}
-                        >
-                            Schedule
-                        </button>
-                        <div className="compose-schedule-note">
-                            Sends at the chosen time while PigeonPost is running, else at the next launch after it.
-                            Cancel any time from the Outbox.
-                        </div>
-                    </div>
+                    <SendLaterRow sendAtValue={sendAtValue} setSendAtValue={setSendAtValue}
+                                  setSendLaterOpen={setSendLaterOpen} attemptSend={attemptSend}/>
                 )}
                 </div>
                 <div className="modal-actions spread">

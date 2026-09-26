@@ -31,18 +31,24 @@ vi.mock('../api', async () => {
     return {...actual, api: buildApiStubs(actual, apiSpies as unknown as Record<string, unknown>, unstubbedCalls)}
 })
 
+// chained records each editor command a chain ran, with its first argument, so a test can tell the link
+// row's Apply (setLink) from its Remove (unsetLink).
 const editorSpies = vi.hoisted(() => ({
     options: undefined as {autofocus?: string} | undefined,
+    chained: [] as [string, unknown][],
 }))
 
 vi.mock('@tiptap/react', () => {
     const chain = () => {
-        const c: Record<string, () => unknown> = {}
+        const c: Record<string, (arg?: unknown) => unknown> = {}
         for (const m of [
             'focus', 'toggleBold', 'toggleItalic', 'toggleStrike', 'toggleHeading', 'toggleBulletList',
             'toggleOrderedList', 'toggleBlockquote', 'extendMarkRange', 'setLink', 'unsetLink', 'run',
         ]) {
-            c[m] = () => c
+            c[m] = (arg?: unknown) => {
+                editorSpies.chained.push([m, arg])
+                return c
+            }
         }
         return c
     }
@@ -289,6 +295,20 @@ describe('ComposeModal: link editor', () => {
         fireEvent.change(screen.getByPlaceholderText('https://example.com'), {target: {value: 'example.com'}})
         fireEvent.click(screen.getByRole('button', {name: 'Apply'}))
         expect(screen.queryByPlaceholderText('https://example.com')).toBeNull()
+    })
+
+    it('sets the typed link on Apply and takes it off on Remove', () => {
+        renderCompose()
+        const linkCommands = () => editorSpies.chained.filter(([m]) => m === 'setLink' || m === 'unsetLink')
+        editorSpies.chained.length = 0
+        fireEvent.click(screen.getByRole('button', {name: 'Link'}))
+        fireEvent.change(screen.getByPlaceholderText('https://example.com'), {target: {value: 'example.com'}})
+        fireEvent.click(screen.getByRole('button', {name: 'Apply'}))
+        expect(linkCommands()).toEqual([['setLink', {href: 'https://example.com'}]])
+        editorSpies.chained.length = 0
+        fireEvent.click(screen.getByRole('button', {name: 'Link'}))
+        fireEvent.click(screen.getByRole('button', {name: 'Remove'}))
+        expect(linkCommands()).toEqual([['unsetLink', undefined]])
     })
 })
 

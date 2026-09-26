@@ -229,7 +229,7 @@ npx vitest run --coverage   # enforce the pure-module coverage gate
   nothing enforcing. It also holds the band beneath the limit, derived from the limit rather than
   written as a second number so the two cannot drift: a module that creeps into the band is reduced
   properly rather than shaved back under, since the next edit would otherwise break it again. The
-  modules still over the limit from before it existed (two now) are named in an exemption list that
+  one module still over the limit from before it existed (`App.tsx`) is named in an exemption list that
   may only shrink; a file
   exempt while no longer over the limit fails, so an entry cannot outlive the debt it records; TECH_DEBT.md
   tracks the split. Test files are outside the limit by design. All four rules were
