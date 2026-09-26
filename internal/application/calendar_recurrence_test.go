@@ -85,7 +85,7 @@ func TestListEventInstancesExpandsSuppressesAndFilters(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListEventInstances: %v", err)
 	}
-	// Expected: days 4,5,7,8 from the rule (day 6 suppressed), the override at day 6 14:00, and the single
+	// Expected: days 4,5,7,8 from the rule (day 6 suppressed), the override at day 6 14:00 plus the single
 	// on day 9. The past single is filtered out. Sorted by start.
 	got := instanceStarts(insts)
 	want := []time.Time{day(4, 9), day(5, 9), day(6, 14), day(7, 9), day(8, 9), day(9, 12)}
@@ -259,6 +259,28 @@ func TestPendingRemindersCatchesLapsedTriggersForUpcomingEvents(t *testing.T) {
 	}
 }
 
+// A one-off event already under way at launch overlaps the scan window, since it has not ended; its lapsed
+// reminder must still not be resurrected, because the reminder was for the event starting, which is over.
+func TestPendingRemindersSkipsAnEventAlreadyInProgress(t *testing.T) {
+	now := day(4, 9)
+	start := now.Add(-10 * time.Minute)
+	ev, err := domain.NewEvent(domain.EventInput{
+		ID: "e1", Summary: "Already running", Start: start, End: start.Add(time.Hour),
+		Alarms: []domain.Alarm{domain.NewAlarm(-15 * time.Minute)},
+	})
+	if err != nil {
+		t.Fatalf("event: %v", err)
+	}
+	svc := NewCalendarService(&fakeCalendarStore{events: []domain.Event{ev}}, fixedID("x"), &fakeRecurrence{})
+	due, err := svc.PendingReminders(context.Background(), now)
+	if err != nil {
+		t.Fatalf("PendingReminders: %v", err)
+	}
+	if len(due) != 0 {
+		t.Fatalf("got %+v, want no reminder for an event already in progress", due)
+	}
+}
+
 func TestUpdateEventScopeLoadError(t *testing.T) {
 	svc := NewCalendarService(&fakeCalendarStore{getEvtErr: errBoom}, fixedID("x"), &fakeRecurrence{})
 	if err := svc.UpdateEventScope(context.Background(), ScopeAll, EventInput{ID: "m1"}, day(4, 9)); !errors.Is(err, errBoom) {
@@ -410,7 +432,7 @@ func TestUpdateEventScopeFutureSplits(t *testing.T) {
 	if err := svc.UpdateEventScope(context.Background(), ScopeFuture, editInput("m1", "series-1"), day(6, 9)); err != nil {
 		t.Fatalf("UpdateEventScope: %v", err)
 	}
-	// Saved: truncated master, new series carrying the reduced forward count, and the migrated future
+	// Saved: truncated master, new series carrying the reduced forward count plus the migrated future
 	// override (past override untouched).
 	var truncatedMaster, newSeries, migrated bool
 	for _, e := range store.savedEvt {

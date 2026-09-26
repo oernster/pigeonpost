@@ -62,7 +62,7 @@ func (s *CalendarService) ListEventInstances(ctx context.Context, from, to time.
 	return instances, nil
 }
 
-// groupBySeries splits events by their series key (UID, or id when there is no UID) into the recurring
+// groupBySeries splits events by their series key (the UID; the id when there is no UID) into the recurring
 // masters and the direct events (overrides and non-recurring singletons) that are emitted as-is.
 func groupBySeries(events []domain.Event) (masters, direct map[string][]domain.Event) {
 	masters = map[string][]domain.Event{}
@@ -173,7 +173,7 @@ func (s *CalendarService) DueReminders(ctx context.Context, since, now time.Time
 // reminder lead) whose trigger time has already passed. It is called once at launch so a reminder for an
 // imminent event is not silently missed when the app was not running at its trigger time; a reminder for
 // an event that has already started or passed is not resurrected. The recurring DueReminders check then
-// covers triggers that fall due while the app runs, and the two windows do not overlap.
+// covers triggers that fall due while the app runs; the two windows do not overlap.
 func (s *CalendarService) PendingReminders(ctx context.Context, now time.Time) ([]DueReminder, error) {
 	instances, err := s.ListEventInstances(ctx, now, now.Add(maxReminderLead))
 	if err != nil {
@@ -181,6 +181,11 @@ func (s *CalendarService) PendingReminders(ctx context.Context, now time.Time) (
 	}
 	var due []DueReminder
 	for _, inst := range instances {
+		// The window keeps a one-off event (or an override) that has started but not ended, since it
+		// overlaps now; its reminder was for the start, which has passed, so it is not resurrected.
+		if inst.Start().Before(now) {
+			continue
+		}
 		for _, alarm := range inst.Event().Alarms() {
 			trigger := alarm.TriggerAt(inst.Start())
 			if !trigger.After(now) {
