@@ -1,13 +1,10 @@
 import {Dispatch, SetStateAction, useEffect, useRef} from 'react'
-import {Folder, Message, Tag, api} from '../api'
+import {Folder, Message, Tag} from '../api'
 import {ComposeInitial} from '../components/ComposeModal'
 import {MenuItem} from '../components/Menu'
-import {TAG_PALETTE, colourTagId} from '../tagColours'
 import {matchesShortcut} from '../shortcuts'
-import {snoozeChoices} from '../schedule'
-import {isJunkFolderMessage} from '../folderPaths'
 import {isTextEntry} from '../editClipboard'
-
+import {buildMailMenu} from './mailMenu'
 
 // MenusDeps is the full action surface the menu bar projects. It is large because the menus touch nearly
 // everything; each field is used verbatim by the item that names it. The derived gating flags (canMailAct and
@@ -114,19 +111,14 @@ export interface Menus {
 // so an item's enabled state and label always reflect the current selection; menuShortcutsRef holds the latest
 // items for the global keydown handler, which is suppressed while a dialog or the context menu is open.
 export function useMenus(deps: MenusDeps): Menus {
+    // The Mail menu's fields are read by buildMailMenu; these are what the other four menus use.
     const {
-        activeMessage, activeOutbox, canMailAct, canReplyAll, canMoveCopy, selectedAccount, accountSyncing,
-        isWindows, conversationView, previewEnabled, autoLoadImages, unifiedMailbox,
-        folders, messageTags,
+        activeMessage, canMailAct, isWindows, conversationView, previewEnabled, autoLoadImages, unifiedMailbox,
         saveMessageAs, printMessage,
         undoText, redoText, undoAction, redoAction, canCutNow, canCopyNow, canPasteNow, cut, copy, paste, selectAll, canSelectAll,
         setManagingRules, setManagingTemplates, focusSearch,
         toggleConversationView, togglePreview, toggleAutoLoadImages, toggleUnifiedMailbox,
-        signatureHtml, setComposeInitial, setComposing, setSettingUp, sync, openInNewTab, openThread,
-        openReply, openReplyAll, openForward, attachToNewMessage, setReadState, toggleFlag, toggleTag,
-        attachFiles, setAttachPickerOpen, displayMessages,
-        moveMessage, copyMessage, markJunk, markNotJunk, snoozeTo, unsnooze, setSnoozePickerFor,
-        setMessageToCancelSend, requestDelete, setMessageToPurge,
+        requestDelete, setMessageToPurge,
         showGuide, showAbout, showLicence, checkUpdates,
     } = deps
 
@@ -162,8 +154,6 @@ export function useMenus(deps: MenusDeps): Menus {
         return () => window.removeEventListener('keydown', onKey)
     }, [])
 
-    const mailMoveTargets = activeMessage ? folders.filter((f) => f.id !== activeMessage.folderId) : []
-    const appliedTagIds = new Set(messageTags.map((t) => t.id))
     const fileMenu: MenuItem[] = [
         {
             label: 'Save as...',
@@ -260,167 +250,7 @@ export function useMenus(deps: MenusDeps): Menus {
             onClick: toggleAutoLoadImages,
         },
     ]
-    const mailMenu: MenuItem[] = [
-        {
-            // Hidden: composing has its own button in the title bar, so an entry here would be a second
-            // way to say the same thing at the top of the menu. The item stays for Ctrl+N, which is
-            // wired from these definitions and would otherwise go with it.
-            label: 'Compose',
-            hidden: true,
-            shortcut: 'Ctrl+N',
-            disabled: !selectedAccount,
-            onClick: () => {
-                const sig = signatureHtml()
-                setComposeInitial(sig ? {bodyHtml: `<p></p>${sig}`} : undefined)
-                setComposing(true)
-            },
-        },
-        {
-            label: 'Attach',
-            icon: '\u{1F4CE}',
-            submenu: [
-                {
-                    label: 'Attach email...',
-                    icon: '\u{2709}\u{FE0F}',
-                    disabled: !selectedAccount || displayMessages.length === 0,
-                    onClick: () => setAttachPickerOpen(true),
-                },
-                {
-                    label: 'Attach file(s)...',
-                    icon: '\u{1F4C4}',
-                    disabled: !selectedAccount,
-                    onClick: () => void attachFiles(),
-                },
-            ],
-        },
-        {
-            label: 'Add account',
-            onClick: () => setSettingUp(true),
-        },
-        {
-            label: accountSyncing ? 'Synchronising…' : 'Sync',
-            shortcut: 'F9',
-            disabled: !selectedAccount || accountSyncing,
-            onClick: () => void sync(),
-        },
-        ...(isWindows
-            ? [{
-                label: 'Set as default for .eml...',
-                icon: '\u{1F4CC}',
-                onClick: () => void api.showDefaultAppSettings(),
-            }, {
-                label: 'Set as default email client...',
-                icon: '\u{2709}\u{FE0F}',
-                onClick: () => void api.showDefaultMailAppSettings(),
-            }]
-            : []),
-        {label: '', separator: true},
-        {
-            label: 'Open in new tab',
-            shortcut: 'Ctrl+T',
-            disabled: !canMailAct,
-            onClick: () => activeMessage && openInNewTab(activeMessage),
-        },
-        {
-            // Offered only while the conversation view is on: the tick governs the whole feature, so a
-            // keyboard route into a thread must not survive switching conversations off.
-            label: 'Open conversation',
-            shortcut: 'Ctrl+Shift+T',
-            disabled: !canMailAct || !conversationView,
-            onClick: () => activeMessage && openThread(activeMessage.id),
-        },
-        {label: '', separator: true},
-        {
-            label: 'Respond',
-            icon: '\u{21A9}\u{FE0F}',
-            disabled: !canMailAct,
-            // The accelerators are Thunderbird's: Ctrl+R replies, Ctrl+Shift+R replies to all and
-            // Ctrl+L forwards.
-            submenu: [
-                {label: 'Reply', icon: '\u{21A9}\u{FE0F}', shortcut: 'Ctrl+R', disabled: !canMailAct, onClick: () => activeMessage && openReply(activeMessage)},
-                {label: 'Reply all', icon: '\u{1F465}', shortcut: 'Ctrl+Shift+R', disabled: !canReplyAll, onClick: () => activeMessage && openReplyAll(activeMessage)},
-                {label: 'Forward', icon: '\u{21AA}\u{FE0F}', shortcut: 'Ctrl+L', disabled: !canMailAct, onClick: () => activeMessage && openForward(activeMessage)},
-                {
-                    label: 'Attach to new message',
-                    icon: '\u{1F4CE}',
-                    disabled: !canMailAct,
-                    onClick: () => activeMessage && attachToNewMessage(activeMessage),
-                },
-            ],
-        },
-        {label: '', separator: true},
-        {
-            label: activeMessage?.read ? 'Mark as unread' : 'Mark as read',
-            disabled: !canMailAct,
-            onClick: () => activeMessage && void setReadState(activeMessage, !activeMessage.read),
-        },
-        {
-            label: activeMessage?.flagged ? 'Remove star' : 'Add star',
-            disabled: !canMailAct,
-            onClick: () => activeMessage && void toggleFlag(activeMessage),
-        },
-        {
-            label: 'Tag with colour',
-            disabled: !canMailAct,
-            submenu: TAG_PALETTE.map((c) => {
-                const id = colourTagId(c.colour)
-                const on = appliedTagIds.has(id)
-                return {label: c.name, swatch: c.colour, checked: on, onClick: () => void toggleTag(id, !on)}
-            }),
-        },
-        ...(activeMessage && activeMessage.snoozedUntilMs > 0
-            ? [{
-                label: 'Unsnooze',
-                icon: '\u{23F0}',
-                disabled: !canMailAct,
-                onClick: () => activeMessage && void unsnooze(activeMessage),
-            }]
-            : [{
-                label: 'Snooze',
-                icon: '\u{23F0}',
-                disabled: !canMailAct,
-                submenu: [
-                    ...snoozeChoices(new Date()).map((choice) => ({
-                        label: choice.label,
-                        onClick: () => activeMessage && void snoozeTo(activeMessage, choice.at),
-                    })),
-                    {label: 'Pick a time...', onClick: () => activeMessage && setSnoozePickerFor(activeMessage)},
-                ],
-            }]),
-        {label: '', separator: true},
-        {
-            label: 'Move to',
-            disabled: !canMailAct || !canMoveCopy || mailMoveTargets.length === 0,
-            submenu: mailMoveTargets.map((f) => ({
-                label: f.name,
-                onClick: () => activeMessage && void moveMessage(activeMessage, f.id),
-            })),
-        },
-        {
-            label: 'Copy to',
-            disabled: !canMailAct || !canMoveCopy || mailMoveTargets.length === 0,
-            submenu: mailMoveTargets.map((f) => ({
-                label: f.name,
-                onClick: () => activeMessage && void copyMessage(activeMessage, f.id),
-            })),
-        },
-        // A message already in Junk offers the rescue back to the inbox instead of re-junking.
-        activeMessage && isJunkFolderMessage(activeMessage, folders) ? {
-            label: 'Not junk',
-            disabled: !canMailAct || !canMoveCopy,
-            onClick: () => activeMessage && void markNotJunk(activeMessage),
-        } : {
-            label: 'Mark as junk',
-            disabled: !canMailAct || !canMoveCopy,
-            onClick: () => activeMessage && void markJunk(activeMessage),
-        },
-        {label: '', separator: true},
-        {
-            label: 'Cancel send',
-            disabled: !activeOutbox,
-            onClick: () => activeMessage && setMessageToCancelSend(activeMessage),
-        },
-    ]
+    const mailMenu = buildMailMenu(deps)
     // Guide leads the menu: it is the entry someone meeting the app reaches for; it explains the
     // pictures the other surfaces are made of rather than reporting on the application itself.
     const helpMenu: MenuItem[] = [

@@ -6,9 +6,9 @@ The sections below the open items are the standing record of what was weighed an
 
 ---
 
-## 1. Seven front-end modules are over the module-size limit
+## 1. Six front-end modules are over the module-size limit
 
-The limit is 400 lines. `tests/structural/boundary_test.go` has always enforced it; it parses Go, so the React front end was never held to it by anything. Nearly all of it stayed small anyway while seven are still past it, `App.tsx` furthest by a wide margin:
+The limit is 400 lines. `tests/structural/boundary_test.go` has always enforced it; it parses Go, so the React front end was never held to it by anything. Nearly all of it stayed small anyway while six are still past it, `App.tsx` furthest by a wide margin:
 
 | Module | Lines |
 |---|---|
@@ -17,12 +17,11 @@ The limit is 400 lines. `tests/structural/boundary_test.go` has always enforced 
 | `src/components/EventFormModal.tsx` | 559 |
 | `src/components/FolderTree.tsx` | 445 |
 | `src/components/CalendarModal.tsx` | 436 |
-| `src/hooks/useMenus.ts` | 439 |
 | `src/components/MessageContextMenu.tsx` | 407 |
 
-`api.ts` is now under the limit and has left the list. It came down the way the debt describes, one cohesive group of calls with its own types at a time: the filter rules (`apiRules`), the message templates (`apiTemplates`), the selection-wide calls (`apiBulk`), then the calendar (`apiCalendar`), the address book (`apiContacts`) and sending (`apiCompose`). `ComposeModal` gave up its formatting strip to `editorTools`, which the template editor renders too. `ContactsModal` is now under the limit, its contact and group editors having become dialogs of their own (`ContactFormModal`, `ContactGroupFormModal`), so it has left the list.
+`api.ts` is now under the limit and has left the list. It came down the way the debt describes, one cohesive group of calls with its own types at a time: the filter rules (`apiRules`), the message templates (`apiTemplates`), the selection-wide calls (`apiBulk`), then the calendar (`apiCalendar`), the address book (`apiContacts`) and sending (`apiCompose`). `useMenus` has left the list too: the Mail menu, most of the menu bar, now builds in `buildMailMenu` (`mailMenu.ts`), pinned first by `useMenus.test.ts` against the unsplit hook. `ComposeModal` gave up its formatting strip to `editorTools`, which the template editor renders too. `ContactsModal` is now under the limit, its contact and group editors having become dialogs of their own (`ContactFormModal`, `ContactGroupFormModal`), so it has left the list.
 
-The lengths above are what each module holds now; the guard records the length each held when it was written, which is the ceiling an exempt module may not exceed. The guard now exists (`src/test/loc.test.ts`) and holds every other module, with these seven named in an exemption list that may only shrink: a file leaves it when it is split; a file that is exempt while no longer over the limit fails too, so an entry cannot outlive the debt it records. Nothing new can join it. What is open is the splitting itself. Each is a behaviour-preserving decomposition along a concern boundary rather than an arbitrary slice, taken one module at a time and characterisation-first the way the original `App.tsx` decomposition was, so the front-end suite proves each move rather than review doing it. The three remaining modals are alike enough to share an approach.
+The lengths above are what each module holds now; the guard records the length each held when it was written, which is the ceiling an exempt module may not exceed. The guard now exists (`src/test/loc.test.ts`) and holds every other module, with these six named in an exemption list that may only shrink: a file leaves it when it is split; a file that is exempt while no longer over the limit fails too, so an entry cannot outlive the debt it records. Nothing new can join it. What is open is the splitting itself. Each is a behaviour-preserving decomposition along a concern boundary rather than an arbitrary slice, taken one module at a time and characterisation-first the way the original `App.tsx` decomposition was, so the front-end suite proves each move rather than review doing it. The three remaining modals are alike enough to share an approach.
 
 `App.tsx` is its own unit and is under way. Six concerns have left it: `useSelectAll`, `useMessageExport`, the four managed collections collapsed onto `useManagedCollection`, `useSearch`, `useSplash` and the About and licence panels collapsed onto `useLoadedPanel`, then gathered with the guide behind `useHelpPanels` so the whole Help menu is one value. Each is pinned by characterisation tests written against the un-extracted code and proved by planting a violation.
 
