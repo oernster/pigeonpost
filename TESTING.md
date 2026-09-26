@@ -307,7 +307,7 @@ npx vitest run --coverage   # enforce the pure-module coverage gate
   before; anything else records that it was reached and throws, then an `afterEach` fails the test
   naming the method. A companion test checks the other direction, that no spy is declared under a name the api
   does not have, since such a spy binds to nothing and every test configuring it passes for the wrong
-  reason. Both directions were verified by planting a violation. Every one of the 28 test files that
+  reason. Both directions were verified by planting a violation. Every one of the 31 test files that
   mocks the api now uses it, each carrying the `afterEach` drain; all but `hooks/useSync.test.ts` also
   carry the companion check. Converting
   them found two more holes of exactly the kind it exists to catch. `MessageBodyView.test.tsx` declared

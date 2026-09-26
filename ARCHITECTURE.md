@@ -116,7 +116,8 @@ second attempt a single such message costs the folder every summary it holds, wh
 Gmail All Mail. The trade is stated rather than hidden: the fallback loses the paperclip for that folder,
 since nothing read a structure, while every message still arrives. It is whole-folder rather than
 per-message because the parse takes the connection down; confining the loss would mean fetching in
-batches, which is recorded as debt rather than done. A folder that syncs normally is unaffected, since
+batches, which was weighed and left alone: across six real accounts the fallback fired on no folder at
+all (TECH_DEBT.md, "Looks like debt"). A folder that syncs normally is unaffected, since
 the second attempt is made only after the first has failed in that particular way.
 
 A sync that stops part way has still cached the folder list and every folder it reached before it
@@ -1104,7 +1105,8 @@ in `app_actions.go` still return the raw error. The bulk mark-read bindings (`Ma
   root whitelist.
 - The React front end has its own Vitest and jsdom suite: a coverage gate on the pure logic modules, a
   structural boundary test that keeps them pure and a module-size test holding the same 400-line limit
-  the Go guard holds, with the modules that predate it named in a shrinking exemption list. Two further
+  the Go guard holds, with `App.tsx`, the one module over it, exempt by decision and held at its recorded
+  ceiling. Two further
   structural tests read source rather than behaviour: one holds every dialog's action row and scrolling
   body, the other holds the stylesheets' hover gating, the pane watermark's stacking, pointer and
   token declarations, the empty-list line's pointer gate, the leading line the two bars and the sidebar labels share (see Styles below)

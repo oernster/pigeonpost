@@ -12,7 +12,7 @@ How to set up, run, test, build and package PigeonPost from source.
 | WebView2 runtime | current | Pre-installed on Windows 11. Wails uses the system WebView. |
 | PowerShell | 7+ | For `build.ps1` and `test.ps1` on Windows. |
 
-Platform build dependencies (C toolchains, gcc/WebKit on Linux, Xcode tools on macOS) are described by
+Platform build dependencies (C toolchains, Xcode tools on macOS, gcc/WebKit on Linux) are described by
 `wails doctor`. Run it once after installing the CLI:
 
 ```
