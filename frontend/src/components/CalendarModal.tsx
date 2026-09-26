@@ -1,7 +1,5 @@
-import {useState} from 'react'
-import {api, CalendarEvent, CalendarEventInstance, EventScope} from '../api'
+import {api, CalendarEvent, EventScope} from '../api'
 import {categoryEmoji} from '../categories'
-import {browserZone, instantToZonedWall} from '../tz'
 import {ModalClose} from './ModalClose'
 import {ScopeChooser} from './ScopeChooser'
 import {CalendarTimeGrid} from './CalendarTimeGrid'
@@ -9,23 +7,16 @@ import {useBackdropDismiss, useEscapeToClose} from './useBackdropDismiss'
 import {
     DAYS_IN_WEEK,
     DEFAULT_EVENT_COLOUR,
-    HOURS_PER_EVENT,
-    MONTHS,
-    MONTHS_SHORT,
     MONTH_MAX_LANES,
     VIEW_MODES,
     WEEKDAYS,
-    WEEKDAYS_FULL,
     contrastInk,
-    dateInput,
-    dateTimeInput,
     dayIndex,
     eventDaySpan,
     layoutWeek,
     monthCells,
     pad,
     weekDays,
-    type ViewMode,
 } from '../calendarModel'
 import {useEventInstances} from '../hooks/useEventInstances'
 import {useCalendars} from '../hooks/useCalendars'
@@ -33,8 +24,10 @@ import {useCalDAVAccounts} from '../hooks/useCalDAVAccounts'
 import {useOpenFromReminder} from '../hooks/useOpenFromReminder'
 import {CalendarsManager} from './CalendarsManager'
 import {CalDAVAccountsManager} from './CalDAVAccountsManager'
-import {EventFormModal, type EventForm} from './EventFormModal'
+import {EventFormModal} from './EventFormModal'
 import {useBanners} from '../hooks/useBanners'
+import {useCalendarView} from '../hooks/useCalendarView'
+import {isSeries, useEventFormOpening} from '../hooks/useEventFormOpening'
 
 
 interface CalendarModalProps {
@@ -57,15 +50,8 @@ interface CalendarModalProps {
 // and cancellations are emailed through the active account. Deletion is always confirmed.
 export function CalendarModal({events, accountId, accountEmail, accountName, initialEventId, onChanged, onClose}: CalendarModalProps) {
     const dismiss = useBackdropDismiss(onClose)
-    const [viewDate, setViewDate] = useState(() => new Date())
-    const [viewMode, setViewMode] = useState<ViewMode>('month')
-    const [form, setForm] = useState<EventForm | null>(null)
-    // attendeeDraft holds the email being typed into the add-attendee field.
-    const [attendeeDraft, setAttendeeDraft] = useState('')
-    // cancelledSent is true once a cancellation has been emailed for the open meeting, so the cancel and
-    // resend actions are disabled: a withdrawn meeting must not be cancelled again or re-invited.
-    const [cancelledSent, setCancelledSent] = useState(false)
-    const [editScope, setEditScope] = useState<CalendarEventInstance | null>(null)
+    // Where the calendar is looking (the date, month or week or day, the header and stepping) is its own hook.
+    const {viewDate, setViewDate, viewMode, setViewMode, shift, headerLabel, openDay} = useCalendarView()
     // error, status and busy are the shared user-feedback banners, owned in one hook and read and driven by
     // the calendar shell, the event form and the calendars manager alike.
     const banners = useBanners()
@@ -76,6 +62,12 @@ export function CalendarModal({events, accountId, accountEmail, accountName, ini
         calendars, managingCals, setManagingCals, calForm, setCalForm, saveCal,
         pendingCalDelete, setPendingCalDelete, confirmCalDelete,
     } = useCalendars({setError, setBusy, onChanged})
+    // The event dialog (what it is open on, the attendee being typed, a sent cancellation and the recurring
+    // occurrence waiting on a scope) and the ways it opens are their own hook.
+    const {
+        form, setForm, attendeeDraft, setAttendeeDraft, cancelledSent, setCancelledSent, editScope, setEditScope,
+        openNew, openAt, openInstance, openForm, chooseEditScope,
+    } = useEventFormOpening({calendars, setError, setStatus})
     // instances are the concrete occurrences shown for the visible range, expanded from the recurring events
     // by the backend and refetched by the application hook; bumpReload forces a refetch after a local change.
     const {instances, bumpReload} = useEventInstances({viewDate, viewMode, events, setError})
@@ -107,7 +99,6 @@ export function CalendarModal({events, accountId, accountEmail, accountName, ini
     // no calendar. The map is rebuilt each render, which is cheap for the handful of calendars a user has.
     const colourById = new Map(calendars.map((c) => [c.id, c.colour || DEFAULT_EVENT_COLOUR]))
     const colourOf = (e: CalendarEvent) => colourById.get(e.calendarId) ?? DEFAULT_EVENT_COLOUR
-    const defaultCalendarId = () => calendars[0]?.id ?? ''
 
     const cells = monthCells(viewDate)
     // spanned reduces each occurrence to the inclusive day range it covers, so the month grid can lay a
@@ -119,80 +110,6 @@ export function CalendarModal({events, accountId, accountEmail, accountName, ini
     })
     const barInputs = spanned.map((s) => ({key: s.key, firstDay: s.firstDay, lastDay: s.lastDay}))
     const spannedByKey = new Map(spanned.map((s) => [s.key, s]))
-    // isSeries reports whether an occurrence belongs to a recurring series, so an edit or delete asks how
-    // far it should reach. A one-off event carries neither a rule nor a recurrence id.
-    const isSeries = (i: CalendarEventInstance) => i.recurrenceId !== '' || i.event.recurrence !== ''
-
-    const openNew = (day: Date) => {
-        setError('')
-        setStatus('')
-        setCancelledSent(false)
-        const start = new Date(day)
-        start.setHours(9, 0, 0, 0)
-        const end = new Date(start)
-        end.setHours(10, 0, 0, 0)
-        setForm({
-            id: '', uid: '', calendarId: defaultCalendarId(), summary: '', description: '', location: '',
-            category: '',
-            allDay: false, start: dateTimeInput(start), end: dateTimeInput(end), timeZone: browserZone(),
-            reminders: [], recurrence: '', extra: '', organizerAddress: '', organizerName: '', attendees: [],
-            scope: null, occurrence: '', series: false,
-        })
-    }
-
-    // openAt starts a new one-hour event at the clicked time in the week or day time-grid.
-    const openAt = (start: Date) => {
-        setError('')
-        setStatus('')
-        setCancelledSent(false)
-        const end = new Date(start)
-        end.setHours(start.getHours() + HOURS_PER_EVENT)
-        setForm({
-            id: '', uid: '', calendarId: defaultCalendarId(), summary: '', description: '', location: '',
-            category: '',
-            allDay: false, start: dateTimeInput(start), end: dateTimeInput(end), timeZone: browserZone(),
-            reminders: [], recurrence: '', extra: '', organizerAddress: '', organizerName: '', attendees: [],
-            scope: null, occurrence: '', series: false,
-        })
-    }
-
-    // openInstance edits an occurrence. A recurring occurrence first asks the scope; a one-off opens the
-    // form directly.
-    const openInstance = (inst: CalendarEventInstance) => {
-        if (isSeries(inst)) setEditScope(inst)
-        else openForm(inst, null)
-    }
-
-    // openForm populates the edit form for an occurrence at the given scope. For an All-scope edit the form
-    // shows the series master's own start and end (so editing the time changes the series); otherwise it
-    // shows this occurrence's times.
-    const openForm = (inst: CalendarEventInstance, scope: EventScope | null) => {
-        const ev = inst.event
-        const useMaster = scope === EventScope.All
-        const startISO = useMaster ? ev.start : inst.start
-        const endISO = useMaster ? ev.end : inst.end
-        const zone = ev.timeZone || browserZone()
-        // Timed events show their wall time in the event's own zone; all-day events are floating dates.
-        const startWall = ev.allDay ? dateInput(new Date(startISO)) : instantToZonedWall(startISO, zone)
-        const endWall = endISO ? (ev.allDay ? dateInput(new Date(endISO)) : instantToZonedWall(endISO, zone)) : ''
-        setForm({
-            id: ev.id, uid: ev.uid, calendarId: ev.calendarId, summary: ev.summary,
-            description: ev.description, location: ev.location, category: ev.category, allDay: ev.allDay,
-            start: startWall, end: endWall, timeZone: zone,
-            reminders: [...ev.reminders], recurrence: ev.recurrence, extra: ev.extra,
-            organizerAddress: ev.organizer.address, organizerName: ev.organizer.commonName,
-            attendees: ev.attendees.map((a) => ({
-                address: a.address, commonName: a.commonName, role: a.role, status: a.status, rsvp: a.rsvp,
-            })),
-            scope, occurrence: inst.recurrenceId, series: isSeries(inst),
-        })
-        setAttendeeDraft('')
-        setError('')
-        setStatus('')
-        setCancelledSent(false)
-        setEditScope(null)
-    }
-
     // A clicked reminder lands on the event it is about: the hook jumps the view to the event and reveals its
     // dialog once the occurrence has loaded. A recurring event opens at series scope so a save reaches the
     // master; a one-off opens directly.
@@ -200,10 +117,6 @@ export function CalendarModal({events, accountId, accountEmail, accountName, ini
         initialEventId, events, instances, setViewDate,
         onReveal: (inst) => openForm(inst, isSeries(inst) ? EventScope.All : null),
     })
-
-    const chooseEditScope = (scope: EventScope) => {
-        if (editScope) openForm(editScope, scope)
-    }
 
     const doImport = async () => {
         setError('')
@@ -229,33 +142,6 @@ export function CalendarModal({events, accountId, accountEmail, accountName, ini
         } catch (e) {
             setError(String(e))
         }
-    }
-
-    // shift moves the view by one unit of the active mode: a month, a week or a day.
-    const shift = (delta: number) =>
-        setViewDate((d) => {
-            if (viewMode === 'month') return new Date(d.getFullYear(), d.getMonth() + delta, 1)
-            const n = new Date(d)
-            n.setDate(d.getDate() + delta * (viewMode === 'week' ? DAYS_IN_WEEK : 1))
-            return n
-        })
-
-    const headerLabel = (): string => {
-        if (viewMode === 'month') return `${MONTHS[viewDate.getMonth()]} ${viewDate.getFullYear()}`
-        if (viewMode === 'day') {
-            return `${WEEKDAYS_FULL[viewDate.getDay()]}, ${viewDate.getDate()} ` +
-                `${MONTHS[viewDate.getMonth()]} ${viewDate.getFullYear()}`
-        }
-        const wd = weekDays(viewDate)
-        const a = wd[0]
-        const b = wd[DAYS_IN_WEEK - 1]
-        return `${a.getDate()} ${MONTHS_SHORT[a.getMonth()]} to ` +
-            `${b.getDate()} ${MONTHS_SHORT[b.getMonth()]} ${b.getFullYear()}`
-    }
-
-    const openDay = (day: Date) => {
-        setViewDate(day)
-        setViewMode('day')
     }
 
     return (

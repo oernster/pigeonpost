@@ -14,6 +14,8 @@ import {CalendarModal} from './CalendarModal'
 import {EventScope} from '../api'
 import type {Calendar, CalendarEvent, CalendarEventInstance} from '../api'
 import {spiesNotInApi, unstubbedNames} from '../test/apiMock'
+import {monthCells, weekDays} from '../calendarModel'
+import {browserZone} from '../tz'
 
 const apiSpies = vi.hoisted(() => ({
     listCalendars: vi.fn(),
@@ -473,6 +475,116 @@ describe('CalendarModal: error handling', () => {
 // The mock covers the api in both directions: the afterEach above catches a method reached with no
 // spy; this catches the opposite, a spy declared under a name the api does not have, which binds to
 // nothing, so every test configuring it would be configuring a stub the code can never call.
+// What a new or edited event opens with; how the header reads as the view moves. The clock is held on
+// Wednesday 23 September 2026 so the dates are fixed; a form's opening values are read off the request a
+// save sends without touching a field, which is the modal's own outer interface.
+describe('CalendarModal: form values and the header, on a fixed day', () => {
+    const NOW = new Date(2026, 8, 23, 10, 30)
+    const at = (day: number, hour: number) => new Date(2026, 8, day, hour, 0, 0, 0).toISOString()
+
+    beforeEach(() => {
+        vi.useFakeTimers({toFake: ['Date']})
+        vi.setSystemTime(NOW)
+        apiSpies.listCalendars.mockResolvedValue([makeCalendar('c1', 'Home'), makeCalendar('c2', 'Work')])
+    })
+    afterEach(() => vi.useRealTimers())
+
+    const header = () => document.querySelector('.cal-month')?.textContent
+
+    // saveUntouched saves the open form as it opened, giving a new event the title a save requires.
+    async function saveUntouched(button: string) {
+        const title = await screen.findByPlaceholderText<HTMLInputElement>('Event title')
+        if (title.value === '') {
+            fireEvent.change(title, {target: {value: 'T'}})
+        }
+        fireEvent.click(await screen.findByRole('button', {name: button}))
+        await waitFor(() => expect(apiSpies.saveEvent.mock.calls.length + apiSpies.saveEventScoped.mock.calls.length)
+            .toBe(1))
+    }
+
+    it('opens a new event from the toolbar at 09:00 to 10:00 today in the first calendar and this zone', async () => {
+        renderCalendar()
+        await waitFor(() => expect(apiSpies.listCalendars).toHaveBeenCalled())
+        fireEvent.click(screen.getByRole('button', {name: 'New event'}))
+        await saveUntouched('Add event')
+        expect(apiSpies.saveEvent).toHaveBeenCalledWith(expect.objectContaining({
+            id: '', calendarId: 'c1', allDay: false, start: at(23, 9), end: at(23, 10), timeZone: browserZone(),
+            reminders: [], recurrence: '', attendees: [],
+        }))
+    })
+
+    it('opens a new event on a clicked day of the month at 09:00 to 10:00', async () => {
+        const {container} = renderCalendar()
+        await waitFor(() => expect(apiSpies.listCalendars).toHaveBeenCalled())
+        const fifteenth = monthCells(NOW).findIndex((d) => d.getMonth() === 8 && d.getDate() === 15)
+        fireEvent.click(container.querySelectorAll('.cal-cell')[fifteenth])
+        await saveUntouched('Add event')
+        expect(apiSpies.saveEvent).toHaveBeenCalledWith(expect.objectContaining({start: at(15, 9), end: at(15, 10)}))
+    })
+
+    it('opens a new event one hour long at the clicked time in the week grid', async () => {
+        const {container} = renderCalendar()
+        await waitFor(() => expect(apiSpies.listCalendars).toHaveBeenCalled())
+        fireEvent.click(screen.getByRole('button', {name: 'Week'}))
+        const monday = weekDays(NOW).findIndex((d) => d.getDay() === 1)
+        const click = new MouseEvent('click', {bubbles: true})
+        // The grid reads the click's height in the column: 44 pixels an hour, so 14 hours down is 14:00.
+        Object.defineProperty(click, 'offsetY', {value: 14 * 44})
+        fireEvent(container.querySelectorAll('.tg-daycol')[monday], click)
+        await saveUntouched('Add event')
+        expect(apiSpies.saveEvent).toHaveBeenCalledWith(expect.objectContaining({start: at(21, 14), end: at(21, 15)}))
+    })
+
+    it('opens an all-events edit of a recurring occurrence at the series master times', async () => {
+        const master = makeEvent({id: 'r1', summary: 'Weekly sync', recurrence: 'FREQ=WEEKLY', start: at(23, 12), end: at(23, 13)})
+        apiSpies.listEventInstances.mockResolvedValue([
+            makeInstance(master, {start: at(30, 12), end: at(30, 13), recurrenceId: at(30, 12)}),
+        ])
+        renderCalendar()
+        fireEvent.click(await screen.findByRole('button', {name: /Weekly sync/}))
+        fireEvent.click(within(screen.getByRole('alertdialog', {name: 'Edit recurring event'}))
+            .getByRole('button', {name: 'All events'}))
+        await saveUntouched('Save changes')
+        expect(apiSpies.saveEventScoped).toHaveBeenCalledWith(
+            expect.objectContaining({id: 'r1', calendarId: '', start: at(23, 12), end: at(23, 13)}),
+            EventScope.All, at(30, 12),
+        )
+    })
+
+    it('names the month, the week and the day and moves each by its own unit', async () => {
+        renderCalendar()
+        await waitFor(() => expect(apiSpies.listCalendars).toHaveBeenCalled())
+        const step = (name: string) => fireEvent.click(screen.getByRole('button', {name}))
+        expect(header()).toBe('September 2026')
+        step('Week')
+        expect(header()).toBe('20 Sep to 26 Sep 2026')
+        step('Next')
+        expect(header()).toBe('27 Sep to 3 Oct 2026')
+        step('Previous')
+        step('Day')
+        expect(header()).toBe('Wednesday, 23 September 2026')
+        step('Next')
+        expect(header()).toBe('Thursday, 24 September 2026')
+        step('Month')
+        step('Next')
+        expect(header()).toBe('October 2026')
+        step('Previous')
+        step('Previous')
+        expect(header()).toBe('August 2026')
+        // A month step lands on the 1st, so the week view then shows the week holding 1 August.
+        step('Week')
+        expect(header()).toBe('26 Jul to 1 Aug 2026')
+    })
+
+    it('opens the day view from a day number in the month', async () => {
+        renderCalendar()
+        await waitFor(() => expect(apiSpies.listCalendars).toHaveBeenCalled())
+        fireEvent.click(screen.getAllByTitle('Open day view').find((b) => b.textContent === '15')!)
+        expect(header()).toBe('Tuesday, 15 September 2026')
+        expect(screen.getByRole('button', {name: 'Day'})).toHaveAttribute('aria-pressed', 'true')
+    })
+})
+
 describe('the api mock', () => {
     it('declares no spy the real api does not have', async () => {
         const actual = await vi.importActual<typeof import('../api')>('../api')
