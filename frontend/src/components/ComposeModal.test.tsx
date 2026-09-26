@@ -420,6 +420,63 @@ describe('formatting toolbar keyboard navigation', () => {
 // The mock covers the api in both directions: the afterEach above catches a method reached with no
 // spy; this catches the opposite, a spy declared under a name the api does not have, which binds to
 // nothing, so every test configuring it would be configuring a stub the code can never call.
+// The send and draft paths the cases above do not reach: a reopened draft is superseded only once its
+// replacement is safe, a failed draft save keeps the window, Send anyway keeps a chosen schedule and a
+// file picked twice attaches once.
+describe('ComposeModal: superseding a draft and the remaining send paths', () => {
+    it('supersedes the draft it reopened once the message is sent', async () => {
+        const onDraftSuperseded = vi.fn()
+        const {onClose} = renderCompose({onDraftSuperseded, initial: {to: 'x@y.com', draftId: 'd1'}})
+        fireEvent.click(screen.getByRole('button', {name: 'Send'}))
+        await waitFor(() => expect(onClose).toHaveBeenCalled())
+        expect(onDraftSuperseded).toHaveBeenCalledWith('d1')
+    })
+
+    it('supersedes the draft it reopened once the replacement is saved', async () => {
+        const onDraftSuperseded = vi.fn()
+        const {onClose} = renderCompose({onDraftSuperseded, initial: {to: 'x@y.com', draftId: 'd1'}})
+        fireEvent.click(screen.getByRole('button', {name: 'Save draft'}))
+        await waitFor(() => expect(onClose).toHaveBeenCalled())
+        expect(onDraftSuperseded).toHaveBeenCalledWith('d1')
+    })
+
+    it('keeps the window and the old draft when saving the draft fails', async () => {
+        apiSpies.saveDraft.mockRejectedValue('server said no')
+        const onDraftSuperseded = vi.fn()
+        const {onClose} = renderCompose({onDraftSuperseded, initial: {to: 'x@y.com', draftId: 'd1'}})
+        fireEvent.click(screen.getByRole('button', {name: 'Save draft'}))
+        expect(await screen.findByText(/server said no/)).toBeInTheDocument()
+        expect(onClose).not.toHaveBeenCalled()
+        expect(onDraftSuperseded).not.toHaveBeenCalled()
+        expect(apiSpies.clearDraftRecovery).not.toHaveBeenCalled()
+        expect(screen.getByRole('button', {name: 'Save draft'})).toBeEnabled()
+    })
+
+    it('keeps the chosen schedule when Send anyway follows the attachment reminder', async () => {
+        const {onClose} = renderCompose({initial: {to: 'x@y.com', subject: 'see attached'}})
+        fireEvent.click(screen.getByRole('button', {name: 'Send later'}))
+        fireEvent.click(screen.getByRole('menuitem', {name: 'Tomorrow morning (09:00)'}))
+        fireEvent.click(screen.getByRole('button', {name: 'Send anyway'}))
+        await waitFor(() => expect(onClose).toHaveBeenCalled())
+        expect(apiSpies.send.mock.calls[0][0].sendAtMs).toBeGreaterThan(Date.now())
+    })
+
+    it('attaches a file picked a second time only once', async () => {
+        apiSpies.pickAttachments.mockResolvedValueOnce(['C:\\a\\report.pdf', 'C:\\a\\notes.txt'])
+        renderCompose({initial: {attachmentPaths: ['C:\\a\\report.pdf']}})
+        fireEvent.click(screen.getByRole('button', {name: 'Attach files'}))
+        expect(await screen.findByText('notes.txt')).toBeInTheDocument()
+        expect(screen.getAllByText('report.pdf')).toHaveLength(1)
+    })
+
+    it('reports a picker that fails', async () => {
+        apiSpies.pickAttachments.mockRejectedValueOnce('dialog broke')
+        renderCompose()
+        fireEvent.click(screen.getByRole('button', {name: 'Attach files'}))
+        expect(await screen.findByText(/dialog broke/)).toBeInTheDocument()
+    })
+})
+
 describe('the api mock', () => {
     it('declares no spy the real api does not have', async () => {
         const actual = await vi.importActual<typeof import('../api')>('../api')

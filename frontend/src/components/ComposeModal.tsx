@@ -3,26 +3,26 @@ import {useBackdropDismiss} from './useBackdropDismiss'
 import {EditorContent, useEditor} from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Image from '@tiptap/extension-image'
-import {api, ComposeInput, Template} from '../api'
+import {api, Template} from '../api'
 import {EDITOR_LINK_OPTIONS, EDITOR_PASTE_PROPS} from '../richText'
 import {DataAttachment} from '../composeIntake'
-import {AUTO_COLLECT_KEY, collectableRecipients, shouldAutoCollect} from '../autoCollect'
 import {useComposeIntake} from '../hooks/useComposeIntake'
 import {useContactPool} from '../hooks/useContactPool'
 import {RecipientField} from './RecipientField'
 import {DateField} from './DateField'
 import {ModalClose} from './ModalClose'
 import {ConfirmDialog} from './ConfirmDialog'
-import {basename, isValidAddress, normaliseUrl, splitAddresses} from '../composeAddresses'
+import {basename, isValidAddress, normaliseUrl} from '../composeAddresses'
 import {useLinkEditor} from '../hooks/useLinkEditor'
 import {useDraftAutosave} from '../hooks/useDraftAutosave'
 import {useSeparatorCorrection} from '../hooks/useSeparatorCorrection'
-import {bodyMentionsAttachment} from '../composeAttachment'
 import {fromDatetimeLocal, isSchedulable, sendLaterChoices} from '../schedule'
 import {ToolButton} from './ToolButton'
 import {EditorTool, formattingTools} from '../editorTools'
 import {useToolbarNav} from '../hooks/useToolbarNav'
 import {useModalDrag} from '../hooks/useModalDrag'
+import {useComposeSend} from '../hooks/useComposeSend'
+import {useComposeTemplates} from '../hooks/useComposeTemplates'
 
 // ComposeInitial pre-fills the compose window, used by reply, reply-all and forward.
 // MessageAttachment is an existing email attached to a new message: its id (fetched and rendered as a
@@ -102,13 +102,7 @@ export function ComposeModal({accountId, senders, initial, canSaveDraft, onMarkR
     const [subject, setSubject] = useState(initial?.subject ?? '')
     const [attachments, setAttachments] = useState<string[]>(initial?.attachmentPaths ?? [])
     const [messageAttachments, setMessageAttachments] = useState<MessageAttachment[]>(initial?.messageAttachments ?? [])
-    const [sending, setSending] = useState(false)
-    const [savingDraft, setSavingDraft] = useState(false)
     const [error, setError] = useState('')
-    // The message-template picker: the loaded templates and whether its dropdown is open. Templates are
-    // fetched the first time the picker is opened so an unused compose window makes no call.
-    const [templates, setTemplates] = useState<Template[]>([])
-    const [templatePicker, setTemplatePicker] = useState(false)
 
     // attemptSendRef lets the editor's key handler call the latest attemptSend without recreating the
     // editor: the editor is built once while attemptSend closes over state that changes each render.
@@ -226,197 +220,22 @@ export function ComposeModal({accountId, senders, initial, canSaveDraft, onMarkR
     }
     const dismiss = useBackdropDismiss(requestClose)
 
-    // buildRequest packs the compose state for the backend. at is the send-later instant, null for an
-    // immediate send.
-    const buildRequest = (at: Date | null = null): ComposeInput => {
-        const text = editor?.getText() ?? ''
-        const html = editor?.getHTML() ?? ''
-        return {
-            accountId,
-            from,
-            to: splitAddresses(to),
-            cc: splitAddresses(cc),
-            bcc: splitAddresses(bcc),
-            subject,
-            body: text,
-            // Only carry an HTML alternative when the body is non-empty, so an empty message stays plain.
-            htmlBody: text.trim() === '' ? '' : html,
-            attachmentPaths: attachments,
-            attachmentData: intake.dataAttachments,
-            attachmentMessageIds: messageAttachments.map((m) => m.id),
-            sendAtMs: at === null ? 0 : at.getTime(),
-        }
-    }
-
-    const removeMessageAttachment = (id: string) => {
-        setMessageAttachments((prev) => prev.filter((m) => m.id !== id))
-    }
-
-    // addAttachments opens the native file picker and appends the chosen files, skipping any already
-    // attached so the same file is not added twice.
-    const addAttachments = async () => {
-        try {
-            const picked = await api.pickAttachments()
-            if (picked.length > 0) {
-                setAttachments((prev) => [...prev, ...picked.filter((p) => !prev.includes(p))])
-            }
-        } catch (e) {
-            setError(String(e))
-        }
-    }
-
-    const removeAttachment = (path: string) => {
-        setAttachments((prev) => prev.filter((p) => p !== path))
-    }
-
-    // markOriginalOnSend reports a sent reply or forward on its original message so the row shows the
-    // replied/forwarded indicator. The handlers own the server flag, the local cache and the in-memory list
-    // update; this only says which original was acted on. It is fire-and-forget: it never blocks or fails the
-    // send, so composing offline just leaves the indicator for the next sync.
-    const markOriginalOnSend = () => {
-        if (!initial?.inReplyToId) {
-            return
-        }
-        if (initial.replyKind === 'reply') {
-            onMarkReplied(initial.inReplyToId)
-        } else if (initial.replyKind === 'forward') {
-            onMarkForwarded(initial.inReplyToId)
-        }
-    }
-
-    // supersedeDraft reports the stored draft this compose was reopened from, once its replacement has been
-    // sent or saved. It runs only after that replacement succeeded, so the draft is never dropped before
-    // something has taken its place.
-    const supersedeDraft = () => {
-        if (initial?.draftId) {
-            onDraftSuperseded(initial.draftId)
-        }
-    }
-
-    // send delivers the message now (at null) or schedules it for the chosen instant. A scheduled send
-    // waits in the Outbox with Cancel send; it does not mark a reply or forward's original (a schedule
-    // cancelled days later must not have already flagged it; the glyph is an accepted gap there).
-    // maybeCollectContacts adds the message's recipients to the address book after a successful
-    // send, when the automatic setting (on by default, toggled on the Contacts page) allows. The
-    // sender's own addresses are never collected. Fire-and-forget: collection must never disturb a
-    // send that has already succeeded.
-    const maybeCollectContacts = () => {
-        if (!shouldAutoCollect(window.localStorage.getItem(AUTO_COLLECT_KEY))) {
-            return
-        }
-        const recipients = collectableRecipients(to, cc, bcc, senders.map((s) => s.address))
-        if (recipients.length > 0) {
-            void api.collectContacts(recipients).catch(() => {})
-        }
-    }
-
-    const send = async (at: Date | null) => {
-        autosave.stopAutosave()
-        setSending(true)
-        setError('')
-        try {
-            await api.send(buildRequest(at))
-            maybeCollectContacts()
-            if (at === null) {
-                markOriginalOnSend()
-            }
-            supersedeDraft()
-            void api.clearDraftRecovery()
-            onClose()
-        } catch (e) {
-            autosave.resumeAutosave()
-            setError(String(e))
-            setSending(false)
-        }
-    }
-
-    const [attachWarn, setAttachWarn] = useState(false)
-    // sendLaterOpen shows the schedule row; sendAtValue is its datetime-local field. scheduleAtRef
-    // carries a chosen moment through the attachment-reminder dialog, so "Send anyway" schedules
-    // rather than sending now.
-    const [sendLaterOpen, setSendLaterOpen] = useState(false)
-    const [sendAtValue, setSendAtValue] = useState('')
-    const scheduleAtRef = useRef<Date | null>(null)
-
-    // canSend mirrors the Send button's enabled state, so Ctrl+Enter behaves exactly like the button.
-    const canSend = () => !sending && !savingDraft && to.trim() !== ''
-    const hasAttachments = () =>
-        attachments.length > 0 || intake.dataAttachments.length > 0 || messageAttachments.length > 0
-    // mentionsAttachment reports whether the message the user actually wrote talks about attaching
-    // something, so it can prompt a reminder before sending. It passes the editor HTML (not its plain
-    // text) so bodyMentionsAttachment can strip the quoted reply or forward chain: an attachment mentioned
-    // only earlier in the thread must not trigger the reminder.
-    const mentionsAttachment = () => bodyMentionsAttachment(subject, editor?.getHTML() ?? '')
-
-    // attemptSend is the single entry point for the Send button, Ctrl+Enter and the send-later choices
-    // (which pass their instant). It offers to fix a wrong address separator, then warns once when the
-    // message mentions an attachment but none is attached, otherwise it sends or schedules straight away.
-    const attemptSend = (at: Date | null = null) => {
-        if (!canSend()) return
-        if (correction.offer()) return
-        if (mentionsAttachment() && !hasAttachments()) {
-            scheduleAtRef.current = at
-            setAttachWarn(true)
-            return
-        }
-        void send(at)
-    }
+    // Sending, scheduling, saving as a draft and the attachments the message carries are their own hook.
+    const sender = useComposeSend({
+        accountId, senders, initial, from, to, cc, bcc, subject, editor, attachments, setAttachments,
+        messageAttachments, setMessageAttachments, intake, autosave, correction, setError,
+        onMarkReplied, onMarkForwarded, onDraftSuperseded, onClose,
+    })
+    const {
+        sending, savingDraft, attachWarn, setAttachWarn, sendLaterOpen, setSendLaterOpen, sendAtValue,
+        setSendAtValue, scheduleAtRef, hasAttachments, attemptSend, send, saveDraft, addAttachments,
+        removeAttachment, removeMessageAttachment,
+    } = sender
     attemptSendRef.current = () => attemptSend()
-
-    const saveDraft = async () => {
-        autosave.stopAutosave()
-        setSavingDraft(true)
-        setError('')
-        try {
-            await api.saveDraft(buildRequest(null))
-            supersedeDraft()
-            void api.clearDraftRecovery()
-            onClose()
-        } catch (e) {
-            autosave.resumeAutosave()
-            setError(String(e))
-            setSavingDraft(false)
-        }
-    }
-
-    // openTemplatePicker toggles the template dropdown, loading the templates on first open so the list is
-    // current without fetching until it is wanted.
-    const openTemplatePicker = async () => {
-        if (templatePicker) {
-            setTemplatePicker(false)
-            return
-        }
-        try {
-            setTemplates(await api.listTemplates())
-            setTemplatePicker(true)
-        } catch (e) {
-            setError(String(e))
-        }
-    }
-
-    // insertTemplate applies a chosen template: it fills the subject when it is still empty (so a template
-    // never overwrites a subject already typed) and inserts the template body HTML at the cursor, then marks
-    // the draft dirty so the change is autosaved.
-    const insertTemplate = async (t: Template) => {
-        setTemplatePicker(false)
-        if (subject.trim() === '' && t.subject !== '') {
-            setSubject(t.subject)
-        }
-        if (t.body !== '') {
-            editor?.chain().focus().insertContent(t.body).run()
-        }
-        autosave.markDirty()
-        // The files come over only now, for the one template chosen: a template may carry a whole
-        // message's worth of bytes, so the picker's listing describes them and this reads them.
-        if ((t.attachments ?? []).length === 0) {
-            return
-        }
-        try {
-            intake.add(await api.templateFiles(t.id))
-        } catch (e) {
-            setError(String(e))
-        }
-    }
+    // The template picker is its own hook.
+    const {templates, templatePicker, openTemplatePicker, insertTemplate} = useComposeTemplates({
+        editor, subject, setSubject, markDirty: autosave.markDirty, intake, setError,
+    })
 
     // The formatting strip is one focus-ring stop (roving tabindex; see useToolbarNav): the tools
     // are data so the toolbar renders and navigates from one list. A separator follows the tools

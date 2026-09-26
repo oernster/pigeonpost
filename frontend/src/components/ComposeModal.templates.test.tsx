@@ -116,6 +116,24 @@ afterEach(() => {
         .toEqual([])
 })
 
+describe('ComposeModal: opening and closing the picker', () => {
+    it('reports a failure to load the templates and leaves the picker shut', async () => {
+        apiSpies.listTemplates.mockRejectedValueOnce('store unreadable')
+        renderCompose()
+        fireEvent.click(screen.getByRole('button', {name: 'Insert template'}))
+        expect(await screen.findByText(/store unreadable/)).toBeTruthy()
+        expect(screen.queryByRole('menu', {name: 'Message templates'})).toBeNull()
+    })
+
+    it('closes the picker when it is pressed again, without loading again', async () => {
+        renderCompose()
+        await openPicker()
+        fireEvent.click(screen.getByRole('button', {name: 'Insert template'}))
+        expect(screen.queryByRole('menu', {name: 'Message templates'})).toBeNull()
+        expect(apiSpies.listTemplates).toHaveBeenCalledTimes(1)
+    })
+})
+
 describe('the api mock', () => {
     it('declares no spy the real api does not have', async () => {
         const actual = await vi.importActual<typeof import('../api')>('../api')
