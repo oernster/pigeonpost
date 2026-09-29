@@ -312,7 +312,7 @@ in your browser; the app itself sends nothing and asks for nothing. Donations su
 continued development. Nothing in PigeonPost is withheld behind one: there is no paid tier, no licence
 key and no feature that a donation unlocks.
 
-<a href="https://www.paypal.com/ncp/payment/6QEJKCEQ3ZFZ8"><img src="frontend/src/assets/donate.png" alt="Donate to PigeonPost" width="120"></a>
+<a href="https://www.paypal.com/ncp/payment/Q2U2RRG5WV7YJ"><img src="frontend/src/assets/donate.png" alt="Donate to PigeonPost" width="120"></a>
 
 ## Licence
 

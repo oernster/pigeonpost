@@ -3,7 +3,7 @@ import {api} from '../api'
 
 // DONATE_URL is the PayPal payment page the donate button opens. It is the one home for the address; no
 // other surface links to it.
-const DONATE_URL = 'https://www.paypal.com/ncp/payment/6QEJKCEQ3ZFZ8'
+const DONATE_URL = 'https://www.paypal.com/ncp/payment/Q2U2RRG5WV7YJ'
 
 // BottomBar is the tray held at the foot of the window, built to the same shape as the title bar above so
 // the two read as a matched pair. It carries the donate button at the far left, opening the payment page

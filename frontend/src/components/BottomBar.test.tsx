@@ -40,7 +40,7 @@ describe('BottomBar', () => {
     it('opens the payment page in the browser rather than the webview', () => {
         render(<BottomBar/>)
         fireEvent.click(screen.getByLabelText('Donate to support PigeonPost'))
-        expect(openExternal).toHaveBeenCalledWith('https://www.paypal.com/ncp/payment/6QEJKCEQ3ZFZ8')
+        expect(openExternal).toHaveBeenCalledWith('https://www.paypal.com/ncp/payment/Q2U2RRG5WV7YJ')
     })
 })
 
