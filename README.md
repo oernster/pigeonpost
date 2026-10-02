@@ -299,6 +299,8 @@ candidates parked beyond these are triaged with their rationale in
 - [ARCHITECTURE.md](ARCHITECTURE.md): the clean-architecture invariants and how they are enforced.
 - [TESTING.md](TESTING.md): the test strategy, the coverage gate and how to run everything.
 - [TECH_DEBT.md](TECH_DEBT.md): the standing technical-debt reference.
+- [`DECISIONS-TRADEOFFS.md`](DECISIONS-TRADEOFFS.md) sets out the decisions PigeonPost rests on, with
+  what each one gains and what it costs.
 - [FEATURES_PLAN.md](FEATURES_PLAN.md): the triaged feature backlog (parked candidates and confirmed
   won't-dos, each with its rationale).
 
