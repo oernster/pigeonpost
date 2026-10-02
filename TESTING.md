@@ -224,10 +224,8 @@ npx vitest run --coverage   # enforce the pure-module coverage gate
   framework plumbing, so a blanket 100% there buys brittle tests, not correctness.
 - **Structural boundary test.** `src/test/boundary.test.ts` holds a named list of top-level `src/*.ts`
   pure modules free of React, the generated Wails bindings and the runtime `api` object, the front-end
-  analogue of `boundary_test.go`. The list and the coverage gate overlap without matching: it carries a
-  few ungated modules (`tz`, `folderPaths`, `threads`, `outbox`, `tagColours`, `categories`) and does not
-  yet name seven gated ones (`composeAttachment`, `confirmations`, `dragScroll`, `optimisticList`,
-  `autoScroll`, `draftEdit`, `modalDrag`), so those seven are held pure by review alone.
+  analogue of `boundary_test.go`. The list names every gated module plus a few pure ones the coverage
+  gate leaves out (`tz`, `folderPaths`, `threads`, `outbox`, `tagColours`, `categories`).
 - **Module-size test.** `src/test/loc.test.ts` holds the 400-line limit over every front-end source
   module, the other half of what `boundary_test.go` does for Go and what the front end previously had
   nothing enforcing. It also holds the band beneath the limit, derived from the limit rather than

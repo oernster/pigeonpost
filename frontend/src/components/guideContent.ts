@@ -100,11 +100,11 @@ export const guideSections: GuideSection[] = [
             },
             {
                 title: 'A scheduled thing needs the app.',
-                text: 'A snoozed message, a send later and a calendar reminder each fire while PigeonPost is running, else at the next launch after their time. Nothing is lost by closing the window; it simply waits.',
+                text: 'A snoozed message and a send later each fire while PigeonPost is running, else at the next launch after their time. A calendar reminder fires while it is running too; one missed while it was closed fires at the next launch if its event is still to come. Nothing is lost by closing the window; it simply waits.',
             },
             {
-                title: 'The only thing fetched that is not your mail is the version check.',
-                text: 'PigeonPost asks GitHub whether a newer release has been published, shortly after launch and once a day; Help > Check for Updates asks on demand. The request carries nothing about you or your mail and a version you would rather not hear about again can be skipped.',
+                title: 'Beyond your own mail and calendar servers, three things are fetched.',
+                text: 'PigeonPost asks GitHub whether a newer release has been published, shortly after launch and once a day; Help > Check for Updates asks on demand. That request carries no identifier, account detail or mail content and a version you would rather not hear about again can be skipped. A message\'s remote images are fetched only when you choose to load them. A Microsoft account signs in through Microsoft\'s own servers.',
             },
         ],
     },
