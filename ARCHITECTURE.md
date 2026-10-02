@@ -1357,8 +1357,12 @@ columns it covers as one continuous bar, squared where a week boundary clips it 
 the single-day chips, with a "+N more" when a day overflows; the span and lane placement is pure and tested
 in `calendarModel`.
 
-**Interop acceptance.** A real export from Outlook and from Thunderbird imports cleanly into PigeonPost;
-a PigeonPost export imports back into both without loss, for calendar (ICS) and contacts (vCard and CSV).
+**Interop acceptance.** What the tests hold: input in the shape Outlook and Thunderbird write (a
+Thunderbird vCard and calendar, Outlook's Teams and Windows-zone calendar properties, both programs' CSV
+headers and encodings) decodes into PigeonPost; a PigeonPost export decodes back into PigeonPost
+without loss for calendar (ICS) and contacts (vCard and CSV). That input is written into the tests; no
+test imports a file exported by a running copy of either program, nor checks that either program
+accepts a PigeonPost export.
 
 **Calendar recurrence (RFC 5545 expansion).** The `Event` now models the whole recurrence set: the raw
 RRULE plus RDATE and EXDATE occurrence lists and a RECURRENCE-ID for an override event, all as
@@ -1634,7 +1638,7 @@ GPL-3.0 compatible.
 | Storage | modernc.org/sqlite (pure Go, no CGO) + FTS5 | Local-first, single-writer/multi-reader. |
 | Credentials | zalando/go-keyring | OS keychain; never in the DB. |
 | Front end | React 18 + TypeScript (Vite) | Existing React/TS + Wails lineage. |
-| List virtualisation | @tanstack/react-virtual | 100k-message folders scroll smoothly. |
+| List virtualisation | @tanstack/react-virtual | Draws only the rows on screen; a real 48,700-message Trash that froze when drawn whole no longer does. |
 | Drag/drop | native HTML5 drag-and-drop | Message-to-folder, folder reparent and reorder. The pane's edge auto-scroll and the drop confirmation are the app's own; the engine's are unusable or absent. |
 | Rich-text compose | TipTap (ProseMirror) | Clean, sanitisable, email-safe HTML. |
 | HTML mail render | sandboxed iframe + sanitiser | Untrusted HTML is the top security surface. |
