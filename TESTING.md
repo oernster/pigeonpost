@@ -18,7 +18,7 @@ There is a hard 100% coverage gate on the correctness core:
 - `internal/application`
 
 `./test.ps1` checks formatting, runs `go vet`, then runs the whole suite with coverage and fails if
-any statement in those two packages is uncovered. It also prints the full per-package report. The two
+any statement in those two packages is uncovered. It also prints the full per-function coverage report. The two
 cheap checks run first, so a formatting slip is reported in seconds rather than after a full coverage
 run. Each fails the script outright, so a green run means all three passed.
 
@@ -65,7 +65,7 @@ documented here.
 | `internal/infrastructure/taskbar` | unit on the pure label formatting and the balloon-suppression rule, plus a source scan holding the chime call in `Notify` rather than in the balloon; Win32 overlay excluded | none |
 | `internal/infrastructure/sound` | unit on the three chimes' synthesis and WAV encoding, including that they are scored with different note counts and render to different audio; the winmm playback call excluded | none |
 | `internal/installer` | unit on payload extraction and paths | temp dir |
-| `main` (the Wails facade) | unit on its pure helpers only: mailto parsing, attachment decoding, the mail-error translations with their recording of the error each replaces, the resurfaced-snooze notification text with its wire mapping, the rule-backfill error summariser, plus the DTO wire shape; two source scans hold the send and account-setup surfaces to routing their errors through the translator | none |
+| `main` (the Wails facade) | unit on its pure helpers only: mailto parsing, attachment decoding and the encoding that hands a reopened draft's files back to the composer (round-tripped through the decoder), the Outbox row mapping, the mail-error translations with their recording of the error each replaces, the resurfaced-snooze notification text with its wire mapping, the rule-backfill error summariser, plus the DTO wire shape; two source scans hold the send and account-setup surfaces to routing their errors through the translator | none |
 | `tests/structural` | AST scan of the source tree | file reads |
 
 ## Coverage snapshot
@@ -95,7 +95,7 @@ documented here.
 | internal/infrastructure/imap | ~51% | the source adapter's pure helpers plus the fetch, sign-in and bulk paths against a scripted local server (the body-structure fallback, the refusal marking, one connection per folder for a bulk mark-read, move or delete); the wire-to-domain and HTML logic now lives in `mailparse`; live append plus the IDLE watcher are excluded |
 | internal/infrastructure/taskbar | ~17% | the pure label formatting, the balloon-suppression rule and the no-op stub covered; the Windows-only Win32 overlay excluded, with a source scan standing in for the chime's placement inside it |
 | internal/infrastructure/smtp | ~15% | the mailbox-refused and app-password detectors and `authError`, which marks a refusal so the interface can translate it; the transport around them is live `Send` only and MIME building lives in `message` |
-| main package | ~9% | composition root and the Wails facade, excluded; the covered statements are the package's own pure helpers, which carry unit tests of their own (mailto parsing, attachment decoding, the mail-error translations, the resurfaced-snooze announcement text with its wire mapping, the rule-backfill error summariser, plus the wire shapes of the rule, rules-file and template DTOs) |
+| main package | ~10% | composition root and the Wails facade, excluded; the covered statements are the package's own pure helpers, which carry unit tests of their own (mailto parsing, attachment decoding and encoding, the mail-error translations, the resurfaced-snooze announcement text with its wire mapping, the rule-backfill error summariser, plus the wire shapes of the rule, rules-file, template and outbox DTOs) |
 | installer app, tools/genicons, tools/stampassets | 0% | GUI and one-shot tooling, excluded |
 
 ## Documented exclusions (and why)
@@ -222,8 +222,12 @@ npx vitest run --coverage   # enforce the pure-module coverage gate
   carry a v8 coverage gate at 100% lines, functions, statements and branches, listed in `vite.config.ts`
   under `coverage.include`. Hooks and components are tested but not gated: a React hook fuses logic with
   framework plumbing, so a blanket 100% there buys brittle tests, not correctness.
-- **Structural boundary test.** `src/test/boundary.test.ts` scans the top-level `src/*.ts` modules and
-  keeps the gated pure modules pure, the front-end analogue of `boundary_test.go`.
+- **Structural boundary test.** `src/test/boundary.test.ts` holds a named list of top-level `src/*.ts`
+  pure modules free of React, the generated Wails bindings and the runtime `api` object, the front-end
+  analogue of `boundary_test.go`. The list and the coverage gate overlap without matching: it carries a
+  few ungated modules (`tz`, `folderPaths`, `threads`, `outbox`, `tagColours`, `categories`) and does not
+  yet name seven gated ones (`composeAttachment`, `confirmations`, `dragScroll`, `optimisticList`,
+  `autoScroll`, `draftEdit`, `modalDrag`), so those seven are held pure by review alone.
 - **Module-size test.** `src/test/loc.test.ts` holds the 400-line limit over every front-end source
   module, the other half of what `boundary_test.go` does for Go and what the front end previously had
   nothing enforcing. It also holds the band beneath the limit, derived from the limit rather than
@@ -292,8 +296,8 @@ npx vitest run --coverage   # enforce the pure-module coverage gate
 - **Time and frames are driven, never waited on.** The drag auto-scroll and the self-reading help panes
   both run on a clock, so their tests replace it: `useDragAutoScroll.test.tsx` stubs
   `requestAnimationFrame` with a queue it steps one frame at a time; `useAutoScroll.test.tsx` uses
-  fake timers. jsdom lays nothing out, so both stub the element's bounds, `scrollTop` and scroll metrics;
-  both dispatch drag events by hand: jsdom drops `clientY` and `relatedTarget` from a drag event's
+  fake timers. jsdom lays nothing out, so both stub `scrollTop` and the scroll metrics; the drag test
+  also stubs the pane's bounds and dispatches drag events by hand: jsdom drops `clientY` and `relatedTarget` from a drag event's
   init, so the fields are set as own properties on a plain `Event` (the same workaround the sidebar drop
   tests use). No test sleeps.
 - **The api mock is built from the real api.** `src/test/apiMock.ts` constructs the `../api` module

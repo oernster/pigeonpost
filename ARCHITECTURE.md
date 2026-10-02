@@ -375,8 +375,13 @@ Edit draft: opening a message that lives in a Drafts folder routes to the compos
 reader (double-click or Enter on the row, else the reader toolbar's Edit draft action, which
 replaces reply, reply-all and forward there). The front end fetches the stored body and rebuilds the compose
 fields from the draft itself through the gated pure `draftEdit` module: no signature is seeded and
-nothing is quoted, both being already in the saved text, so a reopen never duplicates them. The
-draft's own id rides the compose state as `draftId`; once the replacement has been sent or saved,
+nothing is quoted, both being already in the saved text, so a reopen never duplicates them. When the
+body lists attachments the launcher also asks the facade for their bytes (`DraftAttachments`, read
+through `MessageBodyService`, so from the cache when the body is held and from the server otherwise), which come back base64 encoded in the shape a pasted file travels in. The composer
+therefore holds them exactly as it holds a pasted file: shown as chips, removable and sent through the
+same `attachmentData` path. A reopen that cannot fetch them reports the failure rather than opening the
+draft without its files, since a draft reopened without them is sent, scheduled or saved again with
+nothing attached. The draft's own id rides the compose state as `draftId`; once the replacement has been sent or saved,
 that superseded Drafts copy is deleted permanently (routing every intermediate save through Trash
 would fill it with versions of one message) and a failed delete leaves a duplicate draft rather than
 losing anything. Two stated limits: Bcc does not round-trip, since a saved draft carries no Bcc
@@ -433,7 +438,8 @@ instant is in the future and queues the message in the same outbox with a hold i
 (`hold_until_ms`), returning the queued id. A held item is invisible to the ordinary replay (no path may
 send it early); once the hold elapses, a small dispatcher goroutine in the facade
 (`runOutboxDispatcher`, started at app start-up, woken by a short tick and gated on the store's earliest hold) sends it and
-announces the change over the `outbox:changed` event. The Outbox shows the item with its send time and
+announces the change over the `outbox:changed` event. The Outbox shows the item with its send time
+(and a paperclip when the queued message carries files, read from the names `OutboxItemDTO` lists) and
 offers Cancel send, which reports whether the item was still queued so a cancel that lost the race is
 told so. A due item that finds the server unreachable has its hold cleared, degrading it to an ordinary
 offline-queued item for the next sync rather than being retried every tick; a hold outlasting an app
@@ -649,8 +655,10 @@ they moved into the body each week of the month view shrank to a single line of 
 A form's leading fields belong to that furniture too, so they stay on screen while the rest of the form
 scrolls: the compose window's From, To, Cc, Bcc and Subject (`.compose-header`), the event form's title
 and calendar, the rule name, the account's name and email (`.account-identity`) and the title field of
-each stacked editor below. `.pinned-form-header` is the one rule that keeps such a header's row styling
-while dropping the lower margin it would otherwise stack on the body's. About pins its icon, name and
+each stacked editor below. Each of these headers sits outside the scrolling `.modal-body`; for the
+stacked editors (event, contact, group, template and remote calendar), whose header is a `rule-form`
+row, `.pinned-form-header` keeps that row styling while dropping the lower margin it would otherwise
+stack on the body's. The compose, account and rule-name headers carry classes of their own. About pins its icon, name and
 tagline the same way above the scrolling credits; the licence names itself in its title (`Licence:
 GPL-3.0`, the name taken from About's licence field) because its opening lines scroll away.
 
@@ -711,7 +719,8 @@ survive an update or reinstall, so nothing durable may live only there. Classifi
 gives each well-known role to exactly one folder: the server's RFC 6154 special-use attributes are
 authoritative, otherwise the well-known leaf name is used; a name match nested under a different
 special folder is rejected, so a stray "Sent" under Drafts never becomes the account Sent. Any stray sent
-folders are reconciled into one top-level Sent at the start of each sync.
+folders are reconciled into one top-level Sent at the start of each account sync (not the lighter
+single-folder or all-inboxes refresh).
 
 `\All` is read as the archive, which is what it means on Gmail: All Mail is where a message is found once
 its Inbox label is removed; Gmail declares no `\Archive` of its own, so the two never compete there.
@@ -867,12 +876,12 @@ destroyed message never enters the local store: `MailActions.DeleteMany` with an
 `\Deleted` and expunges where the message stands, with no Trash copy and nothing to tidy up afterwards.
 That single step is wrong on a provider that archives on an expunge rather than deleting, where it left
 every message a destroying rule claimed to remove sitting in Gmail's All Mail; `purgeViaTrash` takes the
-two-step route there instead (see Permanent deletion below).
+two-step route there instead (see Permanent deletion above).
 Moves are batched per destination through `MoveMany`. Three guards bound the destruction, each pinned by
 a test: rules run on the **Inbox only**, so mail the user has already filed by hand is never touched;
 they act on **arrivals only** (an id the local store does not hold), so adding a rule never reaches
 back over existing mail of its own accord (the Now button below is the one way it does, only when
-asked); and destructive actions are held back until the folder has been **baselined**, the one
+asked); and destructive actions (moves as well as destroys) are held back until the folder has been **baselined**, the one
 pass that records what a folder already holds, which is what stops a newly added account being
 emptied by mail that arrived long before the rule. A batch the server refuses leaves its messages in
 place and reports the failure.
@@ -920,11 +929,12 @@ than successes, so a refused batch does not shorten the bar while the run carrie
 supplies a reporter that emits `rules:backfill-progress`, keeping the application layer free of
 Wails; the front end holds one listener for both phases and draws a determinate bar.
 
-The applying phase sends its work in batches of `actionBatchSize` rather than one call per
-destination. Grouping alone was not enough: a rule filing 2414 messages into one folder issued a
+The applying phase sends moves and destroys in batches of `actionBatchSize` rather than one call per
+destination; mark read and flag go one message at a time, since that is the shape of the underlying
+action. Grouping alone was not enough: a rule filing 2414 messages into one folder issued a
 single `MoveMany` and so reported once, leaving the bar at its opening reading for the whole
-operation, which reads as a hang. The batch is the unit of three things at once: one server round
-trip, one progress step and one cancellation check. It also bounds a single IMAP UID set to a length
+operation, which reads as a hang. For moves and destroys the batch is the unit of three things at
+once: one server round trip, one progress step and one cancellation check. It also bounds a single IMAP UID set to a length
 every server accepts.
 
 Cancelling separates the decision to STOP from the context the work runs on. `workContext` is
@@ -1000,7 +1010,8 @@ place, keeping its position, so re-importing a file updates rather than duplicat
 appended after the existing rules in file order.
 
 A rule that cannot act as written here arrives switched off; both the plan and the result name it.
-Two things a file can claim that the reader may not have: a destination folder and an account scope.
+Two things a file can claim that the reader may not have: a destination folder and an account scope
+(a scope counts as missing only when none of the accounts it names is held here).
 Neither is an error, since both may exist later, so the rule is imported verbatim and disabled rather
 than rewritten. Disabling is the honest answer because both alternatives are worse: left enabled, a rule
 whose destination is unknown silently does nothing on every sync while looking active, which is the
@@ -1014,7 +1025,8 @@ on the next sync, so agreeing to a file is agreeing to whatever its rules do.
 
 **The guide.** Help > Guide is the first entry on the menu: it names every picture the title bar, the
 folder list and the foot strip draw, then states the rules the windows cannot state for themselves (what
-is cached locally, what needs the app running, what a permanent delete does). It is the one Help panel
+is cached locally, what needs the app running, what a permanent delete does) and closes on the keyboard
+shortcuts. It is the one Help panel
 with nothing to fetch, since its words ship with the front end; `useHelpPanels` holds it as a flag beside
 the two loaded panels so App carries one value for the whole menu.
 
@@ -1529,7 +1541,7 @@ The Wails facade (`schedulingapi.go`) exposes the flow through `OrganizerDTO`, `
 `ApplyMeetingReply`, `SendMeetingRequest` and `SendMeetingCancel`; `EventDTO` and `EventRequest` carry the
 organiser and attendees so a meeting round-trips through the calendar editor. As with the rest of the
 facade, these binding files are build-verified rather than unit-tested: beyond DTO mapping they only load
-the event (refusing one with no attendees), mark an answered invite and log each step; the correctness lives in the domain and application layers behind them. In the UI the reader
+the event (`SendMeetingRequest` refusing one with no attendees), mark an answered invite and log each step; the correctness lives in the domain and application layers behind them. In the UI the reader
 shows an invite card (Accept, Tentative or Decline a request, remove a cancellation, apply a reply) and
 the calendar event editor edits a meeting's attendee list and sends its invitations and cancellations.
 Re-saving an existing meeting emails an update only when a field the attendees can see changed: the form

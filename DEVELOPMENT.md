@@ -19,8 +19,9 @@ Platform build dependencies (C toolchains, Xcode tools on macOS, gcc/WebKit on L
 wails doctor
 ```
 
-Note: the Go backend uses no CGO (pure-Go SQLite via modernc.org/sqlite), so the app itself builds
-without a C compiler. WebView bindings are provided by the OS.
+Note: the Go backend's own code needs no CGO (pure-Go SQLite via modernc.org/sqlite), so on Windows
+the app builds without a C compiler. On macOS and Linux Wails binds to the system WebView through CGO,
+which is why those builds need the C toolchain `wails doctor` describes.
 
 ## First run
 
@@ -231,8 +232,10 @@ Outputs: a user install (`flatpak run uk.codecrafter.PigeonPost`) and `pigeonpos
 bash cleanup_flatpak.sh
 ```
 
-removes the user install and every flatpak build artefact, touching nothing the Windows or macOS
-builds produced.
+removes the user install and the flatpak build outputs (the bundle, the build, repo and builder
+directories, the generated manifest and `packaging/`), touching nothing the Windows or macOS builds
+produced. The generated front-end bindings and the hicolor icons under `build/linux/` are left in
+place.
 
 For a plain `wails dev` or `wails build` on a Linux host instead of the flatpak, install the
 platform packages `wails doctor` lists (gcc, gtk3 and webkit2gtk development headers); on a distro

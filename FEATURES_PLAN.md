@@ -15,8 +15,8 @@
 **Encrypted mail store at rest** (Parked, decided 2026-07-14)
 Encrypting the local cache on disk (SQLCipher or equivalent) is parked to keep the
 pure-Go single-binary build: SQLCipher and every mature transparent-SQLite-encryption
-option is a C library requiring CGO, which would put a C toolchain in every build and
-break easy cross-compilation right before the macOS/Linux release work. There is no
+option is a C library requiring CGO, which would put a C toolchain into the Windows
+build (the one platform that builds without one today) and break easy cross-compilation. There is no
 production-grade pure-Go equivalent today. The GH Pages site states the honest scope
 (passwords in the OS keychain; the local cache is not encrypted at rest; pair with OS
 disk encryption such as BitLocker or FileVault). Revisit if a trustworthy pure-Go

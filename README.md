@@ -116,8 +116,9 @@ it to anything.
   file has moved or gone. A template's files may total no more than a single message may carry, which is
   refused while you are still looking at the editor rather than at every send. A saved draft
   reopens for editing from the Drafts folder (double-click or Enter on it, else Edit draft in the
-  reader) exactly as it was saved; finishing it, by sending or saving again, replaces the stored
-  copy rather than leaving a stale one behind. The compose window can be dragged by its title bar
+  reader) with its recipients, subject, body and attached files as they were saved; only Bcc has to be
+  typed again, since a saved draft carries no Bcc. Finishing it, by sending or saving again, replaces
+  the stored copy rather than leaving a stale one behind. The compose window can be dragged by its title bar
   to uncover the message beneath it; it always opens centred. Typing in To, Cc
   or Bcc suggests matching addresses from your contacts (accept with Enter, Tab or a click); a
   suggestion just inserts text, so you can edit it freely afterwards; accepting with Enter or a
@@ -131,8 +132,8 @@ it to anything.
   counts embedded images too and forwarding a message carries its embedded images along. In-progress writing autosaves locally and is
   offered back after a crash; closing a message you have edited (by any route, including a click
   outside the window) asks before discarding it. Send later schedules a message for a chosen moment (presets or an
-  exact date and time); it waits in the Outbox with Cancel send and leaves while the app is running or
-  at the next launch after the chosen time. Sends made offline queue in a per-account outbox and deliver on the next sync.
+  exact date and time); it waits in the Outbox with Cancel send (marked with a paperclip when it
+  carries files) and leaves while the app is running or at the next launch after the chosen time. Sends made offline queue in a per-account outbox and deliver on the next sync.
   URLs you type or paste go out as real links in any recipient's client and long lines are encoded so
   no mail server can fold and corrupt them in transit.
 - **Organise**: mark read/star, delete to Trash or purge, junk and not-junk (a wrongly junked message
@@ -263,7 +264,7 @@ it to anything.
 - **Trust**: a dark theme with a light toggle, passwords held in the OS keychain (never the database)
   and external links opened in your browser. The app checks GitHub's releases shortly after launch and
   once a day while running; only a formally published release can prompt and the request carries
-  nothing about you or your mail. A newer release offers the download for your platform, with Skip
+  no identifier, account detail or mail content. A newer release offers the download for your platform, with Skip
   This Version remembered and Later; Help > Check for Updates runs the same check on demand and also
   reports up to date or unreachable. An action that fails (a move the server refused, say) is
   reported in a banner under the toolbar with its own dismiss control, so a stale error never lingers.
@@ -274,7 +275,9 @@ it to anything.
   half-written message, say) surfaces the keep-in-tray-or-quit choice on top at once and warns that
   unsaved work may be lost, with Go back as the default so nothing is lost silently.
 
-Planned: OS-delivered calendar alarms, two-way CardDAV contact sync. The
+Planned: calendar reminders the operating system delivers while PigeonPost is closed (today a reminder
+fires only while the app is running; one missed while it was closed fires at the next launch if its
+event is still to come), two-way CardDAV contact sync. The
 candidates parked beyond these are triaged with their rationale in
 [FEATURES_PLAN.md](FEATURES_PLAN.md).
 
