@@ -15,7 +15,7 @@ const snippetLimit = 200
 
 // outboxItemToMessage maps a queued item to the message shape the list and reader render. The sender
 // column shows the recipients (this is outgoing mail); the plain body doubles as the snippet. A
-// held item (an undo window or a scheduled send-later) leads its snippet with when it sends, so the
+// held item (a scheduled send-later) leads its snippet with when it sends, so the
 // Outbox states the schedule at a glance. A permanently failed item is marked so it does not read as
 // merely waiting: the subject is prefixed and the snippet leads with the failure reason, so the user
 // sees it did not send and why.

@@ -50,7 +50,7 @@ export interface ComposeInitial {
     // fresh compose so the chosen files are already attached.
     attachmentPaths?: string[]
     // attachmentData pre-attaches in-memory files (pasted or dropped, so the webview holds bytes with no
-    // path), used when an undone send reopens the compose exactly as it was.
+    // path), used when a saved draft reopens the compose exactly as it was stored.
     attachmentData?: DataAttachment[]
     // inReplyToId and replyKind mark this compose as a reply or forward of an existing message, so once it is
     // sent the original can be flagged \Answered (reply / reply-all) or $Forwarded (forward). Both are unset

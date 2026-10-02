@@ -7,8 +7,8 @@ import (
 )
 
 // outboxDispatchTick is how often the dispatcher checks whether a held send has come due. It bounds how
-// late past its undo window a message can leave; a hold is seconds-scale, so a tick of this size reads
-// as immediate.
+// late past its scheduled time a send-later message can leave; one tick of this size is negligible
+// against a time the user picked.
 const outboxDispatchTick = 2 * time.Second
 
 // outboxChangedEvent tells the front end the dispatcher sent a held item, so the outbox view and the

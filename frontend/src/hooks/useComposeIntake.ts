@@ -23,8 +23,8 @@ interface IntakeDeps {
     // objects (WebKit never hands Finder-copied files to the page as Files) attaches by path through
     // the same flow as the Attach files picker.
     addPaths: (paths: string[]) => void
-    // initial seeds the in-memory attachments a reopened compose starts with: those an undone send
-    // carried or those a saved draft was stored with, so the window holds exactly what it held.
+    // initial seeds the in-memory attachments a reopened compose starts with: those a saved draft was
+    // stored with, so the window holds exactly what it held.
     initial?: DataAttachment[]
 }
 
