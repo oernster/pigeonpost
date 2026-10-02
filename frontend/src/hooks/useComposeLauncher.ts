@@ -173,15 +173,20 @@ export function useComposeLauncher(deps: ComposeLauncherDeps): ComposeLauncher {
     // from the draft itself (no signature, nothing quoted; both are already in the saved text) and carries
     // the draft's own id through as draftId, so sending or re-saving replaces that copy instead of leaving
     // a second one behind. Like a reply, it switches to the account the draft belongs to, so a draft opened
-    // from the unified mailbox is finished under the identity it was written for.
+    // from the unified mailbox is finished under the identity it was written for. The draft's files come
+    // back too, held as bytes like a pasted file: without them, a draft saved with an attachment, reopened
+    // and then sent or scheduled went out with nothing attached.
     const openDraft = async (message: Message) => {
         const accountId = composeAccountFor(message)
         try {
             const body = await api.messageBody(message.id)
+            const attachmentData = (body.attachments ?? []).length > 0
+                ? await api.draftAttachments(message.id)
+                : []
             if (accountId !== selectedAccount && accounts.some((account) => account.id === accountId)) {
                 setSelectedAccount(accountId)
             }
-            setComposeInitial({...buildDraftEdit(message, body), accountId, draftId: message.id})
+            setComposeInitial({...buildDraftEdit(message, body), accountId, draftId: message.id, attachmentData})
             setComposing(true)
         } catch (e) {
             setError(String(e))

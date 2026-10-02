@@ -186,6 +186,33 @@ func dataAttachments(entries []AttachmentDataEntry) ([]domain.Attachment, error)
 	return out, nil
 }
 
+// DraftAttachments returns a stored message's attachments as in-memory files, for reopening a saved
+// draft in the compose window. They travel back in the same shape a pasted file does, so the composer
+// shows them, lets them be removed and sends them exactly as it does any file it holds as bytes.
+// Without this a reopened draft lost its files: sending it, scheduling it or saving it again built the
+// message from a compose window that had never been given them.
+func (a *App) DraftAttachments(messageID string) ([]AttachmentDataEntry, error) {
+	body, err := a.body.Body(a.ctx, messageID)
+	if err != nil {
+		return nil, err
+	}
+	return attachmentDataEntries(body.Attachments()), nil
+}
+
+// attachmentDataEntries is the inverse of dataAttachments: each attachment's bytes base64-encoded with
+// its name and type, ready for the compose window to hand straight back on send.
+func attachmentDataEntries(attachments []domain.Attachment) []AttachmentDataEntry {
+	out := make([]AttachmentDataEntry, 0, len(attachments))
+	for _, attachment := range attachments {
+		out = append(out, AttachmentDataEntry{
+			Name:        attachment.Filename(),
+			ContentType: attachment.ContentType(),
+			Content:     base64.StdEncoding.EncodeToString(attachment.Content()),
+		})
+	}
+	return out
+}
+
 // messageAttachments fetches each referenced message's raw bytes and wraps it as a message/rfc822
 // attachment named from its subject, for attaching an existing email to a new one.
 func (a *App) messageAttachments(ids []string) ([]domain.Attachment, error) {

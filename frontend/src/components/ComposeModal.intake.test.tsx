@@ -5,6 +5,7 @@
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 import {act, cleanup, fireEvent, render, screen, waitFor} from '@testing-library/react'
 import {ComposeModal} from './ComposeModal'
+import type {ComposeInitial} from './ComposeModal'
 import {spiesNotInApi, unstubbedNames} from '../test/apiMock'
 
 const apiSpies = vi.hoisted(() => ({
@@ -65,10 +66,11 @@ vi.mock('@tiptap/react', () => {
 
 const TO_PLACEHOLDER = 'name@example.com, other@example.com'
 
-function renderCompose() {
+function renderCompose(initial?: ComposeInitial) {
     render(<ComposeModal
         accountId="acc1"
         senders={[{name: 'Me', address: 'me@x.com'}]}
+        initial={initial}
         canSaveDraft={true}
         onClose={vi.fn()}
         onMarkReplied={vi.fn()}
@@ -202,6 +204,22 @@ describe('ComposeModal: paste and drop intake', () => {
         fireEvent.click(screen.getByRole('button', {name: 'Send'}))
         await waitFor(() => expect(apiSpies.send).toHaveBeenCalled())
         expect(apiSpies.send.mock.calls[0][0].attachmentPaths).toEqual(['/Users/oliver/My Report.pdf'])
+    })
+
+    // The 2026-10-02 defect end to end on the compose side: a reopened draft arrives holding its file as
+    // bytes; scheduling it with Send later must carry that file into the queued send.
+    it('schedules a reopened draft with the file it was saved with', async () => {
+        renderCompose({
+            to: 'peter@example.com', subject: 'amusement', draftId: 'd1',
+            attachmentData: [{name: 'photo.jpg', contentType: 'image/jpeg', content: 'AQID'}],
+        })
+        expect(screen.getByTitle('photo.jpg')).toBeInTheDocument()
+        fireEvent.click(screen.getByRole('button', {name: 'Send later'}))
+        fireEvent.click(screen.getAllByRole('menuitem')[0])
+        await waitFor(() => expect(apiSpies.send).toHaveBeenCalled())
+        const req = apiSpies.send.mock.calls[0][0]
+        expect(req.sendAtMs).toBeGreaterThan(0)
+        expect(req.attachmentData).toEqual([{name: 'photo.jpg', contentType: 'image/jpeg', content: 'AQID'}])
     })
 
     it('takes a drop on the modal outside the editor', async () => {

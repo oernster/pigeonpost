@@ -12,6 +12,8 @@ import {spiesNotInApi, unstubbedNames} from '../test/apiMock'
 const apiSpies = vi.hoisted(() => ({
     draftRecovery: vi.fn(),
     clearDraftRecovery: vi.fn(),
+    messageBody: vi.fn(),
+    draftAttachments: vi.fn(),
 }))
 
 // The launcher subscribes to the backend's mailto:open events through the Wails runtime; capture the
@@ -64,6 +66,8 @@ function harness() {
 beforeEach(() => {
     apiSpies.draftRecovery.mockReset().mockResolvedValue({present: false})
     apiSpies.clearDraftRecovery.mockReset().mockResolvedValue(undefined)
+    apiSpies.messageBody.mockReset()
+    apiSpies.draftAttachments.mockReset()
     runtimeSpies.EventsOn.mockClear()
 })
 afterEach(() => {
@@ -111,6 +115,50 @@ describe('useComposeLauncher: compose account resolution', () => {
         expect(result.current.composeInitial?.to).toContain('alice@example.com')
         expect(result.current.composeInitial?.to).toContain('colleague@x.com')
         expect(result.current.composeInitial?.to).not.toContain('me@two.com')
+    })
+})
+
+// Reopening a saved draft must bring its attachments back into the composer. It once rebuilt only the
+// recipients, subject and body, so a draft saved with a file, reopened and then sent (or scheduled)
+// went out without it.
+describe('useComposeLauncher: reopening a draft', () => {
+    it('carries the draft\'s attachments into the composer', async () => {
+        apiSpies.messageBody.mockResolvedValue({
+            plain: 'See attached', html: '', hasInvite: false,
+            attachments: [{index: 0, filename: 'photo.jpg', contentType: 'image/jpeg', size: 3}],
+        })
+        apiSpies.draftAttachments.mockResolvedValue([{name: 'photo.jpg', contentType: 'image/jpeg', content: 'AQID'}])
+        const {result} = harness()
+        await act(() => result.current.openDraft(makeMessage({id: 'd1', folderId: 'drafts'})))
+        expect(result.current.composing).toBe(true)
+        expect(result.current.composeInitial?.draftId).toBe('d1')
+        expect(apiSpies.draftAttachments).toHaveBeenCalledWith('d1')
+        expect(result.current.composeInitial?.attachmentData).toEqual(
+            [{name: 'photo.jpg', contentType: 'image/jpeg', content: 'AQID'}])
+    })
+
+    it('fetches no files for a draft that has none', async () => {
+        apiSpies.messageBody.mockResolvedValue({plain: 'Hello', html: '', hasInvite: false, attachments: []})
+        const {result} = harness()
+        await act(() => result.current.openDraft(makeMessage({id: 'd2', folderId: 'drafts'})))
+        expect(apiSpies.draftAttachments).not.toHaveBeenCalled()
+        expect(result.current.composeInitial?.attachmentData).toEqual([])
+    })
+
+    it('reports a failure to fetch the files rather than opening the draft without them', async () => {
+        apiSpies.messageBody.mockResolvedValue({
+            plain: '', html: '', hasInvite: false,
+            attachments: [{index: 0, filename: 'photo.jpg', contentType: 'image/jpeg', size: 3}],
+        })
+        apiSpies.draftAttachments.mockRejectedValue(new Error('body not cached'))
+        const errors: string[] = []
+        const {result} = renderHook(() => useComposeLauncher({
+            accounts: ACCOUNTS, selectedAccount: 'me@one.com', setSelectedAccount: () => {},
+            messageBody: null, setError: (message) => errors.push(message),
+        }))
+        await act(() => result.current.openDraft(makeMessage({id: 'd3', folderId: 'drafts'})))
+        expect(result.current.composing).toBe(false)
+        expect(errors).toEqual(['Error: body not cached'])
     })
 })
 

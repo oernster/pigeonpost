@@ -1,7 +1,7 @@
 import {Message, OutboxItem} from './api'
 
 // OUTBOX_FOLDER_ID is the synthetic folder id for an account's queue of unsent mail. It is not a real
-// server folder: the app shows it in the sidebar only while the account has queued items, and maps
+// server folder: the app shows it in the sidebar only while the account has queued items, mapping
 // those items to message rows under it.
 export const OUTBOX_FOLDER_ID = '__outbox__'
 
@@ -14,7 +14,7 @@ export function isOutboxMessage(message: Message): boolean {
 const snippetLimit = 200
 
 // outboxItemToMessage maps a queued item to the message shape the list and reader render. The sender
-// column shows the recipients (this is outgoing mail), and the plain body doubles as the snippet. A
+// column shows the recipients (this is outgoing mail); the plain body doubles as the snippet. A
 // held item (an undo window or a scheduled send-later) leads its snippet with when it sends, so the
 // Outbox states the schedule at a glance. A permanently failed item is marked so it does not read as
 // merely waiting: the subject is prefixed and the snippet leads with the failure reason, so the user
@@ -39,7 +39,9 @@ export function outboxItemToMessage(item: OutboxItem): Message {
         size: 0,
         read: true,
         flagged: false,
-        hasAttachments: false,
+        // Read from the queued message itself, so a scheduled send shows the paperclip only while it
+        // really carries a file.
+        hasAttachments: (item.attachments ?? []).length > 0,
         // A queued outgoing message is never itself replied-to or forwarded.
         answered: false,
         forwarded: false,

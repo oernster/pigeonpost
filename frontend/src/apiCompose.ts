@@ -6,6 +6,7 @@
 import {
     CancelOutboxItem,
     ClearDraftRecovery,
+    DraftAttachments,
     DraftRecovery,
     ListOutbox,
     OutboxCount,
@@ -16,6 +17,7 @@ import {
     SendMessage,
 } from '../wailsjs/go/main/App'
 import {main} from '../wailsjs/go/models'
+import type {DataAttachment} from './composeIntake'
 
 export type OutboxItem = main.OutboxItemDTO
 
@@ -79,5 +81,9 @@ export const composeApi = {
     // A cancelled file dialog returns a Go nil slice, which arrives as null; coalesce it to an empty array
     // so callers can always read .length and filter it.
     pickAttachments: async (): Promise<string[]> => (await PickAttachments()) ?? [],
+    // draftAttachments fetches a stored draft's files as in-memory attachments (content base64), the
+    // shape the composer carries pasted files in, so a reopened draft keeps them.
+    draftAttachments: async (messageId: string): Promise<DataAttachment[]> =>
+        (await DraftAttachments(messageId)) ?? [],
     replayOutbox: (): Promise<number> => ReplayOutbox(),
 }
