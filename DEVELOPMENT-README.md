@@ -77,6 +77,7 @@ internal/installer/         install logic used by the setup program
 installer/                  bespoke per-user setup program (Wails app: install/repair/upgrade/uninstall)
 assets/                     masters for the title-bar and folder-list glyphs, one PNG per glyph
 tools/genicons/             image generator (the masters -> ico + png set, the donate artwork and the glyphs)
+tools/stampassets/          versions the site's stylesheet and script links by content hash (run by build.ps1)
 tests/structural/           architecture-enforcement tests
 frontend/                   React + TypeScript (Vite)
 docs/                       GitHub Pages landing site

@@ -19,6 +19,7 @@ Write-Host "Building PigeonPost $version"
 
 Write-Host 'Generating icons from pigeonpost.png...'
 go run ./tools/genicons
+go run ./tools/stampassets; if ($LASTEXITCODE -ne 0) { throw "stampassets failed with exit code $LASTEXITCODE" }
 
 Write-Host 'Building application (wails)...'
 wails build
