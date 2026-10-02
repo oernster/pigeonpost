@@ -6,7 +6,7 @@ PigeonPost:
 
 - **`windows/installer/` (`project.nsi`, `wails_tools.nsh`) is unused.** Nothing in the repo
   references NSIS. PigeonPost's setup program is a bespoke Wails app under `installer/`, built by
-  `build.ps1` into `dist-installer/PigeonPostSetup.exe`. See DEVELOPMENT-README.md.
+  `build.ps1` into `dist-installer/PigeonPostSetup.exe`. See [DEVELOPMENT.md](../DEVELOPMENT.md).
 - **`eml.png` and `windows/eml.ico`** are PigeonPost's own additions, the icon for the `.eml` file
   association; they are not part of the generated scaffold.
 

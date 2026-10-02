@@ -1147,7 +1147,7 @@ same set everywhere. `frontend/src/icons.ts` is the one home for the mapping fro
 it holds every glyph import and the `folderIcon` map from a folder kind to its mark, so a component names
 a glyph rather than carrying a path of its own. The two pictures that are not glyphs are imported where
 they are drawn: the application icon (About, the splash) and the donate artwork (the foot tray, the guide). The pictures themselves are generated from the masters in
-`assets/` by `tools/genicons` (see DEVELOPMENT-README.md), which crops each to its visible pixels and
+`assets/` by `tools/genicons` (see [DEVELOPMENT.md](DEVELOPMENT.md)), which crops each to its visible pixels and
 scales it to one common ink height, its width following the artwork. A glyph file therefore carries ink
 and no padding, which is what lets each surface normalise as it wants; the two want different things.
 The folder list sizes by height (`--folder-icon-size`), so a column of marks reads as one optical height;

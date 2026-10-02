@@ -22,8 +22,8 @@
 // It also derives the donate button's artwork from its own master, donate.png. That one is not an icon
 // and is handled separately: it is a wide pair of glasses drawn at a button's height, so squaring it
 // would spend half the height on empty canvas. It is cropped to its opaque artwork and scaled by height
-// alone, into frontend/src/assets/donate.png for the app and docs/donate.png for the landing page, which
-// puts the same mark on its own donate button.
+// alone, into frontend/src/assets/donate.png for the app. The landing page's docs/donate.png is not
+// generated: it is the donate mark every project site shares, byte for byte, so it is committed as is.
 //
 // Run from the repo root: go run ./tools/genicons
 package main
@@ -43,15 +43,13 @@ import (
 
 const masterFile = "pigeonpost.png"
 
-// The donate button's own master and the two copies drawn from it: the one the front end bundles and
-// the one the landing page serves. donateHeight is four times the tray's glyph height
-// (--titlebar-icon-size, 29px), so the button stays crisp under display scaling without carrying the
-// master's 1.7MB into the binary; the site's button draws it smaller still, so the one size covers both.
+// The donate button's own master and the copy drawn from it, the one the front end bundles.
+// donateHeight is four times the tray's glyph height (--titlebar-icon-size, 29px), so the button stays
+// crisp under display scaling without carrying the master's 1.7MB into the binary.
 const donateMasterFile = "donate.png"
 
 var donateOutputs = []string{
 	filepath.Join("frontend", "src", "assets", "donate.png"),
-	filepath.Join("docs", "donate.png"),
 }
 
 const donateHeight = 116

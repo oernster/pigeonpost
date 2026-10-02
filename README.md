@@ -292,7 +292,7 @@ candidates parked beyond these are triaged with their rationale in
 
 ## Documentation
 
-- [DEVELOPMENT-README.md](DEVELOPMENT-README.md): prerequisites, running, building and packaging.
+- [DEVELOPMENT.md](DEVELOPMENT.md): prerequisites, running, building and packaging.
 - [ARCHITECTURE.md](ARCHITECTURE.md): the clean-architecture invariants and how they are enforced.
 - [TESTING.md](TESTING.md): the test strategy, the coverage gate and how to run everything.
 - [TECH_DEBT.md](TECH_DEBT.md): the standing technical-debt reference.

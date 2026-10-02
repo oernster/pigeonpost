@@ -59,7 +59,7 @@ build/bin/
 
 # The image assets `go run ./tools/genicons` derives are TRACKED, deliberately, and nothing here
 # ignores them. Only build.ps1, builddmg.sh and build_flatpak.sh run the generator; wails.json has no
-# hook, so `wails dev` and a bare `wails build` (both documented in DEVELOPMENT-README.md) run it
+# hook, so `wails dev` and a bare `wails build` (both documented in DEVELOPMENT.md) run it
 # never. An asset the front end imports has to be in a fresh clone already or the build cannot resolve
 # it, which was measured: with the glyphs absent, vite fails on src/icons.ts. These paths were listed
 # here for a while and had no effect at all, since a rule cannot ignore a file git already tracks.
