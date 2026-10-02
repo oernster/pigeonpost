@@ -299,8 +299,8 @@ candidates parked beyond these are triaged with their rationale in
 - [ARCHITECTURE.md](ARCHITECTURE.md): the clean-architecture invariants and how they are enforced.
 - [TESTING.md](TESTING.md): the test strategy, the coverage gate and how to run everything.
 - [TECH_DEBT.md](TECH_DEBT.md): the standing technical-debt reference.
-- [`DECISIONS-TRADEOFFS.md`](DECISIONS-TRADEOFFS.md) sets out the decisions PigeonPost rests on, with
-  what each one gains and what it costs.
+- [DECISIONS-TRADEOFFS.md](DECISIONS-TRADEOFFS.md): the decisions PigeonPost rests on, with what each
+  one gains and what it costs.
 - [FEATURES_PLAN.md](FEATURES_PLAN.md): the triaged feature backlog (parked candidates and confirmed
   won't-dos, each with its rationale).
 
@@ -317,10 +317,11 @@ bash build_flatpak.sh    # build and install the Flatpak (Linux)
 
 ## Supporting the project
 
+PigeonPost is free and stays free. There is no paid tier, no licence key and no feature held back
+behind a donation. Donations support maintenance and continued development.
+
 A tray at the foot of the window carries a donate button at its left. It opens a PayPal payment page
-in your browser; the app itself sends nothing and asks for nothing. Donations support maintenance and
-continued development. Nothing in PigeonPost is withheld behind one: there is no paid tier, no licence
-key and no feature that a donation unlocks.
+in your browser; the app itself sends nothing and asks for nothing.
 
 <a href="https://www.paypal.com/ncp/payment/Q2U2RRG5WV7YJ"><img src="frontend/src/assets/donate.png" alt="Donate to PigeonPost" width="120"></a>
 

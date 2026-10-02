@@ -1097,8 +1097,9 @@ decoder prefix, that last being a string match only because the library raises n
 
 The send surface reaches the translator through the same wrapper as every other binding. It did not
 always: send and Save draft returned the raw transport error, so a mailbox refusing authenticated
-submission surfaced as the server's own text with no reading of it. Send, Save draft, sync, the
-message actions and the account wizard's add and update now route through `mailError`, which is what
+submission surfaced as the server's own text with no reading of it. Send, Save draft, a reopened
+draft's file fetch (`DraftAttachments`), sync, the message actions and the account wizard's add and
+update now route through `mailError`, which is what
 makes a refusal legible at the point it happens. The wizard was the last of those and mattered most: it
 is where a credential is first offered, so a refusal there is the ordinary outcome rather than a fault; a sign-in message that never reached it would have missed the case it was written for.
 `TestSendSurfaceTranslatesItsErrors` and `TestAccountSetupSurfaceTranslatesItsErrors` scan the source to
@@ -1613,8 +1614,9 @@ already running). Claiming `message/rfc822` (.eml) on Linux is deferred: a file-
 ## Design decisions
 
 The standing choices behind the stack and the product shape, recorded so they are not relitigated.
-The feature backlog beyond these decisions (parked candidates and confirmed won't-dos) is triaged in
-[FEATURES_PLAN.md](FEATURES_PLAN.md).
+[DECISIONS-TRADEOFFS.md](DECISIONS-TRADEOFFS.md) states each product decision with what it was chosen
+over, what it gains and what it costs. The feature backlog beyond these decisions (parked candidates
+and confirmed won't-dos) is triaged in [FEATURES_PLAN.md](FEATURES_PLAN.md).
 
 Go + Wails + React was chosen over Rust + Tauri because the Emersion Go mail suite covers the entire
 email, calendar and contacts surface in one coherent family (including CalDAV/CardDAV via go-webdav),
