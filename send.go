@@ -194,7 +194,7 @@ func dataAttachments(entries []AttachmentDataEntry) ([]domain.Attachment, error)
 func (a *App) DraftAttachments(messageID string) ([]AttachmentDataEntry, error) {
 	body, err := a.body.Body(a.ctx, messageID)
 	if err != nil {
-		return nil, err
+		return nil, a.mailError(err)
 	}
 	return attachmentDataEntries(body.Attachments()), nil
 }

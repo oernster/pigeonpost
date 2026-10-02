@@ -178,8 +178,8 @@ func (s *SyncService) SyncFolder(ctx context.Context, folderID string) error {
 }
 
 // SyncInboxes fetches every account's inbox folders, saves what it finds and returns the messages that
-// are newly arrived (a message id not already cached) and still unread across all accounts, so the caller
-// can raise a desktop notification. It does NOT suppress a first population: the caller establishes a
+// are newly arrived (a message id not already cached) across all accounts, less any a filter rule marked
+// read on arrival (see refreshInbox), so the caller can raise a desktop notification. It does NOT suppress a first population: the caller establishes a
 // baseline with an initial priming call so it does not announce an existing inbox, which lets a genuinely
 // new message into a previously empty inbox still be reported. A per-account or per-folder failure is
 // skipped rather than failing the pass, so one unreachable account does not silence the others.

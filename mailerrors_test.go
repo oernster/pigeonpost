@@ -277,4 +277,9 @@ func TestSendSurfaceTranslatesItsErrors(t *testing.T) {
 	if !strings.Contains(text, "return id, a.mailError(err)") {
 		t.Error("the scheduled send no longer translates its error")
 	}
+	// Reopening a draft fetches its body, which can reach the server, so its failure is translated
+	// just as opening a message's body is.
+	if !strings.Contains(text, "return nil, a.mailError(err)") {
+		t.Error("reopening a draft's attachments no longer translates its error")
+	}
 }
