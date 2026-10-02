@@ -78,6 +78,10 @@ var ErrNotReply = errors.New("scheduling message is not a reply")
 // ErrNoOrganizer is returned when a meeting names no organiser to send a reply to.
 var ErrNoOrganizer = errors.New("meeting has no organiser to reply to")
 
+// ErrNotOrganizer is returned when an invitation or cancellation would be sent for a meeting the sending
+// account does not organise. Only the organiser may invite or cancel; an attendee answers with a REPLY.
+var ErrNotOrganizer = errors.New("only the meeting's organiser can send its invitations or cancel it")
+
 // ErrNoReplyAttendee is returned when a REPLY carries no attendee whose status could be applied.
 var ErrNoReplyAttendee = errors.New("reply carries no attendee")
 

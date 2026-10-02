@@ -6,6 +6,7 @@ import {afterEach, describe, expect, it, vi} from 'vitest'
 import {cleanup, fireEvent, render, screen, waitFor} from '@testing-library/react'
 import {InviteCard} from './InviteCard'
 import type {Invitation} from '../api'
+import {UNKNOWN_REPLY_LABEL} from '../calendarModel'
 import {spiesNotInApi, unstubbedNames} from '../test/apiMock'
 
 const apiSpies = vi.hoisted(() => ({
@@ -56,7 +57,9 @@ describe('InviteCard', () => {
         render(<InviteCard messageId="m1"/>)
 
         await screen.findByText('Sync')
-        expect(screen.getAllByText('(No response yet)').length).toBe(2)
+        // The viewer's own row is theirs to answer; another attendee's reply went to the organiser only.
+        expect(screen.getAllByText('(No response yet)').length).toBe(1)
+        expect(screen.getAllByText(`(${UNKNOWN_REPLY_LABEL})`).length).toBe(1)
         expect(apiSpies.getInvitation).toHaveBeenCalledWith('m1')
     })
 

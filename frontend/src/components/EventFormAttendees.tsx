@@ -1,5 +1,7 @@
 import type {Dispatch, SetStateAction} from 'react'
-import {DEFAULT_ATTENDEE_ROLE, DEFAULT_ATTENDEE_STATUS, attendeeStatusLabel} from '../calendarModel'
+import {
+    DEFAULT_ATTENDEE_ROLE, DEFAULT_ATTENDEE_STATUS, UNKNOWN_REPLY_HINT, attendeeStatusLabel, replyVisible,
+} from '../calendarModel'
 import type {EventForm} from './EventFormModal'
 
 interface EventFormAttendeesProps {
@@ -14,6 +16,8 @@ interface EventFormAttendeesProps {
     cancelledSent: boolean
     // sendsOnSave is whether saving will email the attendees, which the hint beneath the list says.
     sendsOnSave: boolean
+    // organises is whether the account organises the meeting; only the organiser may resend or cancel it.
+    organises: boolean
     sendInvitations: () => Promise<void>
     setCancelMeeting: Dispatch<SetStateAction<boolean>>
 }
@@ -22,8 +26,10 @@ interface EventFormAttendeesProps {
 // adds an address, the organiser and what saving will send; a saved meeting also offers resend and cancel.
 export function EventFormAttendees({
     form, setForm, attendeeDraft, setAttendeeDraft, accountId, accountEmail, accountName, busy, cancelledSent,
-    sendsOnSave, sendInvitations, setCancelMeeting,
+    sendsOnSave, organises, sendInvitations, setCancelMeeting,
 }: EventFormAttendeesProps) {
+    // A new meeting has no organiser yet; the account becomes it on save, so it sees every reply.
+    const organizer = form.organizerAddress || accountEmail
     // isAttendeeEmail is a light client-side check; the backend validates the address authoritatively.
     const isAttendeeEmail = (value: string): boolean => {
         const at = value.indexOf('@')
@@ -65,16 +71,21 @@ export function EventFormAttendees({
             {form.attendees.length > 0 && (
                 <p className="setup-hint">Organiser: {organizerLabel()}</p>
             )}
-            {form.attendees.map((a, i) => (
-                <div key={a.address} className="attendee-row">
-                    <span className="attendee-email" title={a.address}>
-                        {a.commonName || a.address}
-                    </span>
-                    <span className="attendee-status">{attendeeStatusLabel(a.status)}</span>
-                    <button type="button" className="btn danger" aria-label="Remove attendee"
-                            onClick={() => removeAttendee(i)}>×</button>
-                </div>
-            ))}
+            {form.attendees.map((a, i) => {
+                const visible = replyVisible(a.address, organizer, accountEmail)
+                return (
+                    <div key={a.address} className="attendee-row">
+                        <span className="attendee-email" title={a.address}>
+                            {a.commonName || a.address}
+                        </span>
+                        <span className="attendee-status" title={visible ? undefined : UNKNOWN_REPLY_HINT}>
+                            {attendeeStatusLabel(a.status, visible)}
+                        </span>
+                        <button type="button" className="btn danger" aria-label="Remove attendee"
+                                onClick={() => removeAttendee(i)}>×</button>
+                    </div>
+                )
+            })}
             <div className="attendee-add">
                 <input className="tag-name-input" type="email" placeholder="Attendee email"
                        value={attendeeDraft}
@@ -89,7 +100,12 @@ export function EventFormAttendees({
                         disabled={!isAttendeeEmail(attendeeDraft.trim())}>+ Add attendee</button>
             </div>
             {form.attendees.length > 0 && (
-                accountId === '' ? (
+                !organises ? (
+                    <p className="setup-hint">
+                        You are an attendee of this meeting, so saving keeps the change in your calendar and
+                        emails nobody. {UNKNOWN_REPLY_HINT}
+                    </p>
+                ) : accountId === '' ? (
                     <p className="setup-hint">Select an account to send the invitation to the attendees.</p>
                 ) : (
                     <>

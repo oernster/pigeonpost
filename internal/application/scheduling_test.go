@@ -545,7 +545,7 @@ func TestApplyReplyNoMatch(t *testing.T) {
 }
 
 func TestSendRequestEmailsAttendees(t *testing.T) {
-	event := schedMeeting(t, "m1", "chair@example.com", time.Time{}, "guest@example.com")
+	event := schedMeeting(t, "m1", me, time.Time{}, "guest@example.com")
 	f := newSchedFixture(t, domain.SchedulingMessage{})
 
 	if err := f.svc.SendRequest(context.Background(), "a1", []domain.Event{event}); err != nil {
@@ -564,7 +564,7 @@ func TestSendRequestEmailsAttendees(t *testing.T) {
 }
 
 func TestSendCancelEmailsAttendees(t *testing.T) {
-	event := schedMeeting(t, "m1", "chair@example.com", time.Time{}, "guest@example.com")
+	event := schedMeeting(t, "m1", me, time.Time{}, "guest@example.com")
 	f := newSchedFixture(t, domain.SchedulingMessage{})
 
 	if err := f.svc.SendCancel(context.Background(), "a1", []domain.Event{event}); err != nil {
@@ -577,7 +577,7 @@ func TestSendCancelEmailsAttendees(t *testing.T) {
 
 func TestSendOrganizerAccountError(t *testing.T) {
 	f := newSchedFixture(t, domain.SchedulingMessage{})
-	event := schedMeeting(t, "m1", "chair@example.com", time.Time{}, "guest@example.com")
+	event := schedMeeting(t, "m1", me, time.Time{}, "guest@example.com")
 	if err := f.svc.SendRequest(context.Background(), "missing", []domain.Event{event}); !errors.Is(err, ErrAccountNotFound) {
 		t.Errorf("error = %v, want ErrAccountNotFound", err)
 	}
@@ -593,7 +593,7 @@ func TestSendOrganizerNoEvents(t *testing.T) {
 func TestSendRequestEncodeError(t *testing.T) {
 	f := newSchedFixture(t, domain.SchedulingMessage{})
 	f.codec.requestErr = errBoom
-	event := schedMeeting(t, "m1", "chair@example.com", time.Time{}, "guest@example.com")
+	event := schedMeeting(t, "m1", me, time.Time{}, "guest@example.com")
 	if err := f.svc.SendRequest(context.Background(), "a1", []domain.Event{event}); !errors.Is(err, errBoom) {
 		t.Errorf("error = %v, want wrapped boom", err)
 	}
@@ -602,7 +602,7 @@ func TestSendRequestEncodeError(t *testing.T) {
 func TestSendCancelEncodeError(t *testing.T) {
 	f := newSchedFixture(t, domain.SchedulingMessage{})
 	f.codec.cancelErr = errBoom
-	event := schedMeeting(t, "m1", "chair@example.com", time.Time{}, "guest@example.com")
+	event := schedMeeting(t, "m1", me, time.Time{}, "guest@example.com")
 	if err := f.svc.SendCancel(context.Background(), "a1", []domain.Event{event}); !errors.Is(err, errBoom) {
 		t.Errorf("error = %v, want wrapped boom", err)
 	}
@@ -610,7 +610,7 @@ func TestSendCancelEncodeError(t *testing.T) {
 
 func TestSendRequestNoAttendeesIsRejected(t *testing.T) {
 	f := newSchedFixture(t, domain.SchedulingMessage{})
-	event := schedMeeting(t, "m1", "chair@example.com", time.Time{}) // no attendees to address
+	event := schedMeeting(t, "m1", me, time.Time{}) // no attendees to address
 	if err := f.svc.SendRequest(context.Background(), "a1", []domain.Event{event}); !errors.Is(err, domain.ErrNoRecipients) {
 		t.Errorf("error = %v, want ErrNoRecipients", err)
 	}
@@ -695,7 +695,7 @@ func TestRespondOfflineEnqueueError(t *testing.T) {
 }
 
 func TestSendRequestSavesSentCopy(t *testing.T) {
-	event := schedMeeting(t, "m1", "chair@example.com", time.Time{}, "guest@example.com")
+	event := schedMeeting(t, "m1", me, time.Time{}, "guest@example.com")
 	f := newSchedFixture(t, domain.SchedulingMessage{})
 
 	if err := f.svc.SendRequest(context.Background(), "a1", []domain.Event{event}); err != nil {
@@ -707,7 +707,7 @@ func TestSendRequestSavesSentCopy(t *testing.T) {
 }
 
 func TestSendCancelOfflineQueues(t *testing.T) {
-	event := schedMeeting(t, "m1", "chair@example.com", time.Time{}, "guest@example.com")
+	event := schedMeeting(t, "m1", me, time.Time{}, "guest@example.com")
 	f := newSchedFixture(t, domain.SchedulingMessage{})
 	f.transport.sendErr = domain.ErrOffline
 

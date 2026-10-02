@@ -19,6 +19,9 @@ export interface EventFormActionsDeps {
     // meetingChangedSinceOpen says whether the attendees can see any difference since the form opened, which
     // decides whether a save emails them an update.
     meetingChangedSinceOpen: boolean
+    // organises says whether the account organises the meeting. An attendee's copy of someone else's meeting
+    // is never emailed out from here: that would invite the other attendees from the wrong person.
+    organises: boolean
 }
 
 // useEventFormActions is everything the event form does to the calendar and the attendees: save (sending
@@ -27,7 +30,7 @@ export interface EventFormActionsDeps {
 export function useEventFormActions(deps: EventFormActionsDeps) {
     const {
         form, setForm, accountId, accountEmail, accountName, cancelledSent, setCancelledSent, banners,
-        onChanged, bumpReload, meetingChangedSinceOpen,
+        onChanged, bumpReload, meetingChangedSinceOpen, organises,
     } = deps
     const {setError, setStatus, setBusy} = banners
     const [cancelMeeting, setCancelMeeting] = useState(false)
@@ -76,7 +79,11 @@ export function useEventFormActions(deps: EventFormActionsDeps) {
             // but only when something the attendees can see changed: a reminder or calendar tweak is a
             // local detail and saving it must not email anyone.
             if (hasAttendees && !cancelledSent) {
-                if (accountId === '') {
+                if (!organises) {
+                    console.info('meeting invite: not sending, the account does not organise this meeting', {savedId})
+                    setStatus('Saved to your calendar. Only the organiser emails the attendees, so nobody was emailed.')
+                    setForm(null)
+                } else if (accountId === '') {
                     console.warn('meeting invite: not sending, no account selected', {savedId})
                     setStatus('Meeting saved. Select an account to send the invitation to the attendees.')
                 } else if (!meetingChangedSinceOpen) {

@@ -1,5 +1,6 @@
 import {useEffect, useRef, useState} from 'react'
 import {api, Invitation, PartStat} from '../api'
+import {UNKNOWN_REPLY_HINT, attendeeStatusLabel, replyVisible} from '../calendarModel'
 
 interface InviteCardProps {
     messageId: string
@@ -8,21 +9,12 @@ interface InviteCardProps {
     onActed?: () => void
 }
 
-// STATUS_LABELS maps an ICS PARTSTAT value to a human label for display.
-const STATUS_LABELS: Record<string, string> = {
-    'ACCEPTED': 'Accepted',
-    'DECLINED': 'Declined',
-    'TENTATIVE': 'Tentative',
-    'NEEDS-ACTION': 'No response yet',
-    'DELEGATED': 'Delegated',
-}
-
-// statusLabel returns the human label for a PARTSTAT value, falling back to the raw value.
+// statusLabel labels a status the viewer is certain of: their own answer or a reply addressed to them.
 function statusLabel(status: string): string {
-    return STATUS_LABELS[status] || status
+    return attendeeStatusLabel(status, true)
 }
 
-// formatWhen renders an event's start, and its end when present, in the user's locale.
+// formatWhen renders an event's start (plus its end when present) in the user's locale.
 function formatWhen(start: string, end: string): string {
     if (!start) {
         return ''
@@ -35,7 +27,7 @@ function formatWhen(start: string, end: string): string {
 }
 
 // InviteCard shows the meeting invitation a message carries and the actions for it: accept, tentative or
-// decline a request, remove a cancelled meeting, or apply an incoming reply. It fetches the invitation
+// decline a request; remove a cancelled meeting; apply an incoming reply. It fetches the invitation
 // itself from the message id, so the reader only needs to know a message has one.
 export function InviteCard({messageId, onActed}: InviteCardProps) {
     const [invite, setInvite] = useState<Invitation | null>(null)
@@ -163,13 +155,18 @@ export function InviteCard({messageId, onActed}: InviteCardProps) {
                 <div className="invite-card-row">
                     <span className="invite-card-label">Attendees</span>
                     <span>
-                        {invite.attendees.map((a, i) => (
-                            <span key={a.address}>
-                                {i > 0 ? ', ' : ''}
-                                {a.commonName || a.address}
-                                <span className="invite-card-attendee-status"> ({statusLabel(a.status)})</span>
-                            </span>
-                        ))}
+                        {invite.attendees.map((a, i) => {
+                            const visible = replyVisible(a.address, invite.organizer.address, invite.me)
+                            return (
+                                <span key={a.address}>
+                                    {i > 0 ? ', ' : ''}
+                                    {a.commonName || a.address}
+                                    <span className="invite-card-attendee-status" title={visible ? undefined : UNKNOWN_REPLY_HINT}>
+                                        {' '}({attendeeStatusLabel(a.status, visible)})
+                                    </span>
+                                </span>
+                            )
+                        })}
                     </span>
                 </div>
             )}

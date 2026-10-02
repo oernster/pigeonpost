@@ -14,6 +14,7 @@ import {CalendarModal} from './CalendarModal'
 import {EventScope} from '../api'
 import type {Calendar, CalendarEvent, CalendarEventInstance} from '../api'
 import {spiesNotInApi, unstubbedNames} from '../test/apiMock'
+import {UNKNOWN_REPLY_LABEL} from '../calendarModel'
 import {monthCells, weekDays} from '../calendarModel'
 import {browserZone} from '../tz'
 
@@ -552,6 +553,33 @@ describe('CalendarModal: the event form, beyond the main flows', () => {
         await waitFor(() => expect(apiSpies.sendMeetingRequest).toHaveBeenCalledWith('acc1', 'm1'))
         expect(await within(screen.getByRole('dialog', {name: 'Edit event'})).findByText('Invitation sent to 1 attendee.'))
             .toBeInTheDocument()
+    })
+
+    // An attendee's copy of someone else's meeting: editing it must never email the other attendees, since
+    // the message would invite them from the wrong person. Resend and cancel are the organiser's alone.
+    it('never emails the attendees of a meeting the account does not organise', async () => {
+        const theirs = makeEvent({
+            id: 'm2', summary: 'Their sync',
+            attendees: [
+                {address: 'me@x.com', commonName: '', role: 'REQ-PARTICIPANT', status: 'ACCEPTED', rsvp: true},
+                {address: 'a@b.com', commonName: '', role: 'REQ-PARTICIPANT', status: 'NEEDS-ACTION', rsvp: true},
+            ],
+            organizer: {address: 'chair@other.com', commonName: 'Chair'},
+        })
+        apiSpies.listEventInstances.mockResolvedValue([makeInstance(theirs)])
+        renderCalendar({accountId: 'acc1'})
+        fireEvent.click(await screen.findByRole('button', {name: /Their sync/}))
+        const form = screen.getByRole('dialog', {name: 'Edit event'})
+        expect(within(form).queryByRole('button', {name: 'Resend invitation'})).toBeNull()
+        expect(within(form).queryByRole('button', {name: 'Cancel meeting'})).toBeNull()
+        expect(within(form).getByText(UNKNOWN_REPLY_LABEL)).toBeInTheDocument()
+        expect(within(form).getByText('Accepted')).toBeInTheDocument()
+
+        fireEvent.change(within(form).getByPlaceholderText('Event title'), {target: {value: 'Their sync, renamed'}})
+        fireEvent.click(within(form).getByRole('button', {name: 'Save changes'}))
+        await waitFor(() => expect(apiSpies.saveEvent).toHaveBeenCalled())
+        expect(await screen.findAllByText(/Only the organiser emails the attendees/)).not.toHaveLength(0)
+        expect(apiSpies.sendMeetingRequest).not.toHaveBeenCalled()
     })
 
     it('shows a failed save in the banner and keeps the form open', async () => {

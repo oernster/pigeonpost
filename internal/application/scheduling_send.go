@@ -26,7 +26,8 @@ func (s *SchedulingService) SendCancel(ctx context.Context, accountID string, ev
 }
 
 // sendOrganizer builds the REQUEST or CANCEL payload for the events and emails it to the primary event's
-// attendees from the given account.
+// attendees from the given account. It refuses with ErrNotOrganizer unless that account organises the
+// meeting: an attendee who sent one would invite every other attendee to someone else's meeting.
 func (s *SchedulingService) sendOrganizer(ctx context.Context, accountID string, events []domain.Event, method domain.Method) error {
 	account, err := s.accounts.GetAccount(ctx, accountID)
 	if err != nil {
@@ -36,6 +37,9 @@ func (s *SchedulingService) sendOrganizer(ctx context.Context, accountID string,
 		return domain.ErrNoSchedulingEvents
 	}
 	primary := events[0]
+	if !sameAddress(primary.Organizer().Address(), account.Address()) {
+		return ErrNotOrganizer
+	}
 	var payload []byte
 	if method == domain.MethodCancel {
 		payload, err = s.codec.EncodeCancel(events)

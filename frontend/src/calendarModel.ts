@@ -88,8 +88,34 @@ const ATTENDEE_STATUS_LABELS: Record<string, string> = {
     'DELEGATED': 'Delegated',
 }
 
-export function attendeeStatusLabel(status: string): string {
+// UNKNOWN_REPLY_LABEL stands in for NEEDS-ACTION where the viewer cannot know the reply: an attendee's answer
+// travels only to the organiser, so an attendee learns another's only if the organiser emails an update.
+export const UNKNOWN_REPLY_LABEL = 'Not known'
+export const UNKNOWN_REPLY_HINT =
+    'Replies go only to the organiser; another attendee\'s answer shows here only when the organiser sends an update.'
+
+// sameAddress compares two email addresses the way the backend does: trimmed and ignoring case.
+export function sameAddress(a: string, b: string): boolean {
+    return a.trim().toLowerCase() === b.trim().toLowerCase()
+}
+
+// replyVisible says whether the viewer would hear an attendee's reply: always for their own row; for every
+// row when the viewer organises the meeting (replies are addressed to the organiser).
+export function replyVisible(attendee: string, organizer: string, viewer: string): boolean {
+    return sameAddress(attendee, viewer) || (organizer !== '' && sameAddress(organizer, viewer))
+}
+
+// attendeeStatusLabel is the human label for an attendee's PARTSTAT, falling back to the raw value. A
+// NEEDS-ACTION the viewer could not have heard about reads as unknown rather than as no response.
+export function attendeeStatusLabel(status: string, visible: boolean): string {
+    if (status === DEFAULT_ATTENDEE_STATUS && !visible) return UNKNOWN_REPLY_LABEL
     return ATTENDEE_STATUS_LABELS[status] || status
+}
+
+// organisesMeeting says whether the account organises a meeting: a meeting with no organiser yet is a new
+// one the account will organise. Only the organiser may email invitations, updates or a cancellation.
+export function organisesMeeting(organizer: string, accountEmail: string): boolean {
+    return organizer === '' || sameAddress(organizer, accountEmail)
 }
 
 export function pad(n: number): string {

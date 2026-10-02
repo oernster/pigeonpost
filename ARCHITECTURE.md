@@ -1482,7 +1482,11 @@ responder's status on every event the reply covers (the named occurrence or the 
 every override when it names none) and appending a responder the meeting does not list (a delegate or
 a guest answering from a different address) rather than dropping the response; `ApplyCancellation`
 removes the meeting a CANCEL withdraws; and `SendRequest` / `SendCancel` email a REQUEST or CANCEL to a
-meeting's attendees from the organising account. A recurring meeting is matched as its series master
+meeting's attendees from the organising account. They refuse with `ErrNotOrganizer` unless the sending
+account IS the meeting's organiser (matched by address, ignoring case; a meeting naming no organiser is
+refused too), since an attendee sending one would invite every other attendee to someone else's meeting
+from the wrong person. The event form holds the same rule on its side: an attendee's copy saves locally,
+never emails and offers no resend or cancel. A recurring meeting is matched as its series master
 plus any overrides, keyed by UID and RECURRENCE-ID. Every scheduling send (`scheduling_send.go`) leaves
 the same record an ordinary composed message does: the shared `saveCopyToSent` helper appends a
 best-effort copy to the account's Sent mailbox (skipped for providers that save sent mail server-side),
@@ -1491,7 +1495,9 @@ an unreachable server queues the message in the offline outbox for the compose d
 successful response marks the invite message answered. `Invitation` resolves an invite for display by
 overlaying attendee statuses from the stored calendar copy of the meeting, which is where `Respond`
 records the recipient's answer and `ApplyReply` lands everyone else's, so the card shows the current
-truth rather than the email's frozen ICS.
+truth rather than the email's frozen ICS. Where the viewer could not have heard a reply (another
+attendee's row in a meeting the viewer does not organise), NEEDS-ACTION reads "Not known" rather than
+"No response yet", because that reply went to the organiser alone.
 
 Arriving scheduling mail is folded in automatically by `ApplyIncoming` (`scheduling_apply.go`), fed by
 the new-mail notifier for every fresh message. It distinguishes changed (the calendar moved, so the

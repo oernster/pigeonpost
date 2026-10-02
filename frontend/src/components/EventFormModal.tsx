@@ -13,6 +13,7 @@ import {
     REMINDER_PRESETS,
     extractUrls,
     meetingProvider,
+    organisesMeeting,
 } from '../calendarModel'
 import type {Banners} from '../hooks/useBanners'
 import {useEventFormActions} from '../hooks/useEventFormActions'
@@ -118,9 +119,12 @@ export function EventFormModal({
     // change, an existing one only when its meeting view moved since the form opened. A reminder or
     // calendar tweak leaves the view identical, so the save stays local.
     const meetingChangedSinceOpen = form.id === '' || meetingView(form) !== openedView
-    // sendsOnSave says whether this save will email the attendees: the event is a meeting, an account can
-    // send, it is not already cancelled and something the attendees can see changed.
-    const sendsOnSave = form.attendees.length > 0 && accountId !== '' && !cancelledSent && meetingChangedSinceOpen
+    // organises says whether the account organises this meeting; only the organiser emails the attendees.
+    const organises = organisesMeeting(form.organizerAddress, accountEmail)
+    // sendsOnSave says whether this save will email the attendees: the event is a meeting the account
+    // organises, an account can send, it is not already cancelled and something the attendees can see changed.
+    const sendsOnSave = form.attendees.length > 0 && accountId !== '' && organises && !cancelledSent
+        && meetingChangedSinceOpen
 
     // primaryActionLabel names the save button. When saving will also email the attendees, the label says
     // so rather than a plain Save.
@@ -134,7 +138,7 @@ export function EventFormModal({
     // Save, delete, resend and cancel, with the confirmations they raise, are their own hook.
     const actions = useEventFormActions({
         form, setForm, accountId, accountEmail, accountName, cancelledSent, setCancelledSent, banners,
-        onChanged, bumpReload, meetingChangedSinceOpen,
+        onChanged, bumpReload, meetingChangedSinceOpen, organises,
     })
     const {
         save, requestDelete, confirmDelete, confirmDeleteScope, confirmCancelMeeting,
@@ -258,7 +262,7 @@ export function EventFormModal({
                         <EventFormAttendees
                             form={form} setForm={setForm} attendeeDraft={attendeeDraft} setAttendeeDraft={setAttendeeDraft}
                             accountId={accountId} accountEmail={accountEmail} accountName={accountName} busy={busy}
-                            cancelledSent={cancelledSent} sendsOnSave={sendsOnSave}
+                            cancelledSent={cancelledSent} sendsOnSave={sendsOnSave} organises={organises}
                             sendInvitations={actions.sendInvitations} setCancelMeeting={actions.setCancelMeeting}/>
                         {(error || status) && (
                             <div className={error ? 'compose-error' : 'setup-hint'}>{error || status}</div>

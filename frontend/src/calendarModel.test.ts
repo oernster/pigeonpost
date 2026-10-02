@@ -1,6 +1,9 @@
 import {describe, expect, it} from 'vitest'
 import {
+    UNKNOWN_REPLY_LABEL,
     attendeeStatusLabel,
+    organisesMeeting,
+    replyVisible,
     contrastInk,
     dateInput,
     dateTimeInput,
@@ -56,11 +59,46 @@ describe('meetingProvider', () => {
 
 describe('attendeeStatusLabel', () => {
     it('maps a known PARTSTAT to a label', () => {
-        expect(attendeeStatusLabel('ACCEPTED')).toBe('Accepted')
+        expect(attendeeStatusLabel('ACCEPTED', true)).toBe('Accepted')
+        expect(attendeeStatusLabel('ACCEPTED', false)).toBe('Accepted')
     })
 
     it('falls back to the raw value for an unknown status', () => {
-        expect(attendeeStatusLabel('CUSTOM')).toBe('CUSTOM')
+        expect(attendeeStatusLabel('CUSTOM', true)).toBe('CUSTOM')
+    })
+
+    it('reads NEEDS-ACTION as no response only where the reply would be visible', () => {
+        expect(attendeeStatusLabel('NEEDS-ACTION', true)).toBe('No response yet')
+        expect(attendeeStatusLabel('NEEDS-ACTION', false)).toBe(UNKNOWN_REPLY_LABEL)
+    })
+})
+
+describe('replyVisible', () => {
+    it('is true for the viewer\'s own row, whoever organises', () => {
+        expect(replyVisible('Me@Example.com', 'chair@example.com', 'me@example.com')).toBe(true)
+    })
+
+    it('is true for every row when the viewer organises', () => {
+        expect(replyVisible('other@example.com', 'ME@example.com', 'me@example.com')).toBe(true)
+    })
+
+    it('is false for another attendee in someone else\'s meeting', () => {
+        expect(replyVisible('other@example.com', 'chair@example.com', 'me@example.com')).toBe(false)
+        expect(replyVisible('other@example.com', '', 'me@example.com')).toBe(false)
+    })
+})
+
+describe('organisesMeeting', () => {
+    it('holds for a new meeting with no organiser yet', () => {
+        expect(organisesMeeting('', 'me@example.com')).toBe(true)
+    })
+
+    it('holds when the organiser is the account, ignoring case', () => {
+        expect(organisesMeeting(' ME@example.com ', 'me@example.com')).toBe(true)
+    })
+
+    it('does not hold for someone else\'s meeting', () => {
+        expect(organisesMeeting('chair@example.com', 'me@example.com')).toBe(false)
     })
 })
 
