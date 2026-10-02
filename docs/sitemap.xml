@@ -16,6 +16,16 @@
         <changefreq>monthly</changefreq>
     </url>
     <url>
+        <loc>https://pigeonpost.ink/mail.html</loc>
+        <lastmod>2026-10-02</lastmod>
+        <changefreq>monthly</changefreq>
+    </url>
+    <url>
+        <loc>https://pigeonpost.ink/rules.html</loc>
+        <lastmod>2026-10-02</lastmod>
+        <changefreq>monthly</changefreq>
+    </url>
+    <url>
         <loc>https://pigeonpost.ink/why.html</loc>
         <lastmod>2026-07-23</lastmod>
         <changefreq>monthly</changefreq>

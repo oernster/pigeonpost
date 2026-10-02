@@ -93,38 +93,28 @@
             and calendar.</p>
     </section>
 
-    <section class="section" id="calm">
-        <h2>Calm, predictable email</h2>
-        <p class="lead">A familiar three-pane window that stays out of your way. Everything sits where you
-            expect it and nothing nags you for your attention.</p>
-        <div class="grid">
-            <div class="card">
-                <div class="ico">🪟</div>
-                <h3>The layout you know</h3>
-                <p>Folders, a message list and an optional reading pane you toggle with F8. Sort by date or
-                    group a thread into a conversation, then open that conversation whole to read the
-                    exchange in one place, your own replies included. Double-click a message and it pops
-                    out into its own window.</p>
+    <section class="section" id="who">
+        <h2>Who it is for and who it is not</h2>
+        <p class="lead">Honest fit, so the right person trials it and the wrong person is not misled.</p>
+        <div class="grid two">
+            <div class="card forlist yes">
+                <h3>For you if</h3>
+                <ul>
+                    <li>You use IMAP or POP3, whether that is self-hosted, your ISP, Fastmail or a corporate
+                        server</li>
+                    <li>You use Gmail, iCloud, Yahoo, Zoho, Fastmail or StartMail and can add an app
+                        password</li>
+                    <li>You use a personal Microsoft account (Outlook.com, Hotmail, Live or Microsoft 365)
+                        through Microsoft sign-in</li>
+                </ul>
             </div>
-            <div class="card">
-                <div class="ico">⚡</div>
-                <h3>Stays fast</h3>
-                <p>The message list is virtualised, so it stays fluid in folders of tens of thousands of
-                    messages instead of stalling.</p>
-            </div>
-            <div class="card">
-                <div class="ico">⌨️</div>
-                <h3>Yours to drive</h3>
-                <p>Full keyboard navigation with a visible focus ring and menu accelerators. Multi-select
-                    with Ctrl or Shift, bulk delete, mark, star and move, a right-click menu and reader tabs.
-                    After ten quiet seconds with nothing open, the window settles back on the Inbox,
-                    so you always resume from a known place.</p>
-            </div>
-            <div class="card">
-                <div class="ico">🌿</div>
-                <h3>Quiet by default</h3>
-                <p>No ads. No feed. Nothing reordering your inbox behind your back. The window does what you
-                    ask and then gets out of the way.</p>
+            <div class="card forlist no">
+                <h3>Not for you if</h3>
+                <ul>
+                    <li>You only ever want webmail with no desktop install</li>
+                    <li>You have a Google Workspace work or school account, which is OAuth-only so an app
+                        password will not work</li>
+                </ul>
             </div>
         </div>
     </section>
@@ -203,7 +193,7 @@
             '#why': 'why.html#why',
             '#compare': 'why.html#compare',
             '#promise': 'why.html#promise',
-            '#who': 'why.html#who'
+            '#calm': 'features.html#calm'
         };
         var target = moved[window.location.hash];
         if (target) { window.location.replace(target); }

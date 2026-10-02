@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>PigeonPost mail: accounts, writing, folders and reading</title>
+    <meta name="description"
+          content="How PigeonPost handles mail: multiple accounts and a unified mailbox, writing and sending, templates and drafts, folders and tags, then reading."/>
+    <link rel="canonical" href="https://pigeonpost.ink/mail.html"/>
+    <meta name="robots" content="index, follow"/>
+    <meta name="author" content="Oliver Ernster"/>
+    <meta name="theme-color" content="#16181d"/>
+    <meta property="og:type" content="website"/>
+    <meta property="og:site_name" content="PigeonPost"/>
+    <meta property="og:url" content="https://pigeonpost.ink/mail.html"/>
+    <meta property="og:title" content="PigeonPost mail: accounts, writing, folders and reading"/>
+    <meta property="og:description"
+          content="How PigeonPost handles mail: multiple accounts and a unified mailbox, writing and sending, templates and drafts, folders and tags, then reading."/>
+    <meta property="og:image" content="https://pigeonpost.ink/screenshots/compose.png"/>
+    <meta property="og:locale" content="en_GB"/>
+    <meta name="twitter:card" content="summary_large_image"/>
+    <meta name="twitter:title" content="PigeonPost mail: accounts, writing, folders and reading"/>
+    <meta name="twitter:description"
+          content="How PigeonPost handles mail: multiple accounts and a unified mailbox, writing and sending, templates and drafts, folders and tags, then reading."/>
+    <meta name="twitter:image" content="https://pigeonpost.ink/screenshots/compose.png"/>
+    <link rel="icon" type="image/png" href="pigeonpost.png"/>
+    <link rel="stylesheet" href="site.css"/>
+</head>
+<body>
+<div class="wrap">
+    <header class="site">
+        <a class="logo" href="./">
+            <img src="pigeonpost.png" alt="PigeonPost"/>
+            <span>PigeonPost</span>
+        </a>
+        <nav class="nav">
+            <a href="switching.html">Switching</a>
+            <a href="features.html">Features</a>
+            <a href="why.html">Why</a>
+            <a href="https://github.com/oernster/pigeonpost">GitHub</a>
+            <a href="downloads.html">Download</a>
+        </nav>
+    </header>
+
+    <div class="crumb">
+        <a href="features.html">Features</a> <span aria-hidden="true">/</span> Mail
+    </div>
+
+    <section class="page-hero">
+        <img class="mark" src="pigeonpost.png" alt="PigeonPost icon"/>
+        <h1>Mail</h1>
+    </section>
+
+    <section class="section" id="mail">
+        <div class="groups">
+            <div class="group">
+                <h3>📥 Mail accounts</h3>
+                <ul>
+                    <li>Multiple accounts, each a separate inbox, with send-as addresses. The accounts
+                        dropdown carries each account's unread count; picking one opens its inbox,
+                        including the account you are already in. Mail arriving on an account you are
+                        not in lights a second, outlined badge on the closed dropdown, counting only
+                        mail newer than your last visit there, so a standing backlog never lights
+                        it</li>
+                    <li>An optional unified mailbox that merges every inbox into one list, each row dotted
+                        with its account's colour</li>
+                    <li>Instant new mail over IMAP IDLE, a desktop notification and a taskbar badge</li>
+                    <li>On Windows each of the three things PigeonPost announces has its own chime, so new
+                        mail, a calendar reminder and a returning snoozed message are told apart by ear;
+                        elsewhere the sound is the one your desktop theme chooses</li>
+                    <li>Registers as your system's default email app on Windows, macOS and Linux, so a
+                        mailto: link on a web page opens a new message here, ready addressed</li>
+                </ul>
+            </div>
+            <div class="group">
+                <h3>✍️ Writing and sending</h3>
+                <ul>
+                    <li>Rich-text compose with To, Cc and Bcc, per-account signatures, reply, reply-all and
+                        forward</li>
+                    <li>Paste an image and it embeds in the body right where the cursor is, sent as a
+                        proper inline image every mail client renders; paste or drop any other file and
+                        it attaches</li>
+                    <li>Start typing in To, Cc or Bcc and matching people from your contacts are
+                        suggested; accepting one just inserts text, so you can still edit it freely;
+                        the list flows on so the next address can be typed straight away</li>
+                    <li>Attach files or forward a message as an attachment</li>
+                    <li>The compose window moves: drag it by its title bar to uncover the message you
+                        are answering; every new message still opens centred</li>
+                    <li>Send later from presets or an exact time; the message waits in the Outbox with
+                        Cancel send and leaves while the app runs or at the next launch after that time</li>
+                </ul>
+            </div>
+            <div class="group">
+                <h3>📄 Templates and drafts</h3>
+                <ul>
+                    <li>Reusable message templates, a local crash autosave and a discard
+                        confirmation, so a part-written message is never lost silently</li>
+                    <li>A template carries its attachments as well as its subject and body, so inserting
+                        one brings all three into the message at once. The files are stored rather than
+                        pointed at, so a template still attaches what it promised after the original has
+                        been moved, renamed or deleted; the editor refuses a template heavier than a
+                        single message may carry while you are still looking at it</li>
+                    <li>Save a half-written message as a draft and pick it up later: a draft reopens
+                        in the compose window exactly as it was saved and finishing it replaces the
+                        stored copy, so the Drafts folder never fills with stale versions</li>
+                </ul>
+            </div>
+            <div class="group">
+                <h3>🗂️ Folders and tags</h3>
+                <ul>
+                    <li>Colour tags that sync across devices as IMAP keywords, plus read, star and junk marks</li>
+                    <li>Nested folders you create and reorganise by drag: the plus beside the Folders
+                        heading makes one at the top level and New subfolder on a folder's right-click
+                        menu makes one inside it; the arrangement you settle on
+                        is remembered per account and survives updates and reinstalls</li>
+                    <li>Drag mail into a folder and it goes at once: the message leaves the list on the
+                        drop rather than after the server has caught up, the folder that took it flashes
+                        so you can see where it went; holding a drag near the edge of the folder
+                        pane scrolls it so anything below the fold is still reachable</li>
+                    <li>Drag one message or a whole selection: Ctrl-click picks scattered rows and
+                        Shift-click picks a run, then dragging any row of that selection takes all of it</li>
+                    <li>Ctrl+A selects the whole folder, including the messages you have not scrolled
+                        to yet, so a delete, move or mark acts on everything in it; marking a selection
+                        read updates every unread badge at once</li>
+                </ul>
+            </div>
+            <div class="group">
+                <h3>👀 Reading</h3>
+                <ul>
+                    <li>Message HTML renders faithfully in a sandboxed frame that keeps the sender's own
+                        styling while running no scripts, with remote images and CSS backgrounds held back
+                        until you load them</li>
+                    <li>In the dark theme the reader darkens each part of a message by the background its
+                        sender actually chose, so one that mixes a dark brand panel with a white footer
+                        reads correctly throughout and photos and logos keep their true colour</li>
+                    <li>Only the message body scrolls: the sender, the subject and the toolbar stay pinned
+                        above it and the attachments stay pinned at its foot, so Open and Save are one
+                        click away on a long reply chain instead of buried under every quoted round</li>
+                    <li>Dialogs keep their title and leading fields in view the same way, from the
+                        compose window's addresses to an event's title and a rule's name, while the rest
+                        of the form scrolls</li>
+                    <li>Turn on the conversation view and the header above a grouped exchange opens it
+                        whole: every message of the thread gathered from across the account's folders, so
+                        the reply you sent sits with the message it answers instead of staying out of
+                        sight in Sent. Each one names the folder it lives in and opens in place to read</li>
+                    <li>Snooze hides a message until a chosen time then returns it untouched, with a
+                        banner in the window you can click to open it and a desktop notification</li>
+                    <li>Print a message through the system print dialog</li>
+                    <li>Help &gt; Guide names every picture the window draws, from the menus and controls
+                        along the top bar to each mark in the folder list; it states the rules the
+                        windows cannot state for themselves: what is held on your machine, what a
+                        permanent delete means and what a snooze or a scheduled send needs from the app;
+                        each section's heading holds at the top while that section is read</li>
+                </ul>
+            </div>
+        </div>
+    </section>
+
+    <section class="shot">
+        <div class="shot-frame">
+            <img src="screenshots/compose.png" loading="lazy" decoding="async"
+                 alt="The New message window: To, Cc, Bcc and Subject fields, a rich-text toolbar ending in a link control and a templates icon, plus Attach files, Save draft, Send later and Send buttons."/>
+        </div>
+        <p class="shot-cap">Writing a message: rich text, reusable templates and file
+            attachments.</p>
+    </section>
+
+    <section class="section onward">
+        <div class="cta">
+            <a class="btn" href="features.html">All features</a>
+            <a class="btn" href="rules.html">Filter rules</a>
+        </div>
+    </section>
+
+    <footer class="site">
+        <span>PigeonPost by Oliver Ernster. Released under GPL-3.0; author attribution must be retained
+            in all copies and derivative works.</span>
+        <span>
+            <a href="./">Home</a>
+            &nbsp;·&nbsp;
+            <a href="https://github.com/oernster/pigeonpost">GitHub</a>
+            &nbsp;·&nbsp;
+            <a href="https://github.com/oernster/pigeonpost/releases">Releases</a>
+        </span>
+    </footer>
+</div>
+</body>
+</html>

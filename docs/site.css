@@ -255,6 +255,30 @@ a.logo {
     font-size: 14px;
 }
 
+/* A card holding several paragraphs shows the break between them. */
+.card p + p { margin-top: 10px; }
+
+/* The button that leads from a Features gateway card to its own page sits at the card's foot, so the
+   cards line up whatever the length above them. */
+.gateways { margin-bottom: 16px; }
+.gateways .card { display: flex; flex-direction: column; }
+.gateways .card .card-cta { margin-top: auto; padding-top: 18px; }
+
+/* Where a detail page sits: its parent, then itself. The hero after it gives up most of its top
+   padding, since the trail already opens the page. */
+.crumb {
+    padding: 28px 0 0;
+    font-size: 13px;
+    color: var(--text-dim);
+}
+
+.crumb a { text-decoration: none; }
+.crumb a:hover { text-decoration: underline; }
+.crumb + .page-hero { padding-top: 12px; }
+
+/* The way on from the foot of a detail page: back to its parent, then its siblings. */
+.onward .cta { margin-top: 0; }
+
 /* Objection map */
 .qa {
     display: grid;

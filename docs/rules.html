@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>PigeonPost filter rules: conditions, exclusions and sharing</title>
+    <meta name="description"
+          content="PigeonPost filter rules: as many conditions as you need, a NOT switch for exclusions, a Now button for the mail you already have, plus export and import as readable JSON."/>
+    <link rel="canonical" href="https://pigeonpost.ink/rules.html"/>
+    <meta name="robots" content="index, follow"/>
+    <meta name="author" content="Oliver Ernster"/>
+    <meta name="theme-color" content="#16181d"/>
+    <meta property="og:type" content="website"/>
+    <meta property="og:site_name" content="PigeonPost"/>
+    <meta property="og:url" content="https://pigeonpost.ink/rules.html"/>
+    <meta property="og:title" content="PigeonPost filter rules: conditions, exclusions and sharing"/>
+    <meta property="og:description"
+          content="PigeonPost filter rules: as many conditions as you need, a NOT switch for exclusions, a Now button for the mail you already have, plus export and import as readable JSON."/>
+    <meta property="og:image" content="https://pigeonpost.ink/screenshots/compose.png"/>
+    <meta property="og:locale" content="en_GB"/>
+    <meta name="twitter:card" content="summary_large_image"/>
+    <meta name="twitter:title" content="PigeonPost filter rules: conditions, exclusions and sharing"/>
+    <meta name="twitter:description"
+          content="PigeonPost filter rules: as many conditions as you need, a NOT switch for exclusions, a Now button for the mail you already have, plus export and import as readable JSON."/>
+    <meta name="twitter:image" content="https://pigeonpost.ink/screenshots/compose.png"/>
+    <link rel="icon" type="image/png" href="pigeonpost.png"/>
+    <link rel="stylesheet" href="site.css"/>
+</head>
+<body>
+<div class="wrap">
+    <header class="site">
+        <a class="logo" href="./">
+            <img src="pigeonpost.png" alt="PigeonPost"/>
+            <span>PigeonPost</span>
+        </a>
+        <nav class="nav">
+            <a href="switching.html">Switching</a>
+            <a href="features.html">Features</a>
+            <a href="why.html">Why</a>
+            <a href="https://github.com/oernster/pigeonpost">GitHub</a>
+            <a href="downloads.html">Download</a>
+        </nav>
+    </header>
+
+    <div class="crumb">
+        <a href="features.html">Features</a> <span aria-hidden="true">/</span> Filter rules
+    </div>
+
+    <section class="page-hero">
+        <img class="mark" src="pigeonpost.png" alt="PigeonPost icon"/>
+        <h1>Filter rules</h1>
+    </section>
+
+    <section class="section" id="rules">
+        <div class="groups">
+            <div class="group">
+                <h3>🧹 Filter rules</h3>
+                <ul>
+                    <li>Filter rules that combine as many conditions as you need, matched on all or
+                        any of them, against the sender, the recipients, the subject, the sender's whole
+                        domain or every field at once, with case matching per condition.</li>
+                    <li>A rule can mark
+                        read, flag, move to a folder of your choice or delete permanently, run on every
+                        account or only the ones you pick and be reordered, switched off or set to stop
+                        later rules. Left to themselves they act on the Inbox and only on mail arriving
+                        after you write them, so adding one never reaches back over the mail you already
+                        have</li>
+                    <li>Filter rules and message templates each have their own button on the title bar,
+                        so neither is buried in a menu</li>
+                    <li>A NOT switch on each condition, so every comparison has its opposite: is not,
+                        does not start with, does not end with, does not contain.</li>
+                    <li>A negated condition is
+                        an exclusion and a rule always applies it, so one rule says any of these, never
+                        those: keep filing the two shops you buy music from while excluding a sender you
+                        never want filed. The editor prints the joining word between the rows and marks
+                        an exclusion as one, so a rule reads as what it does rather than leaving you to
+                        work it out</li>
+                </ul>
+            </div>
+            <div class="group">
+                <h3>▶️ Applying and sharing rules</h3>
+                <ul>
+                    <li>A Now button on each rule applies it to the mail you already have, across every
+                        folder of every account that rule covers. It shows you what the rule found first,
+                        counting the stored messages it was checked against and the ones it would mark,
+                        flag, move or delete, then acts only once you agree; a rule that would change
+                        nothing says so rather than asking.</li>
+                    <li>A rule that deletes says plainly that the
+                        deletion is permanent and cannot be undone. A progress bar counts folders while
+                        it checks and messages while it applies, so a long run says how far along it is
+                        rather than leaving you guessing; Cancel stops one that is taking longer than
+                        you want.</li>
+                    <li>Stopping is not an undo: the report then tells you what had already been
+                        done, because that part really did happen. Either way you are told what actually
+                        happened, so a run the server partly refused names the part that landed</li>
+                    <li>Export your rules to a file and import them on another machine. The file is
+                        readable JSON naming a move's destination as the account and mailbox path, so
+                        you can open it, read it and hand-edit it.</li>
+                    <li>An import tells you what the file
+                        holds before it writes anything: what arrives, what replaces a rule of the same
+                        name, what comes in switched off and which of them move or delete mail.</li>
+                    <li>A rule
+                        that cannot run here, because it names a folder or accounts this installation
+                        does not have, arrives switched off rather than silently doing nothing, so it
+                        works once that folder syncs or that account is added</li>
+                </ul>
+            </div>
+        </div>
+    </section>
+
+    <section class="section onward">
+        <div class="cta">
+            <a class="btn" href="features.html">All features</a>
+            <a class="btn" href="mail.html">Mail</a>
+        </div>
+    </section>
+
+    <footer class="site">
+        <span>PigeonPost by Oliver Ernster. Released under GPL-3.0; author attribution must be retained
+            in all copies and derivative works.</span>
+        <span>
+            <a href="./">Home</a>
+            &nbsp;·&nbsp;
+            <a href="https://github.com/oernster/pigeonpost">GitHub</a>
+            &nbsp;·&nbsp;
+            <a href="https://github.com/oernster/pigeonpost/releases">Releases</a>
+        </span>
+    </footer>
+</div>
+</body>
+</html>
