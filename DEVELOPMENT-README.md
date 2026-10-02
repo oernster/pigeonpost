@@ -7,7 +7,7 @@ How to set up, run, test, build and package PigeonPost from source.
 | Tool | Version | Notes |
 |---|---|---|
 | Go | 1.25 or newer | The floor is the `go` directive in `go.mod`; the build was verified on Go 1.26. |
-| Node.js | 20 or newer | Node 24 verified. Ships with npm. |
+| Node.js | 20.19, 22.13 or 24 and newer | The floor is the front-end test runner's (jsdom); Node 24 verified. Ships with npm. |
 | Wails CLI | v2.12 | `go install github.com/wailsapp/wails/v2/cmd/wails@latest` |
 | WebView2 runtime | current | Pre-installed on Windows 11. Wails uses the system WebView. |
 | PowerShell | 7+ | For `build.ps1` and `test.ps1` on Windows. |
@@ -37,7 +37,8 @@ The app stores its data in a per-user directory:
 
 - Windows: `%APPDATA%\PigeonPost\pigeonpost.db`
 - macOS: `~/Library/Application Support/PigeonPost/pigeonpost.db`
-- Linux: `~/.config/PigeonPost/pigeonpost.db`
+- Linux, running from source on the host: `~/.config/PigeonPost/pigeonpost.db` (the directory follows
+  `XDG_CONFIG_HOME`, which the Flatpak sets to its own sandbox location)
 
 Beside the database sits `mail-errors.log`, holding the raw text of any mail error the interface
 replaced with a message of its own, one failure per line. It is created on the first such failure, so an
@@ -105,8 +106,10 @@ folder-list glyphs):
 go run ./tools/genicons
 ```
 
-It is idempotent: run on an unchanged master it rewrites the same bytes. `build.ps1`, `builddmg.sh` and
-`build_flatpak.sh` each run it before they build, so a release never ships stale artwork.
+It is idempotent: run on an unchanged master it rewrites the same bytes. `build.ps1` and `builddmg.sh` run
+it before they build anything; `build_flatpak.sh` runs it inside the sandbox before the Go binary is
+built (after the front end, which therefore bundles the committed artwork). A release never ships stale
+artwork as long as a regenerated asset is committed with its master.
 
 Its output is committed, which is deliberate. Those three scripts are the only things that run it:
 `wails.json` carries no hook, so `wails dev` and a bare `wails build` never generate anything. An asset
@@ -149,11 +152,11 @@ Build just the application executable:
 
 ```
 wails build
-# or
-./build.ps1 -SkipInstaller
 ```
 
-Output: `build/bin/PigeonPost.exe`.
+Output: `build/bin/PigeonPost.exe`. `./build.ps1 -SkipInstaller` produces the same file after first
+regenerating the icons and the site's asset links, so it can modify tracked files where a bare
+`wails build` touches none.
 
 Build the application and the bespoke installer:
 
@@ -161,7 +164,9 @@ Build the application and the bespoke installer:
 ./build.ps1
 ```
 
-`build.ps1` runs in order: generate icons, `wails build` (the app), zip the built app as the
+`build.ps1` runs in order: generate icons, version the site's stylesheet and script links by content
+(`tools/stampassets`, which stops the build if a page links a file that is missing), `wails build` (the
+app), zip the built app as the
 installer payload, then `wails build` the installer under `installer/`, which embeds that payload. The
 installer is a Wails app so it shares the application's WebView and dark theme; it supports
 install, repair, upgrade and uninstall, plus a launch-on-boot option.
@@ -202,16 +207,19 @@ Output: `PigeonPost.dmg` in the repo root.
 
 ### Linux (Flatpak; verified target Ubuntu)
 
-Prerequisites: only `flatpak` and `flatpak-builder` (the script installs them through apt, dnf,
-pacman or zypper if missing). Go, Node and WebKit all come from the flatpak SDKs, so nothing else
-is needed on the host.
+Prerequisites: `flatpak` and `flatpak-builder` (the script installs them through apt, dnf, pacman or
+zypper if missing), plus Go and the Wails CLI on the host. The front-end bindings are generated on the
+host with `wails generate module` before the tree is copied into the sandbox, since the sandbox has no
+Wails CLI; the script stops with an install hint when it cannot find one. Node and WebKit come from the
+flatpak SDKs, as do the Go toolchain and Node used for the build itself.
 
 ```
 bash build_flatpak.sh
 ```
 
 The script adds flathub, installs the GNOME runtime (which carries the webkit2gtk-4.1 that Wails
-renders through) plus the golang and node SDK extensions, generates the desktop file (which claims the
+renders through) plus the golang and node SDK extensions, generates the front-end bindings on the host,
+generates the desktop file (which claims the
 mailto scheme, so GNOME's Default Apps can select PigeonPost as the email client), metainfo and
 manifest, then builds the front end and the Go binary inside the sandbox with
 `-tags desktop,production,webkit2_41`. It installs the app for the current user and exports a

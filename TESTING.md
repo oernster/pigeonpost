@@ -95,8 +95,8 @@ documented here.
 | internal/infrastructure/imap | ~51% | the source adapter's pure helpers plus the fetch, sign-in and bulk paths against a scripted local server (the body-structure fallback, the refusal marking, one connection per folder for a bulk mark-read, move or delete); the wire-to-domain and HTML logic now lives in `mailparse`; live append plus the IDLE watcher are excluded |
 | internal/infrastructure/taskbar | ~17% | the pure label formatting, the balloon-suppression rule and the no-op stub covered; the Windows-only Win32 overlay excluded, with a source scan standing in for the chime's placement inside it |
 | internal/infrastructure/smtp | ~15% | the mailbox-refused and app-password detectors and `authError`, which marks a refusal so the interface can translate it; the transport around them is live `Send` only and MIME building lives in `message` |
-| main package | ~9% | composition root and the Wails facade, excluded; the covered statements are the package's own pure helpers, which carry unit tests of their own (mailto parsing, attachment decoding, the mail-error translations, the resurfaced-snooze announcement text with its wire mapping, the rule-backfill error summariser, plus the rule DTO's wire shape) |
-| installer app, tools/genicons | 0% | GUI and one-shot tooling, excluded |
+| main package | ~9% | composition root and the Wails facade, excluded; the covered statements are the package's own pure helpers, which carry unit tests of their own (mailto parsing, attachment decoding, the mail-error translations, the resurfaced-snooze announcement text with its wire mapping, the rule-backfill error summariser, plus the wire shapes of the rule, rules-file and template DTOs) |
+| installer app, tools/genicons, tools/stampassets | 0% | GUI and one-shot tooling, excluded |
 
 ## Documented exclusions (and why)
 
@@ -135,8 +135,8 @@ documented here.
   namely `app.go`, one binding file per feature surface (accounts, mail, folders, send, draft recovery,
   outbox, snooze, tags, rules, rules files, templates and their files, calendar, CalDAV, contacts, scheduling, export, `.eml`
   files, updates and About), the background goroutines (the new-mail notifier, the reminder scheduler, the outbox
-  dispatcher and the snooze scheduler) plus the DTO mappers and clock) and the **icon tool**
-  (`tools/genicons`): wiring and one-shot programs, verified by the app and the build succeeding. The
+  dispatcher and the snooze scheduler) plus the DTO mappers and clock), the **icon tool**
+  (`tools/genicons`) and the **site asset stamper** (`tools/stampassets`): wiring and one-shot programs, verified by the app and the build succeeding. The
   exclusion is the wiring, not the whole package: the pure helpers that do live here carry their own
   unit tests. `rulesapi_test.go` is the one to copy when adding another: it asserts on the DTO's
   marshalled JSON bytes rather than on a hand-written fixture, because a Go nil slice encodes as

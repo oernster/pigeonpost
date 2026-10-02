@@ -113,7 +113,7 @@ it to anything.
   it, all inserted together from the template button on the formatting strip: a template inserted into
   a blank message fills its subject, though one you have already typed is left alone. A template's files
   are stored rather than referenced, so a template still attaches what it promised after the original
-  file has moved or gone. A template may hold no more than a single message may carry, which is
+  file has moved or gone. A template's files may total no more than a single message may carry, which is
   refused while you are still looking at the editor rather than at every send. A saved draft
   reopens for editing from the Drafts folder (double-click or Enter on it, else Edit draft in the
   reader) exactly as it was saved; finishing it, by sending or saving again, replaces the stored
@@ -233,18 +233,23 @@ it to anything.
   starts out to a week before) and ICS import/export (RFC 5545) that round-trips
   with Outlook and Thunderbird. Every date field in the app (event times, repeat-until, a contact's
   birthday, send later, snooze) opens a themed calendar picker, with direct typing still first-class. Meeting
-  invites over iTIP/iMIP (accept, decline, cancel, reply) with clickable join links (Teams, Meet, Zoom,
+  invites over iTIP/iMIP (accept, tentative, decline, cancel and reply) with clickable join links (Teams, Meet, Zoom,
   Webex). Answering an invitation leaves a proper trail: the reply is saved to Sent, the invitation
   message gains the replied arrow and the invite card shows everyone's current response, updated as
   replies arrive on meetings you organise and as the organiser's updated invitations arrive on
-  meetings you attend (queued through the outbox if you answer while offline). Clicking the
-  answer you already gave warns before resending it. Re-saving a meeting you organise emails the
+  meetings you attend (queued through the outbox if you answer while offline). On a meeting you
+  attend, another attendee's reply goes to the organiser alone, so until the organiser sends an
+  update it reads "Not known" rather than "No response yet". Clicking the
+  answer you already gave warns before resending it. Only the organiser's account emails a meeting's
+  attendees: a meeting you were invited to saves to your calendar without emailing anyone and offers
+  no resend or cancel. Re-saving a meeting you organise emails the
   attendees an update only when something they can
   see changed; a reminder or calendar tweak saves locally without emailing anyone and the save button
   says which it will be. Early two-way CalDAV sync: a calendar-server account (app password) syncs events both ways,
   server-wins on conflict with the losing local edit kept as a copy.
-- **Contacts**: an address book with postal addresses and birthdays, plus vCard (.vcf) and CSV
-  import/export that round-trips with Outlook and Thunderbird. People you email are added to the
+- **Contacts**: an address book with postal addresses and birthdays, plus vCard (.vcf) import/export
+  (round-tripping with Thunderbird; single contacts with Outlook) and CSV import/export in the column
+  layout Outlook's bulk export uses. People you email are added to the
   address book automatically (a minimal contact per new recipient, ready to flesh out or delete),
   with a toggle on the Contacts page to turn the collection off. CSV import reads both exporters'
   column conventions (including UK and US wording for regions and postcodes) and the encodings they

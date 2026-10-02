@@ -10,9 +10,9 @@ enforced by a test in `tests/structural/boundary_test.go`, not by convention.
 | Invariant | Enforcing test |
 |---|---|
 | Domain imports nothing from application/infrastructure/ui/wails | `TestDomainHasNoOutwardImports` |
-| Domain is pure: no net, os, database/sql, time.Now, math/rand | `TestDomainIsPure` |
+| Domain is pure: no net, os, log, database/sql, io/ioutil, math/rand; no time.Now, time.Since or time.Until | `TestDomainIsPure` |
 | Application never imports infrastructure or wails | `TestApplicationDoesNotImportInfrastructure` |
-| No Go source file exceeds the module-size limit | `TestNoFileExceedsLineLimit` |
+| No Go source file exceeds the module-size limit (test files excepted by design) | `TestNoFileExceedsLineLimit` |
 | Only the composition root (package `main` at the repo root) may import both application and infrastructure | `TestCompositionRootIsWhitelisted` |
 
 ## Layers
@@ -26,7 +26,8 @@ enforced by a test in `tests/structural/boundary_test.go`, not by convention.
   `MailTransport`, `FolderActions`, `DraftSaver`, `OutboxStore`, `TagStore`, `RuleStore` and the domain
   `Clock`, plus the later feature ports for contacts, calendar, recurrence, scheduling, draft recovery,
   remote images, CalDAV, the folder display state and the update check's `ReleaseSource`, each
-  introduced with its feature below). The
+  introduced with its feature below; also the smaller seams `TemplateStore`, `SnoozeStore`, `SentSaver`,
+  `OAuthAuthorizer`, `RuleCodec`, `RuleBackfillActions`, `TagSyncer` and `FlagSyncer`). The
   `MailSource`, `MailActions` and `AccountVerifier` ports are satisfied by the `mailrouter` adapter,
   which dispatches to the IMAP or POP3 implementation per account protocol. Depends on Domain and the
   standard library only. Never imports Infrastructure or the Wails runtime.
@@ -949,8 +950,10 @@ four failures and four hundred is the whole story and a banner is meant for a se
 
 `RuleBackfillProgressDTO` is the one DTO on this surface Wails generates no TypeScript type for,
 since it travels on an event rather than as a bound method's return and generation follows binding
-signatures. Its front-end interface is therefore hand-written: the wire stated twice, so
-`TestRuleBackfillProgressWireShape` asserts on the marshalled bytes to compare the two statements.
+signatures. Its front-end interface is therefore hand-written: the wire stated twice.
+`TestRuleBackfillProgressWireShape` pins the marshalled bytes to the shape that interface declares, so a
+change on the Go side fails the test; nothing reads the TypeScript itself, so a change there has to be
+mirrored in the test by hand.
 
 Because a rule runs unattended, the confirmation for a destructive action moves to rule-creation time:
 the UI warns before saving a rule that moves or destroys mail and marks a destroying rule in the list.
@@ -1090,7 +1093,8 @@ is where a credential is first offered, so a refusal there is the ordinary outco
 hold both, since a detector that is right and wired to nothing reads exactly like one that works. Not
 every mail-facing binding routes through it yet: the folder bindings in `foldersapi.go` (create,
 create subfolder, rename, delete, move) and the single-message read, flag, replied and forwarded marks
-in `app_actions.go` still return the raw error. The bulk mark-read bindings (`MarkReadMessages`,
+in `app_actions.go` still return the raw error, as do the meeting sends in `schedulingapi.go`
+(`RespondToInvitation`, `SendMeetingRequest`, `SendMeetingCancel`). The bulk mark-read bindings (`MarkReadMessages`,
 `PushReadMessages`) do route through it.
 
 ## Quality enforcement
@@ -1413,7 +1417,7 @@ outside that rule (see The notification sound below), because nothing in the win
 **The notification sound.** On Windows a balloon raised through `Shell_NotifyIconW` plays the shell's
 one default notification sound, which is the same sound every other app and tool raising a stock
 notification gets, so a PigeonPost alert cannot be told apart by ear from anything else on the machine.
-The tray therefore sets `NIIF_NOSOUND` to silence the shell and plays its own chime through
+The tray therefore sets the Win32 `NIIF_NOSOUND` flag (`niifNoSound` in the code) to silence the shell and plays its own chime through
 `infrastructure/sound`.
 
 The chime is not tied to the balloon. `Notify` sounds it first, then decides whether to raise the
@@ -1524,8 +1528,8 @@ The Wails facade (`schedulingapi.go`) exposes the flow through `OrganizerDTO`, `
 `InvitationDTO` and the methods `GetInvitation`, `RespondToInvitation`, `RemoveCancelledMeeting`,
 `ApplyMeetingReply`, `SendMeetingRequest` and `SendMeetingCancel`; `EventDTO` and `EventRequest` carry the
 organiser and attendees so a meeting round-trips through the calendar editor. As with the rest of the
-facade, these binding files are build-verified (they hold no logic beyond DTO mapping) rather than
-unit-tested; the correctness lives in the domain and application layers behind them. In the UI the reader
+facade, these binding files are build-verified rather than unit-tested: beyond DTO mapping they only load
+the event (refusing one with no attendees), mark an answered invite and log each step; the correctness lives in the domain and application layers behind them. In the UI the reader
 shows an invite card (Accept, Tentative or Decline a request, remove a cancellation, apply a reply) and
 the calendar event editor edits a meeting's attendee list and sends its invitations and cancellations.
 Re-saving an existing meeting emails an update only when a field the attendees can see changed: the form

@@ -125,6 +125,10 @@
                         reply is saved to Sent, the invitation shows everyone's current response as
                         replies and the organiser's updates arrive and answering the same way twice
                         warns before resending</li>
+                    <li>On a meeting you attend, another attendee's reply goes to the organiser alone,
+                        so it reads "Not known" until the organiser sends an update; only the organiser
+                        emails the attendees, so editing a meeting you were invited to never emails
+                        anyone</li>
                     <li>Teams, Meet, Zoom and Webex join links open in your browser</li>
                     <li>Early two-way CalDAV sync with a calendar server over an app password, server-wins
                         on conflict</li>
@@ -141,8 +145,8 @@
                         ready to flesh out, with a toggle to turn the collection off</li>
                     <li>vCard import and export at full fidelity, keeping postal addresses and birthdays
                         (round-trips with Thunderbird; single contacts with Outlook)</li>
-                    <li>CSV import and export for names, emails and phone numbers, the fields Outlook's
-                        bulk CSV carries</li>
+                    <li>CSV import and export in Outlook's column layout: names, emails, phone numbers,
+                        company and job title, birthday, home and business addresses and notes</li>
                 </ul>
             </div>
         </div>
@@ -168,10 +172,11 @@
                 <p>Passwords live in your OS keychain, never in a database. Microsoft sign-in stores a
                     token there instead of a password. No PigeonPost cloud sits in the path; your mail is
                     with your provider and on your machine.</p>
-                <p>Beyond your own mail servers, the app's one
-                    outbound call is a daily check of the project's GitHub releases for a newer version;
-                    it carries nothing about you and a newer release simply offers the download for your
-                    platform.</p>
+                <p>Beyond your own mail servers, the app reaches out in three ways only. It checks
+                    the project's GitHub releases shortly after launch and once a day; that request
+                    carries nothing about you and a newer release simply offers the download for your
+                    platform. It fetches a message's remote images when you choose to load them. A
+                    Microsoft account signs in through Microsoft's own servers.</p>
                 <p>The local cache itself is ordinary data on your
                     own disk, not encrypted at rest: pair it with your OS disk encryption (BitLocker,
                     FileVault) if you want that protection.</p>
