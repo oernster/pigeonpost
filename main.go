@@ -55,13 +55,17 @@ const (
 	mailErrorLogName = "mail-errors.log"
 	// The window opens wide enough for the whole title bar and cannot be dragged narrower than it.
 	//
-	// Both numbers are measured rather than chosen. The bar's run of controls needs 1254 CSS pixels of
-	// client width with an ordinary unread badge and 1265 with a four-figure one; at the old 1200 it had
-	// about 1180 and the left group was squeezed to 45 pixels while the app mark inside it stayed its own
-	// 75, so the mark slid under the File button and the application's own icon was painted over. That is
-	// what prompted this. The stylesheet no longer lets the mark be the thing that gives (see
-	// .titlebar-left), so the two changes are belt and braces: this one keeps the bar whole, that one
-	// keeps the mark whole if it is ever not.
+	// Nothing in the bar gives way. Its three groups (the unread badge, the menus with the working
+	// controls, then the theme toggle and Help) are all flex-shrink: 0 in titlebar-and-menus.css, so a
+	// window narrower than the run does not squeeze it: it pushes the far end past the right edge;
+	// the theme toggle and the Help menu are the controls that go missing. This minimum is what keeps
+	// every control in the bar on screen.
+	//
+	// The figures it rests on were measured on 2026-09-08, while the application's icon still stood at
+	// the left of the bar: the run then needed 1254 CSS pixels of client width with an ordinary unread
+	// badge and 1265 with a four-figure one. The icon has since moved behind the panes as a watermark, so
+	// the run is narrower than that by an amount not re-measured; the numbers below were kept, which errs
+	// on the wide side.
 	//
 	// windowMinW is the smallest a 13 inch laptop is taken to be, which is the screen this has to fit:
 	// 1280 device-independent pixels wide, whether that is a 1280 panel or a 1920 one at 150%. It leaves

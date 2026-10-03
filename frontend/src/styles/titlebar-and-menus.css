@@ -39,15 +39,15 @@
 }
 
 /* The working group: the File, Edit, View and Mail menus running straight on into compose, add account,
-   sync, Contacts and Calendar, as one sequence read left to right from the app mark. margin-right: auto
-   is what holds the shape: this group takes all the spare width on its RIGHT, so it stays welded to the
-   mark while .titlebar-right is pushed to the far end.
+   sync, Contacts and Calendar, as one sequence read left to right from the left end of the bar, where
+   only the unread count sits before it. margin-right: auto is what holds the shape: this group takes all
+   the spare width on its RIGHT, so it stays at the left while .titlebar-right is pushed to the far end.
 
    Three other arrangements were tried and none survived a maximised window. Centring only these controls
    split one sequence into two with a gap in the middle of it. Centring the menus with them held the run
    dead centre, which measured exactly right and read as a row floating in empty bar. Pushing the whole
-   run to the right edge put every control a screen's width from the mark, which is worse the wider the
-   window gets. Left is where a toolbar goes.
+   run to the right edge put every control a screen's width from the left end, where the eye starts,
+   which is worse the wider the window gets. Left is where a toolbar goes.
 
    .bottombar wears this class too, where it is an ordinary flex row inside the footer's flex layout. */
 .titlebar-actions {
