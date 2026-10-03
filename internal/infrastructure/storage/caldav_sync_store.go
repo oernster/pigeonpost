@@ -12,14 +12,7 @@ import (
 
 // syncedEventUpsertSQL is eventUpsertSQL widened with the CalDAV href and etag columns, so a synced event
 // carries the remote object it came from.
-const syncedEventUpsertSQL = `INSERT INTO event (` + eventColumns + `, href, etag) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-	 ON CONFLICT(id) DO UPDATE SET uid = excluded.uid, calendar_id = excluded.calendar_id,
-	     summary = excluded.summary, description = excluded.description, location = excluded.location,
-	     start_ms = excluded.start_ms, end_ms = excluded.end_ms, all_day = excluded.all_day,
-	     recurrence = excluded.recurrence, extra = excluded.extra, rdate = excluded.rdate,
-	     exdate = excluded.exdate, recurrence_id = excluded.recurrence_id, time_zone = excluded.time_zone,
-	     alarms = excluded.alarms, organizer = excluded.organizer, attendees = excluded.attendees,
-	     category = excluded.category, href = excluded.href, etag = excluded.etag;`
+var syncedEventUpsertSQL = eventUpsert("href", "etag")
 
 // SaveSyncedEvent upserts an event pulled from a CalDAV object, tagging it with the object's href and etag so
 // a later write-back can target the object and guard the write with If-Match. Every event decoded from one
@@ -172,8 +165,8 @@ func setPendingCalendarOpTx(ctx context.Context, tx *sql.Tx, op application.Pend
 	return nil
 }
 
-// CalendarCTag returns a local calendar's last-seen CTag, or the empty string when the calendar is unknown or
-// carries none.
+// CalendarCTag returns a local calendar's last-seen CTag. It returns the empty string when the calendar is
+// unknown or carries none.
 func (s *Store) CalendarCTag(ctx context.Context, calendarID string) (string, error) {
 	var ctag string
 	err := s.db.QueryRowContext(ctx, "SELECT ctag FROM calendar WHERE id = ?;", calendarID).Scan(&ctag)

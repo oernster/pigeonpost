@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/oernster/pigeonpost/internal/domain"
@@ -27,25 +28,40 @@ import (
 // stated, which is the whole complaint about the behaviour this replaces.
 func purgeViaTrash(ctx context.Context, remote MailActions, store folderLister,
 	account domain.Account, folder domain.Folder, uids []string) (bool, error) {
+	handled, _, err := purgeViaTrashReporting(ctx, remote, store, account, folder, uids)
+	return handled, err
+}
+
+// purgeViaTrashReporting is purgeViaTrash that also returns the uids that left folder, so a caller holding
+// cached rows can drop exactly those even when it also reports an error. A move into Trash refused part
+// way still moved what it accepted; those are purged from Trash all the same and counted as gone. A
+// message moved but not located in Trash has also left folder, as has one whose purge there failed: it
+// now sits in Trash, where the next sync lists it, so it counts as gone from folder while the error
+// names it.
+func purgeViaTrashReporting(ctx context.Context, remote MailActions, store folderLister,
+	account domain.Account, folder domain.Folder, uids []string) (bool, []string, error) {
 	if !account.ExpungeArchivesInPlace() || folder.Kind() == domain.FolderTrash {
-		return false, nil
+		return false, nil, nil
 	}
 	trash, ok, err := folderByKind(ctx, store, account.ID(), domain.FolderTrash)
 	if err != nil {
-		return false, fmt.Errorf("resolve trash for a permanent delete in %q: %w", folder.Path(), err)
+		return false, nil, fmt.Errorf("resolve trash for a permanent delete in %q: %w", folder.Path(), err)
 	}
 	if !ok {
-		return false, nil
+		return false, nil, nil
 	}
 
-	moved, err := remote.DeleteMany(ctx, account, folder, uids, trash.Path())
-	if err != nil {
-		return true, fmt.Errorf("move %d message(s) from %q to %q: %w", len(uids), folder.Path(), trash.Path(), err)
+	moved, moveErr := remote.DeleteMany(ctx, account, folder, uids, trash.Path())
+	var errs []error
+	left := landedUIDs(uids, moved, moveErr)
+	if moveErr != nil {
+		errs = append(errs, fmt.Errorf("move message(s) from %q to %q: %d of %d accepted: %w",
+			folder.Path(), trash.Path(), len(left), len(uids), moveErr))
 	}
 
-	inTrash := make([]string, 0, len(uids))
+	inTrash := make([]string, 0, len(left))
 	stranded := 0
-	for _, uid := range uids {
+	for _, uid := range left {
 		if newUID := moved[uid]; newUID != "" {
 			inTrash = append(inTrash, newUID)
 			continue
@@ -54,11 +70,11 @@ func purgeViaTrash(ctx context.Context, remote MailActions, store folderLister,
 	}
 	if len(inTrash) > 0 {
 		if _, err := remote.DeleteMany(ctx, account, trash, inTrash, ""); err != nil {
-			return true, fmt.Errorf("purge %d message(s) from %q: %w", len(inTrash), trash.Path(), err)
+			errs = append(errs, fmt.Errorf("purge %d message(s) from %q: %w", len(inTrash), trash.Path(), err))
 		}
 	}
 	if stranded > 0 {
-		return true, fmt.Errorf("moved %d message(s) to %q that the server did not locate there, so they could not be purged", stranded, trash.Path())
+		errs = append(errs, fmt.Errorf("moved %d message(s) to %q that the server did not locate there, so they could not be purged", stranded, trash.Path()))
 	}
-	return true, nil
+	return true, left, errors.Join(errs...)
 }

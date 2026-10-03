@@ -99,6 +99,41 @@ func (s *Store) GetMessage(ctx context.Context, messageID string) (domain.Messag
 	return msg, nil
 }
 
+// insertMessageRow writes one summary row, the single home of the message table's column list. With
+// ifAbsent set a row whose id already exists is kept and nothing is written (RehomeMessages, which must
+// not overwrite a row a sync wrote first); otherwise an existing id is an error (SaveMessages, which
+// cleared the folder first). It reports whether it wrote a row.
+func insertMessageRow(ctx context.Context, tx *sql.Tx, m domain.MessageSummary, ifAbsent bool) (bool, error) {
+	verb := "INSERT"
+	if ifAbsent {
+		verb = "INSERT OR IGNORE"
+	}
+	display, address := senderColumns(m.From())
+	toJSON, err := marshalAddrs(m.To())
+	if err != nil {
+		return false, fmt.Errorf("encode recipients for %q: %w", m.ID(), err)
+	}
+	ccJSON, err := marshalAddrs(m.Cc())
+	if err != nil {
+		return false, fmt.Errorf("encode cc for %q: %w", m.ID(), err)
+	}
+	result, err := tx.ExecContext(ctx,
+		verb+` INTO message (id, folder_id, uid, message_id, from_display, from_address,
+		        to_json, cc_json, subject, date_ms, size, flags, has_attachments, snippet)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+		m.ID(), m.FolderID(), m.UID(), m.MessageID(), display, address,
+		toJSON, ccJSON, m.Subject(), m.Date().UnixMilli(), m.Size(), int(m.Flags().Raw()),
+		boolToInt(m.HasAttachments()), m.Snippet())
+	if err != nil {
+		return false, fmt.Errorf("insert message %q: %w", m.ID(), err)
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return false, fmt.Errorf("insert message %q: %w", m.ID(), err)
+	}
+	return rows > 0, nil
+}
+
 // SaveMessages replaces the cached message set for a folder in a single transaction, keeping the
 // full-text index in step.
 func (s *Store) SaveMessages(ctx context.Context, folderID string, messages []domain.MessageSummary) error {
@@ -113,23 +148,8 @@ func (s *Store) SaveMessages(ctx context.Context, folderID string, messages []do
 			return fmt.Errorf("clear messages: %w", err)
 		}
 		for _, m := range messages {
-			display, address := senderColumns(m.From())
-			toJSON, err := marshalAddrs(m.To())
-			if err != nil {
-				return fmt.Errorf("encode recipients for %q: %w", m.ID(), err)
-			}
-			ccJSON, err := marshalAddrs(m.Cc())
-			if err != nil {
-				return fmt.Errorf("encode cc for %q: %w", m.ID(), err)
-			}
-			if _, err := tx.ExecContext(ctx,
-				`INSERT INTO message (id, folder_id, uid, message_id, from_display, from_address,
-				        to_json, cc_json, subject, date_ms, size, flags, has_attachments, snippet)
-				 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
-				m.ID(), m.FolderID(), m.UID(), m.MessageID(), display, address,
-				toJSON, ccJSON, m.Subject(), m.Date().UnixMilli(), m.Size(), int(m.Flags().Raw()),
-				boolToInt(m.HasAttachments()), m.Snippet()); err != nil {
-				return fmt.Errorf("insert message %q: %w", m.ID(), err)
+			if _, err := insertMessageRow(ctx, tx, m, false); err != nil {
+				return err
 			}
 		}
 		// Index the replaced folder in one pass from the searchable-text view. A replaced message whose

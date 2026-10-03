@@ -11,6 +11,7 @@ import {useContactPool} from '../hooks/useContactPool'
 import {ModalClose} from './ModalClose'
 import {ConfirmDialog} from './ConfirmDialog'
 import {normaliseUrl} from '../composeAddresses'
+import {hasComposedContent} from '../composeContent'
 import {useLinkEditor} from '../hooks/useLinkEditor'
 import {useDraftAutosave} from '../hooks/useDraftAutosave'
 import {useSeparatorCorrection} from '../hooks/useSeparatorCorrection'
@@ -182,11 +183,15 @@ export function ComposeModal({accountId, senders, initial, canSaveDraft, onMarkR
     // lose a message. An untouched or emptied-out compose closes at once. Send and Save draft call
     // onClose directly, having preserved the message.
     const [confirmDiscard, setConfirmDiscard] = useState(false)
-    const composedContent = () =>
-        to.trim() !== '' || cc.trim() !== '' || bcc.trim() !== '' || subject.trim() !== '' ||
-        (editor?.getText() ?? '').trim() !== ''
+    const composedContent = () => hasComposedContent({
+        to, cc, bcc, subject, bodyText: editor?.getText() ?? '', bodyHtml: editor?.getHTML() ?? '',
+        attachmentCount: attachments.length + intake.dataAttachments.length + messageAttachments.length,
+    })
+    // Files picked by path (in this window or by the Attach button before it opened) are held nowhere
+    // else, yet picking one is not an edit the autosave records, so they guard the window as an edit does.
+    const touched = () => autosave.isDirty() || attachments.length > 0
     const requestClose = () => {
-        if (!autosave.isDirty()) {
+        if (!touched()) {
             // Nothing was ever written for this compose, so there is no snapshot of it to clear. It is
             // left alone rather than cleared anyway: the recovery slot is a single slot, so clearing it
             // here would throw away a snapshot left by an earlier session that the user has not yet
@@ -212,10 +217,14 @@ export function ComposeModal({accountId, senders, initial, canSaveDraft, onMarkR
     // half later, whether or not the user typed anything themselves.
     //
     // Stopping the autosave first is the other half. The snapshot is debounced, so one already scheduled
-    // would otherwise land after the clear and write the slot straight back.
+    // would otherwise land after the clear and write the slot straight back. A compose that never wrote a
+    // snapshot (one holding only pre-picked files) has none to clear, so the slot is left alone for the same
+    // reason requestClose gives above.
     const discard = () => {
         autosave.stopAutosave()
-        void api.clearDraftRecovery()
+        if (autosave.isDirty()) {
+            void api.clearDraftRecovery()
+        }
         onClose()
     }
     const dismiss = useBackdropDismiss(requestClose)

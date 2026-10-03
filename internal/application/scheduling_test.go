@@ -102,6 +102,7 @@ type schedFixture struct {
 	svc       *SchedulingService
 	codec     *fakeSchedulingCodec
 	calendar  *fakeCalendarStore
+	sync      *fakeSyncStore
 	messages  *fakeMailStore
 	accounts  *fakeAccountStore
 	transport *fakeMailTransport
@@ -129,18 +130,22 @@ func newSchedFixture(t *testing.T, sched domain.SchedulingMessage) *schedFixture
 
 	accounts.accounts["a1"] = testAccount(t, "a1")
 	messages.folders["a1"] = []domain.Folder{testFolder(t, "f1", "a1", "INBOX"), sentFolder(t, "a1", "Sent")}
-	messages.messages["f1"] = []domain.MessageSummary{testMessage(t, "m1", "f1")}
+	messages.messages["f1"] = []domain.MessageSummary{schedMailFrom(t, "m1", "f1", schedOrganizer)}
 	body, err := domain.NewMessageBody("m1", "", "")
 	if err != nil {
 		t.Fatalf("body: %v", err)
 	}
 	messages.bodies["m1"] = body.WithInvite([]byte("BEGIN:VCALENDAR\r\nEND:VCALENDAR\r\n"))
 
+	// The fixture's sync store maps no event to a CalDAV object, so every meeting is saved as a local one
+	// unless a test seeds an identity.
+	sync := &fakeSyncStore{}
 	return &schedFixture{
-		svc: NewSchedulingService(codec, calendar, messages, accounts, transport, sent, outbox,
+		svc: NewSchedulingService(codec, calendar, sync, messages, accounts, transport, sent, outbox,
 			fakeClock{now: time.Unix(0, 0).UTC()}, func() string { return "sched-q1" }),
 		codec:     codec,
 		calendar:  calendar,
+		sync:      sync,
 		messages:  messages,
 		accounts:  accounts,
 		transport: transport,
@@ -150,6 +155,23 @@ func newSchedFixture(t *testing.T, sched domain.SchedulingMessage) *schedFixture
 }
 
 const me = "user@example.com"
+
+// schedOrganizer is the organiser the fixtures' meetings name and the sender of the fixture's message m1, so
+// a CANCEL or an updated REQUEST in the fixture comes from the party entitled to send it.
+const schedOrganizer = "chair@example.com"
+
+// schedMailFrom builds a cached message summary sent from the given address, the From line the scheduling
+// trust check compares against the meeting's organiser.
+func schedMailFrom(t *testing.T, id, folderID, from string) domain.MessageSummary {
+	t.Helper()
+	msg, err := domain.NewMessageSummary(domain.MessageSummaryInput{
+		ID: id, FolderID: folderID, UID: "1", Size: 10, Flags: domain.NewFlags(0), From: schedAddr(t, from),
+	})
+	if err != nil {
+		t.Fatalf("build message: %v", err)
+	}
+	return msg
+}
 
 func TestInvitationResolvesForDisplay(t *testing.T) {
 	event := schedMeeting(t, "m1", "chair@example.com", time.Time{}, me, "other@example.com")
@@ -412,6 +434,7 @@ func TestApplyReplyUpdatesAttendeeStatus(t *testing.T) {
 	reply := schedMeeting(t, "m1", "chair@example.com", time.Time{}, "guest@example.com")
 	reply = withStatus(reply, schedAddr(t, "guest@example.com"), domain.PartStatAccepted)
 	f := newSchedFixture(t, schedMessage(t, domain.MethodReply, reply))
+	f.sendFrom(t, "guest@example.com")
 	f.calendar.events = []domain.Event{schedMeeting(t, "m1", "chair@example.com", time.Time{}, "guest@example.com")}
 
 	if err := f.svc.ApplyReply(context.Background(), "m1"); err != nil {
@@ -426,11 +449,14 @@ func TestApplyReplyUpdatesAttendeeStatus(t *testing.T) {
 }
 
 func TestApplyReplyAddsUnlistedResponder(t *testing.T) {
-	// The reply comes from an address the stored meeting does not list (a delegate, or a guest answering
-	// from a different mailbox than the one invited). The response must land, not vanish.
+	// The reply names an attendee the stored meeting does not list (a guest answering from a different
+	// mailbox than the one invited) and comes from that attendee's own address, so it speaks for itself.
+	// The response must land, not vanish. A reply sent on someone else's behalf is refused instead (see
+	// TestApplyIncomingReplyFromAnotherSenderChangesNothing).
 	reply := withStatus(schedMeeting(t, "m1", "chair@example.com", time.Time{}, "delegate@example.com"),
 		schedAddr(t, "delegate@example.com"), domain.PartStatAccepted)
 	f := newSchedFixture(t, schedMessage(t, domain.MethodReply, reply))
+	f.sendFrom(t, "delegate@example.com")
 	f.calendar.events = []domain.Event{schedMeeting(t, "m1", "chair@example.com", time.Time{}, "guest@example.com")}
 
 	if err := f.svc.ApplyReply(context.Background(), "m1"); err != nil {
@@ -458,6 +484,7 @@ func TestApplyReplySeriesUpdatesMasterAndOverrides(t *testing.T) {
 	reply := withStatus(schedMeeting(t, "m1", "chair@example.com", time.Time{}, "guest@example.com"),
 		schedAddr(t, "guest@example.com"), domain.PartStatAccepted)
 	f := newSchedFixture(t, schedMessage(t, domain.MethodReply, reply))
+	f.sendFrom(t, "guest@example.com")
 	f.calendar.events = []domain.Event{
 		schedMeeting(t, "m1", "chair@example.com", time.Time{}, "guest@example.com"),
 		schedMeeting(t, "m1", "chair@example.com", occurrence, "guest@example.com"),
@@ -482,6 +509,7 @@ func TestApplyReplyOccurrenceUpdatesOnlyThatOverride(t *testing.T) {
 	reply := withStatus(schedMeeting(t, "m1", "chair@example.com", occurrence, "guest@example.com"),
 		schedAddr(t, "guest@example.com"), domain.PartStatDeclined)
 	f := newSchedFixture(t, schedMessage(t, domain.MethodReply, reply))
+	f.sendFrom(t, "guest@example.com")
 	f.calendar.events = []domain.Event{
 		schedMeeting(t, "m1", "chair@example.com", time.Time{}, "guest@example.com"),
 		schedMeeting(t, "m1", "chair@example.com", occurrence, "guest@example.com"),
@@ -516,6 +544,7 @@ func TestApplyReplyListError(t *testing.T) {
 	reply := withStatus(schedMeeting(t, "m1", "chair@example.com", time.Time{}, "guest@example.com"),
 		schedAddr(t, "guest@example.com"), domain.PartStatDeclined)
 	f := newSchedFixture(t, schedMessage(t, domain.MethodReply, reply))
+	f.sendFrom(t, "guest@example.com")
 	f.calendar.listEvtErr = errBoom
 	if err := f.svc.ApplyReply(context.Background(), "m1"); !errors.Is(err, errBoom) {
 		t.Errorf("error = %v, want wrapped boom", err)
@@ -526,6 +555,7 @@ func TestApplyReplySaveError(t *testing.T) {
 	reply := withStatus(schedMeeting(t, "m1", "chair@example.com", time.Time{}, "guest@example.com"),
 		schedAddr(t, "guest@example.com"), domain.PartStatDeclined)
 	f := newSchedFixture(t, schedMessage(t, domain.MethodReply, reply))
+	f.sendFrom(t, "guest@example.com")
 	f.calendar.events = []domain.Event{schedMeeting(t, "m1", "chair@example.com", time.Time{}, "guest@example.com")}
 	f.calendar.saveEvtErr = errBoom
 	if err := f.svc.ApplyReply(context.Background(), "m1"); !errors.Is(err, errBoom) {
@@ -537,6 +567,7 @@ func TestApplyReplyNoMatch(t *testing.T) {
 	reply := withStatus(schedMeeting(t, "m1", "chair@example.com", time.Time{}, "guest@example.com"),
 		schedAddr(t, "guest@example.com"), domain.PartStatDeclined)
 	f := newSchedFixture(t, schedMessage(t, domain.MethodReply, reply))
+	f.sendFrom(t, "guest@example.com")
 	// A stored meeting with a different UID does not match the reply.
 	f.calendar.events = []domain.Event{schedMeeting(t, "other", "chair@example.com", time.Time{}, "guest@example.com")}
 	if err := f.svc.ApplyReply(context.Background(), "m1"); !errors.Is(err, ErrMeetingNotFound) {

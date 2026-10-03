@@ -2,6 +2,7 @@ package imap
 
 import (
 	"bufio"
+	"fmt"
 	"net"
 	"strings"
 	"sync"
@@ -28,6 +29,26 @@ type script struct {
 	// extraCaps is appended to the advertised capabilities (after IMAP4rev1), so a test can offer MOVE;
 	// without it the client falls back to COPY, STORE \Deleted and EXPUNGE.
 	extraCaps string
+	// uidValidity, when set, is the UIDVALIDITY the SELECT answer reports; otherwise defaultUIDValidity.
+	uidValidity uint32
+	// empty makes the SELECT answer report a folder holding no messages.
+	empty bool
+}
+
+// defaultUIDValidity is the UIDVALIDITY a script that sets none reports.
+const defaultUIDValidity uint32 = 1
+
+// selectAnswer is the untagged part of the SELECT reply the script describes.
+func (s script) selectAnswer() []string {
+	validity := s.uidValidity
+	if validity == 0 {
+		validity = defaultUIDValidity
+	}
+	exists := "* 1 EXISTS"
+	if s.empty {
+		exists = "* 0 EXISTS"
+	}
+	return []string{exists, fmt.Sprintf("* OK [UIDVALIDITY %d] ok", validity), "* OK [UIDNEXT 2] ok"}
 }
 
 // commandLog collects the command lines a fake server received. The server runs on its own goroutine,
@@ -93,7 +114,7 @@ func fakeIMAPServer(conn net.Conn, s script) {
 			}
 			write(tag + " OK logged in")
 		case "SELECT", "EXAMINE":
-			write("* 1 EXISTS", "* OK [UIDVALIDITY 1] ok", "* OK [UIDNEXT 2] ok", tag+" OK [READ-ONLY] selected")
+			write(append(s.selectAnswer(), tag+" OK [READ-ONLY] selected")...)
 		case "FETCH", "UID":
 			response := "* 1 FETCH (UID 7 FLAGS (\\Seen) RFC822.SIZE 100 " +
 				"ENVELOPE (NIL \"Greetings\" NIL NIL NIL NIL NIL NIL NIL NIL)"

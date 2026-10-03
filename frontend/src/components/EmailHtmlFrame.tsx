@@ -1,9 +1,10 @@
 import {useEffect, useRef} from 'react'
 
 import {applyEmailColorTreatment} from './emailDarkMode'
+import {emailContentSecurityPolicyMeta} from '../emailContentPolicy'
 
 // The email renders on a paper surface with readable defaults. The message is pinned to the light colour
-// scheme (see FRAME_COLOR_SCHEME) so it always renders in the one design its author finished, and the
+// scheme (see FRAME_COLOR_SCHEME) so it always renders in the one design its author finished; the
 // document is then coloured for the app's theme element by element (see emailDarkMode). These are the design
 // tokens for the paper, named rather than inlined so the base stylesheet carries no bare magic numbers.
 const PAPER_BACKGROUND = '#ffffff'
@@ -46,13 +47,8 @@ const baseStyle =
     'a.pp-solo-link{display:inline-block;margin:4px 0;padding:9px 20px;border-radius:18px;' +
     'background:#2f6fed;color:#ffffff;text-decoration:none;font-weight:600;}'
 
-// The iframe is the security boundary. Its Content-Security-Policy grants no script-src (so no JavaScript runs
-// even if some slipped past the sanitiser), blocks every default source and permits only inline styles, data:
-// fonts plus data: images. It never allows a remote http/https image: a message's remote images are fetched
-// server-side and inlined as data: URIs before they reach the frame (see the LoadRemoteImages proxy), so the
-// frame makes no remote request at all and cannot leak that a message was opened, even for an image whose
-// server-side fetch failed and stayed parked.
-const CONTENT_SECURITY_POLICY = "default-src 'none'; style-src 'unsafe-inline'; img-src data:; font-src data:;"
+// The iframe is the security boundary. Its Content-Security-Policy lives in emailContentPolicy, shared with
+// the print frame so a printed message is held to exactly the reader's rules; see there for what it allows.
 
 // LINK_SCHEMES are the URL schemes a link inside the email may open externally; any other scheme is ignored.
 const LINK_SCHEMES = ['http:', 'https:', 'mailto:']
@@ -79,7 +75,7 @@ interface EmailHtmlFrameProps {
 function buildFrameDocument(html: string): string {
     return '<!doctype html><html><head><meta charset="utf-8">' +
         `<meta name="color-scheme" content="${FRAME_COLOR_SCHEME}">` +
-        `<meta http-equiv="Content-Security-Policy" content="${CONTENT_SECURITY_POLICY}">` +
+        emailContentSecurityPolicyMeta +
         `<style>${baseStyle}</style></head><body>${html}</body></html>`
 }
 
@@ -104,7 +100,7 @@ function resizeToContent(frame: HTMLIFrameElement) {
 // allow-same-origin plus allow-scripts and nothing else: popups, top navigation, forms and downloads all stay
 // blocked. allow-same-origin is what lets the parent read the frame's height and intercept its link clicks
 // directly. allow-scripts is not there so email scripts can run: the CSP grants no script-src, so no script
-// inside the document can ever execute, and the sanitiser has already stripped scripts server-side. It is
+// inside the document can ever execute; the sanitiser has already stripped scripts server-side. It is
 // there because WebKit (WKWebView on macOS, WebKitGTK on Linux) refuses to dispatch event listeners inside a
 // scripts-disabled browsing context, including listeners the parent registered on the frame's document, so
 // with a scriptless sandbox the click handler never ran and a link click did nothing. Chromium keys the same

@@ -22,6 +22,21 @@ export function emptyCalDAVAccountForm(): CalDAVAccountForm {
 // echo of the domain's NewCalendarAccount check, so a bad address is caught before the backend call.
 const BASE_URL_SCHEME = /^https?:\/\//i
 
+// INSECURE_URL_SCHEME matches a plain http:// address, the client echo of the domain's IsInsecureCalendarURL.
+const INSECURE_URL_SCHEME = /^http:\/\//i
+
+// INSECURE_URL_WARNING is shown under the server address when it is plain http://. It warns rather than
+// blocks, since a calendar server on the user's own machine or network is a real setup.
+export const INSECURE_URL_WARNING =
+    'This address is not encrypted (http://), so your password travels unencrypted to the server. ' +
+    'Use https:// unless the server is on your own machine or network.'
+
+// isInsecureCalDAVUrl reports whether a server address is plain http://, over which the password is sent
+// unencrypted. Surrounding space is ignored, as the add trims it.
+export function isInsecureCalDAVUrl(baseUrl: string): boolean {
+    return INSECURE_URL_SCHEME.test(baseUrl.trim())
+}
+
 // validateCalDAVAccountForm returns a human-readable problem with the form or an empty string when the form
 // is ready to submit. The checks and their order mirror the domain's NewCalendarAccount so the client and
 // the backend agree on what a valid account is; the password check is additional, as the domain holds no

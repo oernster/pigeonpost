@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/oernster/pigeonpost/internal/application"
 	"github.com/oernster/pigeonpost/internal/domain"
 )
 
@@ -141,6 +142,100 @@ func TestFolderBaselineFreshDatabaseMarksNothing(t *testing.T) {
 	}
 	if baselined {
 		t.Error("a folder on a fresh database read as baselined, so a new account could be emptied")
+	}
+}
+
+// The UIDVALIDITY record is part of the MailStore port; a drifted signature is a build failure here.
+var _ application.MailStore = (*Store)(nil)
+
+// The UIDVALIDITY values the record tests write: a first value and the one a renumbering replaces it with.
+const (
+	firstValidity  uint32 = 7
+	secondValidity uint32 = 9
+)
+
+// readValidity reads a folder's stored UIDVALIDITY or fails the test.
+func readValidity(t *testing.T, store *Store, folderID string) (uint32, bool) {
+	t.Helper()
+	validity, ok, err := store.FolderUIDValidity(context.Background(), folderID)
+	if err != nil {
+		t.Fatalf("read UIDVALIDITY %q: %v", folderID, err)
+	}
+	return validity, ok
+}
+
+// TestFolderUIDValidityStartsUnsetThenRecords covers the record: a folder synced never before has none
+// (a first sight, not a change), a recorded value reads back, a later value replaces it and one
+// folder's value never answers for another.
+func TestFolderUIDValidityStartsUnsetThenRecords(t *testing.T) {
+	ctx := context.Background()
+	store := openTestStore(t)
+
+	if _, ok := readValidity(t, store, "f1"); ok {
+		t.Fatal("an unsynced folder reported a stored UIDVALIDITY, so its first sync would read as a renumbering")
+	}
+	for _, want := range []uint32{firstValidity, secondValidity} {
+		if err := store.SetFolderUIDValidity(ctx, "f1", want); err != nil {
+			t.Fatalf("record UIDVALIDITY %d: %v", want, err)
+		}
+		if got, ok := readValidity(t, store, "f1"); !ok || got != want {
+			t.Errorf("UIDVALIDITY = %d (stored %v), want %d", got, ok, want)
+		}
+	}
+	if _, ok := readValidity(t, store, "f2"); ok {
+		t.Error("recording one folder's UIDVALIDITY recorded another's")
+	}
+}
+
+// TestFolderUIDValiditySurvivesAFolderRewrite pins why the value is not a column on the folder row:
+// SaveFolders rewrites every folder each sync; a lost value would make every pass a first sight.
+func TestFolderUIDValiditySurvivesAFolderRewrite(t *testing.T) {
+	ctx := context.Background()
+	store := openTestStore(t)
+	if err := store.SaveFolders(ctx, "a1", []domain.Folder{freshInbox(t)}); err != nil {
+		t.Fatalf("save folders: %v", err)
+	}
+	if err := store.SetFolderUIDValidity(ctx, "f1", firstValidity); err != nil {
+		t.Fatalf("record UIDVALIDITY: %v", err)
+	}
+	if err := store.SaveFolders(ctx, "a1", []domain.Folder{freshInbox(t)}); err != nil {
+		t.Fatalf("re-save folders: %v", err)
+	}
+	if got, ok := readValidity(t, store, "f1"); !ok || got != firstValidity {
+		t.Errorf("UIDVALIDITY after a folder rewrite = %d (stored %v), want %d", got, ok, firstValidity)
+	}
+}
+
+// TestFolderUIDValidityMigrationIsIdempotent re-runs schemaV58 over a migrated database. Steps run
+// outside a transaction, so a step interrupted part way must be safe to run again; it must also keep
+// the values already recorded.
+func TestFolderUIDValidityMigrationIsIdempotent(t *testing.T) {
+	ctx := context.Background()
+	store := openTestStore(t)
+	if err := store.SetFolderUIDValidity(ctx, "f1", firstValidity); err != nil {
+		t.Fatalf("record UIDVALIDITY: %v", err)
+	}
+	if _, err := store.db.ExecContext(ctx, schemaV58); err != nil {
+		t.Fatalf("re-run schemaV58: %v", err)
+	}
+	if got, ok := readValidity(t, store, "f1"); !ok || got != firstValidity {
+		t.Errorf("UIDVALIDITY after re-running the step = %d (stored %v), want %d", got, ok, firstValidity)
+	}
+}
+
+// TestFolderUIDValidityReportsAFailedStore pins that a store that cannot be read or written says so,
+// so the sync stops the folder rather than guessing whether it was renumbered.
+func TestFolderUIDValidityReportsAFailedStore(t *testing.T) {
+	ctx := context.Background()
+	store := openTestStore(t)
+	if err := store.Close(); err != nil {
+		t.Fatalf("close: %v", err)
+	}
+	if _, _, err := store.FolderUIDValidity(ctx, "f1"); err == nil {
+		t.Error("a read from a closed store reported no error")
+	}
+	if err := store.SetFolderUIDValidity(ctx, "f1", firstValidity); err == nil {
+		t.Error("a write to a closed store reported no error")
 	}
 }
 

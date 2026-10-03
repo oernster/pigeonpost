@@ -57,11 +57,6 @@ func (r *Router) FetchFolders(ctx context.Context, account domain.Account) ([]do
 	return r.sourceFor(account).FetchFolders(ctx, account)
 }
 
-// FetchMessages delegates to the account's protocol adapter.
-func (r *Router) FetchMessages(ctx context.Context, account domain.Account, folder domain.Folder) ([]domain.MessageSummary, error) {
-	return r.sourceFor(account).FetchMessages(ctx, account, folder)
-}
-
 // FetchBody delegates to the account's protocol adapter.
 func (r *Router) FetchBody(ctx context.Context, account domain.Account, folder domain.Folder, uid string) (string, string, []byte, []domain.Attachment, error) {
 	return r.sourceFor(account).FetchBody(ctx, account, folder, uid)

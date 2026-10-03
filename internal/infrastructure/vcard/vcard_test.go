@@ -34,7 +34,7 @@ func TestRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Encode: %v", err)
 	}
-	got, err := New().Decode(data)
+	got, _, err := New().DecodeImport(data)
 	if err != nil {
 		t.Fatalf("Decode: %v", err)
 	}
@@ -75,7 +75,7 @@ func TestDecodeSkipsEmptyAddress(t *testing.T) {
 		"BEGIN:VCARD", "VERSION:4.0", "UID:a1", "FN:Has Address",
 		"ADR:;;;;;;", "ADR;TYPE=home:;;1 High St;London;;E1 1AA;UK", "END:VCARD",
 	)
-	got, err := New().Decode(data)
+	got, _, err := New().DecodeImport(data)
 	if err != nil {
 		t.Fatalf("Decode: %v", err)
 	}
@@ -90,7 +90,7 @@ func TestDecodeThunderbirdStyleCard(t *testing.T) {
 		"EMAIL;TYPE=work:amy@example.com", "TEL;TYPE=cell:555-0100", "ORG:Tardis", "TITLE:Companion",
 		"NOTE:hello", "END:VCARD",
 	)
-	got, err := New().Decode(data)
+	got, _, err := New().DecodeImport(data)
 	if err != nil {
 		t.Fatalf("Decode: %v", err)
 	}
@@ -115,7 +115,7 @@ func TestDecodeThunderbirdStyleCard(t *testing.T) {
 
 func TestDecodeNoUIDGeneratesID(t *testing.T) {
 	data := card("BEGIN:VCARD", "VERSION:4.0", "FN:No Uid", "N:Uid;No;;;", "END:VCARD")
-	got, err := New().Decode(data)
+	got, _, err := New().DecodeImport(data)
 	if err != nil {
 		t.Fatalf("Decode: %v", err)
 	}
@@ -132,7 +132,7 @@ func TestDecodeSkipsInvalidEmail(t *testing.T) {
 		"BEGIN:VCARD", "VERSION:4.0", "UID:x1", "FN:Bad Email",
 		"EMAIL:not-an-email", "EMAIL;TYPE=work:good@example.com", "END:VCARD",
 	)
-	got, err := New().Decode(data)
+	got, _, err := New().DecodeImport(data)
 	if err != nil {
 		t.Fatalf("Decode: %v", err)
 	}
@@ -142,20 +142,20 @@ func TestDecodeSkipsInvalidEmail(t *testing.T) {
 }
 
 func TestDecodeMalformedReturnsError(t *testing.T) {
-	if _, err := New().Decode([]byte("BEGIN:VCARD\r\nnocolonhere\r\n")); err == nil {
+	if _, _, err := New().DecodeImport([]byte("BEGIN:VCARD\r\nnocolonhere\r\n")); err == nil {
 		t.Errorf("expected a decode error for a malformed card")
 	}
 }
 
 func TestDecodeEmptyIsNoContacts(t *testing.T) {
-	got, err := New().Decode(nil)
+	got, _, err := New().DecodeImport(nil)
 	if err != nil || len(got) != 0 {
-		t.Errorf("Decode(nil) = %v, %v; want no contacts and no error", got, err)
+		t.Errorf("DecodeImport(nil) = %v, %v; want no contacts and no error", got, err)
 	}
 }
 
 func TestEncodeMinimalContactRoundTrips(t *testing.T) {
-	// No organisation, title or note, and an email with no label: exercises the "omit empty field"
+	// No organisation, title or note; an email with no label. This exercises the "omit empty field"
 	// and "no TYPE parameter" paths.
 	email, _ := domain.NewContactEmail("", "min@example.com")
 	c, err := domain.NewContact(domain.ContactInput{
@@ -168,7 +168,7 @@ func TestEncodeMinimalContactRoundTrips(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Encode: %v", err)
 	}
-	got, err := New().Decode(data)
+	got, _, err := New().DecodeImport(data)
 	if err != nil || len(got) != 1 {
 		t.Fatalf("Decode = %v, %v", got, err)
 	}
@@ -181,18 +181,9 @@ func TestEncodeMinimalContactRoundTrips(t *testing.T) {
 	}
 }
 
-func TestDecodeNamelessCardErrors(t *testing.T) {
-	// A card with neither FN nor N cannot form a valid contact, so the decode fails rather than
-	// silently dropping it.
-	data := card("BEGIN:VCARD", "VERSION:4.0", "UID:x9", "END:VCARD")
-	if _, err := New().Decode(data); err == nil {
-		t.Errorf("expected an error decoding a nameless card")
-	}
-}
-
 func TestDecodeSkipsEmptyPhone(t *testing.T) {
 	data := card("BEGIN:VCARD", "VERSION:4.0", "UID:p1", "FN:Has Phone", "TEL:", "TEL;TYPE=cell:555", "END:VCARD")
-	got, err := New().Decode(data)
+	got, _, err := New().DecodeImport(data)
 	if err != nil {
 		t.Fatalf("Decode: %v", err)
 	}

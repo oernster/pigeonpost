@@ -52,18 +52,39 @@ func (s *Store) DeleteCalendar(ctx context.Context, id string) error {
 	})
 }
 
-const eventColumns = "id, uid, calendar_id, summary, description, location, start_ms, end_ms, all_day, recurrence, extra, rdate, exdate, recurrence_id, time_zone, alarms, organizer, attendees, category"
+// eventKeyColumn is the event table's primary key, the column every upsert resolves its conflict on.
+const eventKeyColumn = "id"
 
-// eventUpsertSQL inserts or updates one event by id across the eventColumns. SaveSyncedEvent uses a wider
+// eventColumnList is the one home of the event row's shape, in the order eventInsertArgs supplies values
+// and scanEvent reads them. The key column comes first. Every SELECT list, upsert and placeholder list is
+// derived from it, so a new column is added here and nowhere else in the SQL.
+var eventColumnList = []string{
+	eventKeyColumn, "uid", "calendar_id", "summary", "description", "location", "start_ms", "end_ms", "all_day",
+	"recurrence", "extra", "rdate", "exdate", "recurrence_id", "time_zone", "alarms", "organizer", "attendees",
+	"category", "sequence",
+}
+
+// eventColumns is eventColumnList as a SELECT list.
+var eventColumns = strings.Join(eventColumnList, ", ")
+
+// eventUpsert builds the insert-or-update of one event by id across eventColumnList plus any extra columns
+// (the CalDAV href and etag of a synced event), updating every non-key column on a conflict.
+func eventUpsert(extra ...string) string {
+	columns := append(append([]string(nil), eventColumnList...), extra...)
+	updates := make([]string, 0, len(columns))
+	for _, c := range columns {
+		if c != eventKeyColumn {
+			updates = append(updates, c+" = excluded."+c)
+		}
+	}
+	placeholders := strings.TrimSuffix(strings.Repeat("?, ", len(columns)), ", ")
+	return "INSERT INTO event (" + strings.Join(columns, ", ") + ") VALUES (" + placeholders + ")" +
+		" ON CONFLICT(" + eventKeyColumn + ") DO UPDATE SET " + strings.Join(updates, ", ") + ";"
+}
+
+// eventUpsertSQL inserts or updates one event by id across the event columns. SaveSyncedEvent uses a wider
 // variant that also carries the CalDAV href and etag (see caldav_sync_store.go).
-const eventUpsertSQL = `INSERT INTO event (` + eventColumns + `) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-	 ON CONFLICT(id) DO UPDATE SET uid = excluded.uid, calendar_id = excluded.calendar_id,
-	     summary = excluded.summary, description = excluded.description, location = excluded.location,
-	     start_ms = excluded.start_ms, end_ms = excluded.end_ms, all_day = excluded.all_day,
-	     recurrence = excluded.recurrence, extra = excluded.extra, rdate = excluded.rdate,
-	     exdate = excluded.exdate, recurrence_id = excluded.recurrence_id, time_zone = excluded.time_zone,
-	     alarms = excluded.alarms, organizer = excluded.organizer, attendees = excluded.attendees,
-	     category = excluded.category;`
+var eventUpsertSQL = eventUpsert()
 
 // eventInsertArgs builds the ordered argument list for the eventColumns, shared by SaveEvent and (with the
 // href and etag appended) SaveSyncedEvent so the encoding of times, alarms, organiser and attendees lives in
@@ -89,7 +110,7 @@ func eventInsertArgs(e domain.Event) ([]any, error) {
 		e.ID(), e.UID(), e.CalendarID(), e.Summary(), e.Description(), e.Location(),
 		e.Start().UnixMilli(), endMs, boolToInt(e.AllDay()), e.Recurrence(), e.Extra(),
 		encodeTimes(e.RDates()), encodeTimes(e.ExDates()), recurrenceIDMs, e.TimeZone(), encodeAlarms(e.Alarms()),
-		organizer, attendees, e.Category(),
+		organizer, attendees, e.Category(), e.Sequence(),
 	}, nil
 }
 
@@ -135,11 +156,11 @@ func scanEvent(row scanner) (domain.Event, error) {
 		id, uid, calendarID, summary, description, location, category, recurrence, extra, rdate, exdate, timeZone, alarms string
 		organizer, attendees                                                                                              string
 		startMs, endMs, recurrenceIDMs                                                                                    int64
-		allDay                                                                                                            int
+		allDay, sequence                                                                                                  int
 	)
 	if err := row.Scan(&id, &uid, &calendarID, &summary, &description, &location,
 		&startMs, &endMs, &allDay, &recurrence, &extra, &rdate, &exdate, &recurrenceIDMs, &timeZone, &alarms,
-		&organizer, &attendees, &category); err != nil {
+		&organizer, &attendees, &category, &sequence); err != nil {
 		return domain.Event{}, fmt.Errorf("scan event: %w", err)
 	}
 	alarmList, err := decodeAlarms(alarms)
@@ -185,6 +206,7 @@ func scanEvent(row scanner) (domain.Event, error) {
 		RDates:       rdates,
 		ExDates:      exdates,
 		RecurrenceID: recurrenceID,
+		Sequence:     sequence,
 		TimeZone:     timeZone,
 		Alarms:       alarmList,
 		Extra:        extra,

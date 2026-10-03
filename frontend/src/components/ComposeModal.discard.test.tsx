@@ -30,6 +30,13 @@ vi.mock('../api', async () => {
     return {...actual, api: buildApiStubs(actual, apiSpies as unknown as Record<string, unknown>, unstubbedCalls)}
 })
 
+// editorState lets a test give the stub editor a body (such as a lone pasted image, which has no text)
+// and fire the editor's own onUpdate, the way a real paste into the body marks the compose edited.
+const editorState = vi.hoisted(() => ({
+    html: '<p></p>',
+    onUpdate: (() => {}) as () => void,
+}))
+
 vi.mock('@tiptap/react', () => {
     const chain = () => {
         const c: Record<string, () => unknown> = {}
@@ -44,12 +51,15 @@ vi.mock('@tiptap/react', () => {
     const editor = {
         isActive: () => false,
         getText: () => '',
-        getHTML: () => '<p></p>',
+        getHTML: () => editorState.html,
         getAttributes: () => ({}),
         chain,
     }
     return {
-        useEditor: () => editor,
+        useEditor: (options: {onUpdate: () => void}) => {
+            editorState.onUpdate = options.onUpdate
+            return editor
+        },
         EditorContent: () => null,
     }
 })
@@ -90,6 +100,7 @@ const discardDialog = () => screen.queryByRole('alertdialog', {name: 'Discard me
 
 beforeEach(() => {
     vi.useFakeTimers()
+    editorState.html = '<p></p>'
     apiSpies.send.mockReset().mockResolvedValue('')
     apiSpies.saveDraft.mockReset().mockResolvedValue(undefined)
     apiSpies.clearDraftRecovery.mockReset().mockResolvedValue(undefined)
@@ -168,6 +179,53 @@ describe('ComposeModal: discard guard', () => {
         const subject = screen.getByText('Subject').parentElement!.querySelector('input')!
         fireEvent.change(subject, {target: {value: 'Half-written thought'}})
         fireEvent.keyDown(document, {key: 'Escape'})
+        expect(discardDialog()).toBeInTheDocument()
+        expect(onClose).not.toHaveBeenCalled()
+    })
+})
+
+// Files and images are content too. The guard once weighed only the address fields, the subject and
+// the body text, so a compose holding nothing but attached files or a pasted image closed on Cancel
+// without a word and the files went with it (audit P-11, measured by Vitest).
+describe('ComposeModal: discard guard over files and images', () => {
+    const cancelButton = () => {
+        const dialog = screen.getByRole('dialog', {name: 'New message'})
+        return Array.from(dialog.querySelectorAll('button')).find((b) => b.textContent === 'Cancel')!
+    }
+
+    it('asks before Cancel discards a compose holding only picked files', async () => {
+        apiSpies.pickAttachments.mockResolvedValue(['C:/docs/report.pdf'])
+        const {onClose} = renderCompose()
+        await act(async () => {
+            fireEvent.click(screen.getByRole('button', {name: 'Attach files'}))
+        })
+        fireEvent.click(cancelButton())
+        expect(discardDialog()).toBeInTheDocument()
+        expect(onClose).not.toHaveBeenCalled()
+    })
+
+    it('asks before Cancel discards files the Attach button picked before the compose opened', () => {
+        const {onClose} = renderCompose({initial: {attachmentPaths: ['C:/docs/report.pdf']}})
+        fireEvent.click(cancelButton())
+        expect(discardDialog()).toBeInTheDocument()
+        expect(onClose).not.toHaveBeenCalled()
+    })
+
+    // Nothing was ever snapshotted for a compose that only holds pre-picked files, so agreeing to the
+    // discard must leave the single recovery slot alone, as an untouched compose does.
+    it('leaves the recovery slot alone when discarding pre-picked files only', () => {
+        const {onClose} = renderCompose({initial: {attachmentPaths: ['C:/docs/report.pdf']}})
+        fireEvent.click(cancelButton())
+        fireEvent.click(screen.getByRole('button', {name: 'Discard'}))
+        expect(onClose).toHaveBeenCalled()
+        expect(apiSpies.clearDraftRecovery).not.toHaveBeenCalled()
+    })
+
+    it('asks before Cancel discards a body holding only a pasted image', () => {
+        const {onClose} = renderCompose()
+        editorState.html = '<p><img src="data:image/png;base64,AAAA"></p>'
+        act(() => editorState.onUpdate())
+        fireEvent.click(cancelButton())
         expect(discardDialog()).toBeInTheDocument()
         expect(onClose).not.toHaveBeenCalled()
     })

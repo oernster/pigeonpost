@@ -1,6 +1,8 @@
 package main
 
 import (
+	"github.com/wailsapp/wails/v2/pkg/runtime"
+
 	"github.com/oernster/pigeonpost/internal/domain"
 )
 
@@ -30,6 +32,10 @@ func (a *App) AddCalDAVAccount(displayName, baseURL, username, password string) 
 	account, err := domain.NewCalendarAccount(newCalendarAccountID(), displayName, baseURL, username, domain.AuthPassword)
 	if err != nil {
 		return err
+	}
+	if account.IsInsecure() {
+		// Accepted, as the form warned the user; recorded so the choice can be seen in the app log later.
+		runtime.LogWarningf(a.ctx, "caldav: account %q uses plain http, so its password travels unencrypted", account.DisplayName())
 	}
 	return a.caldav.AddAccount(a.ctx, account, password)
 }

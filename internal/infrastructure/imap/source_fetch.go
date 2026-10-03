@@ -125,47 +125,59 @@ func isBodyStructureError(err error) bool {
 
 // FetchMessages returns the header-level summaries for every message in a folder.
 func (s *Source) FetchMessages(ctx context.Context, account domain.Account, folder domain.Folder) ([]domain.MessageSummary, error) {
-	buffers, err := s.fetchSummaries(ctx, account, folder, true)
+	messages, _, err := s.FetchMessagesValidity(ctx, account, folder)
+	return messages, err
+}
+
+// FetchMessagesValidity is FetchMessages plus the folder's UIDVALIDITY as the server reported it when the
+// folder was selected for this same fetch, so the value describes exactly the UIDs returned. The sync
+// compares it with the value it last stored to tell a renumbered mailbox from new mail. It is the
+// application.MailSource fetch.
+func (s *Source) FetchMessagesValidity(ctx context.Context, account domain.Account, folder domain.Folder) ([]domain.MessageSummary, uint32, error) {
+	buffers, validity, err := s.fetchSummaries(ctx, account, folder, true)
 	if isBodyStructureError(err) {
 		// One unreadable body structure ends the whole FETCH and the connection with it, so without this
 		// a single malformed message would cost the folder every summary it holds. Ask again on a fresh
 		// connection for everything except the structure: every message then arrives and the only loss is
-		// the paperclip that marks an attachment.
-		buffers, err = s.fetchSummaries(ctx, account, folder, false)
+		// the paperclip that marks an attachment. The UIDVALIDITY comes from this second session, the
+		// one whose UIDs are kept.
+		buffers, validity, err = s.fetchSummaries(ctx, account, folder, false)
 	}
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
 	messages := make([]domain.MessageSummary, 0, len(buffers))
 	for _, buf := range buffers {
 		message, err := buildMessage(folder.ID(), buf)
 		if err != nil {
-			return nil, fmt.Errorf("imap: build message uid %d: %w", uint32(buf.UID), err)
+			return nil, 0, fmt.Errorf("imap: build message uid %d: %w", uint32(buf.UID), err)
 		}
 		messages = append(messages, message)
 	}
-	return messages, nil
+	return messages, validity, nil
 }
 
 // fetchSummaries opens a connection, selects the folder read-only and collects the FETCH buffers for
-// every message in it. withStructure asks for the extended body structure, which carries each part's
-// content disposition and is what tells the list whether a message has a saveable attachment (for the
-// paperclip), without fetching any bodies; the fallback path leaves it out so a structure the client
-// cannot read does not cost the folder its summaries.
-func (s *Source) fetchSummaries(ctx context.Context, account domain.Account, folder domain.Folder, withStructure bool) ([]*imapclient.FetchMessageBuffer, error) {
+// every message in it, with the UIDVALIDITY the SELECT reported. withStructure asks for the extended body
+// structure, which carries each part's content disposition and is what tells the list whether a message
+// has a saveable attachment (for the paperclip), without fetching any bodies; the fallback path leaves it
+// out so a structure the client cannot read does not cost the folder its summaries.
+func (s *Source) fetchSummaries(ctx context.Context, account domain.Account, folder domain.Folder, withStructure bool) ([]*imapclient.FetchMessageBuffer, uint32, error) {
 	client, err := s.connect(ctx, account)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	defer func() { _ = client.Logout().Wait() }()
 
 	selected, err := client.Select(folder.Path(), &imap.SelectOptions{ReadOnly: true}).Wait()
 	if err != nil {
-		return nil, fmt.Errorf("imap: select %q: %w", folder.Path(), err)
+		return nil, 0, fmt.Errorf("imap: select %q: %w", folder.Path(), err)
 	}
+	// An empty folder still has a UIDVALIDITY. Recording it matters: mail later arriving into the folder
+	// is judged against that value.
 	if selected.NumMessages == 0 {
-		return nil, nil
+		return nil, selected.UIDValidity, nil
 	}
 
 	seqSet := imap.SeqSet{}
@@ -177,9 +189,9 @@ func (s *Source) fetchSummaries(ctx context.Context, account domain.Account, fol
 
 	buffers, err := client.Fetch(seqSet, options).Collect()
 	if err != nil {
-		return nil, fmt.Errorf("imap: fetch %q: %w", folder.Path(), markUnreadable(err))
+		return nil, 0, fmt.Errorf("imap: fetch %q: %w", folder.Path(), markUnreadable(err))
 	}
-	return buffers, nil
+	return buffers, selected.UIDValidity, nil
 }
 
 // decoderPrefix is what the mail client puts in front of every failure to decode a server's reply. It is

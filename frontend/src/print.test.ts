@@ -1,5 +1,6 @@
 import {describe, expect, it} from 'vitest'
 import {printDocument, printFrameId, printFrameStyle, printReadyMarkerId} from './print'
+import {EMAIL_CONTENT_SECURITY_POLICY} from './emailContentPolicy'
 
 describe('printFrameId', () => {
     it('is a stable identifier for the hidden print iframe', () => {
@@ -45,6 +46,13 @@ describe('printDocument', () => {
         const doc = printDocument('Hello', 'alice@example.com', '', '<p>Body</p>')
         expect(doc).toContain('name="color-scheme" content="light"')
         expect(doc).toContain(':root{color-scheme:light}')
+    })
+
+    it('carries the reader frame Content-Security-Policy in its head, ahead of the message body', () => {
+        const doc = printDocument('Hello', 'alice@example.com', '', '<p>Body</p>')
+        const meta = `<meta http-equiv="Content-Security-Policy" content="${EMAIL_CONTENT_SECURITY_POLICY}">`
+        expect(doc).toContain(meta)
+        expect(doc.indexOf(meta)).toBeLessThan(doc.indexOf('</head>'))
     })
 
     it('stamps the print-ready marker on the document so the frame prints only the real content', () => {

@@ -20,6 +20,7 @@ import (
 	"crypto/rand"
 	stdcsv "encoding/csv"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -30,8 +31,8 @@ import (
 const generatedIDBytes = 16
 
 // exportHeader is the column order written on export. The names are the widely-recognised Outlook
-// ones, which Outlook maps directly and Thunderbird's import wizard can map by hand, and which this
-// codec's own aliases read back, so an export round-trips through any of the three.
+// ones, which Outlook maps directly and Thunderbird's import wizard can map by hand. This
+// codec's own aliases read them back too, so an export round-trips through any of the three.
 var exportHeader = []string{
 	"First Name", "Last Name", "Display Name", "Company", "Job Title", "Birthday",
 	"E-mail Address", "E-mail 2 Address", "E-mail 3 Address",
@@ -47,36 +48,53 @@ type Codec struct{}
 // New constructs a CSV codec.
 func New() Codec { return Codec{} }
 
-// Decode parses a CSV address book into contacts. The first row is the header; columns are matched by
-// name against the known Outlook and Thunderbird conventions. Blank rows are skipped.
-func (Codec) Decode(data []byte) ([]domain.Contact, error) {
+// ErrNoRecognisedColumns reports a file with data rows whose header names no name or email column this
+// codec knows, typically an export whose column names are in another language. Without it such a file
+// imports zero contacts and reads as a success.
+var ErrNoRecognisedColumns = errors.New("csv: no name or email column recognised in the header")
+
+// DecodeImport parses a CSV address book into contacts. The first row is the header; columns are matched
+// by name against the known Outlook and Thunderbird conventions; the separator (comma, semicolon or
+// tab) is detected from it. Blank rows are passed over; a row with data but neither a name nor an email
+// is skipped and counted.
+func (Codec) DecodeImport(data []byte) ([]domain.Contact, int, error) {
 	text, err := toUTF8(data)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	reader := stdcsv.NewReader(bytes.NewReader(text))
-	// Both exporters emit ragged rows: Outlook omits trailing empty columns, and a hand-edited file
+	reader.Comma = detectDelimiter(text)
+	// Both exporters emit ragged rows: Outlook omits trailing empty columns; a hand-edited file
 	// often gains or loses one, so the row length is not held to the header's.
 	reader.FieldsPerRecord = -1
 	records, err := reader.ReadAll()
 	if err != nil {
-		return nil, fmt.Errorf("csv: read: %w", err)
+		return nil, 0, fmt.Errorf("csv: read: %w", err)
 	}
 	if len(records) == 0 {
-		return nil, nil
+		return nil, 0, nil
 	}
 	headers := headerIndex(records[0])
 	var contacts []domain.Contact
+	skipped := 0
 	for _, row := range records[1:] {
+		if isBlankRow(row) {
+			continue
+		}
 		contact, ok, err := rowToContact(headers, row)
 		if err != nil {
-			return nil, err
+			return nil, 0, err
 		}
-		if ok {
-			contacts = append(contacts, contact)
+		if !ok {
+			skipped++
+			continue
 		}
+		contacts = append(contacts, contact)
 	}
-	return contacts, nil
+	if skipped > 0 && !hasIdentityColumn(headers) {
+		return nil, 0, fmt.Errorf("%w (columns found: %s)", ErrNoRecognisedColumns, strings.Join(records[0], ", "))
+	}
+	return contacts, skipped, nil
 }
 
 // Encode writes the contacts as a CSV address book with the Outlook column headers.
@@ -115,7 +133,7 @@ func contactRow(c domain.Contact) []string {
 	}
 }
 
-// emailAt returns the address at index i, or an empty string when there is none.
+// emailAt returns the address at index i; it is empty when there is none.
 func emailAt(emails []domain.ContactEmail, i int) string {
 	if i < len(emails) {
 		return emails[i].Address().Address()
@@ -145,7 +163,7 @@ func slotAddresses(addresses []domain.ContactAddress) (home, work domain.Contact
 	return slots[0], slots[1]
 }
 
-// preferredSlot returns the phone column a label belongs in, or -1 when the label says nothing.
+// preferredSlot returns the phone column a label belongs in; it is -1 when the label says nothing.
 func preferredSlot(label string) int {
 	label = strings.ToLower(label)
 	switch {
@@ -160,7 +178,7 @@ func preferredSlot(label string) int {
 	}
 }
 
-// addressSlot returns the address block a label belongs in, or -1 when the label says nothing.
+// addressSlot returns the address block a label belongs in; it is -1 when the label says nothing.
 func addressSlot(label string) int {
 	label = strings.ToLower(label)
 	switch {
@@ -173,7 +191,7 @@ func addressSlot(label string) int {
 	}
 }
 
-// placeInSlot writes a value into its preferred slot when that slot is free, and otherwise into the
+// placeInSlot writes a value into its preferred slot when that slot is free; otherwise it goes into the
 // first free slot. A value with nowhere to go is dropped. Occupancy is tracked in a parallel slice
 // rather than inferred from the slot's value, so the same placement rule serves both the phone columns
 // and the address blocks.

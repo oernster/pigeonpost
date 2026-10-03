@@ -29,11 +29,7 @@ func (Codec) DecodeScheduling(data []byte) (domain.SchedulingMessage, error) {
 		if method == "" {
 			method = text(cal.Props, goical.PropMethod)
 		}
-		for _, e := range cal.Events() {
-			if event, ok := eventFromICS(e); ok {
-				events = append(events, event)
-			}
-		}
+		events = append(events, calendarEvents(cal)...)
 	}
 	parsed, err := domain.ParseMethod(method)
 	if err != nil {
@@ -67,7 +63,7 @@ func (Codec) EncodeReply(event domain.Event, responder domain.EmailAddress, stat
 }
 
 // encodeScheduling writes the events as a single VCALENDAR stamped with the scheduling method. It reuses
-// the VEVENT encoder, so each event keeps its organiser and attendees, and prepends the VTIMEZONE
+// the VEVENT encoder, so each event keeps its organiser and attendees; it also prepends the VTIMEZONE
 // definitions so the events' TZID references resolve within the payload.
 func encodeScheduling(method domain.Method, events []domain.Event) ([]byte, error) {
 	if len(events) == 0 {

@@ -2,6 +2,7 @@ import {useCallback} from 'react'
 import {Message, api} from '../api'
 import {emlFilename, escapeHtml} from '../messageText'
 import {printDocument, printFrameId, printFrameStyle, printReadyMarkerId} from '../print'
+import {imagesShownFor} from './useImagesShown'
 
 // useMessageExport owns the two ways a message leaves the app as a document: saved to disk as .eml and
 // printed. Both are message-in, side-effect-out with no app state of their own beyond reporting a
@@ -22,15 +23,32 @@ export function useMessageExport({setError}: MessageExportOptions) {
         }
     }, [setError])
 
+    // printableHtml returns the body HTML the printed copy shows. Printing keeps the reader's privacy promise:
+    // remote images stay parked unless the reader is already showing this message with its images loaded
+    // (imagesShownFor, the same record the Load images bar keeps). When it is, the images come through the
+    // same server-side proxy the reader uses, inlined as data: URIs, since the print frame's policy admits no
+    // other image. A proxy failure still prints the parked copy; the failure is reported.
+    const printableHtml = useCallback(async (message: Message, html: string): Promise<string> => {
+        if (!imagesShownFor(message.id)) {
+            return html
+        }
+        try {
+            return await api.loadRemoteImages(html)
+        } catch (e) {
+            setError(`Images could not be loaded for printing: ${String(e)}`)
+            return html
+        }
+    }, [setError])
+
     // printMessage prints one message by rendering it into a hidden, page-sized iframe parked off-screen and
     // invoking the browser's print dialog on that frame, so only the message (not the whole app window) is
-    // printed. Remote images, parked in the reader for privacy, are restored for the printed copy. The frame
+    // printed. Its remote images follow printableHtml. The frame
     // is given real off-screen dimensions (a zero-size frame prints blank) and is pinned to a light colour
     // scheme (it otherwise inherits the app's dark scheme) so the message prints as dark text on white paper.
     const printMessage = useCallback(async (message: Message) => {
         try {
             const body = await api.messageBody(message.id)
-            const html = body.html?.trim() ? body.html.replace(/data-pp-src=/g, 'src=') : ''
+            const html = body.html?.trim() ? await printableHtml(message, body.html) : ''
             const content = html || `<pre>${escapeHtml(body.plain || message.snippet || '')}</pre>`
             const sender = escapeHtml(message.fromName || message.fromAddress || '(unknown sender)')
             const when = message.date ? escapeHtml(new Date(message.date).toLocaleString()) : ''
@@ -69,7 +87,7 @@ export function useMessageExport({setError}: MessageExportOptions) {
         } catch (e) {
             setError(String(e))
         }
-    }, [setError])
+    }, [setError, printableHtml])
 
     return {saveMessageAs, printMessage}
 }

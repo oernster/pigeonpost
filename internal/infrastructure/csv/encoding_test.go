@@ -28,7 +28,7 @@ func TestDecodeWindows1252(t *testing.T) {
 	// What Thunderbird actually wrote on a Western Windows build: the accented character is one high
 	// byte, not a UTF-8 sequence. Left undecoded it reaches the store as invalid UTF-8.
 	data := []byte("Display Name,Primary Email\r\nB\xe1rbara Barbizan,barbara@example.com\r\n")
-	got, err := New().Decode(data)
+	got, _, err := New().DecodeImport(data)
 	if err != nil {
 		t.Fatalf("Decode: %v", err)
 	}
@@ -47,7 +47,7 @@ func TestDecodeUTF8BOMStillMatchesFirstColumn(t *testing.T) {
 	// A BOM binds to the first header, so without stripping it "First Name" matches no alias and every
 	// first name in the file is silently dropped. With no name and no email the row vanishes entirely.
 	data := append([]byte{0xEF, 0xBB, 0xBF}, []byte("First Name,Last Name\r\nAmy,Pond\r\n")...)
-	got, err := New().Decode(data)
+	got, _, err := New().DecodeImport(data)
 	if err != nil {
 		t.Fatalf("Decode: %v", err)
 	}
@@ -69,7 +69,7 @@ func TestDecodeUTF16(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			data := encodeUTF16("Display Name,Primary Email\r\nRory Williams,rory@example.com\r\n", tc.littleEndian)
-			got, err := New().Decode(data)
+			got, _, err := New().DecodeImport(data)
 			if err != nil {
 				t.Fatalf("Decode: %v", err)
 			}
@@ -82,7 +82,7 @@ func TestDecodeUTF16(t *testing.T) {
 
 func TestDecodeValidUTF8IsUnchanged(t *testing.T) {
 	data := []byte("Display Name,Primary Email\r\nZoë Washburne,zoe@example.com\r\n")
-	got, err := New().Decode(data)
+	got, _, err := New().DecodeImport(data)
 	if err != nil {
 		t.Fatalf("Decode: %v", err)
 	}

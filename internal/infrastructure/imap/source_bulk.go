@@ -28,6 +28,12 @@ func uidChunks(uids []string) ([]uidChunk, error) {
 	if err != nil {
 		return nil, err
 	}
+	return chunkUIDs(nums), nil
+}
+
+// chunkUIDs splits already-parsed UIDs into sets of at most bulkBatchSize. uidChunks is its form for
+// UID strings; the move-all fallback feeds it the UIDs a search found.
+func chunkUIDs(nums []imap.UID) []uidChunk {
 	chunks := make([]uidChunk, 0, len(nums)/bulkBatchSize+1)
 	for start := 0; start < len(nums); start += bulkBatchSize {
 		end := min(start+bulkBatchSize, len(nums))
@@ -37,7 +43,7 @@ func uidChunks(uids []string) ([]uidChunk, error) {
 		}
 		chunks = append(chunks, uidChunk{set: set, count: end - start})
 	}
-	return chunks, nil
+	return chunks
 }
 
 // openFolder connects to the account and selects the folder, the preamble every action shares. The
@@ -91,12 +97,14 @@ func (s *Source) SetSeenMany(ctx context.Context, account domain.Account, folder
 }
 
 // DeleteMany removes several messages in one folder over a single connection: it selects the folder
-// once, then moves them to trashPath (MOVE) or marks them \Deleted and expunges (STORE then EXPUNGE)
-// when trashPath is empty, issued in UID chunks so one command never grows too long. This is the
-// batched form of Delete: a bulk delete costs one login for the whole selection rather than one per
-// message, which is what keeps it under Gmail's simultaneous-connection cap. When the messages moved
-// to trashPath it returns each source UID's destination UID where the server reports them via
-// COPYUID; permanent deletion returns none. It satisfies application.MailActions.
+// once, then moves them to trashPath (see moveUIDs). With trashPath empty it instead marks them
+// \Deleted and expunges exactly those UIDs (see expungeUIDs). Both are issued in UID chunks so one
+// command never grows too long. This is the batched form of Delete: a bulk delete costs one login for
+// the whole selection rather than one per message, which is what keeps it under Gmail's
+// simultaneous-connection cap. When the messages moved to trashPath it returns each source UID's
+// destination UID where the server reports them via COPYUID, together with any error, for the chunks
+// moved before it. Permanent deletion maps each destroyed UID to an empty destination, likewise for
+// the chunks destroyed before an error. It satisfies application.MailActions.
 func (s *Source) DeleteMany(ctx context.Context, account domain.Account, folder domain.Folder, uids []string, trashPath string) (map[string]string, error) {
 	if len(uids) == 0 {
 		return nil, nil
@@ -111,30 +119,29 @@ func (s *Source) DeleteMany(ctx context.Context, account domain.Account, folder 
 	}
 	defer func() { _ = client.Logout().Wait() }()
 
-	moved := map[string]string{}
-	store := &imap.StoreFlags{Op: imap.StoreFlagsAdd, Silent: true, Flags: []imap.Flag{imap.FlagDeleted}}
-	for _, chunk := range chunks {
-		if trashPath != "" {
-			data, err := client.Move(chunk.set, trashPath).Wait()
-			if err != nil {
-				return moved, fmt.Errorf("imap: move %d messages to %q: %w", chunk.count, trashPath, err)
-			}
-			for src, dst := range movedUIDs(data) {
-				moved[src] = dst
-			}
-			continue
-		}
-		// Permanent delete: flag this chunk \Deleted then expunge it. Expunging per chunk rather than once
-		// at the end keeps each EXPUNGE bounded; a single expunge of a very large mailbox (a full Gmail Bin,
-		// say) holds the connection long enough that the server drops it with an unexpected EOF.
-		if err := client.Store(chunk.set, store, nil).Close(); err != nil {
-			return nil, fmt.Errorf("imap: mark %d messages \\Deleted: %w", chunk.count, err)
-		}
-		if err := client.Expunge().Close(); err != nil {
-			return nil, fmt.Errorf("imap: expunge %d messages: %w", chunk.count, err)
-		}
+	if trashPath != "" {
+		return moveChunks(client, chunks, trashPath)
 	}
-	return moved, nil
+	// Permanent delete: flag this chunk \Deleted then expunge it. Expunging per chunk rather than once at
+	// the end keeps each EXPUNGE bounded; a single expunge of a very large mailbox (a full Gmail Bin, say)
+	// holds the connection long enough that the server drops it with an unexpected EOF.
+	//
+	// A chunk refused part way through the selection leaves the earlier chunks already expunged, so the
+	// returned map names their UIDs (with no destination: they landed nowhere) together with the error;
+	// the caller drops exactly those rather than showing them at UIDs that no longer exist. The chunks are
+	// cut from uids in order, so each one covers the next chunk.count of them.
+	destroyed := map[string]string{}
+	done := 0
+	for _, chunk := range chunks {
+		if err := expungeUIDs(client, chunk.set); err != nil {
+			return destroyed, fmt.Errorf("imap: delete %d messages: %w", chunk.count, err)
+		}
+		for _, uid := range uids[done : done+chunk.count] {
+			destroyed[uid] = ""
+		}
+		done += chunk.count
+	}
+	return destroyed, nil
 }
 
 // MoveMany relocates several messages from one folder to destPath over a single connection, issued in
@@ -155,14 +162,21 @@ func (s *Source) MoveMany(ctx context.Context, account domain.Account, folder do
 		return nil, err
 	}
 	defer func() { _ = client.Logout().Wait() }()
+	return moveChunks(client, chunks, destPath)
+}
 
+// moveChunks moves each chunk to destPath through moveUIDs and gathers the source-to-destination UIDs.
+// On a refused chunk it returns the map of the chunks moved before it together with the error, so the
+// caller can keep what did move (a chunk copied but not removed is not counted: it is still in the
+// source).
+func moveChunks(client *imapclient.Client, chunks []uidChunk, destPath string) (map[string]string, error) {
 	moved := map[string]string{}
 	for _, chunk := range chunks {
-		data, err := client.Move(chunk.set, destPath).Wait()
+		landed, err := moveUIDs(client, chunk.set, destPath)
 		if err != nil {
 			return moved, fmt.Errorf("imap: move %d messages to %q: %w", chunk.count, destPath, err)
 		}
-		for src, dst := range movedUIDs(data) {
+		for src, dst := range landed {
 			moved[src] = dst
 		}
 	}

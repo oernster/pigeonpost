@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest'
-import {CalDAVAccountForm, emptyCalDAVAccountForm, validateCalDAVAccountForm} from './caldavAccount'
+import {CalDAVAccountForm, emptyCalDAVAccountForm, isInsecureCalDAVUrl, validateCalDAVAccountForm} from './caldavAccount'
 
 // A ready-to-submit form, cloned and mutated per case so each assertion isolates the one field it probes.
 function validForm(): CalDAVAccountForm {
@@ -46,5 +46,20 @@ describe('validateCalDAVAccountForm', () => {
         expect(validateCalDAVAccountForm({...validForm(), password: ''})).toBe('Enter the password.')
         // A password of only spaces is a real (if unusual) secret, so it is accepted, not rejected as blank.
         expect(validateCalDAVAccountForm({...validForm(), password: '   '})).toBe('')
+    })
+})
+
+// A plain http:// address is allowed (a local server is a real setup) but flagged, because the password
+// then crosses the network unencrypted. This mirrors the domain's IsInsecureCalendarURL.
+describe('isInsecureCalDAVUrl', () => {
+    it('flags a plain http address whatever its case or surrounding space', () => {
+        expect(isInsecureCalDAVUrl('http://localhost:5232')).toBe(true)
+        expect(isInsecureCalDAVUrl('  HTTP://dav.example.com')).toBe(true)
+    })
+
+    it('does not flag https, a blank address or one without a scheme', () => {
+        expect(isInsecureCalDAVUrl('https://caldav.fastmail.com')).toBe(false)
+        expect(isInsecureCalDAVUrl('')).toBe(false)
+        expect(isInsecureCalDAVUrl('httpx://dav.example.com')).toBe(false)
     })
 })

@@ -42,3 +42,32 @@ func (s *Store) MarkFolderBaselined(ctx context.Context, folderID string) error 
 	}
 	return nil
 }
+
+// FolderUIDValidity reports the UIDVALIDITY the folder was last synced under. It reports false when none
+// has been recorded: a first sight, which the sync records rather than treating as a renumbering. It is
+// part of the application.MailStore port.
+func (s *Store) FolderUIDValidity(ctx context.Context, folderID string) (uint32, bool, error) {
+	var validity int64
+	err := s.db.QueryRowContext(ctx,
+		"SELECT uid_validity FROM folder_uidvalidity WHERE folder_id = ?;", folderID).Scan(&validity)
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, false, nil
+	}
+	if err != nil {
+		return 0, false, fmt.Errorf("read folder UIDVALIDITY %q: %w", folderID, err)
+	}
+	return uint32(validity), true, nil
+}
+
+// SetFolderUIDValidity records the UIDVALIDITY the folder's cached UIDs now belong to, replacing any
+// earlier value. The sync calls it only after those messages are saved, so the record never runs ahead
+// of the cache it describes.
+func (s *Store) SetFolderUIDValidity(ctx context.Context, folderID string, validity uint32) error {
+	if _, err := s.db.ExecContext(ctx,
+		`INSERT INTO folder_uidvalidity (folder_id, uid_validity) VALUES (?, ?)
+		 ON CONFLICT(folder_id) DO UPDATE SET uid_validity = excluded.uid_validity;`,
+		folderID, int64(validity)); err != nil {
+		return fmt.Errorf("record folder UIDVALIDITY %q: %w", folderID, err)
+	}
+	return nil
+}

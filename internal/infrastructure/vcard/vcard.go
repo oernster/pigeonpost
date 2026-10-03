@@ -25,27 +25,31 @@ type Codec struct{}
 // New constructs a vCard codec.
 func New() Codec { return Codec{} }
 
-// Decode parses one or more vCards into contacts. A card's UID becomes the contact id so a re-import
-// updates the same record; a card without a UID is given a generated id (also used as its UID) so a
-// later export still round-trips.
-func (Codec) Decode(data []byte) ([]domain.Contact, error) {
-	dec := govcard.NewDecoder(bytes.NewReader(data))
+// DecodeImport parses one or more vCards into contacts. A card's UID becomes the contact id so a
+// re-import updates the same record; a card without a UID is given a generated id (also used as its
+// UID) so a later export still round-trips. vCard 2.1 input (bare parameters, quoted-printable values)
+// is normalised first. A card that cannot form a contact (neither FN nor N) is skipped and counted
+// rather than aborting the file; a file go-vcard cannot parse is still an error.
+func (Codec) DecodeImport(data []byte) ([]domain.Contact, int, error) {
+	dec := govcard.NewDecoder(bytes.NewReader(normaliseLegacy(data)))
 	var contacts []domain.Contact
+	skipped := 0
 	for {
 		card, err := dec.Decode()
 		if err == io.EOF {
 			break
 		}
 		if err != nil {
-			return nil, fmt.Errorf("vcard: decode: %w", err)
+			return nil, 0, fmt.Errorf("vcard: decode: %w", err)
 		}
 		contact, err := cardToContact(card)
 		if err != nil {
-			return nil, err
+			skipped++
+			continue
 		}
 		contacts = append(contacts, contact)
 	}
-	return contacts, nil
+	return contacts, skipped, nil
 }
 
 // cardToContact rebuilds a validated domain contact from a parsed card.
@@ -123,13 +127,20 @@ func cardAddresses(card govcard.Card) []domain.ContactAddress {
 	return addresses
 }
 
-// firstType returns the first TYPE parameter (the label), or an empty string when there is none.
+// nonLabelTypes are TYPE values that describe a field's preference or transport rather than naming it,
+// so they never become its label: vCard 2.1 writes EMAIL;PREF;INTERNET and TEL;WORK;VOICE; there the
+// label a user would recognise is WORK (or there is none).
+var nonLabelTypes = map[string]bool{"pref": true, "internet": true, "voice": true}
+
+// firstType returns the first TYPE parameter that names the field (the label); it is empty when
+// there is none.
 func firstType(p govcard.Params) string {
-	types := p[govcard.ParamType]
-	if len(types) == 0 {
-		return ""
+	for _, t := range p[govcard.ParamType] {
+		if !nonLabelTypes[strings.ToLower(t)] {
+			return t
+		}
 	}
-	return types[0]
+	return ""
 }
 
 // Encode writes every contact as a vCard 4.0 record. A contact with no UID uses its id as the UID so
@@ -184,7 +195,7 @@ func setIfPresent(card govcard.Card, field, value string) {
 	}
 }
 
-// typeParam builds a TYPE parameter for a label, or nil when the label is empty.
+// typeParam builds a TYPE parameter for a label; it is nil when the label is empty.
 func typeParam(label string) govcard.Params {
 	if label == "" {
 		return nil

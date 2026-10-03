@@ -29,8 +29,14 @@ func batched(ids []string) [][]string {
 }
 
 // Run applies the rule to the stored mail and reports what it actually did, which is not always what
-// Preview said it would: a server may refuse a batch; mail may have arrived or moved between the
-// two calls. The returned counts are therefore taken from the work that succeeded, never from the plan.
+// Preview said it would: a server may refuse a batch; mail may have moved or gone between the two
+// calls. The returned counts are therefore taken from the work that succeeded, never from the plan.
+//
+// It acts on the previewed plan and nothing else. It once re-planned on confirm, so mail that arrived
+// after the preview was acted on unasked: a preview of one destroy ran as two (audit P-11). The stored
+// mail is still scanned afresh; that scan only drops the previewed messages that no longer want the same
+// action (see confirmedBy); new matches are never added. With no preview waiting there is nothing the
+// user has agreed to, so the run refuses rather than acting on a plan nobody saw.
 //
 // The order is flags, then moves, then destroys. Flags go first so a message the rule both marks and
 // moves carries its new state into the destination (an IMAP move preserves flags); destroys go last
@@ -42,10 +48,16 @@ func batched(ids []string) [][]string {
 // Cancelled set, reporting the work that had already landed. A backfill's work is irreversible, so a
 // cancel that pretended nothing had happened would be a lie about the mailbox.
 func (s *RuleBackfillService) Run(ctx context.Context, ruleID string, to RuleBackfillReport) (RuleBackfillCounts, error) {
-	plan, err := s.plan(ctx, ruleID, to)
-	if plan == nil {
+	// Taken before the scan so the preview is spent whatever the run's outcome: one preview, one run.
+	previewed := s.previewed.take(ruleID)
+	fresh, err := s.plan(ctx, ruleID, to)
+	if fresh == nil {
 		return RuleBackfillCounts{}, err
 	}
+	if previewed == nil {
+		return RuleBackfillCounts{}, ErrRuleBackfillNotPreviewed
+	}
+	plan := previewed.confirmedBy(fresh)
 	var errs []error
 	if err != nil {
 		errs = append(errs, err)

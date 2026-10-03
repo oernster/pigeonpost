@@ -70,8 +70,8 @@ func holdUntilMillisDTO(item domain.OutboxItem) int64 {
 }
 
 // CancelOutboxItem discards a queued outgoing operation before it is sent. It reports whether the item
-// was still queued: false means the message had already left, so an Undo that lost the race can say so
-// instead of pretending the send was stopped.
+// was still queued: false means a send had already claimed it (it is on its way or has left), so the
+// front end says the cancel came too late instead of pretending the send was stopped.
 func (a *App) CancelOutboxItem(id string) (bool, error) {
 	return a.compose.CancelOutbox(a.ctx, id)
 }

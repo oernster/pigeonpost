@@ -88,13 +88,14 @@ type fakeContactCodec struct {
 	encoded   []byte
 	encodeErr error
 	gotEncode []domain.Contact
+	skipped   int
 }
 
-func (f *fakeContactCodec) Decode([]byte) ([]domain.Contact, error) {
+func (f *fakeContactCodec) DecodeImport([]byte) ([]domain.Contact, int, error) {
 	if f.decodeErr != nil {
-		return nil, f.decodeErr
+		return nil, 0, f.decodeErr
 	}
-	return f.decoded, nil
+	return f.decoded, f.skipped, nil
 }
 
 func (f *fakeContactCodec) Encode(cs []domain.Contact) ([]byte, error) {

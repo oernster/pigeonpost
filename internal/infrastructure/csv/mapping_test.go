@@ -34,7 +34,7 @@ func TestDecodeOutlookExport(t *testing.T) {
 			"555-1000,555-2000,555-3000,\"12 Leadworth Lane\nLeadworth\",12 Leadworth Lane,Leadworth,"+
 			"Gloucestershire,GL1 2AB,UK,1 Tardis Way,London,Greater London,SW1A 1AA,UK,Companion,Travel,Tardis",
 	)
-	got, err := New().Decode(data)
+	got, _, err := New().DecodeImport(data)
 	if err != nil {
 		t.Fatalf("Decode: %v", err)
 	}
@@ -84,7 +84,7 @@ func TestDecodeOutlookHonorificIsNotAJobTitle(t *testing.T) {
 		"First Name,Last Name,Title,Job Title,E-mail Address",
 		"River,Song,Dr,,river@example.com",
 	)
-	got, err := New().Decode(data)
+	got, _, err := New().DecodeImport(data)
 	if err != nil {
 		t.Fatalf("Decode: %v", err)
 	}
@@ -96,7 +96,7 @@ func TestDecodeOutlookHonorificIsNotAJobTitle(t *testing.T) {
 func TestDecodeBareTitleUsedWhenNoJobTitleColumn(t *testing.T) {
 	// With no Job Title column the file is not an Outlook export, so a bare Title is the role.
 	data := lines("Display Name,Title,E-mail Address", "River Song,Professor,river@example.com")
-	got, err := New().Decode(data)
+	got, _, err := New().DecodeImport(data)
 	if err != nil {
 		t.Fatalf("Decode: %v", err)
 	}
@@ -119,7 +119,7 @@ func TestDecodeThunderbirdUKExport(t *testing.T) {
 			"1 Tardis Way,,London,Greater London,SW1A 1AA,UK,Nurse,Ward,Leadworth Hospital,,,"+
 			"1980,1,15,,,,,a note",
 	)
-	got, err := New().Decode(data)
+	got, _, err := New().DecodeImport(data)
 	if err != nil {
 		t.Fatalf("Decode: %v", err)
 	}
@@ -159,7 +159,7 @@ func TestDecodeThunderbirdUSWording(t *testing.T) {
 		"Display Name,Primary Email,Home Address,Home City,Home State,Home ZipCode,Home Country,Organization",
 		"Jack Harkness,jack@example.com,1 Roald Dahl Plass,Cardiff,Wales,CF10 5AL,UK,Torchwood",
 	)
-	got, err := New().Decode(data)
+	got, _, err := New().DecodeImport(data)
 	if err != nil {
 		t.Fatalf("Decode: %v", err)
 	}
@@ -181,7 +181,7 @@ func TestDecodeRepeatedNumberStoredOnce(t *testing.T) {
 		"Display Name,Home Phone,Business Phone,Mobile Phone",
 		"Jo Bloggs,555-1000,555-1000,555-2000",
 	)
-	got, err := New().Decode(data)
+	got, _, err := New().DecodeImport(data)
 	if err != nil {
 		t.Fatalf("Decode: %v", err)
 	}
@@ -195,7 +195,7 @@ func TestDecodeAddressBlockAllEmptyIsSkipped(t *testing.T) {
 		"Display Name,Primary Email,Home Address,Home City,Home Country",
 		"Jo Bloggs,jo@example.com,,,",
 	)
-	got, err := New().Decode(data)
+	got, _, err := New().DecodeImport(data)
 	if err != nil {
 		t.Fatalf("Decode: %v", err)
 	}
@@ -210,7 +210,7 @@ func TestDecodeShortRowIsTolerated(t *testing.T) {
 		"First Name,Last Name,E-mail Address,Home City,Notes",
 		"Jo,Bloggs,jo@example.com",
 	)
-	got, err := New().Decode(data)
+	got, _, err := New().DecodeImport(data)
 	if err != nil {
 		t.Fatalf("Decode: %v", err)
 	}

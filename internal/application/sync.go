@@ -99,17 +99,17 @@ func (s *SyncService) SyncAccount(ctx context.Context, accountID string) error {
 	_ = s.flags.FlushPending(ctx)
 
 	for _, folder := range folders {
-		messages, err := s.source.FetchMessages(ctx, account, folder)
+		fetch, err := s.fetchFolder(ctx, account, folder)
 		if err != nil {
 			return fmt.Errorf("sync: fetch messages for %q: %w", folder.Path(), err)
 		}
 		// Align local tag assignments with the server keywords on the fetched messages, before the rules
 		// run, so the reconcile sees the keywords exactly as the server reported them.
-		s.reconcileTags(ctx, account, messages)
+		s.reconcileTags(ctx, account, fetch.messages)
 		// Filter rules act on arriving inbox mail: they set flags, move messages into another folder
 		// or destroy them outright. A rule that could not be carried out is reported after the save
 		// below, so what did work is still stored.
-		messages, ruleErr := s.applyRules(ctx, account, folder, messages, rules)
+		messages, ruleErr := s.applyRules(ctx, account, folder, fetch, rules)
 		messages, err = s.preserveFlags(ctx, account, folder, messages)
 		if err != nil {
 			return fmt.Errorf("sync: preserve flags for %q: %w", folder.Path(), err)
@@ -120,9 +120,9 @@ func (s *SyncService) SyncAccount(ctx context.Context, accountID string) error {
 		if err := s.mail.SaveMessages(ctx, folder.ID(), messages); err != nil {
 			return fmt.Errorf("sync: save messages for %q: %w", folder.Path(), err)
 		}
-		// Only now that the folder's contents are cached is its baseline established.
-		if err := s.markBaselined(ctx, folder); err != nil {
-			return fmt.Errorf("sync: mark baseline for %q: %w", folder.Path(), err)
+		// Only now that the folder's contents are cached are its baseline and UIDVALIDITY established.
+		if err := s.settleFolder(ctx, folder, fetch.validity); err != nil {
+			return fmt.Errorf("sync: settle %q: %w", folder.Path(), err)
 		}
 		if ruleErr != nil {
 			return fmt.Errorf("sync: apply rules to %q: %w", folder.Path(), ruleErr)
@@ -151,12 +151,12 @@ func (s *SyncService) SyncFolder(ctx context.Context, folderID string) error {
 	// reconciles below can confirm them. Best-effort: a failure never fails the sync.
 	_ = s.tags.FlushPending(ctx)
 	_ = s.flags.FlushPending(ctx)
-	messages, err := s.source.FetchMessages(ctx, account, folder)
+	fetch, err := s.fetchFolder(ctx, account, folder)
 	if err != nil {
 		return fmt.Errorf("sync: fetch messages for %q: %w", folder.Path(), err)
 	}
-	s.reconcileTags(ctx, account, messages)
-	messages, ruleErr := s.applyRules(ctx, account, folder, messages, rules)
+	s.reconcileTags(ctx, account, fetch.messages)
+	messages, ruleErr := s.applyRules(ctx, account, folder, fetch, rules)
 	messages, err = s.preserveFlags(ctx, account, folder, messages)
 	if err != nil {
 		return fmt.Errorf("sync: preserve flags for %q: %w", folder.Path(), err)
@@ -167,9 +167,9 @@ func (s *SyncService) SyncFolder(ctx context.Context, folderID string) error {
 	if err := s.mail.SaveMessages(ctx, folder.ID(), messages); err != nil {
 		return fmt.Errorf("sync: save messages for %q: %w", folder.Path(), err)
 	}
-	// Only now that the folder's contents are cached is its baseline established.
-	if err := s.markBaselined(ctx, folder); err != nil {
-		return fmt.Errorf("sync: mark baseline for %q: %w", folder.Path(), err)
+	// Only now that the folder's contents are cached are its baseline and UIDVALIDITY established.
+	if err := s.settleFolder(ctx, folder, fetch.validity); err != nil {
+		return fmt.Errorf("sync: settle %q: %w", folder.Path(), err)
 	}
 	if ruleErr != nil {
 		return fmt.Errorf("sync: apply rules to %q: %w", folder.Path(), ruleErr)
@@ -225,10 +225,14 @@ func (s *SyncService) refreshInbox(ctx context.Context, account domain.Account, 
 	if err != nil {
 		return nil, err
 	}
-	fetched, err := s.source.FetchMessages(ctx, account, folder)
+	fetch, err := s.fetchFolder(ctx, account, folder)
 	if err != nil {
 		return nil, err
 	}
+	fetched := fetch.messages
+	// On a renumbered inbox every fetched message counts as already held, so the rules act on none of it
+	// and none of it is announced as new mail.
+	known := fetch.knownFor(knownSetOf(existing))
 	// Align local tag assignments with the server keywords before the rules run (IMAP only). Best-effort.
 	s.reconcileTags(ctx, account, fetched)
 	// Record each message's read state as the server reports it, before local rules run. A message
@@ -241,7 +245,7 @@ func (s *SyncService) refreshInbox(ctx context.Context, account domain.Account, 
 	// Rules run here too, so mail arriving on the background pass is filtered exactly as it is on an
 	// explicit sync. A rule that could not be carried out is best-effort at this call site, in keeping
 	// with the rest of the pass: it must not silence the other accounts.
-	messages, _ := s.applyRulesKnown(ctx, account, folder, fetched, knownSetOf(existing), rules)
+	messages, _ := s.applyRulesKnown(ctx, account, folder, fetched, known, rules)
 	if account.Protocol() == domain.ProtocolPOP3 {
 		messages = carryOverFlags(existing, messages)
 	}
@@ -251,13 +255,10 @@ func (s *SyncService) refreshInbox(ctx context.Context, account domain.Account, 
 	if err := s.mail.SaveMessages(ctx, folder.ID(), messages); err != nil {
 		return nil, err
 	}
-	// Only now that the folder's contents are cached is its baseline established. Best-effort here, in
-	// keeping with the rest of this pass: an unmarked folder simply gets another protected pass.
-	_ = s.markBaselined(ctx, folder)
-	known := make(map[string]struct{}, len(existing))
-	for _, m := range existing {
-		known[m.ID()] = struct{}{}
-	}
+	// Only now that the folder's contents are cached are its baseline and UIDVALIDITY established.
+	// Best-effort here, in keeping with the rest of this pass: an unmarked folder simply gets another
+	// protected pass; an unrecorded UIDVALIDITY means another rebaseline.
+	_ = s.settleFolder(ctx, folder, fetch.validity)
 	var fresh []domain.MessageSummary
 	for _, m := range messages {
 		if _, seen := known[m.ID()]; seen {

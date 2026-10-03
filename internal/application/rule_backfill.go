@@ -110,6 +110,9 @@ type RuleBackfillService struct {
 	accounts AccountStore
 	store    MailStore
 	actions  RuleBackfillActions
+	// previewed holds each rule's last previewed plan until Run takes it, so a run carries out the work
+	// the user agreed to rather than whatever a fresh scan finds. See rule_backfill_previewed.go.
+	previewed previewedPlans
 }
 
 // NewRuleBackfillService constructs the service with its injected rule store, account store, mail store
@@ -126,8 +129,12 @@ func NewRuleBackfillService(rules RuleStore, accounts AccountStore, store MailSt
 // A folder that cannot be read contributes an error and is left out of the counts, so a preview is
 // never quietly narrower than it looks. It reports its scan through the given reporter, because on a
 // large mailbox the scan is the slow half and a preview that says nothing looks like a stalled app.
+//
+// The plan behind the counts is kept for Run, replacing any earlier preview of the same rule; a preview
+// that fails outright keeps nothing, so a stale plan can never be run in its place.
 func (s *RuleBackfillService) Preview(ctx context.Context, ruleID string, to RuleBackfillReport) (RuleBackfillCounts, error) {
 	plan, err := s.plan(ctx, ruleID, to)
+	s.previewed.keep(ruleID, plan)
 	if plan == nil {
 		return RuleBackfillCounts{}, err
 	}

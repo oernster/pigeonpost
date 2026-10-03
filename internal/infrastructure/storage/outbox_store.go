@@ -84,19 +84,15 @@ func (s *Store) ListOutbox(ctx context.Context) ([]domain.OutboxItem, error) {
 		 FROM outbox ORDER BY created_ms ASC, id ASC;`, scanOutbox)
 }
 
-// DeleteOutbox removes a queued operation by id and reports whether an item was actually removed:
-// false means it was already gone, which the undo path uses to tell the user the message had left
-// before the cancel arrived.
+// DeleteOutbox removes an operation by id whatever its send state and reports whether an item was
+// actually removed. A replay uses it to drop the item it claimed once delivery succeeded; a user's
+// cancel goes through CancelQueuedOutbox instead, which refuses an item that is being sent.
 func (s *Store) DeleteOutbox(ctx context.Context, id string) (bool, error) {
 	result, err := s.db.ExecContext(ctx, "DELETE FROM outbox WHERE id = ?;", id)
 	if err != nil {
 		return false, fmt.Errorf("delete outbox item %q: %w", id, err)
 	}
-	affected, err := result.RowsAffected()
-	if err != nil {
-		return false, fmt.Errorf("delete outbox item %q: %w", id, err)
-	}
-	return affected > 0, nil
+	return changedOne(result, "delete outbox item", id)
 }
 
 // ClearOutboxHold removes an item's hold, degrading it to an ordinary queued operation that

@@ -64,6 +64,11 @@ type fakeSyncStore struct {
 	updatedCTags    [][2]string
 	remoteCals      []RemoteCalendarRecord
 	remoteCalsErr   error
+	// clearErr, deleteHrefErr and updateCTagErr inject failures into the bookkeeping writes, so a test can
+	// prove a failure there reaches the caller instead of being dropped.
+	clearErr      error
+	deleteHrefErr error
+	updateCTagErr error
 }
 
 var _ CalendarSyncStore = (*fakeSyncStore)(nil)
@@ -90,12 +95,12 @@ func (f *fakeSyncStore) SaveSyncedEvent(_ context.Context, e domain.Event, href,
 
 func (f *fakeSyncStore) DeleteEventsByHref(_ context.Context, href string) error {
 	f.deletedHrefs = append(f.deletedHrefs, href)
-	return nil
+	return f.deleteHrefErr
 }
 
 func (f *fakeSyncStore) ClearPendingCalendarOp(_ context.Context, calendarID, href string) error {
 	f.clearedOps = append(f.clearedOps, [2]string{calendarID, href})
-	return nil
+	return f.clearErr
 }
 
 func (f *fakeSyncStore) ListSyncedObjects(_ context.Context, calendarID string) ([]SyncedObject, error) {
@@ -123,7 +128,7 @@ func (f *fakeSyncStore) CalendarCTag(_ context.Context, calendarID string) (stri
 
 func (f *fakeSyncStore) UpdateCalendarCTag(_ context.Context, calendarID, ctag string) error {
 	f.updatedCTags = append(f.updatedCTags, [2]string{calendarID, ctag})
-	return nil
+	return f.updateCTagErr
 }
 
 func (f *fakeSyncStore) RemoteCalendarByID(_ context.Context, calendarID string) (RemoteCalendarRecord, bool, error) {

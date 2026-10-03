@@ -1,8 +1,16 @@
 # PigeonPost: Technical Debt
 
-A standing reference to the project's outstanding technical debt. It records what is still open, weighs whether each item is worth doing and gives the rationale. Every item is a behaviour-preserving internal refactor: nothing here proposes reverting a feature or changing any UI or UX behaviour. Scope is the whole repository (the Go core plus the React front end), read against the documented design and the structural tests.
+A standing reference to the project's outstanding technical debt. It records what is still open, weighs whether each item is worth doing and gives the rationale. Every item is a behaviour-preserving internal refactor or a known gap in what the app keeps that has been ruled to be recorded here rather than fixed now: nothing here proposes reverting a feature or changing any UI or UX behaviour that already works. Scope is the whole repository (the Go core plus the React front end), read against the documented design and the structural tests.
 
-There is no open technical debt.
+Two items are open.
+
+## 1. vCard fields outside the contact model are dropped on import
+
+A Thunderbird vCard 4.0 export loses NICKNAME, URL, PHOTO and CATEGORIES on import, together with the name parts other than given and family (middle name, prefix, suffix) and the PO-box and extended-address parts of ADR. `domain.Contact` has nowhere to hold them, so `vcard.cardToContact` reads only what the model carries and a re-export writes the reduced card. The cost is real but bounded: nothing is lost from the source file and the fields that make an address-book entry for mail (name, emails, phones, postal address, organisation, title, birthday, note) survive; even so, a Thunderbird to PigeonPost to Thunderbird round trip loses nicknames, photos and categories without a warning. The site and README say so. The fix is a contact passthrough on the model of `domain.CalendarPassthrough`: a domain value, a storage column with its migration and codec support on decode and encode. Blocked on a decision about photos, which can be large base64 blocks: stored inline or that one field held out. Nickname, URL and category could pass through cheaply; photo could not.
+
+## 2. Mail another client moves into the Inbox counts as an arrival
+
+An arrival is a message id not yet in the cache and the id is the folder plus the server's UID. A move made in PigeonPost files the message into the destination's cache under the UID the server reports (COPYUID); a mailbox the server renumbers is rebaselined through UIDVALIDITY, so neither is mistaken for new mail. A move made by another program is neither: the message reaches the Inbox under a new UID that the cache has never held, so the next sync reads it as new and an unattended rule acts on it, a delete-permanently rule included. The README, the Rules page and the Guide state the gap. Closing it needs an identity that survives a move: IMAP OBJECTID with EMAILID (RFC 8474) where the server offers it, Gmail's `X-GM-MSGID` (which the mail library cannot carry today, see the first entry under "Looks like debt") or a weaker match on the Message-ID header within the account. Blocked on choosing between those, since each changes what counts as the same message across the cache.
 
 The sections below are the standing record of what was weighed and deliberately left alone, so the same ground is not covered again. They carry no numbers, because a number here means an open item and a numbered heading that was not one made this file read as three open items when it held one.
 

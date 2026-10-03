@@ -102,8 +102,9 @@ func TestReconcileSkipsUnreadableCollection(t *testing.T) {
 	store := &fakeSyncStore{synced: map[string][]SyncedObject{"cal1": {{Href: "/c1/a.ics", ETag: "e"}}}}
 	src := &fakeReconcileSource{listErr: map[string]error{"/c1/": errBoom}}
 	svc := NewCalDAVReconcileService(store, &reconcileCodec{}, seqID())
-	if err := svc.Reconcile(context.Background(), src, []RemoteCalendarRecord{rec("cal1", "/c1/")}); err != nil {
-		t.Fatalf("Reconcile: %v", err)
+	// The collection is skipped (nothing local changes) and the failure is reported, not swallowed.
+	if err := svc.Reconcile(context.Background(), src, []RemoteCalendarRecord{rec("cal1", "/c1/")}); !errors.Is(err, errBoom) {
+		t.Fatalf("Reconcile err = %v, want the listing failure", err)
 	}
 	if len(store.deletedHrefs) != 0 || len(store.saved) != 0 {
 		t.Errorf("an unreadable collection must not change local state")
@@ -222,7 +223,7 @@ func TestReconcileDecodeErrorSavesNothing(t *testing.T) {
 
 func TestReconcileSkipsUnchangedCollection(t *testing.T) {
 	// The server reports the same CTag the last sync recorded, so the collection's objects are neither fetched
-	// nor merged, and its stored CTag is not rewritten. The source carries a changed object to prove that a
+	// nor merged; its stored CTag is not rewritten. The source carries a changed object to prove that a
 	// skipped collection is genuinely not listed (else it would be saved).
 	store := &fakeSyncStore{synced: map[string][]SyncedObject{"cal1": {{Href: "/c1/a.ics", ETag: "e"}}}}
 	src := &fakeReconcileSource{
@@ -278,8 +279,8 @@ func TestReconcileCTagErrorStillReconciles(t *testing.T) {
 }
 
 func TestReconcileCTagNotAdvancedWhenLocalUnreadable(t *testing.T) {
-	// The server CTag changed, so the collection is fetched, but reading the local objects fails, so the merge
-	// never runs and the CTag must not advance: advancing it would wrongly skip the collection next time.
+	// The server CTag changed, so the collection is fetched. Reading the local objects fails, so the merge
+	// never runs; the CTag must not advance: advancing it would wrongly skip the collection next time.
 	store := &fakeSyncStore{syncedErr: errBoom}
 	src := &fakeReconcileSource{
 		ctag:    map[string]string{"/c1/": "ctag-2"},
@@ -294,7 +295,7 @@ func TestReconcileCTagNotAdvancedWhenLocalUnreadable(t *testing.T) {
 }
 
 func TestReconcileCTagNotAdvancedWhenApplyFails(t *testing.T) {
-	// The server changed, so the collection is fetched, but persisting the server object fails. The merge did
+	// The server changed, so the collection is fetched; persisting the server object then fails. The merge did
 	// not fully land, so the CTag must not advance: advancing it would skip the object forever, whereas
 	// withholding it re-reconciles next sync and the object gets another chance to land.
 	store := &fakeSyncStore{saveSyncedErr: errBoom}
@@ -332,8 +333,8 @@ func TestReconcileCTagWithheldWhenServerConflictSafetyReadFails(t *testing.T) {
 }
 
 func TestReconcileCTagWithheldWhenMissingObjectSafetyFails(t *testing.T) {
-	// The server dropped an object under a pending local update, and reading the local rows to copy fails, so
-	// the missing-object merge is incomplete and the CTag is withheld.
+	// The server dropped an object under a pending local update; reading the local rows to copy fails. The
+	// missing-object merge is therefore incomplete and the CTag is withheld.
 	const href = "/c1/gone.ics"
 	store := &fakeSyncStore{
 		synced:    map[string][]SyncedObject{"cal1": {{Href: href, ETag: "e"}}},

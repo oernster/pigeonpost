@@ -18,7 +18,7 @@ func TestSendRequestWithRealCodecReachesTransport(t *testing.T) {
 	accounts := newFakeAccountStore()
 	accounts.accounts["a1"] = testAccount(t, "a1")
 	transport := &fakeMailTransport{}
-	svc := NewSchedulingService(ics.New(), &fakeCalendarStore{}, newFakeMailStore(), accounts, transport,
+	svc := NewSchedulingService(ics.New(), &fakeCalendarStore{}, &fakeSyncStore{}, newFakeMailStore(), accounts, transport,
 		&fakeSentSaver{}, &fakeOutboxStore{}, fakeClock{now: time.Unix(0, 0).UTC()}, func() string { return "sched-q1" })
 
 	meeting := schedMeeting(t, "uid-1", "user@example.com", time.Time{},
@@ -55,5 +55,36 @@ func TestSendRequestWithRealCodecReachesTransport(t *testing.T) {
 	}
 	if !strings.Contains(payload, "guest1@example.com") {
 		t.Errorf("payload missing attendee guest1:\n%s", payload)
+	}
+}
+
+// TestRespondWithRealCodecEchoesTheRequestSequence proves the REPLY carries the SEQUENCE of the revision
+// it answers (RFC 5546 3.2.3), so the organiser can tell which version of the meeting was accepted.
+func TestRespondWithRealCodecEchoesTheRequestSequence(t *testing.T) {
+	f := newSchedFixture(t, domain.SchedulingMessage{})
+	f.svc.codec = ics.New()
+	invite := strings.Join([]string{
+		"BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//test//EN", "METHOD:REQUEST",
+		"BEGIN:VEVENT", "UID:uid-seq", "DTSTAMP:20260701T000000Z", "DTSTART:20260706T090000Z",
+		"DTEND:20260706T100000Z", "SUMMARY:Review", "SEQUENCE:3", "ORGANIZER:mailto:" + schedOrganizer,
+		"ATTENDEE;PARTSTAT=NEEDS-ACTION:mailto:" + me, "END:VEVENT", "END:VCALENDAR", "",
+	}, "\r\n")
+	body, err := domain.NewMessageBody("m1", "", "")
+	if err != nil {
+		t.Fatalf("body: %v", err)
+	}
+	f.messages.bodies["m1"] = body.WithInvite([]byte(invite))
+
+	if err := f.svc.Respond(context.Background(), "m1", domain.PartStatAccepted); err != nil {
+		t.Fatalf("Respond: %v", err)
+	}
+	if len(f.transport.sent) != 1 {
+		t.Fatalf("sent %d messages, want the REPLY", len(f.transport.sent))
+	}
+	if payload := string(f.transport.sent[0].Calendar().Content()); !strings.Contains(payload, "SEQUENCE:3") {
+		t.Errorf("the REPLY does not echo SEQUENCE:3:\n%s", payload)
+	}
+	if len(f.calendar.savedEvt) != 1 || f.calendar.savedEvt[0].Sequence() != 3 {
+		t.Errorf("the saved meeting must keep revision 3: %v", f.calendar.savedEvt)
 	}
 }

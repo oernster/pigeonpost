@@ -26,6 +26,9 @@ type EventInput struct {
 	// RecurrenceID marks this event as an override of a single occurrence of the series sharing its UID.
 	// It holds the original start of the occurrence being replaced; the zero time means "not an override".
 	RecurrenceID time.Time
+	// Sequence is the revision number the organiser gives each change to a meeting (RFC 5545 SEQUENCE),
+	// so an older invitation can be told from a newer one. Zero for an event that was never revised.
+	Sequence int
 	// TimeZone is the IANA name (Europe/London) the event's wall-clock times are kept in, so a recurring
 	// event holds its local time across daylight-saving changes. It is empty for a floating or UTC event.
 	// Start and End remain absolute instants; the zone is how they are shown and expanded.
@@ -62,6 +65,7 @@ type Event struct {
 	rdates       []time.Time
 	exdates      []time.Time
 	recurrenceID time.Time
+	sequence     int
 	timeZone     string
 	alarms       []Alarm
 	extra        string
@@ -86,6 +90,9 @@ func NewEvent(in EventInput) (Event, error) {
 	if !in.End.IsZero() && in.End.Before(in.Start) {
 		return Event{}, ErrEventEndsBeforeStart
 	}
+	if in.Sequence < 0 {
+		return Event{}, ErrNegativeEventSequence
+	}
 	return Event{
 		id:           id,
 		uid:          strings.TrimSpace(in.UID),
@@ -101,6 +108,7 @@ func NewEvent(in EventInput) (Event, error) {
 		rdates:       copyNonZeroTimes(in.RDates),
 		exdates:      copyNonZeroTimes(in.ExDates),
 		recurrenceID: in.RecurrenceID,
+		sequence:     in.Sequence,
 		timeZone:     strings.TrimSpace(in.TimeZone),
 		alarms:       copyAlarms(in.Alarms),
 		extra:        in.Extra,
@@ -164,7 +172,7 @@ func (e Event) Description() string { return e.description }
 func (e Event) Location() string { return e.location }
 
 // Category returns the optional category, a short lowercased label (the primary iCalendar CATEGORIES
-// value), or an empty string when the event has none.
+// value); an empty string when the event has none.
 func (e Event) Category() string { return e.category }
 
 // Start returns the event start time.
@@ -176,7 +184,7 @@ func (e Event) End() time.Time { return e.end }
 // HasEnd reports whether the event has an end time.
 func (e Event) HasEnd() bool { return !e.end.IsZero() }
 
-// Duration returns the span from start to end, or zero when the event has no end.
+// Duration returns the span from start to end; zero when the event has no end.
 func (e Event) Duration() time.Duration {
 	if !e.HasEnd() {
 		return 0
@@ -200,25 +208,29 @@ func (e Event) RDates() []time.Time { return append([]time.Time(nil), e.rdates..
 // ExDates returns a copy of the excluded occurrence start times (EXDATE).
 func (e Event) ExDates() []time.Time { return append([]time.Time(nil), e.exdates...) }
 
-// RecurrenceID returns the original start of the occurrence this event overrides, or the zero time when
+// RecurrenceID returns the original start of the occurrence this event overrides; the zero time when
 // the event is not an override.
 func (e Event) RecurrenceID() time.Time { return e.recurrenceID }
 
 // IsOverride reports whether the event overrides a single occurrence of its series (RECURRENCE-ID set).
 func (e Event) IsOverride() bool { return !e.recurrenceID.IsZero() }
 
-// TimeZone returns the IANA name the event's wall-clock times are kept in, or an empty string for a
+// Sequence returns the organiser's revision number for the event (RFC 5545 SEQUENCE), zero when never
+// revised.
+func (e Event) Sequence() int { return e.sequence }
+
+// TimeZone returns the IANA name the event's wall-clock times are kept in; an empty string for a
 // floating or UTC event.
 func (e Event) TimeZone() string { return e.timeZone }
 
 // Alarms returns a copy of the event's reminders so callers cannot mutate the event.
 func (e Event) Alarms() []Alarm { return append([]Alarm(nil), e.alarms...) }
 
-// Extra returns the opaque original ICS VEVENT preserved for a lossless round-trip, or an empty string
+// Extra returns the opaque original ICS VEVENT preserved for a lossless round-trip; an empty string
 // for an event that did not come from an import.
 func (e Event) Extra() string { return e.extra }
 
-// Organiser returns the meeting organiser, or the zero Organiser when the event is not a scheduled
+// Organiser returns the meeting organiser; the zero Organiser when the event is not a scheduled
 // meeting.
 func (e Event) Organizer() Organizer { return e.organizer }
 

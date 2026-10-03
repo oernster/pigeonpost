@@ -37,7 +37,7 @@ func TestFetchMessagesFallsBackWhenBodyStructureUnreadable(t *testing.T) {
 	source := fakeSource()
 
 	// The structure alone is what the client cannot read, so the fetch that asks for it must fail.
-	_, err := source.fetchSummaries(context.Background(), fakeAccount(t, host, port), fakeFolder(t), true)
+	_, _, err := source.fetchSummaries(context.Background(), fakeAccount(t, host, port), fakeFolder(t), true)
 	if err == nil {
 		t.Fatal("expected the fetch asking for the body structure to fail")
 	}

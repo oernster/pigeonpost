@@ -161,15 +161,17 @@ func (a *App) DeleteContactGroup(id string) error {
 	return a.contacts.DeleteGroup(a.ctx, id)
 }
 
-// ContactImportResult reports what an import did: how many records became new contacts and how many
-// were merged into contacts already in the address book. Cancelled marks a dismissed file dialog, so
+// ContactImportResult reports what an import did: how many records became new contacts, how many were
+// merged into contacts already in the address book and how many were skipped because they had no name
+// (so a partial import is never reported as a whole one). Cancelled marks a dismissed file dialog, so
 // the caller can stay silent about it rather than reporting a file that held nothing, which are
 // otherwise indistinguishable from the counts alone. File carries the chosen file's name so the
-// result names its own source: an address book holds several exports with similar names, and a count
+// result names its own source: an address book holds several exports with similar names; a count
 // alone leaves no way to tell a disappointing import from the wrong file having been picked.
 type ContactImportResult struct {
 	Added     int    `json:"added"`
 	Updated   int    `json:"updated"`
+	Skipped   int    `json:"skipped"`
 	Cancelled bool   `json:"cancelled"`
 	File      string `json:"file"`
 }
@@ -208,6 +210,7 @@ func (a *App) ImportContactsFromFile() (ContactImportResult, error) {
 	return ContactImportResult{
 		Added:   result.Added,
 		Updated: result.Updated,
+		Skipped: result.Skipped,
 		File:    filepath.Base(path),
 	}, nil
 }

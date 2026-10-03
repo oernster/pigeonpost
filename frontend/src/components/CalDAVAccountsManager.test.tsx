@@ -162,6 +162,22 @@ describe('CalDAVAccountsManager', () => {
         }
     })
 
+    it('warns, without blocking, that an http:// address sends the password unencrypted', () => {
+        const form = {displayName: 'Home', baseUrl: 'http://192.168.1.5:5232', username: 'u', password: 'p'}
+        const {props} = renderManager({adding: true, form})
+        const dialog = screen.getByRole('dialog', {name: 'Add remote calendar'})
+        expect(within(dialog).getByText(/password travels unencrypted/)).toBeTruthy()
+        // The address is still accepted: the warning informs, the user decides.
+        fireEvent.click(within(dialog).getByRole('button', {name: 'Add account'}))
+        expect(props.submitAdd).toHaveBeenCalledOnce()
+    })
+
+    it('shows no unencrypted-password warning for an https address', () => {
+        const form = {displayName: 'W', baseUrl: 'https://d.example.com', username: 'u', password: 'p'}
+        renderManager({adding: true, form})
+        expect(screen.queryByText(/password travels unencrypted/)).toBeNull()
+    })
+
     it('shows an add error in the add dialog, beside its actions', () => {
         renderManager({adding: true, error: 'server refused'})
         const error = screen.getByText('server refused')

@@ -139,17 +139,21 @@ func (a *App) checkMail(trigger string) {
 // withdrawn one and an organiser's updated invitation refreshes the other attendees' statuses, all
 // without the user opening each message. It fetches each body first so the scheduling decode can read
 // its calendar part, then asks the front end to reload the calendar when anything changed. Only a fully
-// resolved message (a reply or cancellation, which needs nothing from the user) is marked read; an
-// updated invitation stays unread because it may carry changes the user must still look at. A message
-// contributes nothing unless it is a meeting whose body can be fetched.
+// resolved message (a reply or cancellation that changed the calendar) is marked read; an updated
+// invitation stays unread because it may carry changes the user must still look at. So does a
+// cancellation that did not come from the meeting's organiser or changed nothing, so the user sees it
+// and decides. A message contributes nothing unless it is a meeting whose body can be fetched; a failure
+// is logged rather than dropped while the message is left unread.
 func (a *App) applyIncomingScheduling(messages []domain.MessageSummary) {
 	anyChanged := false
 	for _, m := range messages {
 		if _, err := a.body.Body(a.ctx, m.ID()); err != nil {
+			runtime.LogErrorf(a.ctx, "mail-notifier: fetch body of %q for scheduling failed: %v", m.ID(), err)
 			continue
 		}
 		changed, resolved, err := a.scheduling.ApplyIncoming(a.ctx, m.ID())
 		if err != nil {
+			runtime.LogErrorf(a.ctx, "mail-notifier: apply scheduling of %q failed: %v", m.ID(), err)
 			continue
 		}
 		if changed {
@@ -157,7 +161,9 @@ func (a *App) applyIncomingScheduling(messages []domain.MessageSummary) {
 		}
 		if resolved {
 			// Best-effort: a mark-read failure must not undo the apply that already happened.
-			_ = a.actions.MarkRead(a.ctx, m.ID(), true)
+			if err := a.actions.MarkRead(a.ctx, m.ID(), true); err != nil {
+				runtime.LogErrorf(a.ctx, "mail-notifier: mark %q read failed: %v", m.ID(), err)
+			}
 		}
 	}
 	if anyChanged {

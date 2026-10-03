@@ -1,6 +1,7 @@
 // print holds the pure print-document builder and the hidden print-frame constants. No React, no api
 // runtime, so the builder and the frame style are unit-tested in isolation; the actual iframe orchestration
 // stays in the component.
+import {emailContentSecurityPolicyMeta} from './emailContentPolicy'
 
 // printFrameId identifies the hidden iframe used for printing, so a previous one is removed before a
 // new print rather than accumulating frames.
@@ -26,12 +27,15 @@ export const printFrameStyle =
 
 // printDocument renders a standalone HTML document for printing one message: a short header (subject,
 // sender, date) followed by the message body. The body HTML is already sanitised server-side, so it is
-// safe to inline here as it is in the reader. The document is pinned to a light colour scheme: an email
+// safe to inline here as it is in the reader. It also carries the reader frame's Content-Security-Policy so
+// the printed copy can fetch nothing the reader could not: neither a remote image still parked nor any
+// reference the sanitiser missed is loaded. The document is pinned to a light colour scheme: an email
 // that ships its own dark-mode CSS (a prefers-color-scheme:dark block, common with large senders) would
 // otherwise render white text, which prints blank on white paper once the printer drops backgrounds.
 export function printDocument(subject: string, sender: string, date: string, contentHtml: string): string {
     const head =
         '<!doctype html><html><head><meta charset="utf-8">' +
+        emailContentSecurityPolicyMeta +
         '<meta name="color-scheme" content="light">' +
         `<title>${subject}</title>` +
         '<style>:root{color-scheme:light}body{font-family:sans-serif;color:#000;padding:24px}' +

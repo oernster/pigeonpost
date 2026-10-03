@@ -32,7 +32,7 @@ func TestCSVRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Encode: %v", err)
 	}
-	got, err := New().Decode(data)
+	got, _, err := New().DecodeImport(data)
 	if err != nil {
 		t.Fatalf("Decode: %v", err)
 	}
@@ -62,7 +62,7 @@ func TestDecodeOutlookHeaders(t *testing.T) {
 		"First Name,Last Name,Company,Job Title,E-mail Address,Mobile Phone,Notes",
 		"Amy,Pond,Tardis,Companion,amy@example.com,555-0100,a note",
 	)
-	got, err := New().Decode(data)
+	got, _, err := New().DecodeImport(data)
 	if err != nil {
 		t.Fatalf("Decode: %v", err)
 	}
@@ -86,7 +86,7 @@ func TestDecodeThunderbirdHeaders(t *testing.T) {
 		"Display Name,Primary Email,Secondary Email",
 		"Rory Williams,rory@example.com,rory2@example.com",
 	)
-	got, err := New().Decode(data)
+	got, _, err := New().DecodeImport(data)
 	if err != nil {
 		t.Fatalf("Decode: %v", err)
 	}
@@ -97,7 +97,7 @@ func TestDecodeThunderbirdHeaders(t *testing.T) {
 
 func TestDecodeNoNameUsesEmail(t *testing.T) {
 	data := lines("E-mail Address", "solo@example.com")
-	got, err := New().Decode(data)
+	got, _, err := New().DecodeImport(data)
 	if err != nil {
 		t.Fatalf("Decode: %v", err)
 	}
@@ -112,7 +112,7 @@ func TestDecodeSkipsBlankRows(t *testing.T) {
 		"Jo,Bloggs,jo@example.com",
 		",,",
 	)
-	got, err := New().Decode(data)
+	got, _, err := New().DecodeImport(data)
 	if err != nil {
 		t.Fatalf("Decode: %v", err)
 	}
@@ -122,14 +122,14 @@ func TestDecodeSkipsBlankRows(t *testing.T) {
 }
 
 func TestDecodeEmptyIsNoContacts(t *testing.T) {
-	got, err := New().Decode(nil)
+	got, _, err := New().DecodeImport(nil)
 	if err != nil || len(got) != 0 {
-		t.Errorf("Decode(nil) = %v, %v; want none and no error", got, err)
+		t.Errorf("DecodeImport(nil) = %v, %v; want none and no error", got, err)
 	}
 }
 
 func TestDecodeMalformedReturnsError(t *testing.T) {
-	if _, err := New().Decode([]byte("First Name\r\n\"unterminated")); err == nil {
+	if _, _, err := New().DecodeImport([]byte("First Name\r\n\"unterminated")); err == nil {
 		t.Errorf("expected a read error for malformed CSV")
 	}
 }
@@ -146,7 +146,7 @@ func TestEncodePhoneOverflowUsesFreeColumn(t *testing.T) {
 		t.Fatalf("Encode: %v", err)
 	}
 	// The second mobile lands in the Home Phone column; on decode it is read back as a home phone.
-	got, err := New().Decode(data)
+	got, _, err := New().DecodeImport(data)
 	if err != nil {
 		t.Fatalf("Decode: %v", err)
 	}
@@ -181,7 +181,7 @@ func TestEncodeDecodeAddressesRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Encode: %v", err)
 	}
-	got, err := New().Decode(data)
+	got, _, err := New().DecodeImport(data)
 	if err != nil {
 		t.Fatalf("Decode: %v", err)
 	}
@@ -222,7 +222,7 @@ func TestEncodeUnlabelledEntriesUseTheFirstFreeSlot(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Encode: %v", err)
 	}
-	got, err := New().Decode(data)
+	got, _, err := New().DecodeImport(data)
 	if err != nil {
 		t.Fatalf("Decode: %v", err)
 	}
@@ -236,13 +236,13 @@ func TestEncodeUnlabelledEntriesUseTheFirstFreeSlot(t *testing.T) {
 }
 
 func TestDecodeIgnoresBlankAndInvalidColumns(t *testing.T) {
-	// A blank header (a stray trailing comma on the header row) must not claim a column, and a value
-	// that is not a usable email address must not sink the row.
+	// A blank header (a stray trailing comma on the header row) must not claim a column; a value that is
+	// not a usable email address must not sink the row.
 	data := lines(
 		"Display Name,,Primary Email,Secondary Email",
 		"Jo Bloggs,ignored,not-an-email-address,jo@example.com",
 	)
-	got, err := New().Decode(data)
+	got, _, err := New().DecodeImport(data)
 	if err != nil {
 		t.Fatalf("Decode: %v", err)
 	}

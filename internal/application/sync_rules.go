@@ -16,18 +16,21 @@ import (
 // act on mail the user had already filed by hand. Within the Inbox, rules act only on arrivals, their
 // destructive actions held back until the folder has been baselined (see RuleExecutor.Apply).
 //
+// A folder the server has renumbered is rebaselined instead (see folderFetch.knownFor): every message
+// in it counts as already held, so no rule acts on it that pass.
+//
 // The returned error reports a rule that could not be carried out. The messages come back regardless,
 // so the caller saves what it has before deciding what to do with the error.
 func (s *SyncService) applyRules(ctx context.Context, account domain.Account, folder domain.Folder,
-	fetched []domain.MessageSummary, rules []domain.Rule) ([]domain.MessageSummary, error) {
+	fetch folderFetch, rules []domain.Rule) ([]domain.MessageSummary, error) {
 	if len(rules) == 0 || folder.Kind() != domain.FolderInbox {
-		return fetched, nil
+		return fetch.messages, nil
 	}
 	known, err := s.knownIDs(ctx, folder.ID())
 	if err != nil {
-		return fetched, err
+		return fetch.messages, err
 	}
-	return s.applyRulesKnown(ctx, account, folder, fetched, known, rules)
+	return s.applyRulesKnown(ctx, account, folder, fetch.messages, fetch.knownFor(known), rules)
 }
 
 // applyRulesKnown is applyRules for a caller that has already listed the folder's cached messages, so

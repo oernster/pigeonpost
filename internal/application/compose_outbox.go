@@ -32,28 +32,30 @@ func (s *ComposeService) OutboxItems(ctx context.Context) ([]domain.OutboxItem, 
 	return items, nil
 }
 
-// CancelOutbox removes a queued operation before it is sent, discarding it. It reports whether the
-// item was still queued: false means it had already been sent (or removed), so an undo that lost the
-// race can tell the user the message left rather than pretending it was stopped.
+// CancelOutbox discards a queued operation before it is sent. It reports whether the item was still
+// queued: false means a replay had already claimed it (the message is on its way or has left) or it was
+// already gone, so the caller tells the user the message could not be stopped rather than pretending
+// it was. The queued test and the delete are one store operation, so no send can slip between them.
 func (s *ComposeService) CancelOutbox(ctx context.Context, id string) (bool, error) {
-	cancelled, err := s.outbox.DeleteOutbox(ctx, id)
+	cancelled, err := s.outbox.CancelQueuedOutbox(ctx, id)
 	if err != nil {
 		return false, fmt.Errorf("compose: cancel outbox item %q: %w", id, err)
 	}
 	return cancelled, nil
 }
 
-// ReplayOutbox attempts every queued operation, oldest first. A successful operation is removed from
-// the queue. If the server is still unreachable, replay stops and the remaining items stay queued. An
-// operation that fails for any other reason (the account is gone, the message is rejected) is kept in
-// the queue and stamped with its failure reason, so it surfaces in the outbox for the user to see and
-// act on rather than vanishing. An item already marked failed is skipped rather than retried; so is an
-// item still inside its hold: the user may yet cancel it, so no replay may send it early.
-// Its error is also collected and returned. It returns how many operations succeeded.
+// ReplayOutbox attempts every queued operation, oldest first, each only after winning its claim, so a
+// replay racing another (a second account's sync, the dispatcher) skips what the other is sending. A
+// successful operation is removed from the queue. If the server is still unreachable, replay stops and
+// the remaining items stay queued. An operation that fails for any other reason (the account is gone,
+// the message is rejected) is kept in the queue and stamped with its failure reason, so it surfaces in
+// the outbox for the user to see and act on rather than vanishing; its error is also collected and
+// returned. An item already marked failed is skipped rather than retried; so is an item still inside its
+// hold: the user may yet cancel it, so no replay may send it early. It returns how many succeeded.
 func (s *ComposeService) ReplayOutbox(ctx context.Context) (int, error) {
-	items, err := s.outbox.ListOutbox(ctx)
+	items, err := s.OutboxItems(ctx)
 	if err != nil {
-		return 0, fmt.Errorf("compose: list outbox: %w", err)
+		return 0, err
 	}
 	replayed := 0
 	var failures []error
@@ -61,20 +63,16 @@ func (s *ComposeService) ReplayOutbox(ctx context.Context) (int, error) {
 		if item.Failed() || item.HeldAt(s.clock.Now()) {
 			continue
 		}
-		err := s.replayItem(ctx, item)
-		if errors.Is(err, domain.ErrOffline) {
+		outcome, err := s.replayClaimed(ctx, item, keepOnOffline)
+		switch outcome {
+		case replayDelivered:
+			replayed++
+		case replayOffline:
 			return replayed, nil
-		}
-		if err != nil {
-			if markErr := s.outbox.MarkOutboxFailed(ctx, item.ID(), err.Error()); markErr != nil {
-				return replayed, fmt.Errorf("compose: mark outbox item %q failed: %w", item.ID(), markErr)
-			}
-			failures = append(failures, fmt.Errorf("compose: outbox item %q failed: %w", item.ID(), err))
-			continue
-		}
-		replayed++
-		if _, delErr := s.outbox.DeleteOutbox(ctx, item.ID()); delErr != nil {
-			return replayed, fmt.Errorf("compose: remove replayed item %q: %w", item.ID(), delErr)
+		case replayFailed:
+			failures = append(failures, err)
+		case replayAborted:
+			return replayed, err
 		}
 	}
 	return replayed, errors.Join(failures...)
@@ -82,14 +80,21 @@ func (s *ComposeService) ReplayOutbox(ctx context.Context) (int, error) {
 
 // ReplayDueHeld sends the held items whose hold has elapsed, returning how many were
 // sent. It is the dispatcher's entry point, so it touches only held-and-due items: never the plain
-// offline queue (which waits for a sync) and never an item still inside its window. A due item whose
-// send finds the server unreachable has its hold cleared instead of being retried on every tick,
-// degrading it to an ordinary queued item that the next sync replays; any other failure is stamped on
-// the item exactly as in ReplayOutbox.
+// offline queue (which waits for a sync) and never an item still inside its window. Each send follows a
+// won claim exactly as in ReplayOutbox, so a sync replaying the same due item cannot send it as well. A
+// due item whose send finds the server unreachable has its hold cleared instead of being retried on
+// every tick, degrading it to an ordinary queued item that the next sync replays; any other failure is
+// stamped on the item exactly as in ReplayOutbox.
 func (s *ComposeService) ReplayDueHeld(ctx context.Context) (int, error) {
-	items, err := s.outbox.ListOutbox(ctx)
+	items, err := s.OutboxItems(ctx)
 	if err != nil {
-		return 0, fmt.Errorf("compose: list outbox: %w", err)
+		return 0, err
+	}
+	clearHold := func(id string) error {
+		if err := s.outbox.ClearOutboxHold(ctx, id); err != nil {
+			return fmt.Errorf("compose: clear hold on %q: %w", id, err)
+		}
+		return nil
 	}
 	sent := 0
 	var failures []error
@@ -97,23 +102,14 @@ func (s *ComposeService) ReplayDueHeld(ctx context.Context) (int, error) {
 		if item.Failed() || item.HoldUntil().IsZero() || item.HeldAt(s.clock.Now()) {
 			continue
 		}
-		err := s.replayItem(ctx, item)
-		if errors.Is(err, domain.ErrOffline) {
-			if clearErr := s.outbox.ClearOutboxHold(ctx, item.ID()); clearErr != nil {
-				return sent, fmt.Errorf("compose: clear hold on %q: %w", item.ID(), clearErr)
-			}
-			continue
-		}
-		if err != nil {
-			if markErr := s.outbox.MarkOutboxFailed(ctx, item.ID(), err.Error()); markErr != nil {
-				return sent, fmt.Errorf("compose: mark outbox item %q failed: %w", item.ID(), markErr)
-			}
-			failures = append(failures, fmt.Errorf("compose: outbox item %q failed: %w", item.ID(), err))
-			continue
-		}
-		sent++
-		if _, delErr := s.outbox.DeleteOutbox(ctx, item.ID()); delErr != nil {
-			return sent, fmt.Errorf("compose: remove sent item %q: %w", item.ID(), delErr)
+		outcome, err := s.replayClaimed(ctx, item, clearHold)
+		switch outcome {
+		case replayDelivered:
+			sent++
+		case replayFailed:
+			failures = append(failures, err)
+		case replayAborted:
+			return sent, err
 		}
 	}
 	return sent, errors.Join(failures...)
@@ -129,27 +125,24 @@ func (s *ComposeService) NextHold(ctx context.Context) (time.Time, bool, error) 
 	return next, ok, nil
 }
 
-// replayItem performs one queued operation against the server, dispatching on its kind. A delivered
-// send also gets its best-effort Sent copy here, so a queued message keeps the same record a direct
+// performQueued performs one queued operation against the server (dispatching on its kind) and returns
+// the account it ran for. The best-effort Sent copy of a delivered send is left to the caller, which
+// first takes the item off the queue (see replayClaimed); the copy still matches the record a direct
 // send leaves.
-func (s *ComposeService) replayItem(ctx context.Context, item domain.OutboxItem) error {
+func (s *ComposeService) performQueued(ctx context.Context, item domain.OutboxItem) (domain.Account, error) {
 	account, err := s.accounts.GetAccount(ctx, item.AccountID())
 	if err != nil {
-		return fmt.Errorf("load account %q: %w", item.AccountID(), err)
+		return domain.Account{}, fmt.Errorf("load account %q: %w", item.AccountID(), err)
 	}
 	switch item.Kind() {
 	case domain.OutboxDraft:
 		draftsPath, err := s.draftsPath(ctx, item.AccountID())
 		if err != nil {
-			return err
+			return account, err
 		}
-		return s.drafts.SaveDraft(ctx, account, draftsPath, item.Message())
+		return account, s.drafts.SaveDraft(ctx, account, draftsPath, item.Message())
 	default:
-		if err := s.transport.Send(ctx, account, item.Message()); err != nil {
-			return err
-		}
-		s.saveToSent(ctx, account, item.Message())
-		return nil
+		return account, s.transport.Send(ctx, account, item.Message())
 	}
 }
 

@@ -168,36 +168,41 @@ func (e *RuleExecutor) groupOutcomes(ctx context.Context, account domain.Account
 
 // destroy removes a batch from the server outright. The empty trash path is what makes it permanent on an
 // ordinary server: the messages are marked deleted and expunged where they stand, never copied to Trash
-// first. A provider that archives on an expunge instead needs the Trash hop, which purgeViaTrash takes and
-// reports; without it a destroying rule kept every message it claimed to destroy.
+// first. A provider that archives on an expunge instead needs the Trash hop, which purgeViaTrashReporting
+// takes and reports; without it a destroying rule kept every message it claimed to destroy. A batch the
+// server refuses part way has still removed what it accepted, so exactly those are marked removed and
+// are not saved back into the folder they left.
 func (e *RuleExecutor) destroy(ctx context.Context, account domain.Account, folder domain.Folder,
 	batch ruleBatch, removed map[string]struct{}) error {
-	handled, err := purgeViaTrash(ctx, e.remote, e.store, account, folder, batch.uids)
+	handled, left, err := purgeViaTrashReporting(ctx, e.remote, e.store, account, folder, batch.uids)
+	if !handled && err == nil {
+		var destroyed map[string]string
+		destroyed, err = e.remote.DeleteMany(ctx, account, folder, batch.uids, "")
+		left = landedUIDs(batch.uids, destroyed, err)
+	}
+	markRemoved(batch, left, removed)
 	if err != nil {
-		return fmt.Errorf("rules: destroy %d message(s) in %q: %w", len(batch.uids), folder.Path(), err)
+		return fmt.Errorf("rules: destroy message(s) in %q: %d of %d removed: %w", folder.Path(), len(left), len(batch.uids), err)
 	}
-	if !handled {
-		if _, err := e.remote.DeleteMany(ctx, account, folder, batch.uids, ""); err != nil {
-			return fmt.Errorf("rules: destroy %d message(s) in %q: %w", len(batch.uids), folder.Path(), err)
-		}
-	}
-	markRemoved(batch.ids, removed)
 	return nil
 }
 
-// move relocates a batch into another mailbox of the same account.
+// move relocates a batch into another mailbox of the same account. What a batch refused part way did
+// move is marked removed, as for destroy.
 func (e *RuleExecutor) move(ctx context.Context, account domain.Account, folder domain.Folder,
 	destPath string, batch *ruleBatch, removed map[string]struct{}) error {
-	if _, err := e.remote.MoveMany(ctx, account, folder, batch.uids, destPath); err != nil {
-		return fmt.Errorf("rules: move %d message(s) to %q: %w", len(batch.uids), destPath, err)
+	moved, err := e.remote.MoveMany(ctx, account, folder, batch.uids, destPath)
+	left := landedUIDs(batch.uids, moved, err)
+	markRemoved(*batch, left, removed)
+	if err != nil {
+		return fmt.Errorf("rules: move message(s) to %q: %d of %d moved: %w", destPath, len(left), len(batch.uids), err)
 	}
-	markRemoved(batch.ids, removed)
 	return nil
 }
 
-// markRemoved records the ids that have left the folder on the server.
-func markRemoved(ids []string, removed map[string]struct{}) {
-	for _, id := range ids {
+// markRemoved records the batch's ids whose uids have left the folder on the server.
+func markRemoved(batch ruleBatch, uids []string, removed map[string]struct{}) {
+	for _, id := range idsForUIDs(batch.uids, batch.ids, uids) {
 		removed[id] = struct{}{}
 	}
 }

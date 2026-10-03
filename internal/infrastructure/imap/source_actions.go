@@ -114,19 +114,14 @@ func (s *Source) Delete(ctx context.Context, account domain.Account, folder doma
 	uidSet.AddNum(u)
 
 	if trashPath != "" {
-		data, err := client.Move(uidSet, trashPath).Wait()
+		landed, err := moveUIDs(client, uidSet, trashPath)
 		if err != nil {
 			return "", fmt.Errorf("imap: move uid %q to %q: %w", uid, trashPath, err)
 		}
-		return movedUIDs(data)[uid], nil
+		return landed[uid], nil
 	}
-
-	store := &imap.StoreFlags{Op: imap.StoreFlagsAdd, Silent: true, Flags: []imap.Flag{imap.FlagDeleted}}
-	if err := client.Store(uidSet, store, nil).Close(); err != nil {
-		return "", fmt.Errorf("imap: mark \\Deleted uid %q: %w", uid, err)
-	}
-	if err := client.Expunge().Close(); err != nil {
-		return "", fmt.Errorf("imap: expunge uid %q: %w", uid, err)
+	if err := expungeUIDs(client, uidSet); err != nil {
+		return "", fmt.Errorf("imap: delete uid %q: %w", uid, err)
 	}
 	return "", nil
 }
@@ -151,11 +146,11 @@ func (s *Source) Move(ctx context.Context, account domain.Account, folder domain
 	}
 	uidSet := imap.UIDSet{}
 	uidSet.AddNum(u)
-	data, err := client.Move(uidSet, destPath).Wait()
+	landed, err := moveUIDs(client, uidSet, destPath)
 	if err != nil {
 		return "", fmt.Errorf("imap: move uid %q to %q: %w", uid, destPath, err)
 	}
-	return movedUIDs(data)[uid], nil
+	return landed[uid], nil
 }
 
 // Copy duplicates a message by UID into destPath on the server, leaving the original untouched and
@@ -227,8 +222,8 @@ func (s *Source) DeleteFolder(ctx context.Context, account domain.Account, path 
 
 // MoveAllMessages moves every message in the mailbox at fromPath into the mailbox at toPath, used when
 // a stray sent folder is merged into the canonical one. An empty source mailbox is a no-op. It
-// satisfies application.FolderActions; the client library falls back to COPY plus expunge when the
-// server lacks the MOVE extension.
+// satisfies application.FolderActions. Without the MOVE extension it moves the folder's UIDs through
+// moveAllUIDs, which waits for each COPY's answer and expunges only what it copied.
 func (s *Source) MoveAllMessages(ctx context.Context, account domain.Account, fromPath, toPath string) error {
 	client, err := s.connect(ctx, account)
 	if err != nil {
@@ -241,6 +236,12 @@ func (s *Source) MoveAllMessages(ctx context.Context, account domain.Account, fr
 		return fmt.Errorf("imap: select %q: %w", fromPath, err)
 	}
 	if selected.NumMessages == 0 {
+		return nil
+	}
+	if !client.Caps().Has(imap.CapMove) {
+		if err := moveAllUIDs(client, toPath); err != nil {
+			return fmt.Errorf("imap: move all messages from %q to %q: %w", fromPath, toPath, err)
+		}
 		return nil
 	}
 	var all imap.SeqSet

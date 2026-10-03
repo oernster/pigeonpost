@@ -180,12 +180,20 @@ type fakeMailStore struct {
 	searchLimit         int
 	// thread* mirror the search fields for ThreadMessages: what the conversation lookup asked for and
 	// what the store hands back.
-	threadResults    []domain.MessageSummary
-	threadAccountID  string
-	threadSuffix     string
-	threadLimit      int
-	threadErr        error
-	deletedMessages  []string
+	threadResults   []domain.MessageSummary
+	threadAccountID string
+	threadSuffix    string
+	threadLimit     int
+	threadErr       error
+	deletedMessages []string
+	// rehomed records what RehomeMessages filed; rehomeErr injects its failure.
+	rehomed   []domain.MessageSummary
+	rehomeErr error
+	// validity is the UIDVALIDITY record per folder: a test seeds what a folder was last synced under and
+	// reads back what the sync recorded. validityErr and setValidityErr inject read and write failures.
+	validity         map[string]uint32
+	validityErr      error
+	setValidityErr   error
 	forcedMessage    *domain.MessageSummary
 	savedFolderKeys  []string
 	savedMessageKeys []string
@@ -521,6 +529,38 @@ func (f *fakeMailStore) ThreadMessages(_ context.Context, accountID, subjectSuff
 	return f.threadResults, nil
 }
 
+func (f *fakeMailStore) FolderUIDValidity(_ context.Context, folderID string) (uint32, bool, error) {
+	if f.validityErr != nil {
+		return 0, false, f.validityErr
+	}
+	v, ok := f.validity[folderID]
+	return v, ok, nil
+}
+
+func (f *fakeMailStore) SetFolderUIDValidity(_ context.Context, folderID string, validity uint32) error {
+	if f.setValidityErr != nil {
+		return f.setValidityErr
+	}
+	if f.validity == nil {
+		f.validity = map[string]uint32{}
+	}
+	f.validity[folderID] = validity
+	return nil
+}
+
+// RehomeMessages files each re-homed summary into its folder's cached list, as the real store does, where
+// the sync's arrival check reads it.
+func (f *fakeMailStore) RehomeMessages(_ context.Context, messages []domain.MessageSummary) error {
+	if f.rehomeErr != nil {
+		return f.rehomeErr
+	}
+	for _, m := range messages {
+		f.messages[m.FolderID()] = append(f.messages[m.FolderID()], m)
+	}
+	f.rehomed = append(f.rehomed, messages...)
+	return nil
+}
+
 func (f *fakeMailStore) DeleteMessage(_ context.Context, messageID string) error {
 	if f.deleteMessageErr != nil {
 		return f.deleteMessageErr
@@ -844,6 +884,8 @@ type fakeMailSource struct {
 	bodyAttachments  []domain.Attachment
 	fetchRawErr      error
 	raw              []byte
+	// validity is the UIDVALIDITY the server's SELECT reported for each folder.
+	validity map[string]uint32
 }
 
 func (f *fakeMailSource) FetchBody(context.Context, domain.Account, domain.Folder, string) (string, string, []byte, []domain.Attachment, error) {
@@ -867,11 +909,13 @@ func (f *fakeMailSource) FetchFolders(context.Context, domain.Account) ([]domain
 	return f.folders, nil
 }
 
-func (f *fakeMailSource) FetchMessages(_ context.Context, _ domain.Account, folder domain.Folder) ([]domain.MessageSummary, error) {
+// FetchMessagesValidity answers the folder's messages with the UIDVALIDITY seeded for it; a folder with
+// none seeded reports zero, which is how a POP3 source answers.
+func (f *fakeMailSource) FetchMessagesValidity(_ context.Context, _ domain.Account, folder domain.Folder) ([]domain.MessageSummary, uint32, error) {
 	if f.fetchMessagesErr != nil {
-		return nil, f.fetchMessagesErr
+		return nil, unknownUIDValidity, f.fetchMessagesErr
 	}
-	return f.messagesByFolder[folder.ID()], nil
+	return f.messagesByFolder[folder.ID()], f.validity[folder.ID()], nil
 }
 
 // fakeMailActions is a hand-written MailActions that records the operations it was asked to perform.
@@ -1203,6 +1247,27 @@ func (f *fakeOutboxStore) MarkOutboxFailed(_ context.Context, id, reason string)
 	}
 	return nil
 }
+
+// fakeOutboxStore drives the sequential outbox tests, where no two replays overlap, so its claim is the
+// plain rule without the bookkeeping: an item present and unfailed can be claimed, releasing is nothing
+// to undo and a cancel is its delete. The racing behaviour is claimingOutbox's.
+
+func (f *fakeOutboxStore) ClaimOutbox(_ context.Context, id string) (bool, error) {
+	for _, item := range f.items {
+		if item.ID() == id {
+			return !item.Failed(), nil
+		}
+	}
+	return false, nil
+}
+
+func (f *fakeOutboxStore) ReleaseOutbox(context.Context, string) error { return nil }
+
+func (f *fakeOutboxStore) CancelQueuedOutbox(ctx context.Context, id string) (bool, error) {
+	return f.DeleteOutbox(ctx, id)
+}
+
+func (f *fakeOutboxStore) RecoverOutboxClaims(context.Context) (int, error) { return 0, nil }
 
 // fakeDraftRecoveryStore is a hand-written in-memory DraftRecoveryStore with error-injection fields. It
 // holds a single snapshot, present when saved reports true, mirroring the one-slot store contract.

@@ -123,8 +123,9 @@ func exercise(t *testing.T, router *Router, account domain.Account) {
 	if _, err := router.FetchFolders(ctx, account); err != nil {
 		t.Fatalf("FetchFolders: %v", err)
 	}
-	if _, err := router.FetchMessages(ctx, account, folder); err != nil {
-		t.Fatalf("FetchMessages: %v", err)
+	// The recorder reports no UIDVALIDITY, so the router fetches it plainly and records "messages".
+	if _, _, err := router.FetchMessagesValidity(ctx, account, folder); err != nil {
+		t.Fatalf("FetchMessagesValidity: %v", err)
 	}
 	if _, _, _, _, err := router.FetchBody(ctx, account, folder, "1"); err != nil {
 		t.Fatalf("FetchBody: %v", err)

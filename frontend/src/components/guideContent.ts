@@ -42,7 +42,7 @@ export const guideSections: GuideSection[] = [
         heading: 'The bar along the top',
         intro: 'The menus and the working controls read left to right; the theme toggle and Help are held at the far end. Hover any of them to see its name.',
         entries: [
-            {icon: icons.file, name: 'File', text: 'save the open message as a file or print it.'},
+            {icon: icons.file, name: 'File', text: 'save the open message as a file or print it; a printed message shows its remote images only when you have loaded them.'},
             {icon: icons.edit, name: 'Edit', text: 'undo and redo the mail actions, cut, copy and paste messages between folders, delete, search, filter rules and message templates. Each entry names what it will unwind.'},
             {icon: icons.view, name: 'View', text: 'conversation view, the unified mailbox, the reading pane (F8) and whether remote images load by default.'},
             {icon: icons.rules, name: 'Filter rules', text: 'the rules that sort arriving mail, with Export and Import to carry a set between installations.'},
@@ -96,7 +96,7 @@ export const guideSections: GuideSection[] = [
             },
             {
                 title: 'Rules act on mail that arrives after they exist.',
-                text: 'Unattended, a rule runs on the Inbox as mail comes in, so adding one never reaches back over the mail you already have. The Now button on a rule is how you ask it to: it says what it found and acts only once you agree.',
+                text: 'Unattended, a rule runs on the Inbox as mail comes in, so adding one never reaches back over the mail you already have; mail another program moves into the Inbox is the one exception, since it arrives under a new number. The Now button on a rule is how you ask it to: it says what it found and acts only once you agree.',
             },
             {
                 title: 'A scheduled thing needs the app.',

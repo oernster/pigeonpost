@@ -11,6 +11,14 @@ import (
 // the domain holds.
 const streetLineSeparator = ", "
 
+// The name columns, lower-cased, read on import. They and emailHeaders are the identity columns: a row
+// needs one of them filled to form a contact, so a header naming none of them cannot yield any.
+var (
+	givenNameHeaders   = []string{"first name", "given name"}
+	familyNameHeaders  = []string{"last name", "family name", "surname"}
+	displayNameHeaders = []string{"display name", "name", "full name", "formatted name"}
+)
+
 // emailHeaders are the column names, lower-cased, read as email addresses on import, in preference
 // order: Outlook numbers its three slots, Thunderbird names two.
 var emailHeaders = []string{
@@ -97,6 +105,28 @@ func headerIndex(header []string) map[string]int {
 	return m
 }
 
+// hasIdentityColumn reports whether the header names any column a contact's name or email is read from.
+func hasIdentityColumn(headers map[string]int) bool {
+	for _, group := range [][]string{givenNameHeaders, familyNameHeaders, displayNameHeaders, emailHeaders} {
+		for _, h := range group {
+			if _, ok := headers[h]; ok {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// isBlankRow reports whether every field of a row is empty, which is spacing rather than a record.
+func isBlankRow(row []string) bool {
+	for _, v := range row {
+		if strings.TrimSpace(v) != "" {
+			return false
+		}
+	}
+	return true
+}
+
 // get returns the first non-empty value among the given header aliases.
 func get(headers map[string]int, row []string, aliases ...string) string {
 	for _, a := range aliases {
@@ -122,11 +152,11 @@ func joinValues(headers map[string]int, row []string, sep string, aliases []stri
 	return strings.Join(present, sep)
 }
 
-// rowToContact builds a contact from one data row. The bool is false for a blank or unusable row,
-// which the caller skips.
+// rowToContact builds a contact from one data row. The bool is false for a row with neither a name nor
+// an email, which the caller skips.
 func rowToContact(headers map[string]int, row []string) (domain.Contact, bool, error) {
-	first := get(headers, row, "first name", "given name")
-	last := get(headers, row, "last name", "family name", "surname")
+	first := get(headers, row, givenNameHeaders...)
+	last := get(headers, row, familyNameHeaders...)
 	display := displayName(headers, row, first, last)
 	emails := collectEmails(headers, row)
 	if display == "" && len(emails) == 0 {
@@ -160,7 +190,7 @@ func rowToContact(headers map[string]int, row []string) (domain.Contact, bool, e
 // column. Outlook has no display-name column at all, so the fallback is its normal path; the middle
 // name is included there because Outlook exports one and dropping it would silently shorten names.
 func displayName(headers map[string]int, row []string, first, last string) string {
-	if name := get(headers, row, "display name", "name", "full name", "formatted name"); name != "" {
+	if name := get(headers, row, displayNameHeaders...); name != "" {
 		return name
 	}
 	parts := []string{first, get(headers, row, "middle name"), last}
@@ -174,7 +204,7 @@ func displayName(headers map[string]int, row []string, first, last string) strin
 }
 
 // jobTitle reads the contact's role. Outlook's bare "Title" column is an honorific (Mr, Dr), not a job
-// title, and Outlook exports both columns, so the bare one is read only when the file carries no
+// title. Outlook exports both columns, so the bare one is read only when the file carries no
 // job-title column at all: without that check an Outlook contact with no role recorded imports with a
 // job title of "Mr".
 func jobTitle(headers map[string]int, row []string) string {
@@ -184,7 +214,7 @@ func jobTitle(headers map[string]int, row []string) string {
 	return get(headers, row, "title")
 }
 
-// birthday reads a birthday from either exporter's shape: Outlook's single date column, or
+// birthday reads a birthday from either exporter's shape: Outlook's single date column or
 // Thunderbird's separate year, month and day columns.
 func birthday(headers map[string]int, row []string) string {
 	if value := get(headers, row, "birthday", "birth date", "date of birth"); value != "" {

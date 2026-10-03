@@ -189,7 +189,7 @@ func TestRuleBackfillMovesGroupedByDestination(t *testing.T) {
 	// A message already in the destination has nowhere to go, so it is not work.
 	mail.messages["f2"] = []domain.MessageSummary{backfillMessage(t, "m3", "f2", "billing@shop.com", 0)}
 
-	counts, err := svc.Run(context.Background(), "r1", nil)
+	counts, err := previewThenRun(t, svc, context.Background(), "r1", nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -207,7 +207,7 @@ func TestRuleBackfillDestroysPermanentlyAndSkipsItsFlagActions(t *testing.T) {
 	svc, mail, _, _, actions := backfillFixture(t, rule)
 	mail.messages["f1"] = []domain.MessageSummary{backfillMessage(t, "m1", "f1", "spam@bad.com", 0)}
 
-	counts, err := svc.Run(context.Background(), "r1", nil)
+	counts, err := previewThenRun(t, svc, context.Background(), "r1", nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -248,7 +248,7 @@ func TestRuleBackfillSkipsMoveToAnotherAccount(t *testing.T) {
 	mail.folders["a2"] = []domain.Folder{testFolder(t, "f9", "a2", "INBOX")}
 	mail.messages["f1"] = []domain.MessageSummary{backfillMessage(t, "m1", "f1", "news@site.com", 0)}
 
-	counts, err := svc.Run(context.Background(), "r1", nil)
+	counts, err := previewThenRun(t, svc, context.Background(), "r1", nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -287,7 +287,7 @@ func TestRuleBackfillReportsProgressThroughBothPhases(t *testing.T) {
 	}
 
 	var seen []RuleBackfillProgress
-	if _, err := svc.Run(context.Background(), "r1", func(p RuleBackfillProgress) {
+	if _, err := previewThenRun(t, svc, context.Background(), "r1", func(p RuleBackfillProgress) {
 		seen = append(seen, p)
 	}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -337,7 +337,7 @@ func TestRuleBackfillReportsAnEmptyApplyingPhaseRatherThanNothing(t *testing.T) 
 	mail.messages["f1"] = []domain.MessageSummary{backfillMessage(t, "m1", "f1", "friend@good.com", 0)}
 
 	var seen []RuleBackfillProgress
-	if _, err := svc.Run(context.Background(), "r1", func(p RuleBackfillProgress) {
+	if _, err := previewThenRun(t, svc, context.Background(), "r1", func(p RuleBackfillProgress) {
 		seen = append(seen, p)
 	}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -360,7 +360,7 @@ func TestRuleBackfillSendsBigMovesInBatchesSoTheBarMoves(t *testing.T) {
 	mail.messages["f1"] = stored
 
 	var applying []RuleBackfillProgress
-	counts, err := svc.Run(context.Background(), "r1", func(p RuleBackfillProgress) {
+	counts, err := previewThenRun(t, svc, context.Background(), "r1", func(p RuleBackfillProgress) {
 		if p.Phase == RuleBackfillApplying {
 			applying = append(applying, p)
 		}
@@ -398,7 +398,7 @@ func TestRuleBackfillStopsWhenCancelledAndReportsWhatLanded(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	actions.onMove = func() { cancel() }
 
-	counts, err := svc.Run(ctx, "r1", nil)
+	counts, err := previewThenRun(t, svc, ctx, "r1", nil)
 	if err != nil {
 		t.Fatalf("a cancel is not an error: %v", err)
 	}
@@ -441,7 +441,7 @@ func TestRuleBackfillStopsFlagsAndDestroysWhenCancelled(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	actions.onRead = func() { cancel() }
 
-	counts, err := svc.Run(ctx, "r1", nil)
+	counts, err := previewThenRun(t, svc, ctx, "r1", nil)
 	if err != nil {
 		t.Fatalf("a cancel is not an error: %v", err)
 	}
@@ -456,7 +456,7 @@ func TestRuleBackfillStopsFlagsAndDestroysWhenCancelled(t *testing.T) {
 	svc2, mail2, _, _, actions2 := backfillFixture(t, destroy)
 	mail2.messages["f1"] = mail.messages["f1"]
 	ctx2, cancel2 := context.WithCancel(context.Background())
-	counts2, err := svc2.Run(ctx2, "d1", func(p RuleBackfillProgress) {
+	counts2, err := previewThenRun(t, svc2, ctx2, "d1", func(p RuleBackfillProgress) {
 		if p.Phase == RuleBackfillScanning && p.Done == 1 {
 			cancel2()
 		}
@@ -486,7 +486,7 @@ func TestRuleBackfillCancelDoesNotAbortTheCallInFlight(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	actions.onMove = func() { cancel() }
 
-	counts, err := svc.Run(ctx, "r1", nil)
+	counts, err := previewThenRun(t, svc, ctx, "r1", nil)
 	if err != nil {
 		t.Fatalf("a cancel must not surface as an error: %v", err)
 	}

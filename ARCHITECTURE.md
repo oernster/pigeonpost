@@ -192,7 +192,7 @@ Read a message body:
    enters the cache; an HTML-only message also gets a plain-text rendering derived from the HTML.
    The same pre-sanitise pass drops nodes the sender hid with inline CSS (a preheader / preview-text
    block): the sanitiser strips the style that hid them, so left in place they would surface and
-   duplicate the visible content. Before sanitising, every remote `<img src>` is parked in
+   duplicate the visible content. Before sanitising, every `<img src>` that is not `data:` or `cid:` is parked in
    a `data-pp-src` attribute (and `srcset` dropped) so images do not auto-load, which would leak that
    the reader opened the message; the UI shows a "Load images" action that restores the source on
    request. Between the prepare pass and the sanitiser, bare web addresses in the message text are
@@ -259,8 +259,10 @@ Read a message body:
    empty one resolves against the document itself) while painting nothing, so testing for `none` would
    suppress the repair on exactly the elements that lost their backdrop.
 
-Printing a message reuses the same sanitised HTML. The message's parked remote images (not its parked CSS
-backgrounds) are restored for the printed copy; the document is rendered into a hidden iframe that is invoked through the browser's print
+Printing a message reuses the same sanitised HTML. The message's remote images stay parked unless the reader
+is showing that message with its images loaded (`imagesShownFor`, the record the Load images bar keeps); then
+the HTML passes through the same LoadRemoteImages proxy and prints with its images inlined as `data:` URIs. The
+print frame carries the reader frame's Content-Security-Policy (`emailContentPolicy.ts`). The document is rendered into a hidden iframe that is invoked through the browser's print
 dialog, so only the message prints rather than the whole app window. The frame is parked far off-screen but
 given a real page-sized layout box (a zero-size frame has no viewport for the engine to lay the document into
 and prints blank) and is pinned to a light colour scheme so it does not inherit the app's dark scheme and
@@ -424,7 +426,11 @@ attachments so a queued message keeps them on replay) and returns success; the U
 queue as a per-account outbox folder where the waiting messages can be reviewed or cancelled. After the
 next successful sync the UI calls replay, which drains the queue oldest-first: each item is re-sent or
 re-appended, removed on success, left in place if still offline; one that can never succeed is kept but marked failed (its reason
-shown in the Outbox and not retried). A replayed send keeps the same best-effort Sent copy a direct send leaves. The
+shown in the Outbox and not retried). A replay claims an item before sending it: one conditional UPDATE moves
+it from queued to sending (schemaV59), so only one sender wins it, whether two replays race or a replay meets
+the send-later dispatcher. A cancel deletes only an unclaimed item and is told when it was too late; the claims a crashed run
+left behind go back to the queue when the dispatcher starts. A send counts as delivered once the server
+accepts DATA, whatever QUIT then answers. A replayed send keeps the same best-effort Sent copy a direct send leaves. The
 queue covers outgoing mail only; delete and move remain online-only by design, while flag changes are
 replayed through their own intent table (below). IMAP and POP3 dials are bounded by a 10-second timeout
 (DNS plus the TCP and TLS handshake), so an action taken while offline fails within seconds rather than
@@ -541,7 +547,8 @@ them.
 Delete a message: after a confirmation modal, the UI calls the facade, routed through the
 `MessageActionService`. It resolves the message's folder and account, then via the `MailActions` port
 moves the message to the account's Trash folder when one exists or deletes it permanently (mark
-`\Deleted` and expunge) when the message is already in Trash or the account has no Trash folder. The
+`\Deleted`, then `UID EXPUNGE` of exactly the chosen messages, so mail another client flagged is never
+taken with them; a server without UIDPLUS is refused rather than sent a plain `EXPUNGE`) when the message is already in Trash or the account has no Trash folder. The
 cached message and everything derived from it (body, tags, index row) are then removed locally.
 
 Permanent deletion: a purge, whether the user asks for one or a rule's destroy action does, is one step on
@@ -563,8 +570,15 @@ included in the error's count rather than reported as destroyed: recoverable and
 
 Move a message: the UI offers the account's other folders; choosing one routes through the
 `MessageActionService`, which checks the destination is in the same account, moves the message on the
-server via the `MailActions` port and removes the local copy (the destination folder re-lists it, with
-its new server UID, on the next sync). Copy is the same path without removing the original.
+server via the `MailActions` port and removes the local copy. Where the server reports the destination
+UID, the message is filed into the destination folder's cache under its new id at once (`RehomeMessages`),
+so the next sync of that folder, the Inbox above all, does not read it as an arrival for the rules to act
+on; without a reported UID the destination re-lists it on its next sync. On a server without MOVE the adapter
+issues `UID COPY`, waits for its answer and only then marks and `UID EXPUNGE`s exactly the copied UIDs, because
+go-imap's own fallback sends all three before COPY is answered and so removed the message even when the copy was
+refused; with neither MOVE nor UIDPLUS it refuses (`ErrNoSelectiveExpunge`) and changes nothing. A batch the server
+accepts only in part reports the part that landed, which leaves the list and keeps its undo. Copy is the same
+path without removing the original.
 
 Every move-shaped action (move, delete to Trash, junk and its rescue, copy, the bulk forms) also
 reports where the message landed: the IMAP adapter reads the server's COPYUID reply (RFC 4315),

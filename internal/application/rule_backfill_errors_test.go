@@ -72,7 +72,7 @@ func TestRuleBackfillRunReportsAPlanningFailureAlongsideTheWorkItDid(t *testing.
 	mail.messages["f1"] = []domain.MessageSummary{backfillMessage(t, "m1", "f1", "billing@shop.com", 0)}
 	mail.getFolderErr = errBackfill
 
-	counts, err := svc.Run(context.Background(), "r1", nil)
+	counts, err := previewThenRun(t, svc, context.Background(), "r1", nil)
 	if !errors.Is(err, errBackfill) {
 		t.Errorf("planning failure not reported by the run: %v", err)
 	}
@@ -91,7 +91,7 @@ func TestRuleBackfillRunReportsWhatSucceededWhenActionsFail(t *testing.T) {
 	mail.messages["f1"] = []domain.MessageSummary{backfillMessage(t, "m1", "f1", "news@site.com", 0)}
 	actions.readErr = errBackfill
 
-	counts, err := svc.Run(context.Background(), "r1", nil)
+	counts, err := previewThenRun(t, svc, context.Background(), "r1", nil)
 	if !errors.Is(err, errBackfill) {
 		t.Errorf("failed mark did not reach the caller: %v", err)
 	}
@@ -112,7 +112,7 @@ func TestRuleBackfillRunReportsAPartiallyRefusedMoveAndDestroy(t *testing.T) {
 	actions.moveErr = errBackfill
 	actions.moveRefused = 1
 
-	counts, err := svc.Run(context.Background(), "mv", nil)
+	counts, err := previewThenRun(t, svc, context.Background(), "mv", nil)
 	if !errors.Is(err, errBackfill) {
 		t.Errorf("refused move not reported: %v", err)
 	}
@@ -128,7 +128,7 @@ func TestRuleBackfillRunReportsARefusedDestroy(t *testing.T) {
 	actions.destroyErr = errBackfill
 	actions.destroyRefused = 1
 
-	counts, err := svc.Run(context.Background(), "r1", nil)
+	counts, err := previewThenRun(t, svc, context.Background(), "r1", nil)
 	if !errors.Is(err, errBackfill) {
 		t.Errorf("refused destroy not reported: %v", err)
 	}
@@ -169,7 +169,7 @@ func TestRuleBackfillDrivesTheRealMessageActions(t *testing.T) {
 	svc := NewRuleBackfillService(&fakeRuleStore{rules: []domain.Rule{rule}}, accounts, mail,
 		NewMessageActionService(mail, accounts, remote))
 
-	counts, err := svc.Run(context.Background(), "r1", nil)
+	counts, err := previewThenRun(t, svc, context.Background(), "r1", nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

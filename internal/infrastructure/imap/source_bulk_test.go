@@ -115,9 +115,10 @@ func TestDeleteManyToTrashMoves(t *testing.T) {
 	}
 }
 
+// Each chunk is expunged by UID (UIDPLUS); a plain EXPUNGE would take other clients' \Deleted mail too.
 func TestDeleteManyPermanentFlagsAndExpungesEachChunk(t *testing.T) {
 	log := &commandLog{}
-	host, port := listenFake(t, script{commands: log})
+	host, port := listenFake(t, script{commands: log, extraCaps: "UIDPLUS"})
 
 	if _, err := fakeSource().DeleteMany(context.Background(), fakeAccount(t, host, port), fakeFolder(t), uidRange(1, bulkBatchSize+1), ""); err != nil {
 		t.Fatalf("DeleteMany: %v", err)
@@ -126,8 +127,11 @@ func TestDeleteManyPermanentFlagsAndExpungesEachChunk(t *testing.T) {
 	if len(stores) != 2 || !strings.Contains(stores[0], `+FLAGS.SILENT (\Deleted)`) {
 		t.Errorf("stores = %v, want 2 chunks flagged \\Deleted", stores)
 	}
-	if expunges := log.matching("EXPUNGE"); len(expunges) != 2 {
-		t.Errorf("expunges = %d, want one per chunk", len(expunges))
+	if expunges := log.matching("UID EXPUNGE"); len(expunges) != 2 {
+		t.Errorf("uid expunges = %d, want one per chunk", len(expunges))
+	}
+	if plain := log.matching("EXPUNGE"); len(plain) != 0 {
+		t.Errorf("a plain EXPUNGE reached the wire: %v", plain)
 	}
 	if logins := log.matching("LOGIN"); len(logins) != 1 {
 		t.Errorf("logins = %d, want 1", len(logins))

@@ -1,7 +1,7 @@
 // Package pop3 implements the application MailSource and AccountVerifier read surface against a live
 // POP3 server using a small hand-rolled client (POP3 is a compact line protocol, so it is not worth a
 // third-party dependency). The pure mapping between fetched headers and domain summaries lives in
-// mapping.go so it is unit-testable without a network, and the client protocol is exercised in
+// mapping.go so it is unit-testable without a network; the client protocol is exercised in
 // client_test.go against an in-memory scripted server.
 package pop3
 
@@ -245,11 +245,20 @@ func (c *Client) Dele(number int) error {
 	return c.command("DELE %d", number)
 }
 
-// Quit sends QUIT and closes the connection. The QUIT error is ignored because the connection is being
-// torn down regardless.
+// Rset unmarks every message marked for deletion in this session, so a QUIT that follows commits none of
+// them (RFC 1939 section 5).
+func (c *Client) Rset() error {
+	return c.command("RSET")
+}
+
+// Quit sends QUIT and closes the connection, returning QUIT's reply. It matters after a DELE: only an
+// accepted QUIT commits the deletions, so a refused one means nothing was removed and must not read as
+// success. The close error is not reported, because by then the server has answered and a TLS close
+// alert to a peer that already hung up can fail without changing anything.
 func (c *Client) Quit() error {
-	_ = c.command("QUIT")
-	return c.Close()
+	err := c.command("QUIT")
+	_ = c.Close()
+	return err
 }
 
 // Close closes the underlying connection.

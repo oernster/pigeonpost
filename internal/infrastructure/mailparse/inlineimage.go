@@ -52,12 +52,39 @@ func resolveInlineImage(src string, inline map[string]inlineImage) (string, bool
 	return imageDataURI(img), true
 }
 
-// isRemoteURL reports whether a src would trigger a network fetch: an absolute http(s) URL or a
-// protocol-relative one. An embedded data: URI and an unresolved cid: reference are not remote, so the
-// caller leaves them in place rather than parking them.
-func isRemoteURL(src string) bool {
-	trimmed := strings.ToLower(strings.TrimSpace(src))
-	return strings.HasPrefix(trimmed, "http://") ||
-		strings.HasPrefix(trimmed, "https://") ||
-		strings.HasPrefix(trimmed, "//")
+// dataScheme is the URL scheme of an image whose bytes are written into the HTML itself.
+const dataScheme = "data:"
+
+// embeddedSchemes are the only schemes whose content travels with the message, so the only sources shown
+// without the reader asking. Everything else is parked.
+var embeddedSchemes = []string{dataScheme, cidScheme}
+
+// browserURLValue reads a URL attribute or CSS target the way a browser does before parsing it: tab, line
+// feed and carriage return removed anywhere, then leading and trailing C0 controls and spaces trimmed. The
+// trim is deliberately the URL standard's and not strings.TrimSpace, which also strips Unicode spaces a
+// browser keeps; trimming those would let a value that a browser reads as something else pass as embedded.
+func browserURLValue(src string) string {
+	return strings.TrimFunc(urlControlWhitespace.Replace(src), func(r rune) bool { return r <= ' ' })
+}
+
+// isEmbeddedURL reports whether a source is carried inside the message: a data: URI or a cid: reference,
+// in any case. It is an allow-list on purpose. A browser fetches far more spellings than the http://,
+// https:// and // prefixes an earlier deny-list tested for (http:\\host, http:/host, https:host, a leading
+// backslash pair), so the only safe question is whether a source is one of the two that cannot reach the
+// network.
+func isEmbeddedURL(src string) bool {
+	value := strings.ToLower(browserURLValue(src))
+	for _, scheme := range embeddedSchemes {
+		if strings.HasPrefix(value, scheme) {
+			return true
+		}
+	}
+	return false
+}
+
+// needsParking reports whether a source must be held back until the reader asks: anything that is not
+// embedded, except an empty value, which no browser fetches and which would otherwise raise a Load images
+// offer for nothing.
+func needsParking(src string) bool {
+	return browserURLValue(src) != "" && !isEmbeddedURL(src)
 }

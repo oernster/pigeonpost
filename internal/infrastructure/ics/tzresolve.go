@@ -8,10 +8,11 @@ import (
 
 // This file resolves the time zone named by a property's TZID parameter on ICS import. go-ical interprets
 // a TZID by calling time.LoadLocation, which only knows IANA zone names (Europe/London). Outlook and
-// Exchange instead emit Windows zone names (GMT Standard Time), which LoadLocation rejects, and go-ical
+// Exchange instead emit Windows zone names (GMT Standard Time), which LoadLocation rejects; go-ical
 // then fails the DTSTART parse so the whole event is dropped silently. normalizeZones rewrites each
-// Windows name to its IANA equivalent before parsing, and strips a zone it cannot resolve so the value is
-// read as floating time rather than dropping the event.
+// Windows name to its IANA equivalent before parsing, resolves any other name through the VTIMEZONE the
+// file defines for it (tzcustom.go); it strips a zone it cannot resolve either way so the value is read
+// as floating time rather than dropping the event.
 
 // timeZoneParamProps are the VEVENT properties whose TZID parameter names the zone their value is in.
 var timeZoneParamProps = []string{
@@ -23,10 +24,11 @@ var timeZoneParamProps = []string{
 }
 
 // normalizeZones rewrites each time-bearing property's TZID parameter so downstream parsing succeeds. A
-// Windows zone name is replaced with its IANA equivalent; a name that cannot be resolved to a loadable
-// IANA zone has its TZID stripped so the value is read as floating time rather than dropping the event. It
-// mutates the parsed component in place, before its times are read.
-func normalizeZones(e goical.Event) {
+// Windows zone name is replaced with its IANA equivalent; any other name is resolved through the file's
+// own VTIMEZONE definition of it (zones, keyed by TZID); a name resolvable neither way has its TZID
+// stripped so the value is read as floating time rather than dropping the event. It mutates the parsed
+// component in place, before its times are read.
+func normalizeZones(e goical.Event, zones map[string]customZone) {
 	for _, name := range timeZoneParamProps {
 		props := e.Props[name]
 		for i := range props {
@@ -40,13 +42,16 @@ func normalizeZones(e goical.Event) {
 				}
 				continue
 			}
+			if zone, ok := zones[tzid]; ok && zone.resolve(&props[i]) {
+				continue
+			}
 			delete(props[i].Params, goical.PropTimezoneID)
 		}
 	}
 }
 
 // resolveZone maps a TZID to a loadable IANA zone name. It returns the TZID unchanged when it is already a
-// loadable IANA name, its IANA equivalent when it is a known Windows zone name, or ("", false) when it
+// loadable IANA name, its IANA equivalent when it is a known Windows zone name; ("", false) when it
 // cannot be resolved. The mapped name is itself checked against time.LoadLocation, so an entry that names
 // a zone the embedded tzdata does not carry degrades to unresolved (floating) rather than a broken TZID.
 func resolveZone(tzid string) (string, bool) {

@@ -174,8 +174,12 @@ it to anything.
   never cached and not recoverable. On most providers the message is expunged where it stands and never
   touches Trash. Gmail is the exception: it treats its folders as labels and answers an expunge by
   archiving rather than deleting, so there PigeonPost moves the message to the Bin and empties it from
-  the Bin, which is the only route Gmail honours as a deletion. Unattended, rules run on the Inbox and only on mail arriving
-  after the rule exists, so adding one never reaches back over the mail you have. Adding an account is
+  the Bin, which is the only route Gmail honours as a deletion. A server offering neither MOVE nor UIDPLUS
+  cannot remove only the chosen messages, so there PigeonPost refuses to move or delete rather than risk
+  mail another client marked deleted. Unattended, rules run on the Inbox and only on mail arriving
+  after the rule exists, so adding one never reaches back over the mail you have; a mailbox the server
+  renumbers is taken as it stands rather than as new mail. One gap remains: mail another program moves
+  into the Inbox arrives there under a new number, so a rule treats it as new. Adding an account is
   the one exception: its first sync applies your rules' mark-read and flag actions to what its Inbox
   already holds, while their moves and deletions never touch that backlog. A Now button on each rule
   is how you ask it to: it applies that one rule to the mail you already have, across every folder of every
@@ -221,7 +225,8 @@ it to anything.
   PigeonPost can be set as the default `.eml` handler. PigeonPost registers as a system mail handler on
   Windows, macOS and Linux, so it can be chosen as the default email client (Windows Default apps, the
   macOS default email reader, GNOME Default Apps) and a clicked mailto: link anywhere opens a pre-filled
-  compose window. Print a message through the system print dialog.
+  compose window. Print a message through the system print dialog; remote images appear in the printout
+  only when you have loaded them for that message (or Load images by default is on).
 - **Notifications**: new mail raises a native desktop notification and updates a Windows taskbar badge.
   Each IMAP account is watched by a persistent IDLE connection with a 60-second poll backstop (and for
   POP3); an account's first sync is silent. On Windows PigeonPost sounds its own chimes rather than the
@@ -243,13 +248,16 @@ it to anything.
   update it reads "Not known" rather than "No response yet". Clicking the
   answer you already gave warns before resending it. Only the organiser's account emails a meeting's
   attendees: a meeting you were invited to saves to your calendar without emailing anyone and offers
-  no resend or cancel. Re-saving a meeting you organise emails the
+  no resend or cancel. A mailed cancellation changes your calendar only when it comes from the meeting's
+  organiser; a reply changes it only when it comes from the attendee it answers for. Anything else stays unread
+  for you to act on, as does an invitation older than the copy you hold. Re-saving a meeting you organise emails the
   attendees an update only when something they can
   see changed; a reminder or calendar tweak saves locally without emailing anyone and the save button
   says which it will be. Early two-way CalDAV sync: a calendar-server account (app password) syncs events both ways,
   server-wins on conflict with the losing local edit kept as a copy.
 - **Contacts**: an address book with postal addresses and birthdays, plus vCard (.vcf) import/export
-  (round-tripping with Thunderbird; single contacts with Outlook) and CSV import/export in the column
+  (Thunderbird and Outlook cards, including Outlook's older vCard 2.1; nicknames, photos, web links and
+  categories are not kept; a card with no name is skipped and counted) and CSV import/export in the column
   layout Outlook's bulk export uses. People you email are added to the
   address book automatically (a minimal contact per new recipient, ready to flesh out or delete),
   with a toggle on the Contacts page to turn the collection off. CSV import reads both exporters'

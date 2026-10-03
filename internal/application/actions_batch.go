@@ -7,12 +7,14 @@ import (
 	"github.com/oernster/pigeonpost/internal/domain"
 )
 
-// folderBatch is one folder's share of a bulk action: the folder, its account and the messages in it.
+// folderBatch is one folder's share of a bulk action: the folder, its account and the messages in it,
+// held as parallel ids, uids and summaries (a move files the summaries in the destination afterwards).
 type folderBatch struct {
 	account domain.Account
 	folder  domain.Folder
 	ids     []string
 	uids    []string
+	msgs    []domain.MessageSummary
 }
 
 // batchRules shapes batchByFolder for one bulk action. Every hook is optional.
@@ -56,6 +58,7 @@ func (s *MessageActionService) batchByFolder(ctx context.Context, messageIDs []s
 		}
 		b.ids = append(b.ids, id)
 		b.uids = append(b.uids, msg.UID())
+		b.msgs = append(b.msgs, msg)
 	}
 	return batches, errs
 }

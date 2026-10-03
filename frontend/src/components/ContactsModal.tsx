@@ -22,8 +22,17 @@ function plural(n: number, noun: string): string {
 // nothing is reported explicitly rather than passing in silence, since a silent import cannot be told
 // apart from one that did not run. Naming the source matters just as much: an address book usually
 // holds several exports with similar names, so a count on its own cannot distinguish a file that
-// really did hold five contacts from the wrong file having been picked.
+// really did hold five contacts from the wrong file having been picked. Records the import had to skip
+// (a card or row with no name) are counted after the outcome, so a partial import never reads as whole.
 function importSummary(result: ContactImportResult): string {
+    const outcome = importOutcome(result)
+    const skipped = result.skipped > 0 ? ` Skipped ${plural(result.skipped, 'record')} with no name.` : ''
+    return outcome + skipped
+}
+
+// importOutcome is the first sentence of the summary: what was stored (or that nothing was). A file with
+// skipped records but none stored did hold records, so it says none were imported rather than found.
+function importOutcome(result: ContactImportResult): string {
     const from = result.file ? ` from ${result.file}` : ''
     if (result.added > 0 && result.updated > 0) {
         return `Imported ${plural(result.added, 'contact')} and updated ${plural(result.updated, 'existing contact')}${from}.`
@@ -33,6 +42,9 @@ function importSummary(result: ContactImportResult): string {
     }
     if (result.updated > 0) {
         return `Updated ${plural(result.updated, 'existing contact')}${from}. None were new.`
+    }
+    if (result.skipped > 0) {
+        return `No contacts imported${from}.`
     }
     return `No contacts found${from}.`
 }

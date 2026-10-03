@@ -32,8 +32,8 @@ func (s *MessageActionService) setJunkVerdict(ctx context.Context, account domai
 }
 
 // MarkJunk files a message as spam: it records the junk verdict as keywords (best-effort), moves
-// the message to the account's Junk folder on the server and removes it from the local cache, the
-// same mechanism as Move. It fails with ErrAlreadyJunk when the message already lives in Junk and
+// the message to the account's Junk folder on the server and re-files it in the local cache, the
+// same mechanism as Move (see settleMove). It fails with ErrAlreadyJunk when the message already lives in Junk and
 // ErrNoJunkFolder when the account has none. When the server reported where the message landed
 // (COPYUID), the returned id is the one it will carry in Junk, so the caller can undo the junking.
 func (s *MessageActionService) MarkJunk(ctx context.Context, messageID string) (string, error) {
@@ -64,19 +64,13 @@ func (s *MessageActionService) MarkJunk(ctx context.Context, messageID string) (
 	if err != nil {
 		return "", fmt.Errorf("move message %q to junk on server: %w", messageID, err)
 	}
-	if err := s.store.DeleteMessage(ctx, messageID); err != nil {
-		return "", fmt.Errorf("remove junked message %q from cache: %w", messageID, err)
-	}
-	if newUID == "" {
-		return "", nil
-	}
-	return domain.MessageIDFor(junk.ID(), newUID), nil
+	return s.settleMove(ctx, msg, junk.ID(), newUID)
 }
 
 // MarkNotJunk rescues a message wrongly filed as spam: it records the not-junk verdict as keywords
 // (best-effort, both the $NotJunk and NonJunk conventions), moves the message back to the
-// account's Inbox on the server and removes it from the local cache, the same mechanism as Move
-// (the inbox re-lists it on the next sync). It fails with ErrNotInJunk when the message is not in
+// account's Inbox on the server and re-files it in the local cache, the same mechanism as Move (see
+// settleMove), so the inbox's next sync knows it rather than reading it as new mail. It fails with ErrNotInJunk when the message is not in
 // the Junk folder and ErrNoInboxFolder when the account has no Inbox to return it to. When the
 // server reported where the message landed (COPYUID), the returned id is the one it will carry in
 // the Inbox, so the caller can undo the rescue.
@@ -108,11 +102,5 @@ func (s *MessageActionService) MarkNotJunk(ctx context.Context, messageID string
 	if err != nil {
 		return "", fmt.Errorf("move message %q to inbox on server: %w", messageID, err)
 	}
-	if err := s.store.DeleteMessage(ctx, messageID); err != nil {
-		return "", fmt.Errorf("remove rescued message %q from cache: %w", messageID, err)
-	}
-	if newUID == "" {
-		return "", nil
-	}
-	return domain.MessageIDFor(inbox.ID(), newUID), nil
+	return s.settleMove(ctx, msg, inbox.ID(), newUID)
 }

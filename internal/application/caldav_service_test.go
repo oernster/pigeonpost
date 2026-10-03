@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/oernster/pigeonpost/internal/domain"
@@ -328,21 +329,6 @@ func TestCalDAVSync(t *testing.T) {
 	}
 }
 
-func TestCalDAVSyncSwallowsBestEffortErrors(t *testing.T) {
-	// A failure listing pending ops breaks both the flush and the reconcile, but discovery still succeeds, so
-	// the sync completes rather than failing and the pending intents are left for the next run.
-	accts, creds := syncAccounts(t)
-	src := &fakeCalDAVSource{calendars: []RemoteCalendar{{Path: "/a", DisplayName: "A"}}}
-	store := &fakeSyncStore{pendingErr: errBoom}
-	svc := NewCalDAVService(accts, creds, &fakeCalDAVSourceFactory{source: src}, &fakeCalDAVWriterFactory{writer: &fakeWriter{}}, &davCodec{}, store, fixedID("x"))
-	if err := svc.Sync(context.Background(), "c1"); err != nil {
-		t.Fatalf("best-effort flush and reconcile must not fail the sync: %v", err)
-	}
-	if len(store.savedCals) != 1 {
-		t.Errorf("discovery did not run despite the pending-list failure: %+v", store.savedCals)
-	}
-}
-
 func TestCalDAVSyncGuardsLocalEditThroughReconcile(t *testing.T) {
 	// The reason Sync routes object I/O through the reconcile rather than a naive object-saving pull is that an
 	// unpushed local edit must be guarded: a server change under it resolves last-writer-wins yet keeps the
@@ -430,7 +416,7 @@ func TestCalDAVSyncFlushIsScopedToAccount(t *testing.T) {
 
 func TestCalDAVSyncSkipsFlushWhenAccountCalendarsUnreadable(t *testing.T) {
 	// If the account's own collections cannot be listed, the flush is skipped (it cannot be scoped safely)
-	// rather than pushing an unscoped set, and the sync still discovers and reconciles.
+	// rather than pushing an unscoped set; the sync still discovers and reconciles but reports the skipped push.
 	accts, creds := syncAccounts(t)
 	const href = "/a/new.ics"
 	src := &fakeCalDAVSource{calendars: []RemoteCalendar{{Path: "/a", DisplayName: "A"}}}
@@ -441,8 +427,8 @@ func TestCalDAVSyncSkipsFlushWhenAccountCalendarsUnreadable(t *testing.T) {
 	}
 	writer := &fakeWriter{putETag: "e"}
 	svc := NewCalDAVService(accts, creds, &fakeCalDAVSourceFactory{source: src}, &fakeCalDAVWriterFactory{writer: writer}, &davCodec{}, store, fixedID("x"))
-	if err := svc.Sync(context.Background(), "c1"); err != nil {
-		t.Fatalf("Sync: %v", err)
+	if err := svc.Sync(context.Background(), "c1"); !errors.Is(err, errBoom) {
+		t.Fatalf("Sync err = %v, want the scoping failure reported", err)
 	}
 	if writer.putCalls != 0 {
 		t.Errorf("the flush must be skipped when the account's calendars cannot be listed: putCalls=%d", writer.putCalls)

@@ -41,13 +41,21 @@ function named(subject: string): string {
 const NO_TRASH_ROUTE = 'POP3 has no Trash, so'
 const IRRECOVERABLE = 'removed from the server and cannot be recovered'
 
+// cancelSendConfirmation asks before discarding a queued send. A send already under way cannot be
+// called back, so the promise is conditional; cancelSendTooLateMessage reports that case afterwards.
 export function cancelSendConfirmation(subject: string, actions: ConfirmationActions): Confirmation {
     return {
         title: 'Cancel send',
-        message: `Cancel sending ${named(subject)}? The queued email is discarded and will not be sent.`,
+        message: `Cancel sending ${named(subject)}? Unless it has already started sending, the queued email is discarded and will not be sent.`,
         confirmLabel: 'Cancel send',
         ...actions,
     }
+}
+
+// cancelSendTooLateMessage is what the user reads when a cancel lost the race with the send: the item
+// had been claimed for sending (or had already left), so nothing was stopped.
+export function cancelSendTooLateMessage(subject: string): string {
+    return `Too late to cancel ${named(subject)}: it was already being sent.`
 }
 
 export function deleteMessageConfirmation(

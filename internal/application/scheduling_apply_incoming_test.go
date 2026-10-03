@@ -35,6 +35,7 @@ func TestApplyIncomingReplyUpdatesMeeting(t *testing.T) {
 	reply := schedMeeting(t, "m1", "chair@example.com", time.Time{}, "guest@example.com")
 	reply = withStatus(reply, schedAddr(t, "guest@example.com"), domain.PartStatDeclined)
 	f := newSchedFixture(t, schedMessage(t, domain.MethodReply, reply))
+	f.sendFrom(t, "guest@example.com")
 	f.calendar.events = []domain.Event{schedMeeting(t, "m1", "chair@example.com", time.Time{}, "guest@example.com")}
 
 	changed, resolved, err := f.svc.ApplyIncoming(context.Background(), "m1")
@@ -68,6 +69,7 @@ func TestApplyIncomingReplyWithNoAttendeeIsNoOp(t *testing.T) {
 func TestApplyIncomingReplyListErrorPropagates(t *testing.T) {
 	reply := schedMeeting(t, "m1", "chair@example.com", time.Time{}, "guest@example.com")
 	f := newSchedFixture(t, schedMessage(t, domain.MethodReply, reply))
+	f.sendFrom(t, "guest@example.com")
 	f.calendar.listEvtErr = errBoom
 	if _, _, err := f.svc.ApplyIncoming(context.Background(), "m1"); !errors.Is(err, errBoom) {
 		t.Errorf("err = %v, want errBoom", err)

@@ -189,30 +189,17 @@ func (s *Source) SetKeyword(context.Context, domain.Account, domain.Folder, stri
 // Delete permanently removes a message from the server with DELE, committed when the session quits.
 // POP3 has no Trash mailbox, so trashPath is ignored and every delete is permanent; leaving the
 // message on the server would only re-download it on the next sync. A permanent delete lands
-// nowhere, so the returned destination UID is always empty.
-func (s *Source) Delete(ctx context.Context, account domain.Account, _ domain.Folder, uid string, _ string) (string, error) {
-	client, err := s.connect(ctx, account)
-	if err != nil {
-		return "", err
-	}
-	defer func() { _ = client.Quit() }()
-
-	items, err := client.UIDL()
-	if err != nil {
-		return "", err
-	}
-	number, ok := numberForUID(items, uid)
-	if !ok {
-		return "", fmt.Errorf("pop3: message %q not found", uid)
-	}
-	return "", client.Dele(number)
+// nowhere, so the returned destination UID is always empty. It is DeleteMany's one-message case.
+func (s *Source) Delete(ctx context.Context, account domain.Account, folder domain.Folder, uid string, trashPath string) (string, error) {
+	_, err := s.DeleteMany(ctx, account, folder, []string{uid}, trashPath)
+	return "", err
 }
 
 // DeleteMany permanently removes several messages over a single connection: it opens one session, reads
 // the UIDL map once, then issues a DELE for each message, all committed when the session quits. POP3 has
 // no Trash, so trashPath is ignored and every delete is permanent. This is the batched form of Delete,
 // so a bulk delete costs one login and one UIDL rather than one of each per message. A permanent delete
-// lands nowhere, so no destination UIDs are returned.
+// lands nowhere, so no destination UIDs are returned. The batch is all or nothing: see endDeleteSession.
 func (s *Source) DeleteMany(ctx context.Context, account domain.Account, _ domain.Folder, uids []string, _ string) (map[string]string, error) {
 	if len(uids) == 0 {
 		return nil, nil
@@ -221,22 +208,47 @@ func (s *Source) DeleteMany(ctx context.Context, account domain.Account, _ domai
 	if err != nil {
 		return nil, err
 	}
-	defer func() { _ = client.Quit() }()
+	return nil, endDeleteSession(client, markDeleted(client, uids))
+}
 
+// markDeleted issues a DELE for each uid, stopping at the first that is missing or refused.
+func markDeleted(client *Client, uids []string) error {
 	items, err := client.UIDL()
 	if err != nil {
-		return nil, err
+		return err
 	}
 	for _, uid := range uids {
 		number, ok := numberForUID(items, uid)
 		if !ok {
-			return nil, fmt.Errorf("pop3: message %q not found", uid)
+			return fmt.Errorf("pop3: message %q not found", uid)
 		}
 		if err := client.Dele(number); err != nil {
-			return nil, err
+			return err
 		}
 	}
-	return nil, nil
+	return nil
+}
+
+// endDeleteSession ends a session that marked messages for deletion so the server's outcome matches the
+// one reported. Without an error, QUIT commits the marks and its reply is checked: a refused QUIT removed
+// nothing. Reporting success then would bring the message back at the next sync. After an error,
+// RSET unmarks every DELE already issued before QUIT, so no message is removed while the batch is
+// reported as failed. If RSET itself is refused, QUIT could still commit the marks, so the connection is
+// dropped without one; RFC 1939 section 6 forbids a server to remove anything then.
+func endDeleteSession(client *Client, err error) error {
+	if err == nil {
+		if err := client.Quit(); err != nil {
+			return fmt.Errorf("pop3: commit deletions: %w", err)
+		}
+		return nil
+	}
+	if rsetErr := client.Rset(); rsetErr != nil {
+		_ = client.Close()
+		return errors.Join(err, fmt.Errorf("pop3: reset deletions: %w", rsetErr))
+	}
+	// Nothing is marked after RSET, so this QUIT commits nothing and its reply cannot change the outcome.
+	_ = client.Quit()
+	return err
 }
 
 // Move is unsupported: POP3 exposes a single mailbox, so there is nowhere to move a message to.

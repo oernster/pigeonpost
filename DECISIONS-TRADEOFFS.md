@@ -426,7 +426,8 @@ been recorded as done.
 - **Gains:** adding a rule or an account never reaches back over existing
   mail of its own accord.
 - **Costs:** mail already filed is untouched until the rule is applied by
-  hand.
+  hand. Mail another program moves into the Inbox comes back under a new UID
+  and counts as new (TECH_DEBT.md item 2).
 
 ### Exclusions always count; a new rule narrows
 

@@ -1379,13 +1379,38 @@ describe('App: menus', () => {
         await waitFor(() => expect(document.getElementById(printFrameId)).not.toBeNull())
         const frame = document.getElementById(printFrameId) as HTMLIFrameElement
         expect(frame.getAttribute('aria-hidden')).toBe('true')
-        // The parked remote images are restored for the printed copy; the document is written into the
-        // frame rather than set through srcdoc.
+        // Load images was not pressed, so the remote image stays parked in the printed copy; the document is
+        // written into the frame rather than set through srcdoc.
         await waitFor(() => expect(frame.contentDocument?.documentElement.innerHTML ?? '').toContain('Weekly report'))
         const written = frame.contentDocument?.documentElement.innerHTML ?? ''
-        expect(written).toContain('src="https://example.com/a.png"')
-        expect(written).not.toContain('data-pp-src=')
+        expect(written).toContain('data-pp-src="https://example.com/a.png"')
+        expect(written).not.toContain(' src="https://example.com')
+        expect(apiSpies.loadRemoteImages).not.toHaveBeenCalled()
         expect(frame.getAttribute('srcdoc')).toBeNull()
+    })
+
+    it('prints the proxy-inlined images once Load images was pressed in the reader (print)', async () => {
+        apiSpies.listAccounts.mockResolvedValue([makeAccount()])
+        apiSpies.listFolders.mockResolvedValue([makeFolder('inbox', 'Inbox', 'inbox')])
+        apiSpies.listMessages.mockResolvedValue([makeMessage({subject: 'Weekly report'})])
+        apiSpies.messageBody.mockResolvedValue({
+            plain: '', html: '<p><img data-pp-src="https://example.com/a.png"/>Body</p>',
+            hasInvite: false, attachments: [],
+        })
+        apiSpies.loadRemoteImages.mockResolvedValue('<p><img src="data:image/png;base64,AAAA"/>Body</p>')
+        render(<App/>)
+        fireEvent.click(await screen.findByText('Weekly report'))
+        fireEvent.click(await screen.findByRole('button', {name: 'Load images'}))
+        fireEvent.click(screen.getByRole('button', {name: 'File'}))
+        fireEvent.click(screen.getByRole('menuitem', {name: 'Print...'}))
+        await waitFor(() => expect(document.getElementById(printFrameId)).not.toBeNull())
+        const frame = document.getElementById(printFrameId) as HTMLIFrameElement
+        await waitFor(() => expect(frame.contentDocument?.documentElement.innerHTML ?? '').toContain('Weekly report'))
+        const written = frame.contentDocument?.documentElement.innerHTML ?? ''
+        // The reader's Load images press is the one record print reads, so the printed copy carries the
+        // proxy's data: image and never a live link to the sender.
+        expect(written).toContain('src="data:image/png;base64,AAAA"')
+        expect(written).not.toContain('example.com')
     })
 
     it('does not print a frame that has not loaded the print document (print)', async () => {

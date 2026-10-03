@@ -21,6 +21,20 @@ func TestNewEventValidatesRequiredFields(t *testing.T) {
 	}
 }
 
+func TestNewEventKeepsItsSequenceAndRefusesANegativeOne(t *testing.T) {
+	start := eventStart()
+	ev, err := NewEvent(EventInput{ID: "e1", Summary: "Standup", Start: start, Sequence: 3})
+	if err != nil {
+		t.Fatalf("NewEvent: %v", err)
+	}
+	if ev.Sequence() != 3 {
+		t.Errorf("Sequence = %d, want 3", ev.Sequence())
+	}
+	if _, err := NewEvent(EventInput{ID: "e1", Summary: "Standup", Start: start, Sequence: -1}); !errors.Is(err, ErrNegativeEventSequence) {
+		t.Errorf("negative sequence err = %v, want ErrNegativeEventSequence", err)
+	}
+}
+
 func TestNewEventRejectsEndBeforeStart(t *testing.T) {
 	start := eventStart()
 	end := start.Add(-time.Hour)

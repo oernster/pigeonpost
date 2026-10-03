@@ -6,6 +6,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"log"
 	"net"
 	"strconv"
 	"strings"
@@ -80,7 +81,14 @@ func (t *Transport) Send(ctx context.Context, account domain.Account, msg domain
 	if err := client.SendMail(msg.From().Address(), recipients, bytes.NewReader(body)); err != nil {
 		return fmt.Errorf("smtp: send: %w", err)
 	}
-	return client.Quit()
+	// SendMail returned only after the server's 250 to DATA: the message is delivered. A failing QUIT
+	// is the goodbye going astray, not the mail, so it is logged and the send reported done; reporting it
+	// as a failure would invite a resend (a duplicate), skip the Sent copy and leave a replayed item in
+	// the Outbox marked failed. The deferred Close still releases the connection.
+	if err := client.Quit(); err != nil {
+		log.Printf("smtp: %s: message accepted; QUIT failed: %v", addr, err)
+	}
+	return nil
 }
 
 // authError wraps a failure to authenticate, marking the case where the mailbox refused to take mail

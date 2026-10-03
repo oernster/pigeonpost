@@ -22,10 +22,13 @@ type Invitation struct {
 // side it reads an incoming invite, replies to it with the recipient's answer and removes a cancelled
 // meeting; on the organiser side it sends invites and cancellations and applies incoming replies to the
 // stored meeting. Its sends leave the same record an ordinary message does: a copy in the Sent mailbox
-// and, when the server is unreachable, a queued outbox item the dispatcher replays later.
+// plus, when the server is unreachable, a queued outbox item the dispatcher replays later.
 type SchedulingService struct {
-	codec     SchedulingCodec
-	calendar  CalendarStore
+	codec    SchedulingCodec
+	calendar CalendarStore
+	// sync records the CalDAV pending write when an answered meeting is held in a CalDAV calendar, so the
+	// answer reaches the server on the next sync rather than living only in the local copy.
+	sync      CalendarSyncStore
 	messages  MailStore
 	accounts  AccountStore
 	transport MailTransport
@@ -35,12 +38,15 @@ type SchedulingService struct {
 	newID     IDGenerator
 }
 
-// NewSchedulingService constructs the service with its injected scheduling codec, calendar store, mail
-// store, account store, transport, Sent-copy saver and offline outbox. The clock and id generator stamp
+// NewSchedulingService constructs the service with its injected scheduling codec, calendar store, CalDAV
+// sync store, mail store, account store, transport, Sent-copy saver and offline outbox. The sync store is
+// a required argument rather than an optional setter, so a wiring that forgets it fails to compile instead
+// of silently saving every answered CalDAV meeting as a local one. The clock and id generator stamp
 // queued outbox items, exactly as in ComposeService.
 func NewSchedulingService(
 	codec SchedulingCodec,
 	calendar CalendarStore,
+	sync CalendarSyncStore,
 	messages MailStore,
 	accounts AccountStore,
 	transport MailTransport,
@@ -52,6 +58,7 @@ func NewSchedulingService(
 	return &SchedulingService{
 		codec:     codec,
 		calendar:  calendar,
+		sync:      sync,
 		messages:  messages,
 		accounts:  accounts,
 		transport: transport,
@@ -90,7 +97,7 @@ func (s *SchedulingService) Invitation(ctx context.Context, messageID string) (I
 
 // overlayStoredStatuses returns the invite event with each attendee's participation status replaced by
 // the one on the stored calendar copy of the same meeting, matched by UID and recurrence id. An
-// attendee the stored copy does not list, or a meeting not held locally, keeps the invite's own values.
+// attendee the stored copy does not list keeps the invite's own values; so does a meeting not held locally.
 func (s *SchedulingService) overlayStoredStatuses(ctx context.Context, event domain.Event) (domain.Event, error) {
 	stored, err := s.calendar.ListEvents(ctx)
 	if err != nil {
@@ -121,7 +128,12 @@ func overlayAttendees(event, stored domain.Event) domain.Event {
 
 // Respond records the recipient's answer to a meeting request: it saves the meeting to the calendar with
 // the recipient's participation status set, then sends a REPLY to the organiser. It returns ErrNotInvitable
-// when the message is not a REQUEST and ErrNoOrganizer when the meeting names no organiser to reply to.
+// when the message is not a REQUEST and ErrNoOrganizer when the meeting names no organiser to reply to. An
+// invitation that names a different organiser from the meeting already stored under its UID is refused
+// with ErrUntrustedScheduling; one older than the stored meeting (a lower SEQUENCE) is refused with
+// ErrStaleInvitation. So answering never saves a stranger's or an outdated copy over the meeting. The
+// sender is not checked here, unlike the automatic apply: answering is the user's deliberate act and an
+// invitation is routinely forwarded or relayed by a calendar service.
 func (s *SchedulingService) Respond(ctx context.Context, messageID string, status domain.ParticipationStatus) error {
 	sched, err := s.decodeInvite(ctx, messageID)
 	if err != nil {
@@ -139,11 +151,26 @@ func (s *SchedulingService) Respond(ctx context.Context, messageID string, statu
 	if !primary.HasOrganizer() {
 		return ErrNoOrganizer
 	}
+	stored, err := s.calendar.ListEvents(ctx)
+	if err != nil {
+		return fmt.Errorf("scheduling: list meetings: %w", err)
+	}
+	events := sched.Events()
+	for _, event := range events {
+		if !organizerAgrees(event, stored) {
+			return ErrUntrustedScheduling
+		}
+		if superseded(event, stored) {
+			return ErrStaleInvitation
+		}
+	}
 	// Save every event in the invite (the series master plus any per-occurrence overrides) with the
-	// recipient's own status set, so the meeting shows their answer in the calendar.
-	for _, event := range sched.Events() {
-		if err := s.calendar.SaveEvent(ctx, withStatus(event, me, status)); err != nil {
-			return fmt.Errorf("scheduling: save meeting %q: %w", event.UID(), err)
+	// recipient's own status set, so the meeting shows their answer in the calendar. Each is keyed by its
+	// UID and RECURRENCE-ID so an override never overwrites its master. Each stays in the calendar its
+	// meeting is held in; in a CalDAV calendar it also stays in the meeting's server object.
+	for _, event := range events {
+		if err := s.saveMeeting(ctx, storedKey(withStatus(event, me, status), stored), stored); err != nil {
+			return err
 		}
 	}
 	reply, err := s.codec.EncodeReply(primary, me, status)
@@ -194,8 +221,8 @@ func withStatus(event domain.Event, who domain.EmailAddress, status domain.Parti
 	return event.WithAttendees(attendees)
 }
 
-// statusOf returns the participation status of the attendee matching who, or NEEDS-ACTION when the event
-// does not list that address.
+// statusOf returns the participation status of the attendee matching who. When the event does not list
+// that address it returns NEEDS-ACTION.
 func statusOf(event domain.Event, who domain.EmailAddress) domain.ParticipationStatus {
 	for _, a := range event.Attendees() {
 		if sameAddress(a.Address(), who) {
@@ -211,8 +238,8 @@ func matches(a, b domain.Event) bool {
 	return a.UID() != "" && a.UID() == b.UID() && a.RecurrenceID().Equal(b.RecurrenceID())
 }
 
-// sameAddress compares two addresses case-insensitively, since a mailbox address is not case-sensitive
-// in practice.
+// sameAddress compares two addresses by their mailboxKey: case-insensitively, trimmed and without a
+// mailto: scheme, since a mailbox address is not case-sensitive in practice.
 func sameAddress(a, b domain.EmailAddress) bool {
-	return strings.EqualFold(a.Address(), b.Address())
+	return mailboxKey(a) == mailboxKey(b)
 }

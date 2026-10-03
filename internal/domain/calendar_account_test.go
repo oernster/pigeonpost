@@ -41,3 +41,29 @@ func TestNewCalendarAccountAllowsHTTP(t *testing.T) {
 		t.Errorf("an http base url should be allowed: %v", err)
 	}
 }
+
+func TestCalendarAccountIsInsecureOnlyOverPlainHTTP(t *testing.T) {
+	// A plain http:// address is accepted (a local Radicale is a real setup) but flagged, since Basic auth
+	// then sends the password unencrypted.
+	cases := []struct {
+		url  string
+		want bool
+	}{
+		{"http://localhost:5232", true},
+		{"HTTP://dav.example.com", true},
+		{"https://caldav.fastmail.com", false},
+		{"HTTPS://dav.example.com", false},
+	}
+	for _, c := range cases {
+		if got := IsInsecureCalendarURL(c.url); got != c.want {
+			t.Errorf("IsInsecureCalendarURL(%q) = %v, want %v", c.url, got, c.want)
+		}
+		a, err := NewCalendarAccount("id", "n", c.url, "u", AuthPassword)
+		if err != nil {
+			t.Fatalf("NewCalendarAccount(%q): %v", c.url, err)
+		}
+		if a.IsInsecure() != c.want {
+			t.Errorf("account at %q IsInsecure = %v, want %v", c.url, a.IsInsecure(), c.want)
+		}
+	}
+}

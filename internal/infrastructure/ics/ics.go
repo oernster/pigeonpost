@@ -9,6 +9,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
+	"strconv"
 	"strings"
 	"time"
 
@@ -33,11 +34,12 @@ type Codec struct{}
 // New constructs an ICS codec.
 func New() Codec { return Codec{} }
 
-// Decode parses the VEVENTs from one or more VCALENDARs into events, and preserves any VTODO or VJOURNAL
-// components as passthrough so they survive a round-trip. An event's or component's UID becomes its id so
-// a re-import updates the same record; one without a UID is given a generated id. An event that cannot
-// form a valid domain value (no start, or an end before its start) is skipped rather than failing the
-// import.
+// Decode parses the VEVENTs from one or more VCALENDARs into events; it also preserves any VTODO or VJOURNAL
+// components as passthrough so they survive a round-trip. An event's id is derived from its UID and
+// RECURRENCE-ID (domain.EventIDFor), so a re-import updates the same record while a series master and its
+// overrides stay distinct; a component's UID becomes its id; one without a UID is given a generated
+// id. An event that cannot form a valid domain value (no start or an end before its start) is skipped
+// rather than failing the import.
 func (Codec) Decode(data []byte) ([]domain.Event, []domain.CalendarPassthrough, error) {
 	dec := goical.NewDecoder(bytes.NewReader(data))
 	var events []domain.Event
@@ -50,11 +52,7 @@ func (Codec) Decode(data []byte) ([]domain.Event, []domain.CalendarPassthrough, 
 		if err != nil {
 			return nil, nil, fmt.Errorf("ics: decode: %w", err)
 		}
-		for _, e := range cal.Events() {
-			if event, ok := eventFromICS(e); ok {
-				events = append(events, event)
-			}
-		}
+		events = append(events, calendarEvents(cal)...)
 		for _, child := range cal.Children {
 			if p, ok := passthroughFromComponent(child); ok {
 				passthrough = append(passthrough, p)
@@ -64,27 +62,35 @@ func (Codec) Decode(data []byte) ([]domain.Event, []domain.CalendarPassthrough, 
 	return events, passthrough, nil
 }
 
+// calendarEvents decodes the usable VEVENTs of one VCALENDAR, resolving their TZIDs against the
+// VTIMEZONE definitions that calendar itself carries.
+func calendarEvents(cal *goical.Calendar) []domain.Event {
+	zones := customZones(cal)
+	var events []domain.Event
+	for _, e := range cal.Events() {
+		if event, ok := eventFromICS(e, zones); ok {
+			events = append(events, event)
+		}
+	}
+	return events
+}
+
 // eventFromICS maps a parsed VEVENT into a domain event. The bool is false for an event that cannot be
-// represented (no usable start, or a validation failure), which the caller skips.
-func eventFromICS(e goical.Event) (domain.Event, bool) {
-	// Rewrite Windows zone names (Outlook, Exchange) to IANA before any time is read, so a non-IANA TZID
-	// no longer fails the whole event; an unresolvable zone degrades to floating rather than dropping.
-	normalizeZones(e)
+// represented (no usable start or a validation failure), which the caller skips.
+func eventFromICS(e goical.Event, zones map[string]customZone) (domain.Event, bool) {
+	// Rewrite non-IANA zone names (Outlook display names, Windows names, custom zones defined in the file)
+	// before any time is read, so a non-IANA TZID no longer fails the whole event; a zone that cannot be
+	// resolved at all degrades to floating rather than dropping the event.
+	normalizeZones(e, zones)
 	start, err := e.DateTimeStart(time.UTC)
 	if err != nil || start.IsZero() {
 		return domain.Event{}, false
 	}
-	var end time.Time
-	if e.Props.Get(goical.PropDateTimeEnd) != nil {
-		if parsed, endErr := e.DateTimeEnd(time.UTC); endErr == nil {
-			end = parsed
-		}
-	}
+	end := eventEnd(e)
+	recurrenceID := parseRecurrenceID(e.Props)
 	uid := text(e.Props, goical.PropUID)
-	id := uid
-	if id == "" {
-		id = generatedID()
-		uid = id
+	if uid == "" {
+		uid = generatedID()
 	}
 	summary := text(e.Props, goical.PropSummary)
 	if summary == "" {
@@ -102,7 +108,7 @@ func eventFromICS(e goical.Event) (domain.Event, bool) {
 		recurrence = rrule.Value
 	}
 	event, err := domain.NewEvent(domain.EventInput{
-		ID:           id,
+		ID:           domain.EventIDFor(uid, recurrenceID),
 		UID:          uid,
 		Summary:      summary,
 		Description:  eventDescription(e.Props),
@@ -114,9 +120,10 @@ func eventFromICS(e goical.Event) (domain.Event, bool) {
 		Recurrence:   recurrence,
 		RDates:       parseDateList(e.Props, goical.PropRecurrenceDates),
 		ExDates:      parseDateList(e.Props, goical.PropExceptionDates),
-		RecurrenceID: parseRecurrenceID(e.Props),
+		RecurrenceID: recurrenceID,
+		Sequence:     parseSequence(e.Props),
 		TimeZone:     zone,
-		Alarms:       parseAlarms(e.Component),
+		Alarms:       parseAlarms(e.Component, eventLength(start, end)),
 		Organizer:    parseOrganizer(e.Props),
 		Attendees:    parseAttendees(e.Props),
 		Extra:        rawICS(e),
@@ -127,80 +134,37 @@ func eventFromICS(e goical.Event) (domain.Event, bool) {
 	return event, true
 }
 
-// parseDateList reads every occurrence start from the named property (RDATE or EXDATE), which may repeat
-// and may carry a comma-separated list of DATE or DATE-TIME values. Unparseable or zero values are
-// skipped so a malformed entry cannot fail the whole import.
-func parseDateList(props goical.Props, name string) []time.Time {
-	var out []time.Time
-	for _, prop := range props[name] {
-		for _, raw := range strings.Split(prop.Value, ",") {
-			raw = strings.TrimSpace(raw)
-			if raw == "" {
-				continue
-			}
-			part := prop
-			part.Value = raw
-			when, err := part.DateTime(time.UTC)
-			if err != nil || when.IsZero() {
-				continue
-			}
-			out = append(out, when.UTC())
-		}
-	}
-	return out
-}
-
-// parseRecurrenceID reads the RECURRENCE-ID that marks an event as an override of a single occurrence,
-// returning the zero time when the property is absent or unparseable.
-func parseRecurrenceID(props goical.Props) time.Time {
-	prop := props.Get(goical.PropRecurrenceID)
+// parseSequence reads the organiser's revision number (SEQUENCE). An absent or malformed value reads as
+// zero (the RFC 5545 default); a negative one is clamped to zero, so a sloppy revision number never
+// costs the user the whole event.
+func parseSequence(props goical.Props) int {
+	prop := props.Get(goical.PropSequence)
 	if prop == nil {
-		return time.Time{}
+		return 0
 	}
-	when, err := prop.DateTime(time.UTC)
-	if err != nil {
-		return time.Time{}
+	n, err := strconv.Atoi(strings.TrimSpace(prop.Value))
+	if err != nil || n < 0 {
+		return 0
 	}
-	return when.UTC()
+	return n
 }
 
-// text returns a property's text value, or an empty string when it is absent or unreadable.
+// eventLength is the span from start to end, zero for an event without an end (an end-anchored alarm on
+// such an event is then anchored to its start, as RFC 5545 gives it no end to anchor to).
+func eventLength(start, end time.Time) time.Duration {
+	if end.IsZero() {
+		return 0
+	}
+	return end.Sub(start)
+}
+
+// text returns a property's text value (empty when it is absent or unreadable).
 func text(props goical.Props, name string) string {
 	v, err := props.Text(name)
 	if err != nil {
 		return ""
 	}
 	return v
-}
-
-const (
-	// propTeamsMeetingURL is the Microsoft Teams join link, shipped as a non-standard property Outlook
-	// adds to a Teams meeting invite.
-	propTeamsMeetingURL = "X-MICROSOFT-SKYPETEAMSMEETINGURL"
-	// propAltDesc is the HTML alternative description Microsoft ships alongside (or instead of) the plain
-	// DESCRIPTION, carried as X-ALT-DESC with an FMTTYPE=text/html parameter.
-	propAltDesc = "X-ALT-DESC"
-)
-
-// eventDescription builds the readable description for an imported event, hardened for real-world Teams
-// and Outlook invites. It starts from the plain DESCRIPTION, falls back to the HTML X-ALT-DESC (which
-// Microsoft ships when DESCRIPTION is empty) converted to text, and appends the Teams join URL from
-// X-MICROSOFT-SKYPETEAMSMEETINGURL when the description does not already contain it, so the join link
-// survives import rather than being dropped with the properties PigeonPost did not model before.
-func eventDescription(props goical.Props) string {
-	desc := descriptionText(text(props, goical.PropDescription))
-	if strings.TrimSpace(desc) == "" {
-		desc = descriptionText(text(props, propAltDesc))
-	}
-	joinURL := strings.TrimSpace(text(props, propTeamsMeetingURL))
-	if joinURL != "" && !strings.Contains(desc, joinURL) {
-		if strings.TrimSpace(desc) == "" {
-			desc = joinURL
-		} else {
-			desc = desc + "\n\n" + joinURL
-		}
-	}
-	return desc
 }
 
 // Encode writes the events and preserved passthrough components as a single VCALENDAR. An empty set
@@ -233,6 +197,8 @@ func (Codec) Encode(events []domain.Event, passthrough []domain.CalendarPassthro
 // original stamp, a fresh one uses the start time. All-day events use DATE values, timed use DATE-TIME.
 func eventToComponent(ev domain.Event) *goical.Component {
 	comp := baseComponent(ev)
+	// The form is decided from the preserved DTSTART before it is overwritten below.
+	form := exportForm(ev.TimeZone(), comp)
 	uid := ev.UID()
 	if uid == "" {
 		uid = ev.ID()
@@ -242,10 +208,9 @@ func eventToComponent(ev domain.Event) *goical.Component {
 		comp.Props.SetDateTime(goical.PropDateTimeStamp, ev.Start().UTC())
 	}
 	comp.Props.SetText(goical.PropSummary, ev.Summary())
-	loc := icsLocation(ev.TimeZone())
-	setWhen(comp, goical.PropDateTimeStart, ev.Start(), ev.AllDay(), loc)
+	form.setWhen(comp, goical.PropDateTimeStart, ev.Start(), ev.AllDay())
 	if ev.HasEnd() {
-		setWhen(comp, goical.PropDateTimeEnd, ev.End(), ev.AllDay(), loc)
+		form.setWhen(comp, goical.PropDateTimeEnd, ev.End(), ev.AllDay())
 		comp.Props.Del(goical.PropDuration)
 	} else {
 		comp.Props.Del(goical.PropDateTimeEnd)
@@ -253,6 +218,7 @@ func eventToComponent(ev domain.Event) *goical.Component {
 	setOrDel(comp, goical.PropDescription, ev.Description())
 	setOrDel(comp, goical.PropLocation, ev.Location())
 	setCategory(comp, ev.Category())
+	setSequence(comp, ev.Sequence())
 	if ev.Recurrence() != "" {
 		rrule := goical.NewProp(goical.PropRecurrenceRule)
 		rrule.Value = ev.Recurrence()
@@ -260,55 +226,34 @@ func eventToComponent(ev domain.Event) *goical.Component {
 	} else {
 		comp.Props.Del(goical.PropRecurrenceRule)
 	}
-	setDateList(comp, goical.PropRecurrenceDates, ev.RDates(), ev.AllDay())
-	setDateList(comp, goical.PropExceptionDates, ev.ExDates(), ev.AllDay())
+	form.setDateList(comp, goical.PropRecurrenceDates, ev.RDates(), ev.AllDay())
+	form.setDateList(comp, goical.PropExceptionDates, ev.ExDates(), ev.AllDay())
 	if ev.IsOverride() {
-		setWhen(comp, goical.PropRecurrenceID, ev.RecurrenceID(), ev.AllDay(), loc)
+		form.setWhen(comp, goical.PropRecurrenceID, ev.RecurrenceID(), ev.AllDay())
 	} else {
 		comp.Props.Del(goical.PropRecurrenceID)
 	}
 	setOrganizer(comp, ev.Organizer())
 	setAttendees(comp, ev.Attendees())
-	setAlarms(comp, ev.Alarms())
+	setAlarms(comp, ev.Alarms(), eventLength(ev.Start(), ev.End()))
 	return comp
 }
 
-// setDateList overwrites a date-list property (RDATE or EXDATE) with the given occurrence starts as a
-// single comma-separated value, or removes it when the list is empty, so an in-app edit replaces rather
-// than duplicates any preserved list. Values are DATE for an all-day event and UTC DATE-TIME otherwise.
-func setDateList(comp *goical.Component, name string, times []time.Time, allDay bool) {
-	comp.Props.Del(name)
-	if len(times) == 0 {
+// setSequence writes SEQUENCE when the event has been revised; otherwise it removes the property, so the model
+// stays authoritative over a preserved (possibly malformed) original value; zero is the RFC 5545 default.
+func setSequence(comp *goical.Component, sequence int) {
+	if sequence == 0 {
+		comp.Props.Del(goical.PropSequence)
 		return
 	}
-	parts := make([]string, len(times))
-	for i, t := range times {
-		parts[i] = formatWhen(t, allDay)
-	}
-	prop := goical.NewProp(name)
-	if allDay {
-		prop.SetValueType(goical.ValueDate)
-	} else {
-		prop.SetValueType(goical.ValueDateTime)
-	}
-	prop.Value = strings.Join(parts, ",")
+	prop := goical.NewProp(goical.PropSequence)
+	prop.SetValueType(goical.ValueInt)
+	prop.Value = strconv.Itoa(sequence)
 	comp.Props.Set(prop)
 }
 
-// formatWhen renders a single time in the ICS DATE or UTC DATE-TIME wire form, reusing the library's own
-// property setters so the format strings are not duplicated here.
-func formatWhen(t time.Time, allDay bool) string {
-	prop := goical.NewProp(goical.PropDateTimeStart)
-	if allDay {
-		prop.SetDate(t)
-	} else {
-		prop.SetDateTime(t.UTC())
-	}
-	return prop.Value
-}
-
-// baseComponent returns the VEVENT to build on: the preserved original when the event was imported, or
-// a new empty VEVENT otherwise. A preserved component that cannot be decoded falls back to empty.
+// baseComponent returns the VEVENT to build on: the preserved original when the event was imported;
+// otherwise a new empty VEVENT. A preserved component that cannot be decoded falls back to empty.
 func baseComponent(ev domain.Event) *goical.Component {
 	if ev.Extra() != "" {
 		if comp := decodeExtra(ev.Extra()); comp != nil {
@@ -318,7 +263,7 @@ func baseComponent(ev domain.Event) *goical.Component {
 	return goical.NewComponent(goical.CompEvent)
 }
 
-// decodeExtra parses the first VEVENT out of a preserved VCALENDAR string, or nil on any failure.
+// decodeExtra parses the first VEVENT out of a preserved VCALENDAR string (nil on any failure).
 func decodeExtra(raw string) *goical.Component {
 	cal, err := goical.NewDecoder(strings.NewReader(raw)).Decode()
 	if err != nil {
@@ -356,28 +301,6 @@ func rawICS(e goical.Event) string {
 		comp.Props.SetText(goical.PropUID, generatedID())
 	}
 	return encodeStandalone(comp)
-}
-
-// setWhen writes a date or date-time property. A timed value is written in loc: a real zone makes go-ical
-// add the TZID parameter and a floating value, while UTC yields a Z value. An all-day value is a DATE.
-func setWhen(comp *goical.Component, name string, when time.Time, allDay bool, loc *time.Location) {
-	if allDay {
-		comp.Props.SetDate(name, when)
-		return
-	}
-	comp.Props.SetDateTime(name, when.In(loc))
-}
-
-// icsLocation loads the IANA zone, falling back to UTC for an empty name or an unknown zone so export
-// never fails on a bad zone; a UTC location makes setWhen write plain Z values.
-func icsLocation(zone string) *time.Location {
-	if zone == "" {
-		return time.UTC
-	}
-	if loc, err := time.LoadLocation(zone); err == nil {
-		return loc
-	}
-	return time.UTC
 }
 
 // generatedID returns a random hex id for an event that carries no UID.

@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/oernster/pigeonpost/internal/domain"
@@ -91,9 +92,11 @@ func (s *CalDAVService) Pull(ctx context.Context, accountID string) (int, error)
 // Sync runs the two-way sync for an account: it pushes the account's pending local changes to the server, then
 // discovers its collections and reconciles the server's state into the local store. The order mirrors the tag
 // two-way sync (flush before the pull so the pull reflects the pushed changes, reconcile after). The flush and
-// the reconcile are best-effort, so a transient failure in either leaves the pending intents in place for the
-// next run rather than failing the whole sync; only resolving the account, its password, the source, the
-// writer or discovering the collections is fatal, since without those there is nothing to sync.
+// the reconcile are best-effort: a failure in either does not stop the other steps and leaves the pending
+// intents in place for the next run. It is still returned, so the caller (and the user) learns the sync did
+// not complete instead of reading it as a success. Failing to resolve the account, its password, the source
+// or the writer stops the sync at once. So does failing to discover the collections, since without them there
+// is nothing to reconcile; any flush failure already met is returned with it.
 func (s *CalDAVService) Sync(ctx context.Context, accountID string) error {
 	account, err := s.accounts.GetCalendarAccount(ctx, accountID)
 	if err != nil {
@@ -112,19 +115,22 @@ func (s *CalDAVService) Sync(ctx context.Context, accountID string) error {
 		return fmt.Errorf("caldav: writer: %w", err)
 	}
 	// Scope the flush to this account's own collections, so another account's pending writes are never pushed
-	// through this account's server or credentials. If the collections cannot be listed, skip the flush (it is
-	// best-effort) rather than risk pushing an unscoped set.
-	if mirrored, err := s.calendar.ListRemoteCalendars(ctx, accountID); err == nil {
+	// through this account's server or credentials. If the collections cannot be listed, skip the flush rather
+	// than risk pushing an unscoped set; report that nothing was pushed.
+	var failures []error
+	if mirrored, err := s.calendar.ListRemoteCalendars(ctx, accountID); err != nil {
+		failures = append(failures, fmt.Errorf("caldav: list the account's calendars, so no local change was pushed: %w", err))
+	} else {
 		ids := make(map[string]bool, len(mirrored))
 		for _, r := range mirrored {
 			ids[r.CalendarID] = true
 		}
-		_ = NewCalDAVWriteService(s.calendar, s.codec).Flush(ctx, writer, ids)
+		failures = append(failures, NewCalDAVWriteService(s.calendar, s.codec).Flush(ctx, writer, ids))
 	}
 	records, err := NewCalDAVSyncService(source, s.codec, s.calendar, accountID).Discover(ctx)
 	if err != nil {
-		return err
+		return errors.Join(append(failures, err)...)
 	}
-	_ = NewCalDAVReconcileService(s.calendar, s.codec, s.newID).Reconcile(ctx, source, records)
-	return nil
+	failures = append(failures, NewCalDAVReconcileService(s.calendar, s.codec, s.newID).Reconcile(ctx, source, records))
+	return errors.Join(failures...)
 }

@@ -114,28 +114,34 @@ func (s *MessageActionService) delete(ctx context.Context, messageID string, per
 		}
 	}
 	if permanent {
-		handled, err := purgeViaTrash(ctx, s.remote, s.store, account, folder, []string{msg.UID()})
+		// A message that reached Trash has left this folder even when its purge there failed, so its row
+		// goes either way and the error is reported alongside.
+		handled, left, err := purgeViaTrashReporting(ctx, s.remote, s.store, account, folder, []string{msg.UID()})
+		var errs []error
 		if err != nil {
-			return "", fmt.Errorf("delete message %q on server: %w", messageID, err)
+			errs = append(errs, fmt.Errorf("delete message %q on server: %w", messageID, err))
 		}
-		if handled {
+		if len(left) > 0 {
 			if err := s.store.DeleteMessage(ctx, messageID); err != nil {
-				return "", fmt.Errorf("delete cached message %q: %w", messageID, err)
+				errs = append(errs, fmt.Errorf("delete cached message %q: %w", messageID, err))
 			}
-			return "", nil
+		}
+		if handled || err != nil {
+			return "", errors.Join(errs...)
 		}
 	}
 	newUID, err := s.remote.Delete(ctx, account, folder, msg.UID(), trashPath)
 	if err != nil {
 		return "", fmt.Errorf("delete message %q on server: %w", messageID, err)
 	}
-	if err := s.store.DeleteMessage(ctx, messageID); err != nil {
-		return "", fmt.Errorf("delete cached message %q: %w", messageID, err)
-	}
-	if trashFolderID == "" || newUID == "" {
+	if trashFolderID == "" {
+		if err := s.store.DeleteMessage(ctx, messageID); err != nil {
+			return "", fmt.Errorf("delete cached message %q: %w", messageID, err)
+		}
 		return "", nil
 	}
-	return domain.MessageIDFor(trashFolderID, newUID), nil
+	// A delete to Trash is a move: the message is filed in Trash's cache like any other (see settleMove).
+	return s.settleMove(ctx, msg, trashFolderID, newUID)
 }
 
 // DeleteMany removes several messages in as few server round trips as possible: it groups them by
@@ -144,8 +150,8 @@ func (s *MessageActionService) delete(ctx context.Context, messageID string, per
 // connection per message. It returns the ids that were removed from the server so the caller can drop
 // exactly those from the UI, plus each removed id's new id in its Trash folder where the server
 // reported one (COPYUID; empty for permanent deletions), so the caller can undo the delete by moving
-// the messages back. A folder whose batch fails leaves its messages in place and contributes the
-// returned error, so a partial failure is never silent.
+// the messages back. A folder whose batch the server refuses contributes the returned error, so a partial
+// failure is never silent; what the server accepted before refusing is still reported as removed.
 func (s *MessageActionService) DeleteMany(ctx context.Context, messageIDs []string, permanent bool) ([]string, map[string]string, error) {
 	// trashOf holds each batched folder's Trash, keyed by source folder id; absent means delete permanently.
 	trashOf := map[string]domain.Folder{}
@@ -164,14 +170,15 @@ func (s *MessageActionService) DeleteMany(ctx context.Context, messageIDs []stri
 	}}
 	batches, errs := s.batchByFolder(ctx, messageIDs, rules)
 	deleted := make([]string, 0, len(messageIDs))
-	newIDs := map[string]string{}
-	dropCached := func(ids []string) {
-		for _, id := range ids {
-			if err := s.store.DeleteMessage(ctx, id); err != nil {
-				errs = append(errs, fmt.Errorf("delete cached message %q: %w", id, err))
-			}
-			deleted = append(deleted, id)
+	// trashed records where each message moved to Trash landed, so it is filed there (see landings).
+	trashed := newLandings()
+	// dropCached removes a message the server no longer holds in its folder: it leaves the UI even if the
+	// cache row cannot be removed (the next sync reconciles the cache) and the cache error is reported.
+	dropCached := func(id string) {
+		if err := s.store.DeleteMessage(ctx, id); err != nil {
+			errs = append(errs, fmt.Errorf("delete cached message %q: %w", id, err))
 		}
+		deleted = append(deleted, id)
 	}
 	for _, b := range batches {
 		folderID := b.folder.ID()
@@ -181,34 +188,34 @@ func (s *MessageActionService) DeleteMany(ctx context.Context, messageIDs []stri
 			trashPath = trash.Path()
 		}
 		if permanent {
-			handled, err := purgeViaTrash(ctx, s.remote, s.store, b.account, b.folder, b.uids)
+			handled, left, err := purgeViaTrashReporting(ctx, s.remote, s.store, b.account, b.folder, b.uids)
 			if err != nil {
-				errs = append(errs, fmt.Errorf("delete %d messages in %q on server: %w", len(b.uids), folderID, err))
-				continue
+				errs = append(errs, fmt.Errorf("delete messages in %q on server: %w", folderID, err))
 			}
-			if handled {
-				dropCached(b.ids)
+			for _, id := range b.idsOf(left) {
+				dropCached(id)
+			}
+			if handled || err != nil {
 				continue
 			}
 		}
+		// A batch refused part way still deleted what the server accepted. Only those leave the UI; only
+		// they can be moved back out of Trash.
 		movedUIDs, err := s.remote.DeleteMany(ctx, b.account, b.folder, b.uids, trashPath)
+		landed := landedIndexes(b.uids, movedUIDs, err)
 		if err != nil {
-			errs = append(errs, fmt.Errorf("delete %d messages in %q on server: %w", len(b.uids), folderID, err))
-			continue
+			errs = append(errs, refusedBatchError("delete", folderID, len(landed), len(b.uids), err))
 		}
-		// The server delete succeeded, so each message is gone remotely: drop it from the UI even if the
-		// cache row cannot be removed (the next sync reconciles the cache) and report the cache error.
-		for i, id := range b.ids {
-			if err := s.store.DeleteMessage(ctx, id); err != nil {
-				errs = append(errs, fmt.Errorf("delete cached message %q: %w", id, err))
-			}
-			deleted = append(deleted, id)
+		for _, i := range landed {
+			id := b.ids[i]
+			dropCached(id)
 			if newUID, ok := movedUIDs[b.uids[i]]; ok && hasTrash {
-				newIDs[id] = domain.MessageIDFor(trash.ID(), newUID)
+				trashed.add(id, b.msgs[i], trash.ID(), newUID)
 			}
 		}
 	}
-	return deleted, newIDs, errors.Join(errs...)
+	errs = append(errs, s.fileLandings(ctx, trashed))
+	return deleted, trashed.newIDs, errors.Join(errs...)
 }
 
 // MoveMany relocates several messages into destFolderID in as few server round trips as possible: it
@@ -216,8 +223,8 @@ func (s *MessageActionService) DeleteMany(ctx context.Context, messageIDs []stri
 // connection per message. Every message must belong to the same account as the destination. It returns
 // the ids that moved so the caller can drop exactly those from the source list, plus each moved id's
 // new id in the destination where the server reported one (COPYUID), so the caller can undo the move.
-// A folder whose batch fails leaves its messages in place and contributes the returned error. A
-// message already in the destination is skipped.
+// A folder whose batch the server refuses contributes the returned error; what it accepted before
+// refusing is still reported as moved. A message already in the destination is skipped.
 func (s *MessageActionService) MoveMany(ctx context.Context, messageIDs []string, destFolderID string) ([]string, map[string]string, error) {
 	dest, err := s.store.GetFolder(ctx, destFolderID)
 	if err != nil {
@@ -238,34 +245,38 @@ func (s *MessageActionService) MoveMany(ctx context.Context, messageIDs []string
 	}
 	batches, errs := s.batchByFolder(ctx, messageIDs, rules)
 	moved := make([]string, 0, len(messageIDs))
-	newIDs := map[string]string{}
+	// arrivals records where each moved message landed, filed in the destination in one step at the end
+	// so the destination's next sync knows it rather than reading it as new mail.
+	arrivals := newLandings()
 	for _, b := range batches {
 		folderID := b.folder.ID()
 		movedUIDs, err := s.remote.MoveMany(ctx, account, b.folder, b.uids, dest.Path())
+		landed := landedIndexes(b.uids, movedUIDs, err)
 		if err != nil {
-			errs = append(errs, fmt.Errorf("move %d messages from %q on server: %w", len(b.uids), folderID, err))
-			continue
+			errs = append(errs, refusedBatchError("move", folderID, len(landed), len(b.uids), err))
 		}
-		// The server move succeeded, so each message left its source folder: drop it from the cache even
-		// if the row cannot be removed (the next sync reconciles) and report the cache error.
-		for i, id := range b.ids {
+		// Each message the server accepted left its source folder, even from a batch refused part way:
+		// drop it from the cache even if the row cannot be removed (the next sync reconciles) and report
+		// the cache error.
+		for _, i := range landed {
+			id := b.ids[i]
 			if err := s.store.DeleteMessage(ctx, id); err != nil {
 				errs = append(errs, fmt.Errorf("remove moved message %q from cache: %w", id, err))
 			}
 			moved = append(moved, id)
 			if newUID, ok := movedUIDs[b.uids[i]]; ok {
-				newIDs[id] = domain.MessageIDFor(destFolderID, newUID)
+				arrivals.add(id, b.msgs[i], destFolderID, newUID)
 			}
 		}
 	}
-	return moved, newIDs, errors.Join(errs...)
+	errs = append(errs, s.fileLandings(ctx, arrivals))
+	return moved, arrivals.newIDs, errors.Join(errs...)
 }
 
-// Move relocates a message to another folder within the same account: it is moved on the server and
-// then removed from the local cache (the destination folder re-lists it, with its new UID, on the
-// next sync). When the server reported where the message landed (COPYUID), the returned id is the
-// one it will carry in the destination, so the caller can undo the move by addressing it there; a
-// server that reports nothing returns an empty id.
+// Move relocates a message to another folder within the same account: it is moved on the server, then
+// removed from the source folder's cache and filed in the destination's under its new UID where the
+// server reported one (see settleMove). That new id (COPYUID) is also returned, so the caller can undo
+// the move by addressing the message there; a server that reports nothing returns an empty id.
 func (s *MessageActionService) Move(ctx context.Context, messageID, destFolderID string) (string, error) {
 	msg, source, account, err := resolveMessageContext(ctx, s.store, s.accounts, messageID)
 	if err != nil {
@@ -282,13 +293,7 @@ func (s *MessageActionService) Move(ctx context.Context, messageID, destFolderID
 	if err != nil {
 		return "", fmt.Errorf("move message %q on server: %w", messageID, err)
 	}
-	if err := s.store.DeleteMessage(ctx, messageID); err != nil {
-		return "", fmt.Errorf("remove moved message %q from cache: %w", messageID, err)
-	}
-	if newUID == "" {
-		return "", nil
-	}
-	return domain.MessageIDFor(destFolderID, newUID), nil
+	return s.settleMove(ctx, msg, destFolderID, newUID)
 }
 
 // Copy duplicates a message into another folder within the same account: it is copied on the server and

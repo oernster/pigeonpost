@@ -20,7 +20,12 @@ export function DraftRecoveryDialog({recovery, setRecovery, discardDraft, restor
                 <div className="modal-body">
                 <p className="confirm-message">
                     An unsent message{recovery.subject.trim() ? ` "${recovery.subject.trim()}"` : ''} was
-                    left open when PigeonPost last closed. Restore it to keep writing, or discard it.
+                    left open when PigeonPost last closed. Restore it to keep writing or discard it.
+                </p>
+                {/* The snapshot keeps the addresses, the subject and the body (pictures pasted into the
+                    body included) but no attached files, so the prompt says so before the user relies on it. */}
+                <p className="confirm-message">
+                    Attached files are not kept; add them again before sending.
                 </p>
                 </div>
                 <div className="modal-actions spread">

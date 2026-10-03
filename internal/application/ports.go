@@ -105,6 +105,17 @@ type MailStore interface {
 	// caller filters the candidates by domain.ThreadKey, which is the authoritative comparison.
 	ThreadMessages(ctx context.Context, accountID, subjectSuffix string, limit int) ([]domain.MessageSummary, error)
 	DeleteMessage(ctx context.Context, messageID string) error
+	// RehomeMessages files messages PigeonPost has moved into their destination folder's cache, under the
+	// ids they carry there, keeping a row a sync already wrote. It exists because the sync reads any
+	// message the cache does not hold as an arrival. A move that only dropped the source row left the
+	// destination to learn of the message at its next sync, as new mail: a message rescued from Junk into
+	// the Inbox met the inbox rules as if it had just arrived (so did one an undo moved back there) and a
+	// destroying rule took it. Filing it under its new id at the move makes it known.
+	RehomeMessages(ctx context.Context, messages []domain.MessageSummary) error
+	// FolderUIDValidity reports the UIDVALIDITY a folder was last synced under. It reports false when the
+	// folder has no record yet, which is a first sight rather than a change. SetFolderUIDValidity records it.
+	FolderUIDValidity(ctx context.Context, folderID string) (uint32, bool, error)
+	SetFolderUIDValidity(ctx context.Context, folderID string, validity uint32) error
 }
 
 // SnoozedMessage pairs a hidden message with the instant it resurfaces and its owning account (the
@@ -183,7 +194,11 @@ type TagStore interface {
 // MailSource is a remote mail server (IMAP/POP3) from which folders and message summaries are pulled.
 type MailSource interface {
 	FetchFolders(ctx context.Context, account domain.Account) ([]domain.Folder, error)
-	FetchMessages(ctx context.Context, account domain.Account, folder domain.Folder) ([]domain.MessageSummary, error)
+	// FetchMessagesValidity returns a folder's message summaries together with the UIDVALIDITY the server
+	// gave when the folder was selected for that same fetch, so the value describes exactly the UIDs
+	// fetched (see sync_uidvalidity.go for why the sync needs it). A protocol with no UIDVALIDITY (POP3)
+	// reports unknownUIDValidity, zero, which RFC 3501 rules out as a real value.
+	FetchMessagesValidity(ctx context.Context, account domain.Account, folder domain.Folder) ([]domain.MessageSummary, uint32, error)
 	// FetchBody returns a message's plain-text and HTML bodies, any raw text/calendar scheduling payload
 	// (an iMIP invite or reply, nil when the message carried none) and its attachments (empty when it
 	// carried none).
@@ -276,6 +291,20 @@ type OutboxStore interface {
 	ClearOutboxHold(ctx context.Context, id string) error
 	// NextOutboxHold returns the earliest hold among unfailed items and whether one exists.
 	NextOutboxHold(ctx context.Context) (time.Time, bool, error)
+
+	// The claim makes a send happen once. Before sending, a replay claims the item: one conditional write
+	// moves it from queued to sending, so of every replay racing for it (two account syncs, a sync and the
+	// send-later dispatcher) only the one whose claim succeeded sends. A cancel removes only an unclaimed
+	// item, so it cannot report a message stopped that is already on the wire.
+
+	// ClaimOutbox moves a queued, unfailed item to sending and reports whether this call did so.
+	ClaimOutbox(ctx context.Context, id string) (bool, error)
+	// ReleaseOutbox returns a claimed item to queued after a send that did not deliver.
+	ReleaseOutbox(ctx context.Context, id string) error
+	// CancelQueuedOutbox deletes an item only while it is queued and reports whether it did.
+	CancelQueuedOutbox(ctx context.Context, id string) (bool, error)
+	// RecoverOutboxClaims returns to queued the items an earlier run left sending, reporting how many.
+	RecoverOutboxClaims(ctx context.Context) (int, error)
 }
 
 // DraftRecoveryStore persists a single local snapshot of an in-progress compose window, so a message
@@ -328,8 +357,13 @@ type ContactStore interface {
 // ContactCodec converts contacts to and from a serialised address-book format (vCard, CSV). It is the
 // import/export seam: one implementation per format, selected by the caller. A decoded contact carries
 // its own id (a vCard UID where present) so an import can reconcile against existing records.
+//
+// DecodeImport skips and counts a record that cannot form a contact (a vCard with neither FN nor N, a CSV
+// row with no name or email) rather than aborting the whole file, so one bad record in an export of
+// hundreds costs that record alone and the user is told how many were left out. An error is still
+// returned for a file that cannot be read at all.
 type ContactCodec interface {
-	Decode(data []byte) ([]domain.Contact, error)
+	DecodeImport(data []byte) (contacts []domain.Contact, skipped int, err error)
 	Encode(contacts []domain.Contact) ([]byte, error)
 }
 

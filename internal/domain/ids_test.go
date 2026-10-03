@@ -1,6 +1,41 @@
 package domain
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
+
+func TestEventIDForKeepsAMasterOnItsPlainUID(t *testing.T) {
+	if got := EventIDFor(" series@x ", time.Time{}); got != "series@x" {
+		t.Fatalf("EventIDFor(master) = %q, want the trimmed UID", got)
+	}
+}
+
+func TestEventIDForGivesEachOverrideItsOwnID(t *testing.T) {
+	first := time.Date(2026, 11, 10, 9, 0, 0, 0, time.UTC)
+	second := first.AddDate(0, 0, 7)
+	master := EventIDFor("series@x", time.Time{})
+	a := EventIDFor("series@x", first)
+	b := EventIDFor("series@x", second)
+	if a == master || b == master || a == b {
+		t.Fatalf("ids collide: master %q, first %q, second %q", master, a, b)
+	}
+	want := "series@x" + IDSeparator + first.Format(EventRecurrenceIDLayout)
+	if a != want {
+		t.Fatalf("EventIDFor(override) = %q, want %q", a, want)
+	}
+}
+
+func TestEventIDForNamesOneInstantOnceWhateverItsZone(t *testing.T) {
+	london, err := time.LoadLocation("Europe/London")
+	if err != nil {
+		t.Skipf("zone data unavailable: %v", err)
+	}
+	instant := time.Date(2026, 7, 4, 9, 0, 0, 0, time.UTC)
+	if EventIDFor("u", instant) != EventIDFor("u", instant.In(london)) {
+		t.Fatal("one instant in two zones gave two ids")
+	}
+}
 
 func TestMessageIDForJoinsFolderAndUIDWithTheSeparator(t *testing.T) {
 	got := MessageIDFor("acc\x1fINBOX", "42")

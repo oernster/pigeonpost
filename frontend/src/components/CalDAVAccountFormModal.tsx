@@ -1,5 +1,5 @@
 import type {Dispatch, SetStateAction} from 'react'
-import {CalDAVAccountForm, validateCalDAVAccountForm} from '../caldavAccount'
+import {CalDAVAccountForm, INSECURE_URL_WARNING, isInsecureCalDAVUrl, validateCalDAVAccountForm} from '../caldavAccount'
 import {useNestedDialogClose} from './useBackdropDismiss'
 import {ModalClose} from './ModalClose'
 
@@ -40,6 +40,9 @@ export function CalDAVAccountFormModal({form, setForm, busy, error, onSubmit, on
                             <input value={form.baseUrl} placeholder="https://caldav.fastmail.com"
                                    onChange={(e) => setForm((f) => ({...f, baseUrl: e.target.value}))}/>
                         </label>
+                        {isInsecureCalDAVUrl(form.baseUrl) && (
+                            <p className="field-hint" role="note">{INSECURE_URL_WARNING}</p>
+                        )}
                         <label className="field">
                             <span>Username</span>
                             <input value={form.username} placeholder="you@example.com"

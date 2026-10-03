@@ -80,6 +80,18 @@ it('reports a file that yielded nothing instead of passing in silence', async ()
     expect(onChanged).not.toHaveBeenCalled()
 })
 
+it('reports records skipped for having no name beside the ones imported', async () => {
+    await startImport({added: 3, updated: 0, skipped: 1, cancelled: false, file: 'outlook.vcf'})
+    await screen.findByText('Imported 3 contacts from outlook.vcf. Skipped 1 record with no name.')
+    expect(onChanged).toHaveBeenCalled()
+})
+
+it('says nothing was imported when every record was skipped, rather than that the file was empty', async () => {
+    await startImport({added: 0, updated: 0, skipped: 4, cancelled: false, file: 'broken.csv'})
+    await screen.findByText('No contacts imported from broken.csv. Skipped 4 records with no name.')
+    expect(onChanged).not.toHaveBeenCalled()
+})
+
 it('stays silent when the file dialog is cancelled', async () => {
     await startImport({added: 0, updated: 0, cancelled: true, file: ''})
     // Nothing to wait for, so assert the absence after the promise has settled.

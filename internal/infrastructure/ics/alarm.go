@@ -36,17 +36,31 @@ func ownedAlarm(child *goical.Component) bool {
 	return action == nil || strings.EqualFold(action.Value, alarmActionDisplay)
 }
 
-// parseAlarms reads the DISPLAY relative-trigger VALARM children of a VEVENT into modelled reminders.
-// Alarms PigeonPost does not model (an absolute trigger, an EMAIL or AUDIO action) are left for the Extra
-// pass-through to carry rather than surfaced as editable reminders.
-func parseAlarms(comp *goical.Component) []domain.Alarm {
+// relatedEnd is the TRIGGER RELATED parameter value that anchors a relative trigger to the event's end
+// rather than its start (the RFC 5545 default).
+const relatedEnd = "END"
+
+// ownedAlarmFromICS reads an owned VALARM as a domain alarm for an event lasting length. A trigger
+// anchored to the end (RELATED=END) becomes its start-relative equivalent, so it fires that long before
+// the end rather than before the start.
+func ownedAlarmFromICS(child *goical.Component, length time.Duration) domain.Alarm {
+	trigger := child.Props.Get(goical.PropTrigger)
+	offset, _ := trigger.Duration()
+	if strings.EqualFold(trigger.Params.Get(goical.ParamRelated), relatedEnd) {
+		return domain.NewAlarmFromEnd(offset, length)
+	}
+	return domain.NewAlarm(offset)
+}
+
+// parseAlarms reads the DISPLAY relative-trigger VALARM children of a VEVENT lasting length into modelled
+// reminders. Alarms PigeonPost does not model (an absolute trigger, an EMAIL or AUDIO action) are left for
+// the Extra pass-through to carry rather than surfaced as editable reminders.
+func parseAlarms(comp *goical.Component, length time.Duration) []domain.Alarm {
 	var alarms []domain.Alarm
 	for _, child := range comp.Children {
-		if !ownedAlarm(child) {
-			continue
+		if ownedAlarm(child) {
+			alarms = append(alarms, ownedAlarmFromICS(child, length))
 		}
-		offset, _ := child.Props.Get(goical.PropTrigger).Duration()
-		alarms = append(alarms, domain.NewAlarm(offset))
 	}
 	return alarms
 }
@@ -54,12 +68,19 @@ func parseAlarms(comp *goical.Component) []domain.Alarm {
 // setAlarms re-emits one DISPLAY reminder per modelled alarm while preserving every VALARM PigeonPost
 // does not own. Only the owned DISPLAY reminders are removed first (they are replaced from the model), so
 // an exotic imported alarm carried through Extra (an absolute trigger, an EMAIL or AUDIO action) survives
-// the round-trip instead of being stripped.
-func setAlarms(comp *goical.Component, alarms []domain.Alarm) {
+// the round-trip instead of being stripped. A modelled alarm that still fires where an end-anchored
+// original did, for an event lasting length, is written back anchored to the end; one the user has since
+// changed (or that the event's new length has moved) is written relative to the start, where it fires.
+func setAlarms(comp *goical.Component, alarms []domain.Alarm, length time.Duration) {
+	endAnchored := map[time.Duration]bool{}
 	var kept []*goical.Component
 	for _, child := range comp.Children {
 		if !ownedAlarm(child) {
 			kept = append(kept, child)
+			continue
+		}
+		if strings.EqualFold(child.Props.Get(goical.PropTrigger).Params.Get(goical.ParamRelated), relatedEnd) {
+			endAnchored[ownedAlarmFromICS(child, length).Offset()] = true
 		}
 	}
 	comp.Children = kept
@@ -68,6 +89,10 @@ func setAlarms(comp *goical.Component, alarms []domain.Alarm) {
 		alarm.Props.SetText(goical.PropAction, alarmActionDisplay)
 		trigger := goical.NewProp(goical.PropTrigger)
 		trigger.Value = triggerValue(a.Offset())
+		if endAnchored[a.Offset()] {
+			trigger.Params.Set(goical.ParamRelated, relatedEnd)
+			trigger.Value = triggerValue(a.OffsetFromEnd(length))
+		}
 		alarm.Props.Set(trigger)
 		alarm.Props.SetText(goical.PropDescription, alarmDescription)
 		comp.Children = append(comp.Children, alarm)

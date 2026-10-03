@@ -1,7 +1,7 @@
 import {Dispatch, SetStateAction, useCallback, useEffect, useMemo, useState} from 'react'
 import {Folder, Message, OutboxItem, api} from '../api'
 import {OUTBOX_FOLDER_ID} from '../outbox'
-import {Confirmation, cancelSendConfirmation} from '../confirmations'
+import {Confirmation, cancelSendConfirmation, cancelSendTooLateMessage} from '../confirmations'
 
 // OutboxDeps is what the outbox needs from the rest of App: the selected account (whose queue is shown),
 // the account's real folders (to append the synthetic Outbox folder to) and the error sink.
@@ -77,7 +77,9 @@ export function useOutbox(deps: OutboxDeps): Outbox {
         return [...folders, outboxFolder]
     }, [folders, outboxForAccount, selectedAccount])
 
-    // cancelSend discards the queued outbox item behind the confirmation dialog.
+    // cancelSend discards the queued outbox item behind the confirmation dialog. The backend answers
+    // false when a send had already claimed the item, so the cancel stopped nothing; the user is told
+    // that rather than left believing the message will not go.
     const cancelSend = useCallback(async () => {
         if (!messageToCancelSend) {
             return
@@ -85,8 +87,11 @@ export function useOutbox(deps: OutboxDeps): Outbox {
         setCancellingSend(true)
         setError('')
         try {
-            await api.cancelOutboxItem(messageToCancelSend.id)
+            const stopped = await api.cancelOutboxItem(messageToCancelSend.id)
             setMessageToCancelSend(null)
+            if (!stopped) {
+                setError(cancelSendTooLateMessage(messageToCancelSend.subject))
+            }
             await refreshOutbox()
         } catch (e) {
             setError(String(e))
