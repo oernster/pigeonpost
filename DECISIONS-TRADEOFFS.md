@@ -507,6 +507,19 @@ as one message.
 - **Gains:** a template still does what it says long after it was made.
 - **Costs:** the files are duplicated in the database.
 
+### A reopened draft comes back with its files or not at all
+
+A saved draft reopens in the compose window with its recipients, subject,
+text and attached files, the files held exactly as a pasted file is held.
+If its files cannot be fetched the draft does not open. Finishing it
+replaces the stored copy.
+
+- **Rather than:** opening the draft without its files, which sent or
+  scheduled it with nothing attached and nothing on screen to say so.
+- **Gains:** what leaves is what was saved.
+- **Costs:** Bcc is not brought back, since a saved draft carries none; a
+  draft not yet opened on this machine needs the server to reopen.
+
 ### A local recovery slot, apart from server drafts
 
 While a message is written it is saved now and then to one local slot,
@@ -735,7 +748,8 @@ offers to close it, which it does by ending the process.
 ### Each platform built on itself
 
 Windows builds an executable and setup program, macOS a signed DMG for Apple
-Silicon and Linux a Flatpak. The macOS build stops unless it can notarise.
+Silicon and Linux a Flatpak. The macOS build always notarises unless told
+explicitly to skip it for a local test build, which is never released.
 
 - **Rather than:** cross-compiling; shipping an unnotarised Mac build.
 - **Gains:** each package is built by the tools of its platform; a Mac
