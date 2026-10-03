@@ -200,6 +200,12 @@ rules, not review conventions:
 - no source file exceeds the module-size limit;
 - only the composition root wires both the application and infrastructure layers.
 
+`tests/structural/network_test.go` holds the outbound list the same way: only the seven packages it
+names (the mail and calendar protocols, Microsoft sign-in, remote images and the update check) may
+import a package that opens a connection and the front end may make no request of its own. A new way
+out of the machine therefore fails the suite until it is named there. It reads source, so a request
+Wails or its web view makes on its own account is outside what it can see.
+
 A violation fails `go test`, the same as any other test.
 
 ## Front-end tests

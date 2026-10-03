@@ -24,6 +24,7 @@ const (
 
 type goFile struct {
 	relDir  string
+	name    string
 	pkg     string
 	imports []string
 	lines   int
@@ -82,6 +83,7 @@ func scanRepo(t *testing.T) []goFile {
 		}
 		files = append(files, goFile{
 			relDir:  filepath.ToSlash(filepath.Dir(rel)),
+			name:    filepath.Base(rel),
 			pkg:     parsed.Name.Name,
 			imports: imports,
 			lines:   strings.Count(string(content), "\n") + 1,
@@ -137,7 +139,7 @@ func TestDomainIsPure(t *testing.T) {
 }
 
 // assertNoWallClockCalls forbids reading the wall clock in the domain. The time type is allowed for
-// carrying timestamps, but time.Now/Since/Until must be injected via the Clock instead.
+// carrying timestamps; time.Now/Since/Until must be injected via the Clock instead.
 func assertNoWallClockCalls(t *testing.T, f goFile) {
 	t.Helper()
 	banned := map[string]bool{"Now": true, "Since": true, "Until": true}

@@ -123,6 +123,20 @@ Trash are not offered.
 
 ## Privacy and the network
 
+### Every way out of the machine is named and held by a test
+
+Beyond your own mail and calendar servers, the app reaches out in three ways
+only: the update check, remote images you choose to load and Microsoft
+sign-in. A structural test allows only the packages serving those to open a
+connection and forbids the front end from making a request of its own.
+
+- **Rather than:** a list kept by the documents alone, which a new outbound
+  call would not have failed.
+- **Gains:** a new way out of the machine cannot ship unnoticed; it fails the
+  suite until it is named.
+- **Costs:** the test reads source, so a request Wails or its web view makes
+  on its own account is outside it.
+
 ### The message frame makes no request of its own
 
 A message renders inside a sandboxed frame whose content policy grants no

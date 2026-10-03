@@ -5,7 +5,8 @@
 `UI -> Application -> Domain <- Infrastructure`
 
 Dependencies point inward. The Domain is the stable core and depends on nothing. Every rule below is
-enforced by a test in `tests/structural/boundary_test.go`, not by convention.
+enforced by a test in `tests/structural/` (`boundary_test.go` for the layers, `network_test.go` for
+the outbound list), not by convention.
 
 | Invariant | Enforcing test |
 |---|---|
@@ -14,6 +15,8 @@ enforced by a test in `tests/structural/boundary_test.go`, not by convention.
 | Application never imports infrastructure or wails | `TestApplicationDoesNotImportInfrastructure` |
 | No Go source file exceeds the module-size limit (test files excepted by design) | `TestNoFileExceedsLineLimit` |
 | Only the composition root (package `main` at the repo root) may import both application and infrastructure | `TestCompositionRootIsWhitelisted` |
+| Only the packages on the documented outbound list may import a package that opens a connection: `imap`, `pop3`, `smtp` and `caldav` (your own servers), `oauth` (Microsoft sign-in), `remoteimage` (images you choose to load) and `update` (the GitHub releases check); `main.go` may import one only to build the sign-in client it hands on. Format-only packages such as `net/url` and `net/mail` are allowed anywhere | `TestOnlyTheListedPackagesReachTheNetwork`, `TestEveryNetworkExemptionExists`, `TestNetworkPackageRecognitionIsExact` |
+| The front end makes no request of its own: no `fetch`, `XMLHttpRequest`, `WebSocket`, `EventSource` or `sendBeacon` in `frontend/src` | `TestTheFrontEndMakesNoRequestOfItsOwn`, `TestFrontEndRequestRecognition` |
 
 ## Layers
 
@@ -1118,8 +1121,8 @@ in `app_actions.go` still return the raw error, as do the meeting sends in `sche
   runs only the small subset of vet analysers `go test` carries.
 - Application use cases tested against hand-written fakes (no mock libraries).
 - Infrastructure tested against a real SQLite database in a temp directory.
-- Structural AST tests enforce layering, domain purity, the module-size limit and the composition
-  root whitelist.
+- Structural AST tests enforce layering, domain purity, the module-size limit, the composition
+  root whitelist and the outbound list.
 - The React front end has its own Vitest and jsdom suite: a coverage gate on the pure logic modules, a
   structural boundary test that keeps them pure and a module-size test holding the same 400-line limit
   the Go guard holds, with `App.tsx`, the one module over it, exempt by decision and held at its recorded
