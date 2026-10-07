@@ -14,6 +14,11 @@ type recorder struct {
 	calls []string
 }
 
+func (r *recorder) BeginSession(ctx context.Context, _ domain.Account) (context.Context, func()) {
+	r.calls = append(r.calls, "session")
+	return ctx, func() {}
+}
+
 func (r *recorder) FetchFolders(context.Context, domain.Account) ([]domain.Folder, error) {
 	r.calls = append(r.calls, "folders")
 	return nil, nil
@@ -123,7 +128,8 @@ func testAccount(t *testing.T, protocol domain.Protocol) domain.Account {
 // exercise calls every router method once for the given account.
 func exercise(t *testing.T, router *Router, account domain.Account) {
 	t.Helper()
-	ctx := context.Background()
+	ctx, end := router.BeginSession(context.Background(), account)
+	defer end()
 	var folder domain.Folder
 	if _, err := router.FetchFolders(ctx, account); err != nil {
 		t.Fatalf("FetchFolders: %v", err)
@@ -185,7 +191,7 @@ func TestRouterRoutesImapToImapAdapter(t *testing.T) {
 
 	exercise(t, router, testAccount(t, domain.ProtocolIMAP))
 
-	want := []string{"folders", "messages", "body", "raw", "verify", "seen", "seen-many", "push-flag", "flagged", "answered", "forwarded", "keyword", "delete", "deletemany", "move", "movemany", "copy"}
+	want := []string{"session", "folders", "messages", "body", "raw", "verify", "seen", "seen-many", "push-flag", "flagged", "answered", "forwarded", "keyword", "delete", "deletemany", "move", "movemany", "copy"}
 	if !reflect.DeepEqual(imapRec.calls, want) {
 		t.Errorf("imap adapter calls = %v, want %v", imapRec.calls, want)
 	}
@@ -200,7 +206,7 @@ func TestRouterRoutesPop3ToPop3Adapter(t *testing.T) {
 
 	exercise(t, router, testAccount(t, domain.ProtocolPOP3))
 
-	want := []string{"folders", "messages", "body", "raw", "verify", "seen", "seen-many", "push-flag", "flagged", "answered", "forwarded", "keyword", "delete", "deletemany", "move", "movemany", "copy"}
+	want := []string{"session", "folders", "messages", "body", "raw", "verify", "seen", "seen-many", "push-flag", "flagged", "answered", "forwarded", "keyword", "delete", "deletemany", "move", "movemany", "copy"}
 	if !reflect.DeepEqual(pop3Rec.calls, want) {
 		t.Errorf("pop3 adapter calls = %v, want %v", pop3Rec.calls, want)
 	}

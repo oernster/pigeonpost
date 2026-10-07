@@ -79,6 +79,10 @@ func (s *SyncService) SyncAccount(ctx context.Context, accountID string) error {
 	if err != nil {
 		return fmt.Errorf("sync: load account %q: %w", accountID, err)
 	}
+	// One connection for the whole sync: the folder list, the flag replay and every folder's fetch share
+	// it, where each used to log in on its own (about 51 logins for StartMail's 49 folders).
+	ctx, end := s.source.BeginSession(ctx, account)
+	defer end()
 
 	rules, err := s.rules.ListRules(ctx)
 	if err != nil {

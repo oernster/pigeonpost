@@ -13,6 +13,7 @@ import (
 // protocolSource is the read, write and verify surface each protocol adapter provides. Both imap.Source
 // and pop3.Source satisfy it structurally.
 type protocolSource interface {
+	BeginSession(ctx context.Context, account domain.Account) (context.Context, func())
 	FetchFolders(ctx context.Context, account domain.Account) ([]domain.Folder, error)
 	FetchMessages(ctx context.Context, account domain.Account, folder domain.Folder) ([]domain.MessageSummary, error)
 	FetchBody(ctx context.Context, account domain.Account, folder domain.Folder, uid string) (string, string, []byte, []domain.Attachment, error)
@@ -51,6 +52,11 @@ func (r *Router) sourceFor(account domain.Account) protocolSource {
 		return r.pop3
 	}
 	return r.imap
+}
+
+// BeginSession delegates to the account's protocol adapter.
+func (r *Router) BeginSession(ctx context.Context, account domain.Account) (context.Context, func()) {
+	return r.sourceFor(account).BeginSession(ctx, account)
 }
 
 // FetchFolders delegates to the account's protocol adapter.

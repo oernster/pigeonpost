@@ -27,13 +27,25 @@ type TokenProvider interface {
 
 // connect dials and authenticates using the account's stored credential. That is a keychain password
 // for a password account; for an OAuth account it is a silently-refreshed access token. It is used by the operations that run
-// against a saved account.
+// against a saved account. Under a session (see BeginSession) it answers the session's connection,
+// logging it in on first use, so the operations of one sync share a single login.
 func (s *Source) connect(ctx context.Context, account domain.Account) (*imapclient.Client, error) {
+	shared := sessionFor(ctx, account)
+	if shared != nil && shared.client != nil {
+		return shared.client, nil
+	}
 	secret, err := s.secret(ctx, account)
 	if err != nil {
 		return nil, err
 	}
-	return s.authWith(account, secret)
+	client, err := s.authWith(account, secret)
+	if err != nil {
+		return nil, err
+	}
+	if shared != nil {
+		shared.client = client
+	}
+	return client, nil
 }
 
 // secret returns the credential to authenticate with: a refreshed OAuth access token for an OAuth

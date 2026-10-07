@@ -46,6 +46,23 @@ func TestSyncAccountHappyPath(t *testing.T) {
 	}
 }
 
+// A full sync shares one connection: it begins exactly one session and ends it, whether the sync
+// finishes or stops at a folder that fails.
+func TestSyncAccountRunsUnderOneSession(t *testing.T) {
+	for name, fetchErr := range map[string]error{"finished": nil, "stopped": errBoom} {
+		t.Run(name, func(t *testing.T) {
+			_, _, source, _, svc := newSyncFixture(t)
+			source.fetchMessagesErr = fetchErr
+			if err := svc.SyncAccount(context.Background(), "a1"); !errors.Is(err, fetchErr) {
+				t.Fatalf("SyncAccount = %v, want %v", err, fetchErr)
+			}
+			if source.sessionsBegun != 1 || source.sessionsEnded != 1 {
+				t.Errorf("sessions begun %d, ended %d; want 1 and 1", source.sessionsBegun, source.sessionsEnded)
+			}
+		})
+	}
+}
+
 func TestSyncAppliesRules(t *testing.T) {
 	accounts, mail, source, rules, svc := newSyncFixture(t)
 

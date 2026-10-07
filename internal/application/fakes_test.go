@@ -886,6 +886,14 @@ type fakeMailSource struct {
 	raw              []byte
 	// validity is the UIDVALIDITY the server's SELECT reported for each folder.
 	validity map[string]uint32
+	// sessionsBegun and sessionsEnded count BeginSession calls and the ends they answered.
+	sessionsBegun int
+	sessionsEnded int
+}
+
+func (f *fakeMailSource) BeginSession(ctx context.Context, _ domain.Account) (context.Context, func()) {
+	f.sessionsBegun++
+	return ctx, func() { f.sessionsEnded++ }
 }
 
 func (f *fakeMailSource) FetchBody(context.Context, domain.Account, domain.Folder, string) (string, string, []byte, []domain.Attachment, error) {

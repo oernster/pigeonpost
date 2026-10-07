@@ -64,6 +64,12 @@ func (s *Source) Verify(_ context.Context, account domain.Account, password stri
 	return client.Quit()
 }
 
+// BeginSession shares nothing: a POP3 sync reads its one synthetic Inbox on one connection already. It
+// answers ctx unchanged and an end that does nothing.
+func (s *Source) BeginSession(ctx context.Context, _ domain.Account) (context.Context, func()) {
+	return ctx, func() {}
+}
+
 // FetchFolders returns the single synthetic Inbox for a POP3 account; POP3 has no server-side folders.
 func (s *Source) FetchFolders(_ context.Context, account domain.Account) ([]domain.Folder, error) {
 	folder, err := domain.NewFolderWithSeparator(

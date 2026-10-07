@@ -42,7 +42,7 @@ func (s *Source) PushFlag(ctx context.Context, account domain.Account, folder do
 	if err != nil {
 		return nil, err
 	}
-	defer func() { _ = client.Logout().Wait() }()
+	defer s.release(ctx, client)
 
 	op := imap.StoreFlagsDel
 	if set {

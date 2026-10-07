@@ -174,6 +174,12 @@ func listenFake(t *testing.T, s script) (host string, port int) {
 // security so the test needs no certificate.
 func fakeAccount(t *testing.T, host string, port int) domain.Account {
 	t.Helper()
+	return fakeAccountWithID(t, host, port, "acct")
+}
+
+// fakeAccountWithID is fakeAccount under the given account id.
+func fakeAccountWithID(t *testing.T, host string, port int, id string) domain.Account {
+	t.Helper()
 	address, err := domain.NewEmailAddress("Tester", "tester@example.com")
 	if err != nil {
 		t.Fatalf("address: %v", err)
@@ -182,7 +188,7 @@ func fakeAccount(t *testing.T, host string, port int) domain.Account {
 	if err != nil {
 		t.Fatalf("server config: %v", err)
 	}
-	account, err := domain.NewAccount("acct", "Test", address, domain.ProtocolIMAP, server, server, domain.AuthPassword)
+	account, err := domain.NewAccount(id, "Test", address, domain.ProtocolIMAP, server, server, domain.AuthPassword)
 	if err != nil {
 		t.Fatalf("account: %v", err)
 	}

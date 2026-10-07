@@ -20,7 +20,7 @@ func (s *Source) FetchBody(ctx context.Context, account domain.Account, folder d
 	if err != nil {
 		return "", "", nil, nil, err
 	}
-	defer func() { _ = client.Logout().Wait() }()
+	defer s.release(ctx, client)
 
 	if _, err := client.Select(folder.Path(), &imap.SelectOptions{ReadOnly: true}).Wait(); err != nil {
 		return "", "", nil, nil, fmt.Errorf("imap: select %q: %w", folder.Path(), err)
@@ -64,7 +64,7 @@ func (s *Source) FetchRaw(ctx context.Context, account domain.Account, folder do
 	if err != nil {
 		return nil, err
 	}
-	defer func() { _ = client.Logout().Wait() }()
+	defer s.release(ctx, client)
 
 	if _, err := client.Select(folder.Path(), &imap.SelectOptions{ReadOnly: true}).Wait(); err != nil {
 		return nil, fmt.Errorf("imap: select %q: %w", folder.Path(), err)
@@ -168,7 +168,7 @@ func (s *Source) fetchSummaries(ctx context.Context, account domain.Account, fol
 	if err != nil {
 		return nil, 0, err
 	}
-	defer func() { _ = client.Logout().Wait() }()
+	defer s.release(ctx, client)
 
 	selected, err := client.Select(folder.Path(), &imap.SelectOptions{ReadOnly: true}).Wait()
 	if err != nil {
@@ -213,7 +213,7 @@ func (s *Source) FetchFolders(ctx context.Context, account domain.Account) ([]do
 	if err != nil {
 		return nil, err
 	}
-	defer func() { _ = client.Logout().Wait() }()
+	defer s.release(ctx, client)
 
 	list, err := client.List("", "*", nil).Collect()
 	if err != nil {

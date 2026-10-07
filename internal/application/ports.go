@@ -193,6 +193,11 @@ type TagStore interface {
 
 // MailSource is a remote mail server (IMAP/POP3) from which folders and message summaries are pulled.
 type MailSource interface {
+	// BeginSession answers a context under which every server operation on account shares one
+	// connection, plus the function that ends it. A full account sync runs under one, so its folder list,
+	// flag replay and per-folder fetches cost one login rather than one each. Operations under it run one
+	// after another, never at once.
+	BeginSession(ctx context.Context, account domain.Account) (context.Context, func())
 	FetchFolders(ctx context.Context, account domain.Account) ([]domain.Folder, error)
 	// FetchMessagesValidity returns a folder's message summaries together with the UIDVALIDITY the server
 	// gave when the folder was selected for that same fetch, so the value describes exactly the UIDs

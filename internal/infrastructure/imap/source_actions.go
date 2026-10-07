@@ -100,7 +100,7 @@ func (s *Source) Delete(ctx context.Context, account domain.Account, folder doma
 	if err != nil {
 		return "", err
 	}
-	defer func() { _ = client.Logout().Wait() }()
+	defer s.release(ctx, client)
 
 	if _, err := client.Select(folder.Path(), nil).Wait(); err != nil {
 		return "", fmt.Errorf("imap: select %q: %w", folder.Path(), err)
@@ -134,7 +134,7 @@ func (s *Source) Move(ctx context.Context, account domain.Account, folder domain
 	if err != nil {
 		return "", err
 	}
-	defer func() { _ = client.Logout().Wait() }()
+	defer s.release(ctx, client)
 
 	if _, err := client.Select(folder.Path(), nil).Wait(); err != nil {
 		return "", fmt.Errorf("imap: select %q: %w", folder.Path(), err)
@@ -161,7 +161,7 @@ func (s *Source) Copy(ctx context.Context, account domain.Account, folder domain
 	if err != nil {
 		return "", err
 	}
-	defer func() { _ = client.Logout().Wait() }()
+	defer s.release(ctx, client)
 
 	if _, err := client.Select(folder.Path(), nil).Wait(); err != nil {
 		return "", fmt.Errorf("imap: select %q: %w", folder.Path(), err)
@@ -186,7 +186,7 @@ func (s *Source) CreateFolder(ctx context.Context, account domain.Account, path 
 	if err != nil {
 		return err
 	}
-	defer func() { _ = client.Logout().Wait() }()
+	defer s.release(ctx, client)
 	if err := client.Create(path, nil).Wait(); err != nil {
 		return fmt.Errorf("imap: create mailbox %q: %w", path, err)
 	}
@@ -200,7 +200,7 @@ func (s *Source) RenameFolder(ctx context.Context, account domain.Account, oldPa
 	if err != nil {
 		return err
 	}
-	defer func() { _ = client.Logout().Wait() }()
+	defer s.release(ctx, client)
 	if err := client.Rename(oldPath, newPath, nil).Wait(); err != nil {
 		return fmt.Errorf("imap: rename mailbox %q to %q: %w", oldPath, newPath, err)
 	}
@@ -213,7 +213,7 @@ func (s *Source) DeleteFolder(ctx context.Context, account domain.Account, path 
 	if err != nil {
 		return err
 	}
-	defer func() { _ = client.Logout().Wait() }()
+	defer s.release(ctx, client)
 	if err := client.Delete(path).Wait(); err != nil {
 		return fmt.Errorf("imap: delete mailbox %q: %w", path, err)
 	}
@@ -229,7 +229,7 @@ func (s *Source) MoveAllMessages(ctx context.Context, account domain.Account, fr
 	if err != nil {
 		return err
 	}
-	defer func() { _ = client.Logout().Wait() }()
+	defer s.release(ctx, client)
 
 	selected, err := client.Select(fromPath, nil).Wait()
 	if err != nil {
@@ -273,7 +273,7 @@ func (s *Source) appendMessage(ctx context.Context, account domain.Account, path
 	if err != nil {
 		return err
 	}
-	defer func() { _ = client.Logout().Wait() }()
+	defer s.release(ctx, client)
 
 	now := s.clock.Now()
 	raw := message.BuildMIME(msg, now, s.newID())
