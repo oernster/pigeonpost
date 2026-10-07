@@ -184,8 +184,8 @@ func TestSyncInboxesSkipsAFolderWhoseValidityCannotBeRead(t *testing.T) {
 	mail.validityErr = errBoom
 
 	arrived, err := svc.SyncInboxes(context.Background())
-	if err != nil {
-		t.Fatalf("sync: %v", err)
+	if !errors.Is(err, errBoom) {
+		t.Fatalf("the skipped folder must be reported, got %v", err)
 	}
 	if len(arrived) != 0 || len(remote.deleteManyBatches) != 0 {
 		t.Errorf("arrived=%d destroyBatches=%v, want the folder skipped", len(arrived), remote.deleteManyBatches)

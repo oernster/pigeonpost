@@ -67,6 +67,9 @@ func (s *ComposeService) ReplayOutbox(ctx context.Context) (int, error) {
 		switch outcome {
 		case replayDelivered:
 			replayed++
+			if err != nil {
+				failures = append(failures, err)
+			}
 		case replayOffline:
 			return replayed, nil
 		case replayFailed:
@@ -106,6 +109,9 @@ func (s *ComposeService) ReplayDueHeld(ctx context.Context) (int, error) {
 		switch outcome {
 		case replayDelivered:
 			sent++
+			if err != nil {
+				failures = append(failures, err)
+			}
 		case replayFailed:
 			failures = append(failures, err)
 		case replayAborted:

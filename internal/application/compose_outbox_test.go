@@ -96,3 +96,31 @@ func TestOutboxRecover(t *testing.T) {
 		t.Errorf("err = %v, want errBoom", err)
 	}
 }
+
+// A replayed send that is delivered but whose Sent copy is lost counts as delivered. The lost copy is
+// reported beside the count for the caller to record, in both the plain replay and the held one.
+func TestOutboxReplayReportsALostSentCopy(t *testing.T) {
+	epoch := time.Unix(0, 0).UTC()
+	replays := map[string]struct {
+		item   domain.OutboxItem
+		replay func(*ComposeService) (int, error)
+	}{
+		"plain": {outboxItem(t, "q1", "a1", domain.OutboxSend), func(s *ComposeService) (int, error) {
+			return s.ReplayOutbox(context.Background())
+		}},
+		"held": {heldItem(t, "q1", epoch), func(s *ComposeService) (int, error) {
+			return s.ReplayDueHeld(context.Background())
+		}},
+	}
+	for name, tc := range replays {
+		t.Run(name, func(t *testing.T) {
+			d := newComposeDeps().withAccount(t).withSent(t)
+			d.sent.saveErr = errBoom
+			d.outbox.items = []domain.OutboxItem{tc.item}
+			n, err := tc.replay(d.service())
+			if n != 1 || !errors.Is(err, ErrSentCopyNotSaved) {
+				t.Errorf("replay = %d, %v; want 1 delivered and the lost copy reported", n, err)
+			}
+		})
+	}
+}

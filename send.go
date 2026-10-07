@@ -136,7 +136,8 @@ func (a *App) OutboxCount() (int, error) {
 // ReplayOutbox attempts to deliver every queued outgoing operation, oldest first; it returns how many
 // succeeded. It is called after a successful sync, when connectivity has returned.
 func (a *App) ReplayOutbox() (int, error) {
-	return a.compose.ReplayOutbox(a.ctx)
+	replayed, err := a.compose.ReplayOutbox(a.ctx)
+	return replayed, a.recordLostSentCopies(err)
 }
 
 // composeAttachments gathers all attachments for an outgoing message: files chosen from disk, files

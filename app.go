@@ -55,7 +55,7 @@ type App struct {
 	mailErrors    mailErrorRecorder             // keeps the raw text of an error the interface replaces
 	watchers      map[string]context.CancelFunc // per-account IDLE watcher cancels, keyed by account id
 	watchersMu    sync.Mutex                    // guards watchers
-	mailCheck     sync.Mutex                    // serialises checkMail so the poll and IDLE pushes do not detect concurrently
+	mailCheck     sync.Mutex                    // serialises checkMailWith so the poll and IDLE pushes do not detect concurrently
 	quitting      atomic.Bool                   // set when an explicit Quit is under way, so the close prompt is skipped
 	backfillMu    sync.Mutex                    // guards backfillStop
 	backfillStop  context.CancelFunc            // cancels the rule backfill in flight; nil when none is

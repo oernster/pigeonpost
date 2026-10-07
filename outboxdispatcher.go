@@ -35,7 +35,8 @@ func (a *App) runOutboxDispatcher() {
 		if err != nil || !ok || next.After(time.Now()) {
 			continue
 		}
-		if sent, err := a.compose.ReplayDueHeld(a.ctx); sent > 0 || err != nil {
+		sent, err := a.compose.ReplayDueHeld(a.ctx)
+		if sent > 0 || a.recordLostSentCopies(err) != nil {
 			runtime.EventsEmit(a.ctx, outboxChangedEvent)
 		}
 	}

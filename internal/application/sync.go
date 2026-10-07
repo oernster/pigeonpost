@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/oernster/pigeonpost/internal/domain"
@@ -182,8 +183,22 @@ func (s *SyncService) SyncFolder(ctx context.Context, folderID string) error {
 // read on arrival (see refreshInbox), so the caller can raise a desktop notification. It does NOT suppress a first population: the caller establishes a
 // baseline with an initial priming call so it does not announce an existing inbox, which lets a genuinely
 // new message into a previously empty inbox still be reported. A per-account or per-folder failure is
-// skipped rather than failing the pass, so one unreachable account does not silence the others.
+// skipped rather than failing the pass, so one unreachable account does not silence the others; every
+// one skipped is joined into the error, beside the arrivals the rest of the pass found, so a caller can
+// record a failure that would otherwise go unseen for as long as the account stays broken.
 func (s *SyncService) SyncInboxes(ctx context.Context) ([]domain.MessageSummary, error) {
+	return s.syncInboxesOf(ctx, func(domain.Account) bool { return true })
+}
+
+// SyncAccountInbox is SyncInboxes for the one account accountID names: what an IDLE push for that account
+// calls. A push says only that account's inbox changed; syncing every account on it would connect to every
+// server each time one of them announced mail. An id that names no account syncs nothing.
+func (s *SyncService) SyncAccountInbox(ctx context.Context, accountID string) ([]domain.MessageSummary, error) {
+	return s.syncInboxesOf(ctx, func(account domain.Account) bool { return account.ID() == accountID })
+}
+
+// syncInboxesOf runs one inbox pass over the accounts include accepts, as SyncInboxes describes.
+func (s *SyncService) syncInboxesOf(ctx context.Context, include func(domain.Account) bool) ([]domain.MessageSummary, error) {
 	accounts, err := s.accounts.ListAccounts(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("sync: list accounts: %w", err)
@@ -196,9 +211,14 @@ func (s *SyncService) SyncInboxes(ctx context.Context) ([]domain.MessageSummary,
 	_ = s.tags.FlushPending(ctx)
 	_ = s.flags.FlushPending(ctx)
 	var arrived []domain.MessageSummary
+	var skipped []error
 	for _, account := range accounts {
+		if !include(account) {
+			continue
+		}
 		folders, err := s.mail.ListFolders(ctx, account.ID())
 		if err != nil {
+			skipped = append(skipped, fmt.Errorf("sync: inbox of %s: %w", account.ID(), err))
 			continue
 		}
 		for _, folder := range folders {
@@ -207,12 +227,13 @@ func (s *SyncService) SyncInboxes(ctx context.Context) ([]domain.MessageSummary,
 			}
 			fresh, err := s.refreshInbox(ctx, account, folder, rules)
 			if err != nil {
+				skipped = append(skipped, fmt.Errorf("sync: inbox of %s: %w", account.ID(), err))
 				continue
 			}
 			arrived = append(arrived, fresh...)
 		}
 	}
-	return arrived, nil
+	return arrived, errors.Join(skipped...)
 }
 
 // refreshInbox fetches one inbox folder, applies the filter rules, saves the messages and returns the

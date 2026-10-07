@@ -200,6 +200,42 @@ func TestMailErrorLeavesNilAlone(t *testing.T) {
 	}
 }
 
+// lostCopy is the error a delivered send answers when its Sent copy could not be saved.
+func lostCopy(account string) error {
+	return fmt.Errorf("%w for %s: boom", application.ErrSentCopyNotSaved, account)
+}
+
+// A delivered send whose Sent copy was lost must reach the interface as a success, its lost copy
+// recorded rather than dropped.
+func TestMailErrorRecordsALostSentCopyAndReportsSuccess(t *testing.T) {
+	t.Parallel()
+	spy := &recordingSpy{}
+	app := &App{mailErrors: spy}
+	lost := lostCopy("a1")
+	if got := app.mailError(lost); got != nil {
+		t.Fatalf("mailError = %v, want nil: the message was delivered", got)
+	}
+	if len(spy.recorded) != 1 || spy.recorded[0] != lost {
+		t.Fatalf("recorded %v, want the lost copy", spy.recorded)
+	}
+}
+
+// A replay joins its items' errors: the lost copies are recorded and taken out while a real failure
+// beside them still reaches the caller, never hidden with them.
+func TestRecordLostSentCopiesKeepsARealFailure(t *testing.T) {
+	t.Parallel()
+	spy := &recordingSpy{}
+	app := &App{mailErrors: spy}
+	real := errors.New("compose: outbox item \"q2\" failed: rejected")
+	got := app.recordLostSentCopies(errors.Join(lostCopy("a1"), real, lostCopy("a2")))
+	if !errors.Is(got, real) || errors.Is(got, application.ErrSentCopyNotSaved) {
+		t.Fatalf("got %v, want the real failure alone", got)
+	}
+	if len(spy.recorded) != 2 {
+		t.Fatalf("recorded %d lost copies, want 2", len(spy.recorded))
+	}
+}
+
 // The shape a refused send produces, as measured on 2026-09-08 against a personal Hotmail mailbox
 // created that day: the server's own 535, wrapped by the transport and again by the compose service,
 // exactly as it reaches the facade.

@@ -88,6 +88,46 @@ func TestSyncInboxesSkipsMailAFilterRuleMarkedRead(t *testing.T) {
 	}
 }
 
+// twoInboxFixture adds a second account a2, with inbox f2, to inboxFixture, each inbox holding one new
+// message on the server.
+func twoInboxFixture(t *testing.T) (*fakeMailStore, *SyncService) {
+	t.Helper()
+	accounts, mail, source, _, svc := inboxFixture(t)
+	accounts.accounts["a2"] = testAccount(t, "a2")
+	mail.folders["a2"] = []domain.Folder{testFolder(t, "f2", "a2", "INBOX")}
+	source.messagesByFolder["f1"] = []domain.MessageSummary{testMessage(t, "m1", "f1")}
+	source.messagesByFolder["f2"] = []domain.MessageSummary{testMessage(t, "m2", "f2")}
+	return mail, svc
+}
+
+// An IDLE push names one account, so only that account's inbox is fetched; the other account's inbox is
+// neither reported nor saved.
+func TestSyncAccountInboxSyncsOnlyThatAccount(t *testing.T) {
+	mail, svc := twoInboxFixture(t)
+	fresh, err := svc.SyncAccountInbox(context.Background(), "a2")
+	if err != nil {
+		t.Fatalf("SyncAccountInbox: %v", err)
+	}
+	if got := inboxIDs(fresh); len(got) != 1 || got[0] != "m2" {
+		t.Errorf("fresh = %v, want [m2]", got)
+	}
+	if len(mail.messages["f1"]) != 0 {
+		t.Errorf("a1's inbox was synced: %d messages saved, want 0", len(mail.messages["f1"]))
+	}
+}
+
+// An id naming no account syncs nothing rather than falling back to every account.
+func TestSyncAccountInboxUnknownAccountSyncsNothing(t *testing.T) {
+	mail, svc := twoInboxFixture(t)
+	fresh, err := svc.SyncAccountInbox(context.Background(), "gone")
+	if err != nil {
+		t.Fatalf("SyncAccountInbox: %v", err)
+	}
+	if len(fresh) != 0 || len(mail.messages["f1"]) != 0 || len(mail.messages["f2"]) != 0 {
+		t.Errorf("fresh = %v; saved f1 %d, f2 %d: want nothing", inboxIDs(fresh), len(mail.messages["f1"]), len(mail.messages["f2"]))
+	}
+}
+
 func TestSyncInboxesReportsMailIntoEmptyFolder(t *testing.T) {
 	// A message arriving into a folder with nothing cached is still reported: the poller establishes the
 	// baseline with a priming call, so an empty inbox does not silence its first real arrival.
@@ -152,8 +192,9 @@ func TestSyncInboxesListFoldersErrorSkipsAccount(t *testing.T) {
 	_, mail, _, _, svc := inboxFixture(t)
 	mail.listFoldersErr = errBoom
 	fresh, err := svc.SyncInboxes(context.Background())
-	if err != nil {
-		t.Fatalf("should skip the account, not fail: %v", err)
+	// The account is skipped so the pass goes on; the skip is reported rather than lost.
+	if !errors.Is(err, errBoom) {
+		t.Fatalf("the skipped account must be reported, got %v", err)
 	}
 	if len(fresh) != 0 {
 		t.Errorf("fresh = %v, want none", inboxIDs(fresh))
@@ -164,8 +205,8 @@ func TestSyncInboxesListMessagesErrorSkipsFolder(t *testing.T) {
 	_, mail, _, _, svc := inboxFixture(t)
 	mail.listMessagesErr = errBoom
 	fresh, err := svc.SyncInboxes(context.Background())
-	if err != nil {
-		t.Fatalf("should skip the folder, not fail: %v", err)
+	if !errors.Is(err, errBoom) {
+		t.Fatalf("the skipped folder must be reported, got %v", err)
 	}
 	if len(fresh) != 0 {
 		t.Errorf("fresh = %v, want none", inboxIDs(fresh))
@@ -177,8 +218,8 @@ func TestSyncInboxesFetchErrorSkipsFolder(t *testing.T) {
 	mail.messages["f1"] = []domain.MessageSummary{testMessage(t, "m1", "f1")}
 	source.fetchMessagesErr = errBoom
 	fresh, err := svc.SyncInboxes(context.Background())
-	if err != nil {
-		t.Fatalf("should skip the folder, not fail: %v", err)
+	if !errors.Is(err, errBoom) {
+		t.Fatalf("the skipped folder must be reported, got %v", err)
 	}
 	if len(fresh) != 0 {
 		t.Errorf("fresh = %v, want none", inboxIDs(fresh))
@@ -191,8 +232,8 @@ func TestSyncInboxesSaveErrorSkipsFolder(t *testing.T) {
 	source.messagesByFolder["f1"] = []domain.MessageSummary{testMessage(t, "m2", "f1")}
 	mail.saveMessagesErr = errBoom
 	fresh, err := svc.SyncInboxes(context.Background())
-	if err != nil {
-		t.Fatalf("should skip the folder, not fail: %v", err)
+	if !errors.Is(err, errBoom) {
+		t.Fatalf("the skipped folder must be reported, got %v", err)
 	}
 	if len(fresh) != 0 {
 		t.Errorf("fresh = %v, want none", inboxIDs(fresh))

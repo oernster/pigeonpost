@@ -670,8 +670,10 @@ func TestRespondSentCopyFailureDoesNotFailSend(t *testing.T) {
 	f := newSchedFixture(t, schedMessage(t, domain.MethodRequest, event))
 	f.sent.saveErr = errBoom
 
-	if err := f.svc.Respond(context.Background(), "m1", domain.PartStatAccepted); err != nil {
-		t.Errorf("a failed Sent copy must not fail a delivered reply, got %v", err)
+	// The reply is delivered; its lost Sent copy is the only error, for the caller to record.
+	err := f.svc.Respond(context.Background(), "m1", domain.PartStatAccepted)
+	if !errors.Is(err, ErrSentCopyNotSaved) || len(f.transport.sent) != 1 {
+		t.Errorf("err = %v, delivered %d: want the reply delivered and its lost copy reported", err, len(f.transport.sent))
 	}
 }
 

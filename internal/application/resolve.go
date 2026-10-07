@@ -34,10 +34,10 @@ type folderLister interface {
 	ListFolders(ctx context.Context, accountID string) ([]domain.Folder, error)
 }
 
-// folderPathByKind returns the server path of the account's folder of the given well-known kind, and
+// folderPathByKind returns the server path of the account's folder of the given well-known kind plus
 // whether one was found. A missing folder of that kind is not an error (it returns "", false, nil), so
 // each caller applies its own policy: permanent-delete when there is no Trash, skip the Sent copy when
-// there is no Sent, ErrNoDraftsFolder when a draft cannot be saved, and so on.
+// there is no Sent, ErrNoDraftsFolder when a draft cannot be saved; others likewise.
 func folderPathByKind(ctx context.Context, store folderLister, accountID string, kind domain.FolderKind) (string, bool, error) {
 	folder, ok, err := folderByKind(ctx, store, accountID, kind)
 	if err != nil || !ok {
@@ -65,15 +65,22 @@ func folderByKind(ctx context.Context, store folderLister, accountID string, kin
 // saveCopyToSent appends a best-effort copy of a just-sent message to the account's Sent mailbox, so
 // the user keeps a record of what left. It is shared by the compose and scheduling send paths so an
 // invite reply leaves the same record an ordinary message does. Best-effort means: a provider that
-// saves sent mail itself is skipped, and a missing Sent folder or an append failure never turns a
-// delivered send into an error.
-func saveCopyToSent(ctx context.Context, folders folderLister, sent SentSaver, account domain.Account, msg domain.OutgoingMessage) {
+// saves sent mail itself is skipped; so is an account with no Sent folder, which has nowhere to keep a
+// copy. A copy that could not be saved answers ErrSentCopyNotSaved, which callers record but never
+// report as a failed send. The cause is carried as text so the error matches that one sentinel alone.
+func saveCopyToSent(ctx context.Context, folders folderLister, sent SentSaver, account domain.Account, msg domain.OutgoingMessage) error {
 	if account.SavesSentServerSide() {
-		return
+		return nil
 	}
 	sentPath, found, err := folderPathByKind(ctx, folders, account.ID(), domain.FolderSent)
-	if err != nil || !found {
-		return
+	if err != nil {
+		return fmt.Errorf("%w for %s: find the Sent folder: %v", ErrSentCopyNotSaved, account.ID(), err)
 	}
-	_ = sent.SaveSent(ctx, account, sentPath, msg)
+	if !found {
+		return nil
+	}
+	if err := sent.SaveSent(ctx, account, sentPath, msg); err != nil {
+		return fmt.Errorf("%w for %s: %v", ErrSentCopyNotSaved, account.ID(), err)
+	}
+	return nil
 }

@@ -145,21 +145,24 @@ func TestComposeSendNoSentFolderSkips(t *testing.T) {
 func TestComposeSendSentListErrorSkips(t *testing.T) {
 	d := newComposeDeps().withAccount(t).withSent(t)
 	d.store.listFoldersErr = errBoom
-	// A folder-list error must not fail the send: the message is already delivered.
-	if err := d.service().Send(context.Background(), "a1", draftTo(t, "f@example.com")); err != nil {
-		t.Fatalf("send must succeed despite a folder-list error: %v", err)
+	// The message is already delivered, so the only error is the lost Sent copy, never a failed send.
+	err := d.service().Send(context.Background(), "a1", draftTo(t, "f@example.com"))
+	if !errors.Is(err, ErrSentCopyNotSaved) || len(d.transport.sent) != 1 {
+		t.Fatalf("err = %v, delivered %d: want the message delivered and its lost copy reported", err, len(d.transport.sent))
 	}
 	if len(d.sent.saved) != 0 {
 		t.Errorf("no Sent copy when the folder list cannot be read, got %v", d.sent.saved)
 	}
 }
 
-func TestComposeSendSentAppendErrorSwallowed(t *testing.T) {
+func TestComposeSendSentAppendErrorReported(t *testing.T) {
 	d := newComposeDeps().withAccount(t).withSent(t)
 	d.sent.saveErr = errBoom
-	// The append to Sent failed; the message was already delivered, so Send still succeeds.
-	if err := d.service().Send(context.Background(), "a1", draftTo(t, "f@example.com")); err != nil {
-		t.Fatalf("send must succeed despite a Sent-append error: %v", err)
+	// The append to Sent failed after delivery: reported as a lost copy for the caller to record (it used
+	// to be swallowed) and never as a failed send.
+	err := d.service().Send(context.Background(), "a1", draftTo(t, "f@example.com"))
+	if !errors.Is(err, ErrSentCopyNotSaved) || len(d.transport.sent) != 1 {
+		t.Fatalf("err = %v, delivered %d: want the message delivered and its lost copy reported", err, len(d.transport.sent))
 	}
 }
 

@@ -143,11 +143,38 @@ type mailErrorRecorder interface {
 // unchanged still carries its own detail, so it is not recorded and the log stays a list of the cases
 // where something was hidden.
 func (a *App) mailError(err error) error {
+	err = a.recordLostSentCopies(err)
 	friendly := friendlyMailError(err)
 	if err != nil && friendly != err && a.mailErrors != nil {
 		a.mailErrors.Record(err)
 	}
 	return friendly
+}
+
+// recordLostSentCopies records every application.ErrSentCopyNotSaved in err and answers what is left. A
+// lost Sent copy belongs to a message that was delivered, so it must never reach the interface as a failed
+// send; recording it keeps it from vanishing as it used to. A replay joins its items' errors at the top
+// level, so one level is enough to separate a lost copy from a real failure beside it; each lost copy
+// carries its cause as text, so it never wraps anything else that could be dropped with it.
+func (a *App) recordLostSentCopies(err error) error {
+	if err == nil || !errors.Is(err, application.ErrSentCopyNotSaved) {
+		return err
+	}
+	parts := []error{err}
+	if joined, ok := err.(interface{ Unwrap() []error }); ok {
+		parts = joined.Unwrap()
+	}
+	var rest []error
+	for _, part := range parts {
+		if !errors.Is(part, application.ErrSentCopyNotSaved) {
+			rest = append(rest, part)
+			continue
+		}
+		if a.mailErrors != nil {
+			a.mailErrors.Record(part)
+		}
+	}
+	return errors.Join(rest...)
 }
 
 // friendlyMailError converts an internal mail error into one fit to show the user: a connectivity

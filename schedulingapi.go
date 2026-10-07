@@ -57,7 +57,7 @@ func (a *App) RespondToInvitation(messageID, status string) error {
 	if err != nil {
 		return err
 	}
-	if err := a.scheduling.Respond(a.ctx, messageID, partStat); err != nil {
+	if err := a.recordLostSentCopies(a.scheduling.Respond(a.ctx, messageID, partStat)); err != nil {
 		runtime.LogErrorf(a.ctx, "meeting invite: respond to %q failed: %v", messageID, err)
 		return err
 	}
@@ -92,7 +92,7 @@ func (a *App) SendMeetingRequest(accountID, eventID string) error {
 		return fmt.Errorf("this meeting has no attendees to invite")
 	}
 	runtime.LogInfof(a.ctx, "meeting invite: event %q has %d attendee(s), sending", eventID, len(event.Attendees()))
-	if err := a.scheduling.SendRequest(a.ctx, accountID, []domain.Event{event}); err != nil {
+	if err := a.recordLostSentCopies(a.scheduling.SendRequest(a.ctx, accountID, []domain.Event{event})); err != nil {
 		runtime.LogErrorf(a.ctx, "meeting invite: send REQUEST failed: %v", err)
 		return err
 	}
@@ -109,7 +109,7 @@ func (a *App) SendMeetingCancel(accountID, eventID string) error {
 		runtime.LogErrorf(a.ctx, "meeting invite: load event %q failed: %v", eventID, err)
 		return err
 	}
-	if err := a.scheduling.SendCancel(a.ctx, accountID, []domain.Event{event}); err != nil {
+	if err := a.recordLostSentCopies(a.scheduling.SendCancel(a.ctx, accountID, []domain.Event{event})); err != nil {
 		runtime.LogErrorf(a.ctx, "meeting invite: send CANCEL failed: %v", err)
 		return err
 	}

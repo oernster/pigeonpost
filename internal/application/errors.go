@@ -19,6 +19,12 @@ var ErrBodyNotCached = errors.New("message body not cached")
 // the facade say so in words and lets the caller recover, instead of showing the query that failed.
 var ErrMessageNotCached = errors.New("message not cached")
 
+// ErrSentCopyNotSaved marks a message that was delivered but whose copy could not be added to the Sent
+// mailbox. The send itself succeeded, so a caller must never report it as a failed send; it is returned
+// rather than discarded so the lost copy is recorded where it can be read. Discarding it is how a
+// mailbox's Sent copies could stop for weeks with nothing to say so.
+var ErrSentCopyNotSaved = errors.New("sent copy not saved")
+
 // ErrNoDraftsFolder is returned when a draft cannot be saved because the account has no Drafts mailbox.
 var ErrNoDraftsFolder = errors.New("account has no drafts folder")
 

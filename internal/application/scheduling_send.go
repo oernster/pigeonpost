@@ -74,8 +74,7 @@ func (s *SchedulingService) sendCalendar(ctx context.Context, account domain.Acc
 		}
 		return fmt.Errorf("scheduling: send %s: %w", method, err)
 	}
-	saveCopyToSent(ctx, s.messages, s.sent, account, msg)
-	return nil
+	return saveCopyToSent(ctx, s.messages, s.sent, account, msg)
 }
 
 // enqueue records an undeliverable scheduling message in the offline outbox, stamped with a fresh id

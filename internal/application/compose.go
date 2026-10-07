@@ -27,7 +27,7 @@ type Draft struct {
 type IDGenerator func() string
 
 // ComposeService is the use-case boundary for outgoing mail: sending messages, saving drafts, the
-// offline outbox that holds those operations when the server is unreachable and replays them later, and
+// offline outbox that holds those operations when the server is unreachable and replays them later; also
 // the local draft-recovery snapshot that guards an in-progress compose against an accidental close.
 type ComposeService struct {
 	accounts  AccountStore
@@ -110,7 +110,7 @@ func (s *ComposeService) DraftRecovery(ctx context.Context) (domain.DraftRecover
 }
 
 // ClearDraftRecovery discards the local compose snapshot, called once the message is sent, saved to the
-// server, or the user chooses not to restore it.
+// server or declined for restoring by the user.
 func (s *ComposeService) ClearDraftRecovery(ctx context.Context) error {
 	if err := s.recovery.ClearDraftRecovery(ctx); err != nil {
 		return fmt.Errorf("compose: clear draft recovery: %w", err)
@@ -118,9 +118,10 @@ func (s *ComposeService) ClearDraftRecovery(ctx context.Context) error {
 	return nil
 }
 
-// Send builds a validated message from the draft, using the account's address as the sender, and
-// hands it to the transport. When the server is unreachable the message is queued in the outbox
-// instead of failing, and Send returns nil: the message will be delivered on the next replay.
+// Send builds a validated message from the draft with the account's address as the sender, then hands
+// it to the transport. When the server is unreachable the message is queued in the outbox instead of
+// failing; Send returns nil, since the message will be delivered on the next replay. A delivered message
+// whose Sent copy could not be saved answers ErrSentCopyNotSaved, which is never a failed send.
 func (s *ComposeService) Send(ctx context.Context, accountID string, draft Draft) error {
 	account, msg, err := s.buildOutgoing(ctx, accountID, draft)
 	if err != nil {
@@ -132,8 +133,7 @@ func (s *ComposeService) Send(ctx context.Context, accountID string, draft Draft
 		}
 		return fmt.Errorf("compose: send: %w", err)
 	}
-	s.saveToSent(ctx, account, msg)
-	return nil
+	return s.saveToSent(ctx, account, msg)
 }
 
 // ScheduleSend is send-later: the validated message is queued in the outbox held until the chosen
@@ -232,7 +232,7 @@ func (s *ComposeService) SaveDraft(ctx context.Context, accountID string, draft 
 	return nil
 }
 
-// draftsPath returns the path of the account's Drafts mailbox, or ErrNoDraftsFolder when none exists.
+// draftsPath returns the path of the account's Drafts mailbox; ErrNoDraftsFolder when none exists.
 func (s *ComposeService) draftsPath(ctx context.Context, accountID string) (string, error) {
 	path, found, err := folderPathByKind(ctx, s.store, accountID, domain.FolderDrafts)
 	if err != nil {
@@ -246,7 +246,8 @@ func (s *ComposeService) draftsPath(ctx context.Context, accountID string) (stri
 
 // saveToSent appends a copy of a just-sent message to the account's Sent mailbox, so the user keeps a
 // record of what they sent. It delegates to the shared saveCopyToSent in resolve.go, which is
-// best-effort by design: the message has already been delivered, so nothing here may fail the send.
-func (s *ComposeService) saveToSent(ctx context.Context, account domain.Account, msg domain.OutgoingMessage) {
-	saveCopyToSent(ctx, s.store, s.sent, account, msg)
+// best-effort by design: the message has already been delivered, so its only error is
+// ErrSentCopyNotSaved, which callers record and never report as a failed send.
+func (s *ComposeService) saveToSent(ctx context.Context, account domain.Account, msg domain.OutgoingMessage) error {
+	return saveCopyToSent(ctx, s.store, s.sent, account, msg)
 }

@@ -60,7 +60,9 @@ func (s *ComposeService) replayClaimed(ctx context.Context, item domain.OutboxIt
 			return replayAborted, fmt.Errorf("compose: remove replayed item %q: %w", id, err)
 		}
 		if item.Kind() != domain.OutboxDraft {
-			s.saveToSent(ctx, account, item.Message())
+			// Delivered either way; a lost Sent copy is answered beside the outcome for the caller to
+			// pass on, never as a failure.
+			return replayDelivered, s.saveToSent(ctx, account, item.Message())
 		}
 		return replayDelivered, nil
 	}

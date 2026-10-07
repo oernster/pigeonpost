@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
@@ -36,10 +37,10 @@ func (a *App) runMailNotifier() {
 	// because detection is by cached-id rather than by the folder being empty.
 	primed, err := a.sync.SyncInboxes(a.ctx)
 	if err != nil {
+		a.mailErrors.Record(fmt.Errorf("mail check (baseline): %w", err))
 		runtime.LogErrorf(a.ctx, "mail-notifier: baseline prime failed: %v", err)
-	} else {
-		runtime.LogDebugf(a.ctx, "mail-notifier: baseline primed, ignoring %d already-present message(s)", len(primed))
 	}
+	runtime.LogDebugf(a.ctx, "mail-notifier: baseline primed, ignoring %d already-present message(s)", len(primed))
 	a.startMailWatchers()
 	ticker := time.NewTicker(mailPollInterval)
 	defer ticker.Stop()
@@ -53,7 +54,7 @@ func (a *App) runMailNotifier() {
 	}
 }
 
-// startMailWatchers launches an IMAP IDLE watcher for every IMAP account at startup, each calling checkMail
+// startMailWatchers launches an IMAP IDLE watcher for every IMAP account at startup, each calling checkAccountMail
 // the instant the server reports new mail. Accounts added, reconfigured or removed after launch are kept in
 // sync by AddAccount, UpdateAccount and RemoveAccount through startMailWatcher and stopMailWatcher, so no
 // restart is needed. A POP3 account has no IDLE and relies on the backstop poll.
@@ -94,7 +95,7 @@ func (a *App) startMailWatcher(account domain.Account) {
 	a.watchers[account.ID()] = cancel
 	acc := account
 	runtime.LogDebugf(a.ctx, "mail-notifier: starting IDLE watcher for %q", acc.ID())
-	go a.watcher.Watch(ctx, acc, func() { a.checkMail("idle") })
+	go a.watcher.Watch(ctx, acc, func() { a.checkAccountMail(acc.ID()) })
 }
 
 // stopMailWatcher stops the IDLE watcher for an account, if one is running, so a removed account leaves no
@@ -109,16 +110,31 @@ func (a *App) stopMailWatcher(accountID string) {
 	}
 }
 
-// checkMail syncs every inbox; for any newly arrived mail it applies the scheduling, refreshes the front
-// end and raises a notification. It is serialised so a backstop poll and an IDLE push cannot run
-// concurrently and double-notify; trigger names what invoked it, for the log.
+// checkMail is the backstop poll's check: it syncs every account's inbox through checkMailWith.
 func (a *App) checkMail(trigger string) {
+	a.checkMailWith(trigger, a.sync.SyncInboxes)
+}
+
+// checkAccountMail is what an account's IDLE watcher calls when that account's inbox grows: it syncs that
+// one inbox. Syncing every account here would connect to every server whenever any one of them pushed.
+func (a *App) checkAccountMail(accountID string) {
+	a.checkMailWith("idle "+accountID, func(ctx context.Context) ([]domain.MessageSummary, error) {
+		return a.sync.SyncAccountInbox(ctx, accountID)
+	})
+}
+
+// checkMailWith runs one inbox sync; for any newly arrived mail it applies the scheduling, refreshes the
+// front end and raises a notification. It is serialised so a backstop poll and an IDLE push cannot run
+// concurrently and double-notify; trigger names what invoked it, for the log.
+func (a *App) checkMailWith(trigger string, sync func(context.Context) ([]domain.MessageSummary, error)) {
 	a.mailCheck.Lock()
 	defer a.mailCheck.Unlock()
-	fresh, err := a.sync.SyncInboxes(a.ctx)
+	fresh, err := sync(a.ctx)
 	if err != nil {
+		// A pass that skipped a broken account still answers the arrivals the others found, so the
+		// failure is recorded where it can be read and the arrivals are announced regardless.
+		a.mailErrors.Record(fmt.Errorf("mail check (%s): %w", trigger, err))
 		runtime.LogErrorf(a.ctx, "mail-notifier: %s check failed: %v", trigger, err)
-		return
 	}
 	if len(fresh) == 0 {
 		return
