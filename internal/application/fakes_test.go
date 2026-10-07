@@ -960,6 +960,33 @@ type fakeMailActions struct {
 	copyNewUID      string
 	// deleteManyErrOnCall fails that call of DeleteMany (1-based) and no other; 0 fails none.
 	deleteManyErrOnCall int
+	// pushFlagBatches records each PushFlag call; pushFlagErr fails them all. The server settles every
+	// UID pushed except those in pushFlagUnsettled, which it keeps reporting otherwise.
+	pushFlagBatches   []pushFlagCall
+	pushFlagErr       error
+	pushFlagUnsettled map[string]bool
+}
+
+// pushFlagCall is one recorded PushFlag: the folder, the UIDs, the flag and whether it was set.
+type pushFlagCall struct {
+	folderID string
+	uids     []string
+	flag     domain.Flag
+	set      bool
+}
+
+func (f *fakeMailActions) PushFlag(_ context.Context, _ domain.Account, folder domain.Folder, uids []string, flag domain.Flag, set bool) ([]string, error) {
+	if f.pushFlagErr != nil {
+		return nil, f.pushFlagErr
+	}
+	f.pushFlagBatches = append(f.pushFlagBatches, pushFlagCall{folderID: folder.ID(), uids: uids, flag: flag, set: set})
+	settled := make([]string, 0, len(uids))
+	for _, uid := range uids {
+		if !f.pushFlagUnsettled[uid] {
+			settled = append(settled, uid)
+		}
+	}
+	return settled, nil
 }
 
 func (f *fakeMailActions) SetSeen(_ context.Context, _ domain.Account, _ domain.Folder, _ string, seen bool) error {

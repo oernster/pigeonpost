@@ -207,11 +207,16 @@ func (s *SyncService) syncInboxesOf(ctx context.Context, include func(domain.Acc
 	if err != nil {
 		return nil, fmt.Errorf("sync: load rules: %w", err)
 	}
-	// Replay unsynced tag and flag changes once for this pass before reading the inboxes. Best-effort.
-	_ = s.tags.FlushPending(ctx)
-	_ = s.flags.FlushPending(ctx)
-	var arrived []domain.MessageSummary
+	// Replay unsynced tag and flag changes once for this pass before reading the inboxes. Best-effort: a
+	// replay that fails does not stop the pass; it is reported with the pass's other skips.
 	var skipped []error
+	if err := s.tags.FlushPending(ctx); err != nil {
+		skipped = append(skipped, err)
+	}
+	if err := s.flags.FlushPending(ctx); err != nil {
+		skipped = append(skipped, err)
+	}
+	var arrived []domain.MessageSummary
 	for _, account := range accounts {
 		if !include(account) {
 			continue

@@ -20,6 +20,7 @@ type protocolSource interface {
 	Verify(ctx context.Context, account domain.Account, password string) error
 	SetSeen(ctx context.Context, account domain.Account, folder domain.Folder, uid string, seen bool) error
 	SetSeenMany(ctx context.Context, account domain.Account, folder domain.Folder, uids []string, seen bool) error
+	PushFlag(ctx context.Context, account domain.Account, folder domain.Folder, uids []string, flag domain.Flag, set bool) ([]string, error)
 	SetFlagged(ctx context.Context, account domain.Account, folder domain.Folder, uid string, flagged bool) error
 	SetAnswered(ctx context.Context, account domain.Account, folder domain.Folder, uid string, answered bool) error
 	SetForwarded(ctx context.Context, account domain.Account, folder domain.Folder, uid string, forwarded bool) error
@@ -80,6 +81,11 @@ func (r *Router) SetSeen(ctx context.Context, account domain.Account, folder dom
 // SetSeenMany delegates to the account's protocol adapter.
 func (r *Router) SetSeenMany(ctx context.Context, account domain.Account, folder domain.Folder, uids []string, seen bool) error {
 	return r.sourceFor(account).SetSeenMany(ctx, account, folder, uids, seen)
+}
+
+// PushFlag delegates to the account's protocol adapter.
+func (r *Router) PushFlag(ctx context.Context, account domain.Account, folder domain.Folder, uids []string, flag domain.Flag, set bool) ([]string, error) {
+	return r.sourceFor(account).PushFlag(ctx, account, folder, uids, flag, set)
 }
 
 // SetFlagged delegates to the account's protocol adapter.

@@ -160,6 +160,12 @@ func (s *Source) SetSeen(context.Context, domain.Account, domain.Folder, string,
 	return nil
 }
 
+// PushFlag is a no-op on the server, for the same reason as SetSeen: POP3 has no server-side flags. It
+// connects to nothing and settles nothing.
+func (s *Source) PushFlag(context.Context, domain.Account, domain.Folder, []string, domain.Flag, bool) ([]string, error) {
+	return nil, nil
+}
+
 // SetSeenMany is a no-op on the server, for the same reason as SetSeen: POP3 has no server-side flags.
 func (s *Source) SetSeenMany(context.Context, domain.Account, domain.Folder, []string, bool) error {
 	return nil

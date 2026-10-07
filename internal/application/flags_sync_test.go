@@ -3,6 +3,9 @@ package application
 import (
 	"context"
 	"errors"
+	"fmt"
+	"reflect"
+	"strconv"
 	"testing"
 
 	"github.com/oernster/pigeonpost/internal/domain"
@@ -30,17 +33,88 @@ func TestFlagSyncFlushPushesEachFlagKind(t *testing.T) {
 	if err := svc.FlushPending(context.Background()); err != nil {
 		t.Fatalf("flush: %v", err)
 	}
-	if len(remote.seenCalls) != 1 || remote.seenCalls[0] != true {
-		t.Errorf("SetSeen calls = %v, want [true]", remote.seenCalls)
+	// Each flag kind is its own batch, carrying the value the intent asked for.
+	got := map[domain.Flag]bool{}
+	for _, call := range remote.pushFlagBatches {
+		got[call.flag] = call.set
 	}
-	if len(remote.flaggedCalls) != 1 || remote.flaggedCalls[0] != true {
-		t.Errorf("SetFlagged calls = %v, want [true]", remote.flaggedCalls)
+	want := map[domain.Flag]bool{
+		domain.FlagSeen: true, domain.FlagFlagged: true, domain.FlagAnswered: false, domain.FlagForwarded: true,
 	}
-	if len(remote.answeredCalls) != 1 || remote.answeredCalls[0] != false {
-		t.Errorf("SetAnswered calls = %v, want [false]", remote.answeredCalls)
+	if len(remote.pushFlagBatches) != len(want) || !reflect.DeepEqual(got, want) {
+		t.Errorf("pushed %v, want one batch per flag kind %v", remote.pushFlagBatches, want)
 	}
-	if len(remote.forwardedCalls) != 1 || remote.forwardedCalls[0] != true {
-		t.Errorf("SetForwarded calls = %v, want [true]", remote.forwardedCalls)
+	if len(store.pendingFlags) != 0 {
+		t.Errorf("settled intents were kept: %v", store.pendingFlags)
+	}
+}
+
+// messageWithUID builds a cached message in folderID with its own UID.
+func messageWithUID(t *testing.T, id, folderID, uid string) domain.MessageSummary {
+	t.Helper()
+	msg, err := domain.NewMessageSummary(domain.MessageSummaryInput{ID: id, FolderID: folderID, UID: uid, Size: 1, Flags: domain.NewFlags(0)})
+	if err != nil {
+		t.Fatalf("message: %v", err)
+	}
+	return msg
+}
+
+// The storm StartMail blocked the address for: thousands of intents in one folder were pushed on one
+// connection each, on every pass, never to be cleared. They must go as one batch and be cleared once settled,
+// so the next pass pushes nothing at all.
+func TestFlagSyncFlushBatchesAFolderAndClearsWhatSettles(t *testing.T) {
+	svc, store, accounts, remote := newFlagSyncService()
+	seedMessageLocation(t, store, accounts)
+	const intents = 50
+	store.messages["f1"] = nil
+	store.pendingFlags = map[string]map[domain.Flag]bool{}
+	for i := range intents {
+		id, uid := fmt.Sprintf("m%d", i), strconv.Itoa(i+1)
+		store.messages["f1"] = append(store.messages["f1"], messageWithUID(t, id, "f1", uid))
+		store.pendingFlags[id] = map[domain.Flag]bool{domain.FlagSeen: true}
+	}
+
+	if err := svc.FlushPending(context.Background()); err != nil {
+		t.Fatalf("flush: %v", err)
+	}
+	if len(remote.pushFlagBatches) != 1 || len(remote.pushFlagBatches[0].uids) != intents {
+		t.Fatalf("pushes = %d, want one carrying all %d intents", len(remote.pushFlagBatches), intents)
+	}
+	if len(store.pendingFlags) != 0 {
+		t.Fatalf("%d intents left after the server settled them all", len(store.pendingFlags))
+	}
+	if err := svc.FlushPending(context.Background()); err != nil {
+		t.Fatalf("second flush: %v", err)
+	}
+	if len(remote.pushFlagBatches) != 1 {
+		t.Errorf("the second pass pushed again: %d pushes, want still 1", len(remote.pushFlagBatches))
+	}
+}
+
+// An intent the server keeps reporting otherwise stays, so a reconcile can still guard the local value.
+func TestFlagSyncFlushKeepsWhatTheServerDidNotSettle(t *testing.T) {
+	svc, store, accounts, remote := newFlagSyncService()
+	seedMessageLocation(t, store, accounts)
+	store.pendingFlags = map[string]map[domain.Flag]bool{"m1": {domain.FlagSeen: true}}
+	remote.pushFlagUnsettled = map[string]bool{"1": true}
+
+	if err := svc.FlushPending(context.Background()); err != nil {
+		t.Fatalf("flush: %v", err)
+	}
+	if store.pendingFlags["m1"][domain.FlagSeen] != true {
+		t.Error("an intent the server did not settle was dropped")
+	}
+}
+
+// A settled intent the store cannot clear is reported rather than passing quietly.
+func TestFlagSyncFlushReportsAClearThatFailed(t *testing.T) {
+	svc, store, accounts, _ := newFlagSyncService()
+	seedMessageLocation(t, store, accounts)
+	store.pendingFlags = map[string]map[domain.Flag]bool{"m1": {domain.FlagSeen: true}}
+	store.clearPendingFlagErr = errBoom
+
+	if err := svc.FlushPending(context.Background()); !errors.Is(err, errBoom) {
+		t.Errorf("flush error = %v, want the failed clear reported", err)
 	}
 }
 
@@ -53,8 +127,8 @@ func TestFlagSyncFlushSkipsUnresolvableAndKeepsIntent(t *testing.T) {
 	if err := svc.FlushPending(context.Background()); err != nil {
 		t.Fatalf("flush: %v", err)
 	}
-	if len(remote.seenCalls) != 0 {
-		t.Errorf("expected no pushes for an unresolvable message, got %v", remote.seenCalls)
+	if len(remote.pushFlagBatches) != 0 {
+		t.Errorf("expected no pushes for an unresolvable message, got %v", remote.pushFlagBatches)
 	}
 	if store.pendingFlags["gone"][domain.FlagSeen] != true {
 		t.Error("intent for the unresolvable message was dropped")
@@ -65,11 +139,11 @@ func TestFlagSyncFlushServerErrorKeepsIntent(t *testing.T) {
 	svc, store, accounts, remote := newFlagSyncService()
 	seedMessageLocation(t, store, accounts)
 	store.pendingFlags = map[string]map[domain.Flag]bool{"m1": {domain.FlagSeen: true}}
-	remote.setSeenErr = errBoom
+	remote.pushFlagErr = errBoom
 
-	// A failed push is best-effort: no error and the intent stays to be retried.
-	if err := svc.FlushPending(context.Background()); err != nil {
-		t.Fatalf("flush: %v", err)
+	// A failed push leaves the intent to be retried and is reported for the caller to record.
+	if err := svc.FlushPending(context.Background()); !errors.Is(err, errBoom) {
+		t.Fatalf("flush error = %v, want the failed push reported", err)
 	}
 	if store.pendingFlags["m1"][domain.FlagSeen] != true {
 		t.Error("intent was dropped on a failed push")

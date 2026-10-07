@@ -116,6 +116,24 @@ func TestSyncAccountInboxSyncsOnlyThatAccount(t *testing.T) {
 	}
 }
 
+// A tag or flag replay that fails does not stop the pass: the inbox is still synced and its arrivals
+// answered, while both failures are reported for the caller to record.
+func TestSyncInboxesReportsFailedReplaysAndCarriesOn(t *testing.T) {
+	accounts, mail, source, rules, _ := inboxFixture(t)
+	tagFailure, flagFailure := errors.New("tag replay"), errors.New("flag replay")
+	svc := NewSyncService(accounts, mail, source, rules, &fakeTagSyncer{flushErr: tagFailure},
+		&fakeFlagSyncer{flushErr: flagFailure}, NewRuleExecutor(mail, &fakeMailActions{}))
+	source.messagesByFolder["f1"] = []domain.MessageSummary{testMessage(t, "m1", "f1")}
+
+	fresh, err := svc.SyncInboxes(context.Background())
+	if !errors.Is(err, tagFailure) || !errors.Is(err, flagFailure) {
+		t.Errorf("err = %v, want both failed replays reported", err)
+	}
+	if got := inboxIDs(fresh); len(got) != 1 || got[0] != "m1" {
+		t.Errorf("fresh = %v, want [m1]: a failed replay must not stop the pass", got)
+	}
+}
+
 // An id naming no account syncs nothing rather than falling back to every account.
 func TestSyncAccountInboxUnknownAccountSyncsNothing(t *testing.T) {
 	mail, svc := twoInboxFixture(t)
