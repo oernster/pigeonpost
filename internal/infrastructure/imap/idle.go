@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"sync/atomic"
 	"time"
 
 	"github.com/emersion/go-imap/v2"
@@ -47,9 +48,9 @@ func (w *Watcher) secret(ctx context.Context, account domain.Account) (string, e
 	return credentialFor(ctx, w.passwords, w.tokens, account, "imap idle")
 }
 
-// Watch holds an IDLE connection to the account's inbox until ctx is cancelled, calling onChange whenever
-// the server reports the mailbox has changed (a message arrived), and once at the start of each session so
-// anything that arrived while reconnecting is caught. It reconnects with capped exponential backoff after
+// Watch holds an IDLE connection to the account's inbox until ctx is cancelled. It calls onChange whenever
+// the server reports the inbox has grown (a message arrived; see mailboxSize) plus once at the start of each
+// session, so anything that arrived while reconnecting is caught. It reconnects with capped exponential backoff after
 // any error and reissues the IDLE before the server would time it out. It is only for IMAP accounts; POP3
 // has no IDLE and stays on the caller's poll.
 func (w *Watcher) Watch(ctx context.Context, account domain.Account, onChange func()) {
@@ -80,8 +81,8 @@ func (w *Watcher) Watch(ctx context.Context, account domain.Account, onChange fu
 }
 
 // session runs one IDLE connection: it logs in, selects the inbox and loops issuing IDLE, waking on a
-// mailbox change, on the refresh timer or on cancellation. It returns nil only when ctx is cancelled, and
-// an error otherwise so Watch reconnects.
+// mailbox change, on the refresh timer or on cancellation. It returns nil only when ctx is cancelled; any
+// other ending is an error, so Watch reconnects.
 func (w *Watcher) session(ctx context.Context, account domain.Account, onChange func()) error {
 	secret, err := w.secret(ctx, account)
 	if err != nil {
@@ -94,13 +95,15 @@ func (w *Watcher) session(ctx context.Context, account domain.Account, onChange 
 		default:
 		}
 	}
+	var size mailboxSize
 	options := &imapclient.Options{
 		UnilateralDataHandler: &imapclient.UnilateralDataHandler{
 			Mailbox: func(data *imapclient.UnilateralDataMailbox) {
-				if data.NumMessages != nil {
+				if data.NumMessages != nil && size.grew(*data.NumMessages) {
 					signal()
 				}
 			},
+			Expunge: func(uint32) { size.shrink() },
 		},
 	}
 	client, err := dial(account.Incoming(), options)
@@ -114,9 +117,11 @@ func (w *Watcher) session(ctx context.Context, account domain.Account, onChange 
 	if !client.Caps().Has(imap.CapIdle) {
 		return errIdleUnsupported
 	}
-	if _, err := client.Select("INBOX", nil).Wait(); err != nil {
+	selected, err := client.Select("INBOX", nil).Wait()
+	if err != nil {
 		return fmt.Errorf("imap idle: select inbox: %w", err)
 	}
+	size.set(selected.NumMessages)
 	log.Printf("imap idle: %s watching INBOX for new mail", account.ID())
 	// Catch anything that arrived while the connection was down.
 	onChange()
@@ -147,6 +152,31 @@ func (w *Watcher) idleLoop(ctx context.Context, client *imapclient.Client, chang
 			if err := stopIdle(idle); err != nil {
 				return err
 			}
+		}
+	}
+}
+
+// mailboxSize is the inbox size the server last reported on the IDLE connection. A server may send EXISTS
+// on every IDLE whether or not anything arrived (RFC 9051 lets it report the size at any time). Every
+// change the watcher signals costs a full sync of every account. Reading each EXISTS as new mail therefore
+// syncs once per round trip, which StartMail saw as a connection every few seconds and blocked the address
+// for on 2026-10-07. Only a size above the last one is an arrival; an EXPUNGE lowers it, so mail arriving
+// after a deletion still counts. The client's reader goroutine updates it while the watcher reads it, so it
+// is atomic.
+type mailboxSize struct{ last atomic.Uint32 }
+
+// set records the size the SELECT reported, the baseline later reports are measured against.
+func (m *mailboxSize) set(n uint32) { m.last.Store(n) }
+
+// grew records a reported size and answers whether it is larger than the last one, which is new mail.
+func (m *mailboxSize) grew(n uint32) bool { return m.last.Swap(n) < n }
+
+// shrink records one expunged message, never taking the size below zero.
+func (m *mailboxSize) shrink() {
+	for {
+		n := m.last.Load()
+		if n == 0 || m.last.CompareAndSwap(n, n-1) {
+			return
 		}
 	}
 }

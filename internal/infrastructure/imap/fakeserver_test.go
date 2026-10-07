@@ -33,6 +33,9 @@ type script struct {
 	uidValidity uint32
 	// empty makes the SELECT answer report a folder holding no messages.
 	empty bool
+	// idleUpdate, when set, is an untagged line the server sends as soon as an IDLE begins, so a test can
+	// stand in for a server that reports the mailbox size on every IDLE whether or not it changed.
+	idleUpdate string
 }
 
 // defaultUIDValidity is the UIDVALIDITY a script that sets none reports.
@@ -122,6 +125,20 @@ func fakeIMAPServer(conn net.Conn, s script) {
 				response += " BODYSTRUCTURE " + s.bodyStructure
 			}
 			write(response+")", tag+" OK done")
+		case "IDLE":
+			write("+ idling")
+			if s.idleUpdate != "" {
+				write(s.idleUpdate)
+			}
+			// The client ends an IDLE with a bare DONE line, which is not a tagged command.
+			done, err := reader.ReadString('\n')
+			if err != nil {
+				return
+			}
+			if s.commands != nil {
+				s.commands.add(strings.TrimRight(done, crlf))
+			}
+			write(tag + " OK idle done")
 		case "LOGOUT":
 			write("* BYE", tag+" OK done")
 			return
