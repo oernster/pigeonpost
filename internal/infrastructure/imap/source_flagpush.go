@@ -76,10 +76,12 @@ func keeps(permanent []imap.Flag, keyword imap.Flag) bool {
 // pushFlag is the work PushFlag and PushKeyword share: one connection, the flag stored on every UID in
 // chunks, then, where settleable says the server's answer can be trusted, the flags read back to answer
 // the settled UIDs. An empty batch connects to nothing.
-func (s *Source) pushFlag(ctx context.Context, account domain.Account, folder domain.Folder, uids []string, serverFlag imap.Flag, set bool, settleable func(*imap.SelectData) bool) ([]string, error) {
+func (s *Source) pushFlag(ctx context.Context, account domain.Account, folder domain.Folder, uids []string, serverFlag imap.Flag, set bool, settleable func(*imap.SelectData) bool) (settled []string, err error) {
 	if len(uids) == 0 {
 		return nil, nil
 	}
+	done := traceStep(account, fmt.Sprintf("push %s", serverFlag), folder.Path())
+	defer func() { done(len(uids), err) }()
 	chunks, err := uidChunks(uids)
 	if err != nil {
 		return nil, err
@@ -121,7 +123,7 @@ func (s *Source) pushFlag(ctx context.Context, account domain.Account, folder do
 	if err != nil {
 		return nil, err
 	}
-	settled := make([]string, 0, len(nums))
+	settled = make([]string, 0, len(nums))
 	for i, num := range nums {
 		if !held[num] || agrees[num] {
 			settled = append(settled, uids[i])

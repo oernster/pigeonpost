@@ -28,6 +28,7 @@ import (
 	"github.com/oernster/pigeonpost/internal/infrastructure/pop3"
 	"github.com/oernster/pigeonpost/internal/infrastructure/recurrence"
 	"github.com/oernster/pigeonpost/internal/infrastructure/remoteimage"
+	"github.com/oernster/pigeonpost/internal/infrastructure/runlog"
 	"github.com/oernster/pigeonpost/internal/infrastructure/smtp"
 	"github.com/oernster/pigeonpost/internal/infrastructure/storage"
 	"github.com/oernster/pigeonpost/internal/infrastructure/taskbar"
@@ -94,6 +95,7 @@ func main() {
 // cases by constructor injection, assembles the Wails facade then starts the runtime.
 func run() error {
 	ctx := context.Background()
+	keepRunLog()
 
 	dbPath, err := databasePath()
 	if err != nil {
@@ -273,6 +275,21 @@ func dataDir() (string, error) {
 		return "", fmt.Errorf("create data dir %q: %w", dir, err)
 	}
 	return dir, nil
+}
+
+// keepRunLog points the run's log lines and crash reports at run.log beside the database, before anything
+// else can fail. A windowed run has no error output, so without it they went nowhere. A run that cannot
+// open the log carries on without one: the log is a record, never a reason to stop.
+func keepRunLog() {
+	dir, err := dataDir()
+	if err != nil {
+		return
+	}
+	file, err := runlog.Open(filepath.Join(dir, runlog.FileName), appName, time.Now())
+	if err != nil {
+		return
+	}
+	_ = runlog.Keep(file)
 }
 
 // databasePath resolves the per-user database location and ensures its directory exists.

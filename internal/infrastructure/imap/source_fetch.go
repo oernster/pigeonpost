@@ -163,7 +163,9 @@ func (s *Source) FetchMessagesValidity(ctx context.Context, account domain.Accou
 // structure, which carries each part's content disposition and is what tells the list whether a message
 // has a saveable attachment (for the paperclip), without fetching any bodies; the fallback path leaves it
 // out so a structure the client cannot read does not cost the folder its summaries.
-func (s *Source) fetchSummaries(ctx context.Context, account domain.Account, folder domain.Folder, withStructure bool) ([]*imapclient.FetchMessageBuffer, uint32, error) {
+func (s *Source) fetchSummaries(ctx context.Context, account domain.Account, folder domain.Folder, withStructure bool) (buffers []*imapclient.FetchMessageBuffer, validity uint32, err error) {
+	done := traceStep(account, "fetch", folder.Path())
+	defer func() { done(len(buffers), err) }()
 	client, err := s.connect(ctx, account)
 	if err != nil {
 		return nil, 0, err
@@ -187,7 +189,7 @@ func (s *Source) fetchSummaries(ctx context.Context, account domain.Account, fol
 		options.BodyStructure = &imap.FetchItemBodyStructure{Extended: true}
 	}
 
-	buffers, err := client.Fetch(seqSet, options).Collect()
+	buffers, err = client.Fetch(seqSet, options).Collect()
 	if err != nil {
 		return nil, 0, fmt.Errorf("imap: fetch %q: %w", folder.Path(), markUnreadable(err))
 	}
@@ -208,7 +210,9 @@ func markUnreadable(err error) error {
 }
 
 // FetchFolders lists the selectable mailboxes on the server for an account.
-func (s *Source) FetchFolders(ctx context.Context, account domain.Account) ([]domain.Folder, error) {
+func (s *Source) FetchFolders(ctx context.Context, account domain.Account) (folders []domain.Folder, err error) {
+	done := traceStep(account, "list folders", "")
+	defer func() { done(len(folders), err) }()
 	client, err := s.connect(ctx, account)
 	if err != nil {
 		return nil, err
@@ -227,7 +231,7 @@ func (s *Source) FetchFolders(ctx context.Context, account domain.Account) ([]do
 		}
 		selectable = append(selectable, data)
 	}
-	folders, err := buildFolders(account.ID(), selectable)
+	folders, err = buildFolders(account.ID(), selectable)
 	if err != nil {
 		return nil, fmt.Errorf("imap: build folders: %w", err)
 	}
