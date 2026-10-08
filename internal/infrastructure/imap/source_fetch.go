@@ -134,14 +134,31 @@ func (s *Source) FetchMessages(ctx context.Context, account domain.Account, fold
 // compares it with the value it last stored to tell a renumbered mailbox from new mail. It is the
 // application.MailSource fetch.
 func (s *Source) FetchMessagesValidity(ctx context.Context, account domain.Account, folder domain.Folder) ([]domain.MessageSummary, uint32, error) {
-	buffers, validity, err := s.fetchSummaries(ctx, account, folder, true)
+	return s.fetchScoped(ctx, account, folder, fetchScope{all: true})
+}
+
+// FetchMessagesByUID is FetchMessagesValidity for the given UIDs only: the summaries the incremental sync
+// still lacks after reading the folder's listing. It is the application.MailSource by-UID fetch.
+func (s *Source) FetchMessagesByUID(ctx context.Context, account domain.Account, folder domain.Folder, uids []string) ([]domain.MessageSummary, uint32, error) {
+	return s.fetchScoped(ctx, account, folder, fetchScope{uids: uids})
+}
+
+// fetchScope says which messages a fetch carries: every message in the folder (all) or only the given UIDs.
+type fetchScope struct {
+	all  bool
+	uids []string
+}
+
+// fetchScoped fetches the scope's summaries with the UIDVALIDITY of the SELECT they were fetched under.
+func (s *Source) fetchScoped(ctx context.Context, account domain.Account, folder domain.Folder, scope fetchScope) ([]domain.MessageSummary, uint32, error) {
+	buffers, validity, err := s.fetchSummaries(ctx, account, folder, scope, true)
 	if isBodyStructureError(err) {
 		// One unreadable body structure ends the whole FETCH and the connection with it, so without this
 		// a single malformed message would cost the folder every summary it holds. Ask again on a fresh
 		// connection for everything except the structure: every message then arrives and the only loss is
 		// the paperclip that marks an attachment. The UIDVALIDITY comes from this second session, the
 		// one whose UIDs are kept.
-		buffers, validity, err = s.fetchSummaries(ctx, account, folder, false)
+		buffers, validity, err = s.fetchSummaries(ctx, account, folder, scope, false)
 	}
 	if err != nil {
 		return nil, 0, err
@@ -158,14 +175,23 @@ func (s *Source) FetchMessagesValidity(ctx context.Context, account domain.Accou
 	return messages, validity, nil
 }
 
-// fetchSummaries opens a connection, selects the folder read-only and collects the FETCH buffers for
-// every message in it, with the UIDVALIDITY the SELECT reported. withStructure asks for the extended body
+// fetchSummaries opens a connection, selects the folder read-only and collects the FETCH buffers for the
+// scope's messages, with the UIDVALIDITY the SELECT reported. withStructure asks for the extended body
 // structure, which carries each part's content disposition and is what tells the list whether a message
 // has a saveable attachment (for the paperclip), without fetching any bodies; the fallback path leaves it
-// out so a structure the client cannot read does not cost the folder its summaries.
-func (s *Source) fetchSummaries(ctx context.Context, account domain.Account, folder domain.Folder, withStructure bool) (buffers []*imapclient.FetchMessageBuffer, validity uint32, err error) {
-	done := traceStep(account, "fetch", folder.Path())
+// out so a structure the client cannot read does not cost the folder its summaries. A scope of UIDs is
+// fetched in chunks, so each command stays within server line-length limits.
+func (s *Source) fetchSummaries(ctx context.Context, account domain.Account, folder domain.Folder, scope fetchScope, withStructure bool) (buffers []*imapclient.FetchMessageBuffer, validity uint32, err error) {
+	step := "fetch"
+	if !scope.all {
+		step = "fetch new"
+	}
+	done := traceStep(account, step, folder.Path())
 	defer func() { done(len(buffers), err) }()
+	chunks, err := uidChunks(scope.uids)
+	if err != nil {
+		return nil, 0, err
+	}
 	client, err := s.connect(ctx, account)
 	if err != nil {
 		return nil, 0, err
@@ -182,16 +208,25 @@ func (s *Source) fetchSummaries(ctx context.Context, account domain.Account, fol
 		return nil, selected.UIDValidity, nil
 	}
 
-	seqSet := imap.SeqSet{}
-	seqSet.AddRange(1, selected.NumMessages)
 	options := &imap.FetchOptions{Envelope: true, Flags: true, RFC822Size: true, UID: true}
 	if withStructure {
 		options.BodyStructure = &imap.FetchItemBodyStructure{Extended: true}
 	}
-
-	buffers, err = client.Fetch(seqSet, options).Collect()
-	if err != nil {
-		return nil, 0, fmt.Errorf("imap: fetch %q: %w", folder.Path(), markUnreadable(err))
+	sets := make([]imap.NumSet, 0, len(chunks))
+	if scope.all {
+		seqSet := imap.SeqSet{}
+		seqSet.AddRange(1, selected.NumMessages)
+		sets = append(sets, seqSet)
+	}
+	for _, chunk := range chunks {
+		sets = append(sets, chunk.set)
+	}
+	for _, set := range sets {
+		got, err := client.Fetch(set, options).Collect()
+		if err != nil {
+			return nil, 0, fmt.Errorf("imap: fetch %q: %w", folder.Path(), markUnreadable(err))
+		}
+		buffers = append(buffers, got...)
 	}
 	return buffers, selected.UIDValidity, nil
 }

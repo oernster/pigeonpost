@@ -204,6 +204,12 @@ type MailSource interface {
 	// fetched (see sync_uidvalidity.go for why the sync needs it). A protocol with no UIDVALIDITY (POP3)
 	// reports unknownUIDValidity, zero, which RFC 3501 rules out as a real value.
 	FetchMessagesValidity(ctx context.Context, account domain.Account, folder domain.Folder) ([]domain.MessageSummary, uint32, error)
+	// FetchListing returns every message's UID with its current flags and tag keywords, without headers,
+	// plus the UIDVALIDITY of that same SELECT; the incremental sync starts from it (sync_incremental.go).
+	// A protocol with no UIDVALIDITY (POP3) answers unknownUIDValidity; the sync then fetches in full.
+	FetchListing(ctx context.Context, account domain.Account, folder domain.Folder) ([]domain.MessageState, uint32, error)
+	// FetchMessagesByUID returns the summaries of the given UIDs only, with the UIDVALIDITY of that SELECT.
+	FetchMessagesByUID(ctx context.Context, account domain.Account, folder domain.Folder, uids []string) ([]domain.MessageSummary, uint32, error)
 	// FetchBody returns a message's plain-text and HTML bodies, any raw text/calendar scheduling payload
 	// (an iMIP invite or reply, nil when the message carried none) and its attachments (empty when it
 	// carried none).

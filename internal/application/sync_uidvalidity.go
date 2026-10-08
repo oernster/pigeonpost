@@ -33,9 +33,13 @@ type folderFetch struct {
 }
 
 // fetchFolder fetches a folder's messages and decides whether the server has renumbered it since the
-// last sync. A stored value that cannot be read fails the fetch rather than defaulting to "unchanged",
-// which would hand a renumbered backlog to the rules.
+// last sync. A folder synced before under the same numbering is refreshed from its listing (see
+// sync_incremental.go); any other is fetched in full. A stored value that cannot be read fails the fetch
+// rather than defaulting to "unchanged", which would hand a renumbered backlog to the rules.
 func (s *SyncService) fetchFolder(ctx context.Context, account domain.Account, folder domain.Folder) (folderFetch, error) {
+	if fetch, ok, err := s.fetchChanges(ctx, account, folder); err != nil || ok {
+		return fetch, err
+	}
 	messages, validity, err := s.source.FetchMessagesValidity(ctx, account, folder)
 	if err != nil {
 		return folderFetch{}, err

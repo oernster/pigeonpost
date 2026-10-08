@@ -1097,6 +1097,14 @@ often gets its address blocked: StartMail did exactly that on 2026-10-07.
   the SELECT's PERMANENTFLAGS says the server keeps it, since a session-only keyword would otherwise
   clear the intent guarding a local tag.
 
+- **A folder synced before is refreshed from its listing** (`application/sync_incremental.go`). The sync
+  asks for every message's UID, flags and tag keywords without headers (`MailSource.FetchListing`), then
+  fetches full summaries only for the UIDs it has not cached (`FetchMessagesByUID`); `domain.MergeListing`
+  gives cached messages the server's current flags and keywords and drops what the server no longer
+  lists. Fetching every summary on every sync was measured at up to 40 seconds for 410 messages against
+  Outlook.com, so a 54-folder account never finished one. The cache is trusted only under the UIDVALIDITY
+  the folder was settled with: a folder never settled, a renumbered one and POP3 are fetched in full.
+
 The IDLE watcher keeps its own long-lived connection per account and is outside all of this: it is
 waiting on the server, so it cannot be shared.
 

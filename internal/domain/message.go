@@ -96,7 +96,7 @@ func (t Tag) Keyword() string { return t.keyword }
 // tag with the same name on another device maps to the same keyword and assignments therefore sync across
 // devices; matching is case-sensitive (same-case names share a keyword). The trimmed name is hex-encoded,
 // so the keyword is always a valid IMAP atom whatever characters (spaces, punctuation, non-ASCII) the
-// display name carries, and it matches the migration backfill's lower(hex(name)) byte for byte for every
+// display name carries. It matches the migration backfill's lower(hex(name)) byte for byte for every
 // name, unlike a Unicode-aware lower-casing which SQLite's ASCII-only lower() cannot reproduce.
 func KeywordForName(name string) string {
 	return tagKeywordPrefix + hex.EncodeToString([]byte(strings.TrimSpace(name)))
@@ -237,8 +237,8 @@ func (m MessageSummary) ID() string { return m.id }
 // FolderID returns the owning folder identifier.
 func (m MessageSummary) FolderID() string { return m.folderID }
 
-// UID returns the opaque server handle for the message: an IMAP UID held as a decimal string, or a
-// POP3 UIDL. It is used to fetch the body and to target server-side actions; the UI never sees it.
+// UID returns the opaque server handle for the message: an IMAP UID held as a decimal string (a POP3
+// UIDL on a POP3 account). It is used to fetch the body and to target server-side actions; the UI never sees it.
 func (m MessageSummary) UID() string { return m.uid }
 
 // MessageID returns the RFC Message-ID header value.
@@ -292,5 +292,12 @@ func (m MessageSummary) IsForwarded() bool { return m.flags.Has(FlagForwarded) }
 func (m MessageSummary) WithFlags(flags Flags) MessageSummary {
 	copied := m
 	copied.flags = flags
+	return copied
+}
+
+// WithKeywords returns a copy carrying the given tag keywords, as a folder listing reports them.
+func (m MessageSummary) WithKeywords(keywords []string) MessageSummary {
+	copied := m
+	copied.keywords = append([]string(nil), keywords...)
 	return copied
 }

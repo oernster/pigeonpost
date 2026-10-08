@@ -889,6 +889,14 @@ type fakeMailSource struct {
 	// sessionsBegun and sessionsEnded count BeginSession calls and the ends they answered.
 	sessionsBegun int
 	sessionsEnded int
+	// The listing fields drive the incremental sync (see fakes_listing_test.go); a folder with no listing
+	// reports no UIDVALIDITY, so every other test keeps the full fetch. fullFetches counts full fetches.
+	listing        map[string][]domain.MessageState
+	listingErr     error
+	byUIDErr       error
+	byUIDValidity  uint32
+	byUIDRequested [][]string
+	fullFetches    int
 }
 
 func (f *fakeMailSource) BeginSession(ctx context.Context, _ domain.Account) (context.Context, func()) {
@@ -920,6 +928,7 @@ func (f *fakeMailSource) FetchFolders(context.Context, domain.Account) ([]domain
 // FetchMessagesValidity answers the folder's messages with the UIDVALIDITY seeded for it; a folder with
 // none seeded reports zero, which is how a POP3 source answers.
 func (f *fakeMailSource) FetchMessagesValidity(_ context.Context, _ domain.Account, folder domain.Folder) ([]domain.MessageSummary, uint32, error) {
+	f.fullFetches++
 	if f.fetchMessagesErr != nil {
 		return nil, unknownUIDValidity, f.fetchMessagesErr
 	}

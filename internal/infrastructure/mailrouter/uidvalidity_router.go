@@ -2,6 +2,7 @@ package mailrouter
 
 import (
 	"context"
+	"errors"
 
 	"github.com/oernster/pigeonpost/internal/domain"
 )
@@ -26,4 +27,33 @@ func (r *Router) FetchMessagesValidity(ctx context.Context, account domain.Accou
 	}
 	messages, err := source.FetchMessages(ctx, account, folder)
 	return messages, noUIDValidity, err
+}
+
+// listingSource is an adapter that can list a folder's UIDs and flags without headers and fetch chosen
+// summaries by UID: what the incremental sync needs. IMAP is one; POP3 has no UIDVALIDITY and is not.
+type listingSource interface {
+	FetchListing(ctx context.Context, account domain.Account, folder domain.Folder) ([]domain.MessageState, uint32, error)
+	FetchMessagesByUID(ctx context.Context, account domain.Account, folder domain.Folder, uids []string) ([]domain.MessageSummary, uint32, error)
+}
+
+// errNoListing answers a by-UID fetch on an adapter with no listing. The sync never asks for one, since
+// such an adapter reports no UIDVALIDITY and the sync then fetches in full.
+var errNoListing = errors.New("mailrouter: this protocol cannot fetch messages by UID")
+
+// FetchListing delegates to the account's protocol adapter where it can list; otherwise it reports no
+// UIDVALIDITY, so the sync fetches the folder in full. It is the application.MailSource listing.
+func (r *Router) FetchListing(ctx context.Context, account domain.Account, folder domain.Folder) ([]domain.MessageState, uint32, error) {
+	if lister, ok := r.sourceFor(account).(listingSource); ok {
+		return lister.FetchListing(ctx, account, folder)
+	}
+	return nil, noUIDValidity, nil
+}
+
+// FetchMessagesByUID delegates to the account's protocol adapter where it can list. It is the
+// application.MailSource by-UID fetch.
+func (r *Router) FetchMessagesByUID(ctx context.Context, account domain.Account, folder domain.Folder, uids []string) ([]domain.MessageSummary, uint32, error) {
+	if lister, ok := r.sourceFor(account).(listingSource); ok {
+		return lister.FetchMessagesByUID(ctx, account, folder, uids)
+	}
+	return nil, noUIDValidity, errNoListing
 }
