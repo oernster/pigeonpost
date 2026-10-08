@@ -32,12 +32,12 @@ func runFullSync(t *testing.T, session bool) int {
 	return len(commands.matching("LOGIN"))
 }
 
-// Without a session every call logs in on its own: the 51 logins in a minute one press of Sync made
-// against StartMail's 49 folders. Measured here so the difference is on record.
-func TestFullSyncWithoutASessionLogsInPerCall(t *testing.T) {
+// Without a session every call used to log in on its own: the 51 logins in a minute one press of Sync
+// made against StartMail's 49 folders. Calls made one after another now reuse the parked connection.
+func TestFullSyncWithoutASessionReusesTheParkedConnection(t *testing.T) {
 	t.Parallel()
-	if logins := runFullSync(t, false); logins != syncedFolders+1 {
-		t.Errorf("logins = %d, want %d: one for the folder list and one per folder", logins, syncedFolders+1)
+	if logins := runFullSync(t, false); logins != 1 {
+		t.Errorf("logins = %d, want 1: each call after the first takes the parked connection", logins)
 	}
 }
 
@@ -49,8 +49,9 @@ func TestFullSyncUnderASessionLogsInOnce(t *testing.T) {
 	}
 }
 
-// Ending the session logs its connection out. A session for one account never lends its connection to
-// another; ending one that never connected does nothing.
+// Ending the session parks its connection, so the user's next action reuses it rather than logging in. A
+// session for one account never lends its connection to another; ending one that never connected does
+// nothing.
 func TestSessionEndsAndKeepsToItsAccount(t *testing.T) {
 	t.Parallel()
 	commands := &commandLog{}
@@ -68,7 +69,13 @@ func TestSessionEndsAndKeepsToItsAccount(t *testing.T) {
 		t.Error("the session was offered to another account")
 	}
 	end()
-	if logouts := len(commands.matching("LOGOUT")); logouts != 1 {
-		t.Errorf("logouts = %d, want 1 when the session ends", logouts)
+	if logouts := len(commands.matching("LOGOUT")); logouts != 0 {
+		t.Errorf("logouts = %d, want 0: the session's connection is parked", logouts)
+	}
+	if err := source.SetSeen(context.Background(), account, fakeFolder(t), "7", true); err != nil {
+		t.Fatalf("SetSeen: %v", err)
+	}
+	if logins := len(commands.matching("LOGIN")); logins != 1 {
+		t.Errorf("logins = %d, want 1: the action after the session reuses its connection", logins)
 	}
 }

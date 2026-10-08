@@ -25,10 +25,10 @@ func queuedUIDs() []string {
 // heldUID is the one message the scripted server's FETCH reports, carrying \Seen.
 const heldUID = 7
 
-// The replay as it was: each pending intent pushed through the one-message setter. Measured here so the
-// difference is on record: one login per intent, which with 14785 intents was a login every few
-// seconds for as long as PigeonPost ran.
-func TestReplayingThroughTheOneMessageSetterLogsInPerIntent(t *testing.T) {
+// The replay as it was: each pending intent pushed through the one-message setter, one login per intent,
+// which with 14785 intents was a login every few seconds for as long as PigeonPost ran. The setter now
+// takes the parked connection, so even that shape logs in once.
+func TestTheOneMessageSetterReusesTheParkedConnection(t *testing.T) {
 	t.Parallel()
 	commands := &commandLog{}
 	host, port := listenFake(t, script{commands: commands})
@@ -38,8 +38,8 @@ func TestReplayingThroughTheOneMessageSetterLogsInPerIntent(t *testing.T) {
 			t.Fatalf("SetSeen %s: %v", uid, err)
 		}
 	}
-	if logins := len(commands.matching("LOGIN")); logins != queuedIntents {
-		t.Errorf("logins = %d, want %d: one per intent", logins, queuedIntents)
+	if logins := len(commands.matching("LOGIN")); logins != 1 {
+		t.Errorf("logins = %d, want 1 for all %d intents", logins, queuedIntents)
 	}
 }
 

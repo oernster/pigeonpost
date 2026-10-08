@@ -40,13 +40,15 @@ type Source struct {
 	tokens    TokenProvider
 	clock     domain.Clock
 	newID     IDGenerator
+	// parking holds the idle connection each account's next operation reuses (see parking).
+	parking *parking
 }
 
 // NewSource constructs the source with its injected password provider, OAuth token provider, clock and id
 // generator. The clock and id generator are used only when appending a draft, so its Date and Message-ID
 // headers are well-formed; the read paths do not use them.
 func NewSource(passwords PasswordProvider, tokens TokenProvider, clock domain.Clock, newID IDGenerator) *Source {
-	return &Source{passwords: passwords, tokens: tokens, clock: clock, newID: newID}
+	return &Source{passwords: passwords, tokens: tokens, clock: clock, newID: newID, parking: newParking()}
 }
 
 // dial opens a connection to the incoming server with the account's transport security and the given

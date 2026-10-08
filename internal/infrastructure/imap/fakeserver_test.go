@@ -39,6 +39,9 @@ type script struct {
 	// permanentFlags, when not nil, is the flag list the SELECT answer reports as PERMANENTFLAGS, such as
 	// `\Seen` and `\*`; an empty list reports `()`, nil reports no PERMANENTFLAGS at all.
 	permanentFlags []string
+	// silentNoop makes the server take a NOOP and never answer it, standing in for a connection left
+	// half-open by a sleep or a network change.
+	silentNoop bool
 }
 
 // defaultUIDValidity is the UIDVALIDITY a script that sets none reports.
@@ -146,6 +149,10 @@ func fakeIMAPServer(conn net.Conn, s script) {
 				s.commands.add(strings.TrimRight(done, crlf))
 			}
 			write(tag + " OK idle done")
+		case "NOOP":
+			if !s.silentNoop {
+				write(tag + " OK done")
+			}
 		case "LOGOUT":
 			write("* BYE", tag+" OK done")
 			return
