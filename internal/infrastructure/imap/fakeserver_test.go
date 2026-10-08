@@ -36,6 +36,9 @@ type script struct {
 	// idleUpdate, when set, is an untagged line the server sends as soon as an IDLE begins, so a test can
 	// stand in for a server that reports the mailbox size on every IDLE whether or not it changed.
 	idleUpdate string
+	// permanentFlags, when not nil, is the flag list the SELECT answer reports as PERMANENTFLAGS, such as
+	// `\Seen` and `\*`; an empty list reports `()`, nil reports no PERMANENTFLAGS at all.
+	permanentFlags []string
 }
 
 // defaultUIDValidity is the UIDVALIDITY a script that sets none reports.
@@ -51,7 +54,11 @@ func (s script) selectAnswer() []string {
 	if s.empty {
 		exists = "* 0 EXISTS"
 	}
-	return []string{exists, fmt.Sprintf("* OK [UIDVALIDITY %d] ok", validity), "* OK [UIDNEXT 2] ok"}
+	answer := []string{exists, fmt.Sprintf("* OK [UIDVALIDITY %d] ok", validity), "* OK [UIDNEXT 2] ok"}
+	if s.permanentFlags != nil {
+		answer = append(answer, "* OK [PERMANENTFLAGS ("+strings.Join(s.permanentFlags, " ")+")] ok")
+	}
+	return answer
 }
 
 // commandLog collects the command lines a fake server received. The server runs on its own goroutine,

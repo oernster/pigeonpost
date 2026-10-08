@@ -31,14 +31,44 @@ var serverFlags = map[domain.Flag]imap.Flag{
 // application.MailActions.
 func (s *Source) PushFlag(ctx context.Context, account domain.Account, folder domain.Folder, uids []string, flag domain.Flag, set bool) ([]string, error) {
 	serverFlag, ok := serverFlags[flag]
-	if !ok || len(uids) == 0 {
+	if !ok {
+		return nil, nil
+	}
+	return s.pushFlag(ctx, account, folder, uids, serverFlag, set, func(*imap.SelectData) bool { return true })
+}
+
+// PushKeyword is PushFlag for a tag keyword, the replay of pending tag intents. One difference: a server
+// may accept a keyword it cannot keep, holding it for the session only; the read-back on that same
+// session would then report it present. Settling on that read-back would clear the intent; the next
+// fetch, on a fresh session, would find the keyword gone and the reconcile would delete the user's tag.
+// So an added keyword is settled only where the SELECT said the server keeps it (PERMANENTFLAGS lists
+// \* or the keyword itself); elsewhere it is pushed and nothing is settled, leaving the intent to guard
+// the tag as before. A removal is always safe to settle. It satisfies application.MailActions.
+func (s *Source) PushKeyword(ctx context.Context, account domain.Account, folder domain.Folder, uids []string, keyword string, set bool) ([]string, error) {
+	serverFlag := imap.Flag(keyword)
+	return s.pushFlag(ctx, account, folder, uids, serverFlag, set, func(data *imap.SelectData) bool {
+		return !set || keeps(data.PermanentFlags, serverFlag)
+	})
+}
+
+// keeps reports whether a PERMANENTFLAGS list says the server keeps the given keyword. go-imap reads a
+// missing PERMANENTFLAGS and an empty one alike, so neither counts as keeping it.
+func keeps(permanent []imap.Flag, keyword imap.Flag) bool {
+	return hasFlag(permanent, imap.FlagWildcard) || hasFlag(permanent, keyword)
+}
+
+// pushFlag is the work PushFlag and PushKeyword share: one connection, the flag stored on every UID in
+// chunks, then, where settleable says the server's answer can be trusted, the flags read back to answer
+// the settled UIDs. An empty batch connects to nothing.
+func (s *Source) pushFlag(ctx context.Context, account domain.Account, folder domain.Folder, uids []string, serverFlag imap.Flag, set bool, settleable func(*imap.SelectData) bool) ([]string, error) {
+	if len(uids) == 0 {
 		return nil, nil
 	}
 	chunks, err := uidChunks(uids)
 	if err != nil {
 		return nil, err
 	}
-	client, err := s.openFolder(ctx, account, folder)
+	client, data, err := s.openFolderData(ctx, account, folder)
 	if err != nil {
 		return nil, err
 	}
@@ -53,6 +83,9 @@ func (s *Source) PushFlag(ctx context.Context, account domain.Account, folder do
 		if err := client.Store(chunk.set, store, nil).Close(); err != nil {
 			return nil, fmt.Errorf("imap: store %s on %d messages: %w", serverFlag, chunk.count, err)
 		}
+	}
+	if !settleable(data) {
+		return nil, nil
 	}
 	held := make(map[imap.UID]bool, len(uids))
 	agrees := make(map[imap.UID]bool, len(uids))

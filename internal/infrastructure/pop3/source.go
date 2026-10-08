@@ -198,6 +198,12 @@ func (s *Source) SetKeyword(context.Context, domain.Account, domain.Folder, stri
 	return nil
 }
 
+// PushKeyword is a no-op on the server, for the same reason as SetKeyword. It connects to nothing and
+// settles nothing; a POP3 account records no tag intents to replay in the first place.
+func (s *Source) PushKeyword(context.Context, domain.Account, domain.Folder, []string, string, bool) ([]string, error) {
+	return nil, nil
+}
+
 // Delete permanently removes a message from the server with DELE, committed when the session quits.
 // POP3 has no Trash mailbox, so trashPath is ignored and every delete is permanent; leaving the
 // message on the server would only re-download it on the next sync. A permanent delete lands

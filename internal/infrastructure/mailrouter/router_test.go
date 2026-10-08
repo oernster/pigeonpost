@@ -79,6 +79,11 @@ func (r *recorder) SetKeyword(context.Context, domain.Account, domain.Folder, st
 	return nil
 }
 
+func (r *recorder) PushKeyword(context.Context, domain.Account, domain.Folder, []string, string, bool) ([]string, error) {
+	r.calls = append(r.calls, "push-keyword")
+	return nil, nil
+}
+
 func (r *recorder) Delete(context.Context, domain.Account, domain.Folder, string, string) (string, error) {
 	r.calls = append(r.calls, "delete")
 	return "", nil
@@ -168,6 +173,9 @@ func exercise(t *testing.T, router *Router, account domain.Account) {
 	if err := router.SetKeyword(ctx, account, folder, "1", "$PPtag_abc", true); err != nil {
 		t.Fatalf("SetKeyword: %v", err)
 	}
+	if _, err := router.PushKeyword(ctx, account, folder, []string{"1"}, "$PPtag_abc", true); err != nil {
+		t.Fatalf("PushKeyword: %v", err)
+	}
 	if _, err := router.Delete(ctx, account, folder, "1", ""); err != nil {
 		t.Fatalf("Delete: %v", err)
 	}
@@ -185,14 +193,16 @@ func exercise(t *testing.T, router *Router, account domain.Account) {
 	}
 }
 
+// exercisedCalls is what exercise records on the adapter it is routed to, in order.
+var exercisedCalls = []string{"session", "folders", "messages", "body", "raw", "verify", "seen", "seen-many", "push-flag", "flagged", "answered", "forwarded", "keyword", "push-keyword", "delete", "deletemany", "move", "movemany", "copy"}
+
 func TestRouterRoutesImapToImapAdapter(t *testing.T) {
 	imapRec, pop3Rec := &recorder{}, &recorder{}
 	router := NewRouter(imapRec, pop3Rec)
 
 	exercise(t, router, testAccount(t, domain.ProtocolIMAP))
 
-	want := []string{"session", "folders", "messages", "body", "raw", "verify", "seen", "seen-many", "push-flag", "flagged", "answered", "forwarded", "keyword", "delete", "deletemany", "move", "movemany", "copy"}
-	if !reflect.DeepEqual(imapRec.calls, want) {
+	if want := exercisedCalls; !reflect.DeepEqual(imapRec.calls, want) {
 		t.Errorf("imap adapter calls = %v, want %v", imapRec.calls, want)
 	}
 	if len(pop3Rec.calls) != 0 {
@@ -206,8 +216,7 @@ func TestRouterRoutesPop3ToPop3Adapter(t *testing.T) {
 
 	exercise(t, router, testAccount(t, domain.ProtocolPOP3))
 
-	want := []string{"session", "folders", "messages", "body", "raw", "verify", "seen", "seen-many", "push-flag", "flagged", "answered", "forwarded", "keyword", "delete", "deletemany", "move", "movemany", "copy"}
-	if !reflect.DeepEqual(pop3Rec.calls, want) {
+	if want := exercisedCalls; !reflect.DeepEqual(pop3Rec.calls, want) {
 		t.Errorf("pop3 adapter calls = %v, want %v", pop3Rec.calls, want)
 	}
 	if len(imapRec.calls) != 0 {

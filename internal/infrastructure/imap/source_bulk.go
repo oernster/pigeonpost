@@ -49,15 +49,23 @@ func chunkUIDs(nums []imap.UID) []uidChunk {
 // openFolder connects to the account and selects the folder, the preamble every action shares. The
 // caller releases the client when done (see release).
 func (s *Source) openFolder(ctx context.Context, account domain.Account, folder domain.Folder) (*imapclient.Client, error) {
+	client, _, err := s.openFolderData(ctx, account, folder)
+	return client, err
+}
+
+// openFolderData is openFolder for a caller that also needs what the server said on the SELECT, such
+// as which flags it keeps (PERMANENTFLAGS).
+func (s *Source) openFolderData(ctx context.Context, account domain.Account, folder domain.Folder) (*imapclient.Client, *imap.SelectData, error) {
 	client, err := s.connect(ctx, account)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	if _, err := client.Select(folder.Path(), nil).Wait(); err != nil {
+	data, err := client.Select(folder.Path(), nil).Wait()
+	if err != nil {
 		s.release(ctx, client)
-		return nil, fmt.Errorf("imap: select %q: %w", folder.Path(), err)
+		return nil, nil, fmt.Errorf("imap: select %q: %w", folder.Path(), err)
 	}
-	return client, nil
+	return client, data, nil
 }
 
 // storeFlagMany adds or removes one flag on several messages in one folder over a single connection,

@@ -3,6 +3,8 @@ package application
 import (
 	"context"
 	"errors"
+	"fmt"
+	"strconv"
 	"testing"
 
 	"github.com/oernster/pigeonpost/internal/domain"
@@ -280,18 +282,75 @@ func TestReconcileFetchedErrors(t *testing.T) {
 	})
 }
 
-func TestFlushPendingPushesToServer(t *testing.T) {
-	svc, tags, store, accounts, remote := newTagSync()
-	seedMessageLocation(t, store, accounts) // m1 in f1, account a1 (IMAP)
+// seedTagIntents puts count messages in folder f1 (UIDs 1 to count), each with a pending intent to assign
+// the tag it answers.
+func seedTagIntents(t *testing.T, tags *fakeTagStore, store *fakeMailStore, accounts *fakeAccountStore, count int) domain.Tag {
+	t.Helper()
+	seedMessageLocation(t, store, accounts)
 	work := makeTag(t, "t1", "Work")
 	tags.tags["t1"] = work
-	tags.pending["m1"] = map[string]bool{"t1": true}
+	store.messages["f1"] = nil
+	for i := range count {
+		id := fmt.Sprintf("m%d", i)
+		store.messages["f1"] = append(store.messages["f1"], messageWithUID(t, id, "f1", strconv.Itoa(i+1)))
+		tags.pending[id] = map[string]bool{"t1": true}
+	}
+	return work
+}
+
+// pendingTagCount counts the intents still pending in the fake.
+func pendingTagCount(tags *fakeTagStore) int {
+	count := 0
+	for _, byTag := range tags.pending {
+		count += len(byTag)
+	}
+	return count
+}
+
+// The flag replay's storm in its tag form: intents in one folder must go as one batch on one connection
+// and be cleared once settled, so the next pass pushes nothing at all.
+func TestFlushPendingBatchesAFolderAndClearsWhatSettles(t *testing.T) {
+	svc, tags, store, accounts, remote := newTagSync()
+	const intents = 50
+	work := seedTagIntents(t, tags, store, accounts, intents)
 
 	if err := svc.FlushPending(context.Background()); err != nil {
 		t.Fatalf("flush: %v", err)
 	}
-	if len(remote.keywordCalls) != 1 || remote.keywordCalls[0].keyword != work.Keyword() || !remote.keywordCalls[0].set {
-		t.Errorf("expected one SetKeyword add of %q, got %+v", work.Keyword(), remote.keywordCalls)
+	if len(remote.pushKeywordBatches) != 1 {
+		t.Fatalf("pushes = %d, want one carrying all %d intents", len(remote.pushKeywordBatches), intents)
+	}
+	if got := remote.pushKeywordBatches[0]; len(got.uids) != intents || got.keyword != work.Keyword() || !got.set {
+		t.Errorf("push = %+v, want an add of %q on all %d", got, work.Keyword(), intents)
+	}
+	if left := pendingTagCount(tags); left != 0 {
+		t.Fatalf("%d intents left after the server settled them all", left)
+	}
+	if err := svc.FlushPending(context.Background()); err != nil {
+		t.Fatalf("second flush: %v", err)
+	}
+	if len(remote.pushKeywordBatches) != 1 {
+		t.Errorf("the second pass pushed again: %d pushes, want still 1", len(remote.pushKeywordBatches))
+	}
+	if len(remote.keywordCalls) != 0 {
+		t.Errorf("the replay went through the one-message setter: %+v", remote.keywordCalls)
+	}
+}
+
+// An intent the server does not settle stays, so a reconcile can still guard the local tag.
+func TestFlushPendingKeepsWhatTheServerDidNotSettle(t *testing.T) {
+	svc, tags, store, accounts, remote := newTagSync()
+	seedTagIntents(t, tags, store, accounts, 2)
+	remote.pushKeywordUnsettled = map[string]bool{"1": true}
+
+	if err := svc.FlushPending(context.Background()); err != nil {
+		t.Fatalf("flush: %v", err)
+	}
+	if !tags.pending["m0"]["t1"] {
+		t.Error("an intent the server did not settle was dropped")
+	}
+	if _, kept := tags.pending["m1"]["t1"]; kept {
+		t.Error("an intent the server settled was kept")
 	}
 }
 
@@ -300,8 +359,8 @@ func TestFlushPendingNoPendingPushesNothing(t *testing.T) {
 	if err := svc.FlushPending(context.Background()); err != nil {
 		t.Fatalf("flush: %v", err)
 	}
-	if len(remote.keywordCalls) != 0 {
-		t.Errorf("no pending should push nothing, got %+v", remote.keywordCalls)
+	if len(remote.pushKeywordBatches) != 0 {
+		t.Errorf("no pending should push nothing, got %+v", remote.pushKeywordBatches)
 	}
 }
 
@@ -334,20 +393,32 @@ func TestFlushPendingSkipsUnknownTagAndMissingMessage(t *testing.T) {
 	if err := svc.FlushPending(context.Background()); err != nil {
 		t.Fatalf("flush: %v", err)
 	}
-	if len(remote.keywordCalls) != 0 {
-		t.Errorf("an unknown tag and a missing message must be skipped, got %+v", remote.keywordCalls)
+	if len(remote.pushKeywordBatches) != 0 {
+		t.Errorf("an unknown tag and a missing message must be skipped, got %+v", remote.pushKeywordBatches)
 	}
 }
 
-func TestFlushPendingSwallowsPushError(t *testing.T) {
+// A batch the server refuses is reported so the caller can record it; its intents stay to be retried.
+func TestFlushPendingReportsPushErrorAndKeepsIntent(t *testing.T) {
 	svc, tags, store, accounts, remote := newTagSync()
-	seedMessageLocation(t, store, accounts)
-	tags.tags["t1"] = makeTag(t, "t1", "Work")
-	tags.pending["m1"] = map[string]bool{"t1": true}
-	remote.keywordErr = errBoom
-	// A push failure is swallowed so an offline or rejecting server never fails the sync; the pending op
-	// is left in place to be retried.
-	if err := svc.FlushPending(context.Background()); err != nil {
-		t.Errorf("flush should swallow a push error, got %v", err)
+	seedTagIntents(t, tags, store, accounts, 1)
+	remote.pushKeywordErr = errBoom
+
+	if err := svc.FlushPending(context.Background()); !errors.Is(err, errBoom) {
+		t.Errorf("flush error = %v, want the refused batch reported", err)
+	}
+	if !tags.pending["m0"]["t1"] {
+		t.Error("the intent of a refused batch was dropped")
+	}
+}
+
+// A settled intent the store cannot clear is reported rather than passing quietly.
+func TestFlushPendingReportsAClearThatFailed(t *testing.T) {
+	svc, tags, store, accounts, _ := newTagSync()
+	seedTagIntents(t, tags, store, accounts, 1)
+	tags.clearPendingErr = errBoom
+
+	if err := svc.FlushPending(context.Background()); !errors.Is(err, errBoom) {
+		t.Errorf("flush error = %v, want the failed clear reported", err)
 	}
 }

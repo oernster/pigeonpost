@@ -973,6 +973,11 @@ type fakeMailActions struct {
 	pushFlagBatches   []pushFlagCall
 	pushFlagErr       error
 	pushFlagUnsettled map[string]bool
+	// pushKeywordBatches, pushKeywordErr and pushKeywordUnsettled are the same for PushKeyword (see
+	// fakes_keyword_test.go).
+	pushKeywordBatches   []pushKeywordCall
+	pushKeywordErr       error
+	pushKeywordUnsettled map[string]bool
 }
 
 // pushFlagCall is one recorded PushFlag: the folder, the UIDs, the flag and whether it was set.

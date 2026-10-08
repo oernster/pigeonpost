@@ -233,6 +233,10 @@ type MailActions interface {
 	// a user tag onto the server as a keyword. It is separate from the fixed system-flag setters because the
 	// keyword is chosen by the caller.
 	SetKeyword(ctx context.Context, account domain.Account, folder domain.Folder, uid string, keyword string, set bool) error
+	// PushKeyword is the replay of pending tag intents, PushFlag's counterpart for a keyword: one folder,
+	// one connection, answering the UIDs the server has settled. An added keyword is settled only where
+	// the server says it keeps it, so a session-only keyword never clears the intent guarding a local tag.
+	PushKeyword(ctx context.Context, account domain.Account, folder domain.Folder, uids []string, keyword string, set bool) ([]string, error)
 	// Delete removes a message by its opaque handle. A non-empty trashPath moves it to that mailbox and
 	// returns the message's UID there when the server reports it (COPYUID; empty otherwise); an empty
 	// trashPath deletes it permanently (mark \Deleted and expunge) and returns no UID.

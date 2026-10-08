@@ -43,60 +43,24 @@ func (s *FlagSyncService) FlushPending(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("flush pending flags: list: %w", err)
 	}
+	intents := make([]pendingIntent[domain.Flag], 0, len(ops))
+	for _, op := range ops {
+		intents = append(intents, pendingIntent[domain.Flag]{messageID: op.MessageID(), key: op.Flag(), set: op.Value()})
+	}
 	var failures []error
-	for _, batch := range s.batchPending(ctx, ops) {
-		settled, err := s.remote.PushFlag(ctx, batch.account, batch.folder, batch.uids, batch.flag, batch.set)
+	for _, batch := range batchPending(ctx, s.store, s.accounts, intents) {
+		settled, err := s.remote.PushFlag(ctx, batch.account, batch.folder, batch.uids, batch.key, batch.set)
 		if err != nil {
 			failures = append(failures, fmt.Errorf("flush pending flags: %d in %q: %w", len(batch.uids), batch.folder.Path(), err))
 			continue
 		}
 		for _, uid := range settled {
-			if err := s.store.ClearPendingFlagOp(ctx, batch.messageIDs[uid], batch.flag); err != nil {
+			if err := s.store.ClearPendingFlagOp(ctx, batch.messageIDs[uid], batch.key); err != nil {
 				failures = append(failures, fmt.Errorf("flush pending flags: clear %q: %w", batch.messageIDs[uid], err))
 			}
 		}
 	}
 	return errors.Join(failures...)
-}
-
-// flagBatch is the pending intents that share one folder, flag and value: what one PushFlag carries.
-// messageIDs maps each UID back to the message whose intent it settles.
-type flagBatch struct {
-	account    domain.Account
-	folder     domain.Folder
-	flag       domain.Flag
-	set        bool
-	uids       []string
-	messageIDs map[string]string
-}
-
-// batchPending groups the intents into batches, in the order each batch is first met. A message's
-// context is resolved now, so the push targets its current UID even when that has changed since the
-// intent was recorded; a message that cannot be resolved is left out.
-func (s *FlagSyncService) batchPending(ctx context.Context, ops []domain.PendingFlagOp) []*flagBatch {
-	type key struct {
-		folderID string
-		flag     domain.Flag
-		set      bool
-	}
-	byKey := make(map[key]*flagBatch)
-	var batches []*flagBatch
-	for _, op := range ops {
-		msg, folder, account, err := resolveMessageContext(ctx, s.store, s.accounts, op.MessageID())
-		if err != nil {
-			continue
-		}
-		k := key{folderID: folder.ID(), flag: op.Flag(), set: op.Value()}
-		batch, ok := byKey[k]
-		if !ok {
-			batch = &flagBatch{account: account, folder: folder, flag: op.Flag(), set: op.Value(), messageIDs: map[string]string{}}
-			byKey[k] = batch
-			batches = append(batches, batch)
-		}
-		batch.uids = append(batch.uids, msg.UID())
-		batch.messageIDs[msg.UID()] = op.MessageID()
-	}
-	return batches
 }
 
 // ReconcileFetched overlays the pending flag intents onto freshly fetched message summaries, so a save

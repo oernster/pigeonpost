@@ -2,14 +2,15 @@ package application
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/oernster/pigeonpost/internal/domain"
 )
 
 // TagSyncService rounds user tags onto the server as IMAP keywords and keeps the local tag assignments in
-// step with them. Assigning or removing a tag is applied locally at once and, for an IMAP account, recorded
-// as a pending intent; a later sync replays those intents to the server (FlushPending) and reconciles the
+// step with them. Assigning or removing a tag is applied locally at once; for an IMAP account it is also
+// recorded as a pending intent; a later sync replays those intents to the server (FlushPending) and reconciles the
 // local assignments against the keywords the server reports (ReconcileFetched). A POP3 account has no
 // server-side keywords, so its tags stay purely local and no intent is recorded.
 type TagSyncService struct {
@@ -24,8 +25,8 @@ func NewTagSyncService(tags TagStore, store MailStore, accounts AccountStore, re
 	return &TagSyncService{tags: tags, store: store, accounts: accounts, remote: remote}
 }
 
-// Assign attaches a tag to a message and, for an IMAP account, records the intent so a later sync rounds it
-// onto the server. The local change and the pending intent are written together in one transaction, so a
+// Assign attaches a tag to a message. For an IMAP account it also records the intent so a later sync rounds
+// it onto the server. The local change and the pending intent are written together in one transaction, so a
 // tag can never end up applied locally with no intent recorded (which a later reconcile would mistake for a
 // server-cleared tag and delete). Assigning a tag already present is a no-op locally.
 func (s *TagSyncService) Assign(ctx context.Context, messageID, tagID string) error {
@@ -39,7 +40,7 @@ func (s *TagSyncService) Assign(ctx context.Context, messageID, tagID string) er
 	return nil
 }
 
-// Unassign detaches a tag from a message and, for an IMAP account, records the intent so a later sync
+// Unassign detaches a tag from a message. For an IMAP account it also records the intent so a later sync
 // removes the keyword on the server. The local change and the intent are written together in one transaction.
 func (s *TagSyncService) Unassign(ctx context.Context, messageID, tagID string) error {
 	recordPending, err := s.recordsPending(ctx, messageID)
@@ -150,9 +151,14 @@ func (s *TagSyncService) reconcileMessage(ctx context.Context, msg domain.Messag
 }
 
 // FlushPending replays every pending tag intent to the server, so a tag assigned or removed while offline
-// reaches the server on a later sync. It is best-effort: a push that fails (the server is offline or rejects
-// the keyword) leaves the intent to be retried, and the intent is cleared only once a reconcile sees the
-// server agree with it. An intent for a message or tag that no longer exists is skipped.
+// reaches the server on a later sync. The intents are pushed in batches, one per folder, tag and value,
+// each over one connection (see MailActions.PushKeyword); an intent the server settles is cleared at
+// once. It used to push each intent on a connection of its own, the shape that had StartMail block the
+// address for the flag replay on 2026-10-07.
+//
+// It is best-effort: a batch that fails leaves its intents to be retried and is joined into the error,
+// so the caller can record it. An intent the server does not settle stays, so a reconcile can still
+// guard the local tag. An intent for a message or tag that no longer exists is skipped.
 func (s *TagSyncService) FlushPending(ctx context.Context) error {
 	ops, err := s.tags.ListPendingTagOps(ctx)
 	if err != nil {
@@ -169,23 +175,24 @@ func (s *TagSyncService) FlushPending(ctx context.Context) error {
 	for _, tag := range tags {
 		keywordByTag[tag.ID()] = tag.Keyword()
 	}
+	intents := make([]pendingIntent[string], 0, len(ops))
 	for _, op := range ops {
-		s.pushPending(ctx, op, keywordByTag)
+		if _, known := keywordByTag[op.TagID()]; known {
+			intents = append(intents, pendingIntent[string]{messageID: op.MessageID(), key: op.TagID(), set: op.Assigned()})
+		}
 	}
-	return nil
-}
-
-// pushPending replays one pending intent to the server, best-effort. A push failure (offline or a rejecting
-// server) leaves the intent in place to be retried; an intent whose message or tag no longer exists is
-// skipped.
-func (s *TagSyncService) pushPending(ctx context.Context, op domain.PendingTagOp, keywordByTag map[string]string) {
-	keyword, ok := keywordByTag[op.TagID()]
-	if !ok {
-		return
+	var failures []error
+	for _, batch := range batchPending(ctx, s.store, s.accounts, intents) {
+		settled, err := s.remote.PushKeyword(ctx, batch.account, batch.folder, batch.uids, keywordByTag[batch.key], batch.set)
+		if err != nil {
+			failures = append(failures, fmt.Errorf("flush pending tags: %d in %q: %w", len(batch.uids), batch.folder.Path(), err))
+			continue
+		}
+		for _, uid := range settled {
+			if err := s.tags.ClearPendingTagOp(ctx, batch.messageIDs[uid], batch.key); err != nil {
+				failures = append(failures, fmt.Errorf("flush pending tags: clear %q: %w", batch.messageIDs[uid], err))
+			}
+		}
 	}
-	msg, folder, account, err := resolveMessageContext(ctx, s.store, s.accounts, op.MessageID())
-	if err != nil {
-		return
-	}
-	_ = s.remote.SetKeyword(ctx, account, folder, msg.UID(), keyword, op.Assigned())
+	return errors.Join(failures...)
 }
