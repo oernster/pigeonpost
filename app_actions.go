@@ -16,7 +16,7 @@ func (a *App) MarkReadMessages(ids []string, read bool) BulkResultDTO {
 	return a.bulkResult(ids, written, nil, err)
 }
 
-// PushReadMessages lands a MarkReadMessages change on the server with one connection per folder. It is
+// PushReadMessages lands a MarkReadMessages change on the server in one batch per folder. It is
 // best effort: the pending intent MarkReadMessages recorded is replayed by the next sync on a failure.
 func (a *App) PushReadMessages(ids []string, read bool) error {
 	return a.mailError(a.actions.PushReadMany(a.ctx, ids, read))

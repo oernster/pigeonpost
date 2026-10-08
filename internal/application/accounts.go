@@ -104,8 +104,8 @@ func (s *AccountService) Remove(ctx context.Context, id string) error {
 }
 
 // AccountSetupService is the use-case boundary for configuring a new account from the setup wizard.
-// It stores the credential, verifies it against the incoming server and only then persists the
-// account, rolling the credential back if verification or persistence fails so a failed setup leaves
+// It verifies the credential against the incoming server before anything is written, then stores it
+// and persists the account, rolling the credential back if persistence fails so a failed setup leaves
 // no orphaned secret behind.
 type AccountSetupService struct {
 	accounts    AccountStore

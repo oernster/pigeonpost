@@ -52,7 +52,8 @@ const (
 	dataDirName = "PigeonPost"
 	dbFileName  = "pigeonpost.db"
 	// mailErrorLogName sits beside the database and holds the raw text of mail errors the interface
-	// replaces with a message fit to read, so a wrong reading of a failure can still be looked up.
+	// replaced with a message fit to read or never showed (sync failures, failed background mail checks,
+	// lost Sent copies), so a wrong reading of a failure can still be looked up.
 	mailErrorLogName = "mail-errors.log"
 	// The window opens wide enough for the whole title bar and cannot be dragged narrower than it.
 	//

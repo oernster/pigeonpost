@@ -284,6 +284,16 @@ func (s *Store) DeleteAccountData(ctx context.Context, accountID string) error {
 			accountID); err != nil {
 			return fmt.Errorf("clear cached messages: %w", err)
 		}
+		// A folder's id is its account plus its path, so the same address added again gets the same ids.
+		// Its sync markers must go with it: a surviving baseline and UIDVALIDITY would make the re-added
+		// Inbox read as synced with an empty cache, every message on the server an arrival for the rules.
+		for _, table := range []string{"folder_baseline", "folder_uidvalidity"} {
+			if _, err := tx.ExecContext(ctx,
+				"DELETE FROM "+table+" WHERE folder_id IN (SELECT id FROM folder WHERE account_id = ?);",
+				accountID); err != nil {
+				return fmt.Errorf("clear %s: %w", table, err)
+			}
+		}
 		if _, err := tx.ExecContext(ctx, "DELETE FROM folder WHERE account_id = ?;", accountID); err != nil {
 			return fmt.Errorf("clear cached folders: %w", err)
 		}

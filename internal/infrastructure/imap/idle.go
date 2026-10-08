@@ -158,8 +158,8 @@ func (w *Watcher) idleLoop(ctx context.Context, client *imapclient.Client, chang
 
 // mailboxSize is the inbox size the server last reported on the IDLE connection. A server may send EXISTS
 // on every IDLE whether or not anything arrived (RFC 9051 lets it report the size at any time). Every
-// change the watcher signals costs a full sync of every account. Reading each EXISTS as new mail therefore
-// syncs once per round trip, which StartMail saw as a connection every few seconds and blocked the address
+// change the watcher signals costs an inbox sync of its account. When it still cost a full sync of every
+// account, reading each EXISTS as new mail synced once per round trip, which StartMail saw as a connection every few seconds and blocked the address
 // for on 2026-10-07. Only a size above the last one is an arrival; an EXPUNGE lowers it, so mail arriving
 // after a deletion still counts. The client's reader goroutine updates it while the watcher reads it, so it
 // is atomic.

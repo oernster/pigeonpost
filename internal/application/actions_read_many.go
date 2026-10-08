@@ -10,7 +10,7 @@ import (
 
 // A bulk mark-read is split in two so the unread badges can follow the list at once. MarkReadMany
 // writes the cache (the badges' source) for the whole selection in one transaction and returns;
-// PushReadMany then lands the change on the server with one connection per folder. The caller runs
+// PushReadMany then lands the change on the server in one batch per folder. The caller runs
 // the push after refreshing the badges. The per-message MarkRead did both halves for every message in
 // turn, a login each, so the badges waited on the whole selection's round trips.
 
@@ -51,7 +51,7 @@ func (s *MessageActionService) MarkReadMany(ctx context.Context, messageIDs []st
 	return written, errors.Join(errs...)
 }
 
-// PushReadMany lands a bulk read-state change on the server, one connection per folder. Like the push
+// PushReadMany lands a bulk read-state change on the server, one batch per folder. Like the push
 // in MarkRead it is best effort: MarkReadMany already recorded the intent, so a folder whose push fails
 // (offline, say) is replayed by the next sync. The error names each failed folder for the caller to log.
 func (s *MessageActionService) PushReadMany(ctx context.Context, messageIDs []string, read bool) error {
