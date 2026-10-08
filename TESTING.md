@@ -17,19 +17,36 @@ There is a hard 100% coverage gate on the correctness core:
 - `internal/domain`
 - `internal/application`
 
-`./test.ps1` checks formatting, runs `go vet`, then runs the whole suite with coverage and fails if
-any statement in those two packages is uncovered. It also prints the full per-function coverage report. The two
-cheap checks run first, so a formatting slip is reported in seconds rather than after a full coverage
-run. Each fails the script outright, so a green run means all three passed.
+`./test.ps1` runs these steps in order:
+
+1. `gofmt -l .` over the whole tree; any file it names fails the run.
+2. `go vet ./...`.
+3. `go test ./...` with a coverage profile; any failing test fails the run.
+4. Prints the full per-function coverage report, then fails if any function in `internal/domain` or
+   `internal/application` is below 100%.
+
+The two cheap checks run first, so a formatting slip is reported in seconds rather than after a full
+coverage run.
 
 `go vet` earns its own step even though `go test` applies a few of the same analysers. That subset is
 short (printf and a handful of others), so anything outside it, a copied lock or a malformed struct
 tag, reaches nothing without the explicit step.
 
-```
+```powershell
 ./test.ps1          # check formatting, vet, run tests and enforce the gate
 ./test.ps1 -Html    # also open the HTML coverage report
 go test ./...       # plain run without the gate
+```
+
+### Reading a result
+
+Read the exit code, not the last line of output. `./test.ps1` exits 0 only when every step passed and
+ends by printing that the coverage gate passed. Any failing step stops the script with a non-zero exit
+code: a formatting failure lists the files to run `gofmt -w` on, a gate failure lists the uncovered
+functions in red and a vet or test failure leaves its own output above the error.
+
+```powershell
+pwsh -File ./test.ps1; $LASTEXITCODE
 ```
 
 Whole-repo 100% is deliberately not the target. The layers below only orchestrate live network I/O,
@@ -48,9 +65,9 @@ documented here.
 | `internal/infrastructure/message` | unit on the RFC 5322 MIME builder | none |
 | `internal/infrastructure/mailparse` | unit on the MIME body parsing, HTML sanitising, URL linkifying (bare and markdown-labelled links, solo-line button marking), image and CSS-background parking, hidden-preheader removal that keeps MJML layout wrappers and the outgoing embedded-image extraction (data: URI to cid part) | none |
 | `internal/infrastructure/mailrouter` | unit on the per-protocol dispatch | none |
-| `internal/infrastructure/smtp` | unit on the mailbox-refused and app-password detectors and the marking they feed (the rest is live send only; MIME building lives in `message`) | none |
-| `internal/infrastructure/imap` | unit on the source adapter's pure helpers (parsing moved to `mailparse`), plus the fetch and sign-in paths and the bulk commands (`SetSeenMany`, `MoveMany`, `DeleteMany`: one login per folder, UID chunking, the command each sends) plus the parked connection actions reuse (one login across several actions, a dropped or silent connection replaced, logout at the idle limit, never reused for an account edited to another server) driven against a scripted local IMAP server | local TCP server |
-| `internal/infrastructure/pop3` | unit on the response and UIDL parsing; live download excluded | none |
+| `internal/infrastructure/smtp` | unit on the mailbox-refused and app-password detectors and the marking they feed, plus `Send` against a scripted loopback SMTP server (a server that drops the connection at QUIT after accepting the message still counts as delivered); MIME building lives in `message` | local TCP server |
+| `internal/infrastructure/imap` | unit on the source adapter's pure helpers (parsing moved to `mailparse`), plus, driven against a scripted local IMAP server: the fetch and sign-in paths; the listing that refreshes a settled folder (UIDs and flags only) and the by-UID fetch of only its new messages; the bulk commands (`SetSeenMany`, `MoveMany`, `DeleteMany`: one login per folder, UID chunking, the command each sends); the replay of pending flag and tag changes (one connection per folder, settled only where the server's read-back agrees); a session replacing a connection the client closed; the IDLE watcher reading only a grown inbox as an arrival; the parked connection that actions reuse (one login across several actions, a dropped or silent connection replaced, logout at the idle limit, never reused for an account edited to another server) | local TCP server |
+| `internal/infrastructure/pop3` | unit on the response and UIDL parsing, the client's protocol handling against a scripted server and the batched delete against a loopback server; live download excluded | local TCP server |
 | `internal/infrastructure/ics` | unit on the RFC 5545 codec round-trip, recurrence and scheduling payloads | none |
 | `internal/infrastructure/recurrence` | unit on RRULE expansion and truncation | none |
 | `internal/infrastructure/vcard` | unit on the vCard codec round-trip | none |
@@ -61,14 +78,19 @@ documented here.
 | `internal/infrastructure/remoteimage` | unit on the SSRF guard and the resolver for both parked images and parked CSS backgrounds, against local stub servers (httptest) and an injected fetch seam | local HTTP server |
 | `internal/infrastructure/update` | unit on the GitHub latest-release source via an injected HTTP client | none |
 | `internal/infrastructure/errlog` | unit on the append, the one-line-per-failure encoding and the rollover | temp dir |
+| `internal/infrastructure/runlog` | unit on the start line, starting an oversized log afresh, a folder it cannot make and log lines reaching the file; the Windows error-output redirect excluded | temp dir |
 | `internal/infrastructure/keychain` | unit via go-keyring's in-memory mock | none |
 | `internal/infrastructure/taskbar` | unit on the pure label formatting and the balloon-suppression rule, plus a source scan holding the chime call in `Notify` rather than in the balloon; Win32 overlay excluded | none |
 | `internal/infrastructure/sound` | unit on the three chimes' synthesis and WAV encoding, including that they are scored with different note counts and render to different audio; the winmm playback call excluded | none |
 | `internal/installer` | unit on payload extraction and paths | temp dir |
-| `main` (the Wails facade) | unit on its pure helpers only: mailto parsing, attachment decoding and the encoding that hands a reopened draft's files back to the composer (round-tripped through the decoder), the Outbox row mapping, the mail-error translations with their recording of the error each replaces, the resurfaced-snooze notification text with its wire mapping, the rule-backfill error summariser, plus the DTO wire shape; two source scans hold the send and account-setup surfaces to routing their errors through the translator | none |
+| `main` (the Wails facade) | unit on its pure helpers only: mailto parsing, attachment decoding and the encoding that hands a reopened draft's files back to the composer (round-tripped through the decoder), the Outbox row mapping, the mail-error translations with their recording of the error each replaces, the sync entry points recording every failure once, a lost Sent copy recorded rather than reported as a failed send, the resurfaced-snooze notification text with its wire mapping, the rule-backfill error summariser, plus the DTO wire shape; two source scans hold the send and account-setup surfaces to routing their errors through the translator | none |
 | `tests/structural` | AST scan of the source tree | file reads |
 
-## Coverage snapshot
+## Coverage floors
+
+Only the two gated packages have an enforced floor. Every other figure is the statement coverage
+`go test ./... -cover` measured, recorded with the reason the remainder is uncovered; it is a reading,
+not a gate.
 
 | Package | Coverage | Notes |
 |---|---|---|
@@ -80,41 +102,47 @@ documented here.
 | internal/infrastructure/keychain | 100% | account and CalDAV calendar password paths via go-keyring's in-memory mock |
 | internal/infrastructure/rulefile | ~97% | the rules-file codec (pure): the field round trip, the readable shape, the empty and unscoped cases and every refusal; only the `json.MarshalIndent` error branch is uncovered, which a plain struct tree cannot reach |
 | internal/infrastructure/recurrence | ~97% | RRULE expansion and truncation; a few defensive edges uncovered |
-| internal/infrastructure/vcard | ~97% | vCard codec round-trip |
+| internal/infrastructure/vcard | ~98% | vCard codec round-trip |
 | internal/infrastructure/sound | ~97% | the three notification chimes' synthesis, normalisation and WAV encoding (pure); only the winmm playback call is excluded |
 | internal/infrastructure/oauth | ~95% | token flow against stubbed endpoints; real-network edges excluded |
 | internal/infrastructure/update | ~88% | the GitHub latest-release source against an injected fake client; the live-wired constructor and defensive request/read branches excluded |
 | internal/infrastructure/mailparse | ~94% | MIME body parsing, HTML sanitising, URL linkifying, image and CSS-background parking (including the font-source exception) and hidden-preheader removal that keeps MJML layout wrappers and mso-hide content (pure); a few defensive decode branches uncovered |
-| internal/infrastructure/ics | ~92% | RFC 5545 codec round-trip, recurrence and scheduling payloads |
+| internal/infrastructure/ics | ~94% | RFC 5545 codec round-trip, recurrence and scheduling payloads |
 | internal/infrastructure/remoteimage | ~92% | the SSRF guard and the resolver for parked images and parked CSS backgrounds against stub servers; the live-wired constructor excluded |
-| internal/infrastructure/csv | ~95% | Outlook CSV codec round-trip |
+| internal/infrastructure/csv | ~96% | Outlook CSV codec round-trip |
 | internal/infrastructure/caldav | ~82% | request and parse logic against a stub server; live-server edges and the live-wired writer factory excluded |
 | internal/infrastructure/storage | ~79% | logic and error paths covered, including keyset message pagination, the atomic tag-keyword and flag-pending sync writes, the folder-baseline mark, the archive reporting no unread on any surface and a flag change reaching every cached copy of its message; see exclusions |
-| internal/infrastructure/pop3 | ~40% | response and UIDL parsing covered; the live dial and download excluded |
+| internal/infrastructure/imap | ~76% | the source adapter's pure helpers plus the fetch, listing, sign-in, bulk, replay, parked-connection and IDLE growth paths against a scripted local server; the wire-to-domain and HTML logic lives in `mailparse`; excluded: live append (Drafts and Sent), the one-message flag and tag setters, copy, folder create, rename and delete, the body fetch and the IDLE watcher's reconnect loop |
+| internal/infrastructure/smtp | ~74% | the detectors, `authError` and `Send` against a scripted loopback server; the OAuth and keychain branches of the SASL client setup excluded |
+| internal/infrastructure/runlog | ~63% | opening, the start line, the size reset and the logger redirect covered; the Windows call that points the process's error output at the file excluded |
+| internal/infrastructure/pop3 | ~57% | response and UIDL parsing, the client protocol and the batched delete covered against scripted servers; the source's live sign-in and download excluded |
 | internal/installer | ~22% | extract and paths covered; Win32 side effects excluded |
-| internal/infrastructure/imap | ~51% | the source adapter's pure helpers plus the fetch, sign-in and bulk paths against a scripted local server (the body-structure fallback, the refusal marking, one connection per folder for a bulk mark-read, move or delete); the wire-to-domain and HTML logic now lives in `mailparse`; live append plus the IDLE watcher are excluded |
 | internal/infrastructure/taskbar | ~17% | the pure label formatting, the balloon-suppression rule and the no-op stub covered; the Windows-only Win32 overlay excluded, with a source scan standing in for the chime's placement inside it |
-| internal/infrastructure/smtp | ~15% | the mailbox-refused and app-password detectors and `authError`, which marks a refusal so the interface can translate it; the transport around them is live `Send` only and MIME building lives in `message` |
-| main package | ~10% | composition root and the Wails facade, excluded; the covered statements are the package's own pure helpers, which carry unit tests of their own (mailto parsing, attachment decoding and encoding, the mail-error translations, the resurfaced-snooze announcement text with its wire mapping, the rule-backfill error summariser, plus the wire shapes of the rule, rules-file, template and outbox DTOs) |
+| main package | ~11% | composition root and the Wails facade, excluded; the covered statements are the package's own pure helpers, which carry unit tests of their own (mailto parsing, attachment decoding and encoding, the mail-error translations with the sync-failure and lost-Sent-copy recording, the resurfaced-snooze announcement text with its wire mapping, the rule-backfill error summariser, plus the wire shapes of the rule, rules-file, template and outbox DTOs) |
 | installer app, tools/genicons, tools/stampassets | 0% | GUI and one-shot tooling, excluded |
 
 ## Documented exclusions (and why)
 
-- **Live IMAP append and the IDLE watcher** (`imap/source_actions.go`, `imap/idle.go`), **live POP3
-  download** (`pop3/`) and **live SMTP send**
-  (`smtp/transport.go`): these dial a real server, authenticate and stream data. They cannot be
-  unit-tested without a network, so the IMAP path also sits behind a skippable integration test (below).
-  The read path and the bulk commands are the exception and are no longer excluded: `fakeserver_test.go`
-  scripts just enough of an IMAP server on a loopback port to drive a real client through it, which is
-  what lets the body-structure fallback and the sign-in marking be proved against errors the mail
-  library itself produced rather than against strings written beside the assertions. It can also record
-  every command it receives and advertise extra capabilities, so `source_bulk_test.go` asserts what a
-  bulk mark-read, move or delete puts on the wire: one login per folder, UIDs chunked by
-  `bulkBatchSize`. Advertising MOVE matters there: without it the mail library falls back to COPY,
-  STORE `\Deleted` and EXPUNGE. The
-  pure logic is separated out and covered independently: MIME body parsing plus HTML sanitising and
-  image-blocking in the shared `internal/infrastructure/mailparse` package, the RFC 5322 MIME builder in
-  `internal/infrastructure/message`, plus the response and UIDL parsing in `pop3`.
+- **The IMAP paths no scripted test reaches** (in `imap/source_actions.go` and `imap/source_fetch.go`:
+  the append to Drafts and Sent, the one-message flag and tag setters, copy, folder create, rename and
+  delete and the body fetch; in `imap/idle.go`, the watcher's reconnect loop) and **the live POP3 sign-in
+  and download** (`pop3/source.go`): these dial a real server, authenticate and stream data. The IMAP
+  path also sits behind a skippable integration test (below). The rest of the IMAP adapter is no longer
+  excluded: `fakeserver_test.go` scripts just enough of an IMAP server on a loopback port to drive a real
+  client through it, which is what lets the body-structure fallback and the sign-in marking be proved
+  against errors the mail library itself produced rather than against strings written beside the
+  assertions. It can also record every command it receives and advertise extra capabilities, so
+  `source_bulk_test.go` asserts what a bulk mark-read, move or delete puts on the wire: one login per
+  folder, UIDs chunked by `bulkBatchSize`. Advertising MOVE matters there: without it the mail library
+  falls back to COPY, STORE `\Deleted` and EXPUNGE. The same server drives the folder listing, the
+  flag and tag replay, the parked connection and the IDLE watcher's growth check. SMTP `Send` runs
+  against a hand-written loopback server in `transport_send_test.go`; POP3's client and batched delete
+  run against scripted servers too. The pure logic is separated out and covered independently: MIME
+  body parsing plus HTML sanitising and image-blocking in the shared `internal/infrastructure/mailparse`
+  package, the RFC 5322 MIME builder in `internal/infrastructure/message`, plus the response and UIDL
+  parsing in `pop3`.
+- **The run log's Windows error-output redirect** (`runlog/output_windows.go`): it repoints the whole
+  process's error output at the file, so a test calling it would redirect the test process's own.
 - **Live CalDAV, OAuth and remote-image network paths** (`caldav`, `oauth`, `remoteimage`): the
   request, parse and guard logic is tested against local `httptest` stub servers; the live-wired
   constructors and real-network edges (a real CalDAV server, the browser hand-off, a real image host)
@@ -179,11 +207,11 @@ One test connects to a real server and is skipped unless the environment is conf
 
 IMAP (`internal/infrastructure/imap`):
 
-```
-PIGEONPOST_IMAP_HOST=imap.example.com
-PIGEONPOST_IMAP_PORT=993
-PIGEONPOST_IMAP_EMAIL=you@example.com
-PIGEONPOST_IMAP_PASSWORD=your-app-password
+```powershell
+$env:PIGEONPOST_IMAP_HOST = 'imap.example.com'
+$env:PIGEONPOST_IMAP_PORT = '993'
+$env:PIGEONPOST_IMAP_EMAIL = 'you@example.com'
+$env:PIGEONPOST_IMAP_PASSWORD = 'your-app-password'
 go test ./internal/infrastructure/imap/ -run TestSourceLive -v
 ```
 
@@ -212,7 +240,7 @@ A violation fails `go test`, the same as any other test.
 
 The React front end has its own suite under `frontend/`, run with Vitest on jsdom:
 
-```
+```powershell
 cd frontend
 npx vitest run              # run the front-end suite once
 npx vitest                  # watch mode
@@ -315,9 +343,9 @@ npx vitest run --coverage   # enforce the pure-module coverage gate
   before; anything else records that it was reached and throws, then an `afterEach` fails the test
   naming the method. A companion test checks the other direction, that no spy is declared under a name the api
   does not have, since such a spy binds to nothing and every test configuring it passes for the wrong
-  reason. Both directions were verified by planting a violation. Every one of the 31 test files that
-  mocks the api now uses it, each carrying the `afterEach` drain; all but `hooks/useSync.test.ts` also
-  carry the companion check. Converting
+  reason. Both directions were verified by planting a violation. Every one of the 34 test files that
+  mocks the api now uses it, each carrying the `afterEach` drain; all but three hook tests
+  (`useMessageExport`, `useOutbox` and `useSync`) also carry the companion check. Converting
   them found two more holes of exactly the kind it exists to catch. `MessageBodyView.test.tsx` declared
   a `messageInvite` spy under a name the api has never had. `Sidebar.test.tsx` spread the real `api`
   object into its mock, so any method beyond the two it overrode reached a live Wails binding rather

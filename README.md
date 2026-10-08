@@ -5,7 +5,8 @@ local-first. A calmer, more predictable alternative to Thunderbird.
 
 ![Released](https://img.shields.io/badge/status-released-brightgreen)
 
-> **Commercial licences available.** PigeonPost is free and open source under GPL-3.0. If those
+> **Commercial licences available.** PigeonPost is free and open source under GPL-3.0, with an
+> additional term under section 7(b) requiring credit to the original author to be kept. If those
 > terms do not suit what you are building, such as a closed-source product, a commercial licence can
 > be bought from me separately. It covers my own code; third-party libraries keep their own
 > licences. See [commercial licensing](https://ernster.dev/commercial-licensing.html).
@@ -14,8 +15,8 @@ local-first. A calmer, more predictable alternative to Thunderbird.
 
 - IMAP/POP3 mailbox users (self-hosted, ISP, Fastmail, corporate) who want a fast, native,
   local-first desktop client.
-- Gmail, iCloud, Yahoo, Zoho, Fastmail and StartMail users who connect with an app password (the
-  setup wizard fills in the servers).
+- Gmail, iCloud, Yahoo, Zoho, Fastmail and StartMail users (the setup wizard fills in the servers);
+  most of these need an app password, Zoho only when two-factor sign-in is on.
 - Microsoft users (Outlook.com, Hotmail, Live, Microsoft 365) who sign in through Microsoft OAuth in
   the browser; the refresh token is kept in the OS keychain. Microsoft ships a new Outlook.com or
   Hotmail mailbox with IMAP switched off, so turn it on first. See "Turning on IMAP for a Microsoft
@@ -75,9 +76,12 @@ actually said, one failure per line. PigeonPost replaces a server's own words wi
 read; where that message names a setting and the steps it asserts a cause, which can be wrong, so the
 log is the copy kept and a wrong reading can be seen for what it is. Some of the messages assert
 nothing: a refused sign-in says it was refused and points at the address and password rather than
-claiming which of them is at fault. It records only the errors that were replaced, it is created on the
-first one and it holds mail server responses and the address they concern, so read it before attaching
-it to anything.
+claiming which of them is at fault. Besides the errors that were replaced it records every sync failure,
+every failed background mail check and every sent message whose copy could not be saved to Sent. It is
+created on the first failure. It holds mail server responses and the address they concern, so read it
+before attaching it to anything. `run.log` in the same folder shows when each run started, a line as each
+folder listing, folder fetch and flag replay against the server starts and ends and the report of any
+crash.
 
 ## Capabilities
 
@@ -85,14 +89,14 @@ it to anything.
   and StartMail, plus a manual host/port/security path), credentials verified before saving. A preset
   whose provider needs an app password says so plainly (a normal login password will not work); for Gmail,
   iCloud and Yahoo it also links to the page that creates one. Microsoft accounts
-  via one-click OAuth. Each account keeps its own inbox, with an optional unified mailbox (a View tick)
+  sign in through OAuth in the browser after a details step for the sender name. Each account keeps its own inbox, with an optional unified mailbox (a View tick)
   that merges every inbox into one list, each row dotted with its account's colour; replies from it send
   from the row's own account. Send-as addresses. The accounts section is a dropdown holding the account
   you are in, badged with its unread count; picking an account opens its inbox, including the account you
   are already in; the app reopens on the account you left. Mail arriving on an account other than
-  the one you are in lights a second, outlined badge on the closed dropdown: it counts only mail newer
-  than your last visit to that account, so a standing backlog never lights it; opening the dropdown
-  shows which accounts it means. POP3 downloads into one local mailbox with read
+  the one you are in lights a second, outlined badge on the closed dropdown. Only mail newer than your last
+  visit to an account lights it, so a standing backlog never does; once lit, it shows the unread total of
+  the accounts that lit it and its tooltip says how many accounts that is. POP3 downloads into one local mailbox with read
   and star marks kept locally.
 - **Mail**: folders and summaries cached to local SQLite and read offline; bodies fetched on open and
   cached. HTML renders faithfully in a sandboxed frame that keeps the sender's own styles while running
@@ -133,7 +137,8 @@ it to anything.
   offered back after a crash; closing a message you have edited (by any route, including a click
   outside the window) asks before discarding it. Send later schedules a message for a chosen moment (presets or an
   exact date and time); it waits in the Outbox with Cancel send (marked with a paperclip when it
-  carries files) and leaves while the app is running or at the next launch after the chosen time. Sends made offline queue in a per-account outbox and deliver on the next sync.
+  carries files) and leaves while the app is running or at the next launch after the chosen time. Sends made offline queue in a per-account outbox and deliver on the next
+  sync you run (the Sync button or F9), which sends what every account has queued.
   URLs you type or paste go out as real links in any recipient's client and long lines are encoded so
   no mail server can fold and corrupt them in transit.
 - **Organise**: mark read/star, delete to Trash or purge, junk and not-junk (a wrongly junked message
@@ -142,7 +147,7 @@ it to anything.
   that sync across devices as IMAP keywords. Snooze hides a message until a chosen time then returns it
   untouched, announced in the window as a banner you can click to open it and on the desktop as a
   notification (while the app is running or at the next launch); hidden messages wait in a Snoozed view
-  with their due times and an Unsnooze. Move or copy messages by menu or by dragging onto a folder:
+  with their due times and an Unsnooze. Move or copy messages by menu; move them by dragging onto a folder:
   drag one message or a whole selection, however you picked it (Ctrl-click for scattered rows, Shift-click
   for a run); dragging any row of that selection takes all of it. A
   dragged message leaves the list the moment you drop it rather than when the server has finished, the
@@ -151,11 +156,13 @@ it to anything.
   actions: delete, move, junk and its rescue, their bulk forms and the read, star and tag toggles,
   with each menu entry naming what it will unwind. Cut, copy and paste messages file-manager style
   (Ctrl+X/C/V, the Edit menu or a right-click): cut or copy a selection, then paste it into the
-  folder being viewed or straight onto a right-clicked folder; cut rows dim until pasted and pasted
-  rows appear instantly. Create, rename and delete folders: the plus beside the Folders heading makes
+  folder being viewed or straight onto a right-clicked folder; cut rows dim until pasted. A pasted cut
+  appears at once; a pasted copy appears as the server reports each copy's number. From a server that reports
+  none it appears at the next sync. Create, rename and delete folders: the plus beside the Folders heading makes
   one at the top level and New subfolder on a folder's right-click menu makes one inside it. Reorganise the
   tree by dragging a folder to nest it, move it out or reorder its siblings; the order you choose and
-  the folders you keep collapsed are remembered per account and survive an update or reinstall.
+  the folders you keep collapsed are remembered per account and survive an update; a reinstall keeps them too unless you told the
+  uninstaller to remove your data.
   One folder each holds Inbox, Sent, Drafts, Trash, Junk and Archive, leading a collapsible tree with
   unread badges per folder, account and total. The archive is the one folder that never badges: archiving
   puts a message out of the way, so it stops asking for attention. On Gmail the archive is All Mail, which
@@ -196,8 +203,8 @@ it to anything.
   unattended: what the file holds, what it replaces, what arrives switched off and what moves or deletes
   mail. A rule matching a stored one by name replaces it in place rather than duplicating it; anything
   else is appended in file order. A rule this installation cannot run, because it names a destination
-  folder or accounts held nowhere here, arrives switched off and is named in the report, so it works once
-  that folder syncs or that account is added.
+  folder or accounts held nowhere here, arrives switched off and is named in the report; switch it on by
+  hand once that folder syncs or that account is added.
 - **Read**: an optional reading pane (mark-on-view, F8 toggle) where only the message body scrolls: the
   tabs, the toolbar, the sender and the subject stay pinned above it, while its attachments stay pinned at
   the foot, so Open and Save are one click away however long the thread is rather than below every quoted
@@ -211,7 +218,8 @@ it to anything.
   after ten seconds without input the app settles back on the active account's Inbox: the Inbox becomes
   the selected folder with keyboard focus on its row (never while a dialog is open, while you are
   mid-entry in a text field or while a message is open in the reader), so the window always resumes
-  from a known place. The list stays fluid in folders of tens of thousands of messages. A Date sort and
+  from a known place. The list loads a page at a time, so a folder of tens of thousands of messages is
+  never read into it whole. A Date sort and
   an optional threaded conversation view. In that view the header above a grouped conversation opens it
   whole: every message of the exchange gathered across the account's folders rather than the open one, so
   the reply you sent sits with the message it answers instead of staying out of sight in Sent. Each
@@ -226,18 +234,18 @@ it to anything.
   Windows, macOS and Linux, so it can be chosen as the default email client (Windows Default apps, the
   macOS default email reader, GNOME Default Apps) and a clicked mailto: link anywhere opens a pre-filled
   compose window. Print a message through the system print dialog; remote images appear in the printout
-  only when you have loaded them for that message (or Load images by default is on).
+  only while they are showing for that message in the reader.
 - **Notifications**: new mail raises a native desktop notification and updates a Windows taskbar badge.
   Each IMAP account is watched by a persistent IDLE connection with a 60-second poll backstop (and for
-  POP3); an account's first sync is silent. On Windows PigeonPost sounds its own chimes rather than the
+  POP3). A push from the server checks that account alone and only an inbox that has grown counts as new
+  mail. Mail already in an inbox when the app starts is not announced. On Windows PigeonPost sounds its own chimes rather than the
   shell's default; each of the three things it announces has its own: new mail, a calendar reminder
   and a snoozed message coming back. They differ in how many notes sound and in their rhythm, so they
   are told apart by ear from each other and from every other app's notification; elsewhere the sound is
   the one your desktop theme chooses.
 - **Calendar**: month, week and day views (a multi-day event is drawn as one bar across its days), recurring events with per-event time zones (every so many days, weeks, months or years, such as every two weeks; a monthly or yearly one lands on a date or on a weekday such as the third Tuesday), nine
   emoji-labelled event categories, on-screen reminders at a lead you choose (from the moment the event
-  starts out to a week before) and ICS import/export (RFC 5545) that round-trips
-  with Outlook and Thunderbird. Every date field in the app (event times, repeat-until, a contact's
+  starts out to a week before) and ICS import/export (RFC 5545). Every date field in the app (event times, repeat-until, a contact's
   birthday, send later, snooze) opens a themed calendar picker, with direct typing still first-class. Meeting
   invites over iTIP/iMIP (accept, tentative, decline, cancel and reply) with clickable join links (Teams, Meet, Zoom,
   Webex). Answering an invitation leaves a proper trail: the reply is saved to Sent, the invitation
@@ -279,8 +287,8 @@ it to anything.
   A mail server's own words are not what you read there: a server that turns down a sign-in says so and
   points at the address and password, naming an app password where the server itself asked for one;
   a reply the app cannot read says that rather than showing you the protocol. What the server actually
-  said is kept in `mail-errors.log` for a bug report. Closing the window while something is still open (a
-  half-written message, say) surfaces the keep-in-tray-or-quit choice on top at once and warns that
+  said is kept in `mail-errors.log` for a bug report. On Windows, closing the window while something is still
+  open (a half-written message, say) surfaces the keep-in-tray-or-quit choice on top at once and warns that
   unsaved work may be lost, with Go back as the default so nothing is lost silently.
 
 Planned: calendar reminders the operating system delivers while PigeonPost is closed (today a reminder
@@ -312,26 +320,45 @@ candidates parked beyond these are triaged with their rationale in
 - [FEATURES_PLAN.md](FEATURES_PLAN.md): the triaged feature backlog (parked candidates and confirmed
   won't-dos, each with its rationale).
 
-## Quick start
+## Install and run
 
+Download the setup program (Windows), the DMG (macOS, Apple Silicon) or the Flatpak bundle (Linux) from
+the [latest release](https://github.com/oernster/pigeonpost/releases/latest). To run from source with
+hot reload (prerequisites in [DEVELOPMENT.md](DEVELOPMENT.md)):
+
+```powershell
+git clone https://github.com/oernster/pigeonpost
+cd pigeonpost
+wails dev
 ```
-wails dev        # run the app in development
-go test ./...    # run the Go test suite
-cd frontend && npx vitest run   # run the front-end test suite
-./build.ps1              # build the app exe and the installer (Windows)
-bash builddmg.sh         # build the signed, notarized DMG (macOS, Apple Silicon)
-bash build_flatpak.sh    # build and install the Flatpak (Linux)
+
+## Test
+
+```powershell
+./test.ps1                    # formatting, vet, the Go suite and the 100% gate on domain and application
+cd frontend; npx vitest run   # the front-end suite
 ```
 
-## Supporting the project
+## Build
 
-PigeonPost is free and stays free. There is no paid tier, no licence key and no feature held back
-behind a donation. Donations support maintenance and continued development.
+```powershell
+./build.ps1                   # the app exe and the installer (Windows)
+```
+
+```bash
+bash builddmg.sh              # the signed, notarized DMG (macOS, Apple Silicon)
+bash build_flatpak.sh         # build and install the Flatpak (Linux)
+```
+
+## Supporting PigeonPost
+
+PigeonPost is free and stays free. There is no paid tier, no licence key and nothing held back behind a
+donation. Donations support maintenance and continued development.
 
 A tray at the foot of the window carries a donate button at its left. It opens a PayPal payment page
 in your browser; the app itself sends nothing and asks for nothing.
 
-<a href="https://www.paypal.com/ncp/payment/Q2U2RRG5WV7YJ"><img src="frontend/src/assets/donate.png" alt="Donate to PigeonPost" width="120"></a>
+<a href="https://www.paypal.com/ncp/payment/Q2U2RRG5WV7YJ"><img src="docs/donate.png" alt="Donate to PigeonPost" width="120"></a>
 
 ## Licence
 

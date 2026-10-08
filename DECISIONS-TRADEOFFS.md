@@ -63,9 +63,9 @@ Folders, Outlook data files) is not imported.
 
 ### App passwords; no sign-in that needs a paid assessment
 
-Gmail, iCloud, Yahoo, Zoho, Fastmail and StartMail come as presets that use
-an app password and say plainly that the normal password will not work.
-One-click "Sign in with Google" is not offered.
+Gmail, iCloud, Yahoo, Zoho, Fastmail and StartMail come as presets, each
+saying which password to use; all but Zoho say plainly that the normal
+password will not work. One-click "Sign in with Google" is not offered.
 
 - **Rather than:** Google's OAuth, whose full-mail scope carries a paid
   annual security assessment.
@@ -76,8 +76,8 @@ One-click "Sign in with Google" is not offered.
 ### Microsoft through OAuth in the browser
 
 A Microsoft account signs in through the system browser and the mail
-connections then present a token. The refresh token is kept in the keychain
-in place of a password.
+connections then present a token. The tokens, the refresh token among them,
+are kept in the keychain in place of a password.
 
 - **Rather than:** a password, which Microsoft no longer accepts for these
   accounts; leaving Microsoft out.
@@ -101,13 +101,14 @@ failure.
 
 ### Passwords only in the operating system's keychain
 
-The database never holds a password or token. Uninstalling with the option
-to delete mail data purges the keychain entries as well.
+The database never holds a password or token. On Windows, uninstalling with
+the option to delete mail data purges the keychain entries as well.
 
 - **Rather than:** credentials in the database beside the mail.
-- **Gains:** the database file carries no secret; a full removal leaves none
-  behind.
-- **Costs:** none recorded.
+- **Gains:** the database file carries no secret; a full removal on Windows
+  leaves none behind.
+- **Costs:** removing the app on macOS or Linux leaves its keychain entries
+  for the user to delete.
 
 ### POP3 through a small client of its own
 
@@ -201,18 +202,36 @@ Encrypting it is parked.
   mail and its search index. The site says so and points at the operating
   system's disk encryption.
 
-### A record of the errors the interface rewrote
+### A record of the errors the interface hid
 
 When the interface replaces a mail server's words with a sentence of its
-own, the original is written to a log beside the database. Errors passed
-through unchanged are not recorded. The log stays small, keeping one
-previous generation when it rolls over.
+own, the original is written to a log beside the database. An error passed
+to the reader unchanged is not recorded, since its own detail reaches them.
+Failures the interface deliberately does not show are recorded whatever
+their wording: a sync, the new-mail check, a delivered message whose Sent
+copy was lost and a snooze with no message left to return. The log stays
+small, keeping one previous generation when it rolls over.
 
 - **Rather than:** discarding the original; logging every error.
 - **Gains:** a sentence that named the wrong cause can be shown to be wrong;
-  the log lists only the cases where something was hidden.
+  a folder that stops refreshing leaves a reason behind; the log lists only
+  the cases where something was hidden.
 - **Costs:** it holds server responses and the addresses they concern in
   plain text.
+
+### A run log beside the database
+
+Each run writes its log lines and any crash report to a log file beside the
+database, with a line at the start and end of every step a sync takes
+against the server. No line names a password or token. The file starts
+afresh once it grows past a set size.
+
+- **Rather than:** the error output alone, which a program started from a
+  shortcut on Windows does not have, so a sync stalled for weeks with
+  nothing anywhere to say where.
+- **Gains:** a stalled sync shows which folder and step it waits on; a crash
+  leaves its report.
+- **Costs:** another file of folder names and server errors in plain text.
 
 ### Donations go through the browser
 
@@ -236,6 +255,39 @@ attachments, is fetched the first time it is opened, then cached.
 - **Costs:** full-text search reaches a body only once it has been opened;
   an unopened message reads offline by its summary alone.
 
+### A folder synced before is refreshed from its listing
+
+A folder already in the cache is refreshed from a listing of every message's
+UID, flags and tags without headers. Only messages the cache does not hold
+are fetched in full; the rest keep their cached headers and take the
+listing's marks. The listing is trusted only while the server reports the
+numbering the folder was settled under. A folder never settled, one the
+server has renumbered and every POP3 folder are fetched in full.
+
+- **Rather than:** fetching every summary at every sync, measured at up to
+  40 seconds for 410 messages against Outlook.com, so an account of 54
+  folders never finished a sync.
+- **Gains:** a sync of a large mailbox finishes; the cost of a refresh
+  follows what arrived rather than what is held.
+- **Costs:** a folder's first sync is still a full download.
+
+### One login per sync; one idle connection kept per account
+
+A full sync of an account runs over one IMAP login. Between operations one
+idle connection per account is kept for the next action, checked with a
+NOOP before it is reused and logged out after five minutes unused. Two
+operations at once each hold a connection; when both finish only one is
+kept.
+
+- **Rather than:** a login for each operation, the shape that made dozens of
+  logins a minute and had StartMail block an address; a hard limit of one
+  connection per account, under which an action would wait behind a long
+  sync.
+- **Gains:** a sync and a run of clicks cost a login or two rather than one
+  each.
+- **Costs:** a connection stays open for up to five minutes after use; a
+  kept connection can have died, which costs one check before a fresh dial.
+
 ### Outgoing mail queues offline; other actions do not
 
 A send or a draft save that finds the server unreachable waits in a
@@ -254,16 +306,25 @@ app is offline in plain words.
 
 A change is written to the cache together with a record that it is pending.
 Every sync replays what is unconfirmed and lays it over what the server
-reports, letting go of a change only when the server agrees. Tags travel as
-IMAP keywords, each fixed when the tag is made so a rename never rewrites it.
+reports, letting go of a change only when the server agrees. The replay
+sends the pending changes in one batch per folder and reads them back on the
+same connection; a change the read-back confirms is cleared there and then.
+Tags travel as IMAP keywords, each fixed when the tag is made so a rename
+never rewrites it. An added keyword (a tag or the forwarded mark) is cleared
+only where the server says it keeps keywords; a server that holds one for the
+session alone would read it back and clear the record guarding a local tag.
 
 - **Rather than:** writing to the server and trusting the next fetch.
   Outlook.com accepts a flag change and then reports the old value, which
-  kept turning read mail unread again.
+  kept turning read mail unread again. Replaying each change on a login of
+  its own while clearing none until its folder was next fetched, which turned
+  thousands of pending changes into a login every few seconds and had
+  StartMail block the address.
 - **Gains:** a message read stays read; marks work offline; tags reach other
-  installations on the same account.
+  installations on the same account; a backlog of changes costs a few logins.
 - **Costs:** more local state to keep correct. POP3 carries neither, so its
-  marks stay on the one machine.
+  marks stay on the one machine. On a server that does not keep keywords a
+  tag is pushed again once per folder at every sync.
 
 ### Copies of one message kept in step
 
@@ -280,16 +341,16 @@ recognised by Message-ID, date, sender and subject together.
 
 ### The archive never badges
 
-No surface counts unread mail in the archive. Its folder still shows how
-many messages it holds.
+No surface counts unread mail in the archive, neither its own folder nor the
+account's totals.
 
 - **Rather than:** counting it like any folder; deduplicating the totals by
   Message-ID, which would have undercounted every account.
 - **Gains:** archiving puts a message out of the way. On Gmail, whose
   archive is All Mail, an arriving message is no longer counted twice.
-- **Costs:** unread mail filed in the archive is never called for. A bulk
-  mark-read over the archive is not offered, because on Gmail it would mark
-  the whole mailbox read.
+- **Costs:** unread mail filed in the archive is never called for. No action
+  marks a whole folder read, because on Gmail doing so to the archive would
+  mark the whole mailbox read.
 
 ### Permanent deletion on Gmail goes through the Bin
 
@@ -328,8 +389,10 @@ send.
 
 ### Large selections and large folders
 
-Deleting, moving or marking read a selection opens one connection for each
-folder involved and sends the messages in chunks. The list reads a folder a
+Deleting, moving or marking read a selection is grouped by folder. Each
+folder is selected once and its messages sent in chunks, the folders taken
+one after another over the account's kept connection, so a selection
+spanning many folders normally costs one login. The list reads a folder a
 page at a time and draws only the rows on screen.
 
 - **Rather than:** a login per message, which ran past Gmail's limit on
@@ -349,7 +412,7 @@ date and account conditions stay in ordinary queries. Results are capped.
 - **Rather than:** an index that reads its text from the source tables,
   which would need every delete to reproduce exactly what was indexed.
 - **Gains:** every path that keeps the index right is a delete or reinsert
-  of one message; moving a message or flipping a flag needs no index work.
+  of one message, a move included; flipping a flag needs no index work.
 - **Costs:** the index holds its own copy of the text.
 
 ### Conversations by subject
@@ -360,9 +423,11 @@ folders, so the reply sent from Sent sits beside the message it answers.
 
 - **Rather than:** threading on reply headers, which the cache does not
   hold.
-- **Gains:** the list and the reader can never disagree about a thread.
+- **Gains:** the list and the reader agree about what a thread is.
 - **Costs:** unrelated messages with the same subject group together; a
-  conversation lookup considers a bounded number of messages.
+  conversation lookup considers a bounded number of messages. The rule is
+  written twice (once for the list, once for the reader); the two have to be
+  kept alike.
 
 ### Folder order and collapse kept in the database
 
@@ -376,16 +441,19 @@ is a real move on the server.
 - **Gains:** the folder tree comes back as the user left it.
 - **Costs:** none recorded.
 
-### One unreadable message costs a folder its paperclips, not its mail
+### One unreadable message costs paperclips, not mail
 
-A folder's summaries are fetched in one request. If one message's structure
-cannot be decoded the request fails, so it is made again without structures:
-every message arrives and the paperclip is lost for that folder.
+The summaries a sync fetches come in one request: a whole folder the first
+time, then only the messages new since. If one message's structure cannot be
+decoded the request fails, so it is made again without structures: every
+message arrives and the paperclip is lost for the messages in that request.
 
 - **Rather than:** fetching in batches to confine the loss.
 - **Gains:** one malformed message no longer empties a folder. Measured
   across every folder of several real accounts, the fallback fired on none.
-- **Costs:** where it does fire, the whole folder shows no attachments.
+- **Costs:** where it does fire, none of the messages it fetched shows an
+  attachment, a whole folder's worth on a first sync. Later syncs keep those
+  summaries as cached, so the paperclips do not come back by themselves.
 
 ### Server errors become sentences that claim no more than they know
 
@@ -397,9 +465,10 @@ refused sign-in says it was refused rather than that the password is wrong.
   failure does not carry.
 - **Gains:** a failure reads as something a person can act on, at the point
   it happens.
-- **Costs:** not every action routes through it yet: the single-message read
-  and star marks, the folder actions and the meeting sends still show the
-  raw error.
+- **Costs:** not every action routes through it yet: creating, renaming,
+  moving and deleting folders and sending meeting invitations, replies and
+  cancellations still show the raw error. A single read or star mark shows
+  no server failure at all; it is left for the next sync to replay.
 
 ## Filter rules
 
@@ -470,8 +539,8 @@ never inside one; the report then states what had already happened.
 
 Export writes the rules as readable JSON with no local ids: a destination is
 an account and a mailbox path. On import a rule replaces the stored one of
-the same name. A rule naming a folder or accounts this installation does not
-hold arrives switched off and is named in the report.
+the same name. A rule arrives switched off and is named in the report when
+this installation lacks its destination folder or every account it names.
 
 - **Rather than:** rewriting or dropping what cannot act here; leaving it
   switched on, where it would silently do nothing on every sync.
@@ -487,7 +556,8 @@ Pressing Send delivers the message. There is no window in which it can be
 pulled back; Send later remains for choosing a moment.
 
 - **Rather than:** holding every message for a few seconds with an Undo.
-- **Gains:** a sent message has left when the compose window closes.
+- **Gains:** a message sent while the server is reachable has left when the
+  compose window closes.
 - **Costs:** a message sent in error cannot be recalled.
 
 ### Rich text with a plain-text part always
@@ -503,8 +573,8 @@ with a plain-text version first and the formatted one second.
 ### Images embed, files attach
 
 A pasted or dropped image is held in the message as its own bytes and sent
-as an inline image part; any other file attaches. Text parts are encoded so
-no relay can fold a long line. Files, attached messages and embedded images
+as an inline image part; any other file attaches. The message text is encoded
+so no relay can fold a long line. Files, attached messages and embedded images
 share one size limit.
 
 - **Rather than:** linking images; sending long lines unencoded, which let
@@ -547,8 +617,8 @@ discard. Closing an edited message asks first.
 
 ### People emailed join the address book
 
-After a send, each recipient not already in the address book is added as a
-minimal contact. A setting on the Contacts page turns it off; it starts on.
+When a message is sent or scheduled to send later, each recipient not
+already in the address book is added as a minimal contact. A setting on the Contacts page turns it off; it starts on.
 
 - **Rather than:** an address book filled only by hand.
 - **Gains:** suggestions in the address fields grow from use.
@@ -712,8 +782,9 @@ neighbours they left.
 
 ### Motion only where it helps, whatever the animation setting
 
-The guide, About and Licence scroll gently on their own and stop the moment
-the reader takes over; no other surface moves by itself. Neither that nor the
+The guide, About and Licence scroll gently on their own. They pause the
+moment the reader takes over and carry on from there once left alone; no
+other surface moves by itself. Neither that nor the
 drop flash follows the reduced-motion setting, which on Windows tracks the
 general animation switch people turn off for speed.
 
@@ -722,13 +793,14 @@ general animation switch people turn off for speed.
 - **Gains:** long help reads hands free without any work surface fighting
   the user; neither feature silently disappears on a machine with animations
   off.
-- **Costs:** someone who wants no motion stops a pane by touching it.
+- **Costs:** someone who wants no motion can only pause a pane, which moves
+  again once left alone.
 
 ### Idle returns to the Inbox
 
 After a short spell without input the active account's Inbox is selected
-again, never while a dialog is open, a field is being typed in or a message
-is open.
+again, never while a dialog or a menu is open, a field is being typed in or a
+message is open.
 
 - **Rather than:** leaving the window wherever it was last left.
 - **Gains:** the window always resumes from a known place.
@@ -774,14 +846,15 @@ explicitly to skip it for a local test build, which is never released.
 ### What the build depends on is declared once in the repository
 
 The version lives in one file read by the app and stamped into each package.
-The icons and glyphs are generated from masters and the output is committed.
-Line endings are declared by the repository rather than left to each machine.
+The icons and glyphs are generated from masters; every release build runs
+the generator and its output is committed. Line endings are declared by the
+repository rather than left to each machine.
 
-- **Rather than:** versions written where needed; generating artwork at
-  every build; each machine's own line-ending setting, which had git
-  reporting files modified with nothing changed.
-- **Gains:** nothing drifts; a fresh clone builds without running the
-  generator; a real change cannot hide among phantom ones.
+- **Rather than:** versions written where needed; generated artwork kept
+  out of the repository; each machine's own line-ending setting, which had
+  git reporting files modified with nothing changed.
+- **Gains:** nothing drifts; a plain build of a fresh clone needs no
+  generator run; a real change cannot hide among phantom ones.
 - **Costs:** a changed master and its regenerated output have to be
   committed together; a checkout made before the line-ending rule may hold
   old endings until refreshed.
@@ -803,10 +876,11 @@ author's own code is offered separately.
 
 The code is split into domain, application, infrastructure and interface,
 each depending only inward, wired in one composition root. Structural tests
-fail the suite on a forbidden import, a domain that reads the clock or the
+fail the Go suite on a forbidden import, a domain that reads the clock or the
 network, a second place that wires both layers and a source module over the
-size limit, in Go and in the front end alike. The front end's one composition
-file is exempt from the size limit by decision and cannot grow.
+size limit. The front end's tests hold its pure modules to their imports and
+every module to the same size limit. Its one composition file is exempt from
+that limit by decision and cannot grow.
 
 - **Rather than:** convention alone; a dependency injection framework;
   splitting that composition file for the count's sake.
@@ -818,9 +892,10 @@ file is exempt from the size limit by decision and cannot grow.
 ### Complete coverage where the logic lives
 
 The domain and application layers are held at full coverage by the test
-script, which also checks formatting and vets first. There is no mocking
-library; fakes are written by hand. The front end gates its pure modules
-the same way.
+script, which also checks formatting and vets first. The Go code has no
+mocking library; its fakes are written by hand. The front end gates a named
+list of its pure modules the same way, each added as it is extracted with
+its test.
 
 - **Rather than:** one figure over everything, which would mean mocking the
   operating system.

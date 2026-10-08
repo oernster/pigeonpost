@@ -34,7 +34,7 @@
             {"@type": "Question", "name": "What if I try it and want to go back?",
              "acceptedAnswer": {"@type": "Answer", "text": "Then you close it and nothing has changed. Your accounts were never moved, so they are still live in your old client. Your calendar and contacts export back out in standard files."}},
             {"@type": "Question", "name": "Does my Gmail or iCloud account work?",
-             "acceptedAnswer": {"@type": "Answer", "text": "Yes, through an app password. A wizard fills in the servers for Gmail, iCloud, Yahoo, Zoho, Fastmail and StartMail. A server that turns the sign-in down is reported in plain words rather than as the server's own reply, so offering an ordinary account password by mistake tells you what to do next. Microsoft accounts (Outlook.com, Hotmail) sign in through Microsoft OAuth."}},
+             "acceptedAnswer": {"@type": "Answer", "text": "Yes, through an app password. A wizard fills in the servers for Gmail, iCloud, Yahoo, Zoho, Fastmail and StartMail. A mail server that turns the IMAP sign-in down is reported in plain words rather than as the server's own reply, so offering an ordinary account password by mistake tells you what to do next. Microsoft accounts (Outlook.com, Hotmail) sign in through Microsoft OAuth."}},
             {"@type": "Question", "name": "Does a Google Workspace work account function?",
              "acceptedAnswer": {"@type": "Answer", "text": "No. Workspace is OAuth-only, so an app password is refused by Google. Personal Gmail works with an app password."}},
             {"@type": "Question", "name": "Is my Microsoft password safe?",
@@ -42,7 +42,7 @@
             {"@type": "Question", "name": "I just made an Outlook.com account and it will not connect.",
              "acceptedAnswer": {"@type": "Answer", "text": "Microsoft holds IMAP back on a brand-new mailbox, so the sign-in succeeds and the account still refuses to add even with IMAP switched on in Outlook's own settings. That is a fault at Microsoft's end and there is nothing PigeonPost can work around. An established Outlook.com or Hotmail account is unaffected; a new one usually needs a few days."}},
             {"@type": "Question", "name": "Can opening a message track me?",
-             "acceptedAnswer": {"@type": "Answer", "text": "No. HTML renders in a sandboxed frame that runs no scripts and makes no remote requests. Remote images stay blocked until you load them; the backgrounds a message styles with CSS are held back the same way, so opening a message cannot tell the sender you read it."}},
+             "acceptedAnswer": {"@type": "Answer", "text": "No. HTML renders in a sandboxed frame that runs no scripts and makes no remote requests. Remote images stay blocked until you load them (or tick Load images by default); the backgrounds a message styles with CSS are held back the same way, so opening a message cannot tell the sender you read it."}},
             {"@type": "Question", "name": "It is one developer. What if it stops?",
              "acceptedAnswer": {"@type": "Answer", "text": "It is GPL-3.0 with the full source on GitHub, free to read, fork or continue. Your mail stays with your provider and your calendar and contacts live in standard files, so nothing is trapped."}},
             {"@type": "Question", "name": "Does it work offline?",
@@ -50,11 +50,11 @@
             {"@type": "Question", "name": "Which platforms does it run on?",
              "acceptedAnswer": {"@type": "Answer", "text": "Windows, macOS (Apple Silicon) and Linux, each with its own native installer: a Windows setup program, a DMG and a Flatpak."}},
             {"@type": "Question", "name": "Will it choke on huge folders?",
-             "acceptedAnswer": {"@type": "Answer", "text": "No. The message list is virtualised and stays fluid in folders of tens of thousands of messages."}}
+             "acceptedAnswer": {"@type": "Answer", "text": "No. The message list is virtualised and stays fluid in folders of tens of thousands of messages. Syncing them stays quick too: once a folder has been downloaded, later syncs read only a list of message numbers and flags and fetch just the new mail."}}
         ]
     }
     </script>
-    <link rel="stylesheet" href="site.css?v=af211d11d9"/>
+    <link rel="stylesheet" href="site.css?v=be566e1a19"/>
 </head>
 <body>
 <div class="wrap">
@@ -99,9 +99,9 @@
                     Thunderbird. Contacts export as vCard (names, emails, phone numbers, postal addresses
                     and birthdays included) or as CSV in Outlook's column layout.</p>
                 <p>A .eml file opens straight in the app and on Windows and macOS PigeonPost can be
-                    your default .eml handler. It can also register as your system's default email app on Windows,
-                    macOS and Linux, so a mailto: link opens a new message here instead of in the client
-                    you left.</p>
+                    your default .eml handler. It also registers for mailto: links on Windows, macOS and
+                    Linux; once you choose it as your default email app, a mailto: link opens a new
+                    message here instead of in the client you left.</p>
             </div>
         </div>
 
@@ -126,8 +126,11 @@
             <div class="step">
                 <span class="n">3</span>
                 <h3>Sync</h3>
-                <p>Your mail, folders and read state come down into a local, searchable copy. Your mail stays
-                    in your account with your provider the whole time.</p>
+                <p>Your mail, folders and read state come down into a local, searchable copy. The first sync
+                    of a folder downloads it in full; after that a folder is refreshed from a short list
+                    of message numbers and flags and only new mail is downloaded, so a large mailbox
+                    stays quick to keep current. Your mail stays in your account with your provider the
+                    whole time.</p>
             </div>
         </div>
     </section>
@@ -151,8 +154,8 @@
             <div class="item">
                 <p class="q">Does my Gmail or iCloud account work?</p>
                 <p class="a">Yes, through an app password. A wizard fills in the servers for Gmail, iCloud,
-                    Yahoo, Zoho, Fastmail and StartMail. A server that turns the sign-in down is reported
-                    in plain words rather than as the server's own reply, so offering an ordinary account
+                    Yahoo, Zoho, Fastmail and StartMail. A mail server that turns the IMAP sign-in down is
+                    reported in plain words rather than as the server's own reply, so offering an ordinary account
                     password by mistake tells you what to do next.</p>
             </div>
             <div class="item">
@@ -176,9 +179,9 @@
             <div class="item">
                 <p class="q">Can opening a message track me?</p>
                 <p class="a">No. HTML renders in a sandboxed frame that runs no scripts and makes no remote
-                    requests. Remote images stay blocked until you load them; the backgrounds a message styles
-                    with CSS are held back the same way, so opening a message cannot tell the sender you read
-                    it.</p>
+                    requests. Remote images stay blocked until you load them (or tick Load images by
+                    default); the backgrounds a message styles with CSS are held back the same way, so
+                    opening a message cannot tell the sender you read it.</p>
             </div>
             <div class="item">
                 <p class="q">It is one developer. What if it stops?</p>
@@ -199,7 +202,9 @@
             <div class="item">
                 <p class="q">Will it choke on my huge folders?</p>
                 <p class="a">No. The message list is virtualised and stays fluid in folders of tens of
-                    thousands of messages.</p>
+                    thousands of messages. Syncing them stays quick too: once a folder has been
+                    downloaded, later syncs read only a list of message numbers and flags and fetch just
+                    the new mail.</p>
             </div>
         </div>
     </section>

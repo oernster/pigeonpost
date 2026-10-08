@@ -24,7 +24,7 @@
           content="Multiple accounts, send later, snooze, colour tags, instant offline search, calendar and contacts. All local-first and free."/>
     <meta name="twitter:image" content="https://pigeonpost.ink/screenshots/compose.png"/>
     <link rel="icon" type="image/png" href="pigeonpost.png"/>
-    <link rel="stylesheet" href="site.css?v=af211d11d9"/>
+    <link rel="stylesheet" href="site.css?v=be566e1a19"/>
 </head>
 <body>
 <div class="wrap">
@@ -181,6 +181,10 @@
                 <p>The local cache itself is ordinary data on your
                     own disk, not encrypted at rest: pair it with your OS disk encryption (BitLocker,
                     FileVault) if you want that protection.</p>
+                <p>Beside it sit two plain-text logs that stay on your machine: mail-errors.log keeps the
+                    full detail of mail failures the window words more plainly or does not show at all;
+                    run.log records crash reports and each step of a sync, so a stalled sync says where
+                    it stopped.</p>
             </div>
         </div>
     </section>
@@ -190,9 +194,9 @@
         <p class="lead">One of the everyday windows you actually work in, in the dark theme.</p>
         <div class="shot-frame">
             <img src="screenshots/calendar.png" loading="lazy" decoding="async"
-                 alt="The calendar month view, showing a multi-day Vacation event as one continuous bar spanning two week rows, alongside single-day events with emoji categories."/>
+                 alt="The calendar month view, showing a multi-day Vacation event as one bar carried across two week rows, alongside single-day events with emoji categories."/>
         </div>
-        <p class="shot-cap">The calendar: a multi-day event spans its days as one bar, alongside
+        <p class="shot-cap">The calendar: a multi-day event runs as one bar across its days, carried on from row to row, alongside
             month, week and day views, reminders and emoji categories.</p>
     </section>
 

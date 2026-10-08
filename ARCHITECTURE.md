@@ -48,8 +48,8 @@ the outbound list), not by convention.
   calendar and contacts codecs (`ics`, `recurrence`, `vcard` and `csv`), the CalDAV sync client
   (`caldav`), the Microsoft OAuth token flow (`oauth`), the SSRF-guarded remote-image fetcher
   (`remoteimage`), the rule-set file codec (`rulefile`), the GitHub latest-release source behind the
-  update check (`update`) and the mail error log (`errlog`, which keeps the raw text of an error the facade is
-  about to replace with one fit to read). Never imported by Domain or Application. The
+  update check (`update`), the mail error log (`errlog`, which keeps the raw text of an error the facade is
+  about to replace with one fit to read) and the run log (`runlog`, see Errors). Never imported by Domain or Application. The
   separate `internal/installer` package holds the setup program's install logic and is consumed by the
   `installer/` Wails setup app.
 - **UI**: the React front end plus the thin Wails facade in package `main` (`app.go` with one binding
@@ -111,9 +111,11 @@ Sync and read:
    folder-list write is claimed by the account it was fetched for, so a fetch that outlives an account
    switch is discarded rather than putting the previous account's folders under the new selection.
 
-A folder's summaries are asked for whole, with the extended body structure that tells the list whether
-each message carries an attachment. One message the client cannot decode ends the entire FETCH and
-closes the connection with it, so `Source.FetchMessages` asks again on a fresh connection for everything
+Summaries are asked for with the extended body structure that tells the list whether each message
+carries an attachment: a folder's whole set on a full fetch, only the UIDs the cache lacks on an
+incremental one (see IMAP connections). One message the client cannot decode ends the entire FETCH and
+closes the connection with it, so the summary fetch (`fetchScoped`, behind `FetchMessages`,
+`FetchMessagesValidity` and `FetchMessagesByUID`) asks again on another connection for everything
 except the structure (`fetchSummaries`, gated on `isBodyStructureError`). A message/rfc822 part carrying
 NIL where its envelope belongs is the measured case, reproduced against the pinned library: without the
 second attempt a single such message costs the folder every summary it holds, which is what emptied a
@@ -757,12 +759,13 @@ archive is not a subset of the mail, it is all of it.
 Mark read/unread and star/flag: the UI calls the facade, which routes through the
 `MessageActionService`. It writes the flag to the local cache together with a pending intent, then pushes `\Seen` or
 `\Flagged` to the server best-effort (via the `MailActions` port); the intent keeps the change durable
-until a fetch shows the server agreeing, so a sync never overwrites it with stale server state. The unread
+until the server is seen to agree (a replay's read-back or a fetch), so a sync never overwrites it with
+stale server state. The unread
 (bold) state and the star follow the cached flags. A bulk mark-read splits the two halves: `MarkReadMessages`
 writes the whole selection to the cache (`SetFlagMany`, one transaction for the server-flagged accounts'
 rows with their pending intent and one for any POP3 rows, which carry none) and returns. The front end then
 refreshes the unread counts and the folders' own counts from it; only after that does
-`PushReadMessages` land the change on the server with one connection per folder (`SetSeenMany`). The
+`PushReadMessages` land the change on the server with one batch per folder (`SetSeenMany`). The
 badges therefore follow the list at once instead of waiting on a login per message. A flag change reaches every cached copy of that
 message in the account rather than the named row alone: the named row's whole flag set, with the change
 applied, is written onto each copy, so a flag one copy carried and the named row did not is overwritten
@@ -837,21 +840,24 @@ another. Each `Tag` carries a frozen keyword, `$PPtag_` followed by the lowercas
 UTF-8 bytes (domain `KeywordForName`, backfilled into a new `tag.keyword` column by a migration), so the same
 tag derives the same keyword everywhere and a rename never rewrites it. Every assign or unassign writes the
 local `message_tag` row and a row in the `message_tag_pending` intent table in one SQLite
-transaction, so the assignment and its sync intent can never drift. The application `TagSyncService` flushes
-each pending intent to the server through the `MailActions.SetKeyword` port (an IMAP STORE of the custom
-keyword, retried best-effort until it lands); when a folder is fetched it reconciles the server's own tag
-keywords back into local assignments, clearing a pending intent once the server agrees. POP3 accounts skip
-all of this by design, since POP3 messages carry no keywords.
+transaction, so the assignment and its sync intent can never drift. Assigning pushes nothing at once: the
+application `TagSyncService.FlushPending` replays the pending intents at the start of each sync, one batch
+per folder, tag and value through the `MailActions.PushKeyword` port (an IMAP STORE of the custom keyword
+followed by a read-back on the same connection). Each intent the read-back settles is cleared; a batch
+that fails keeps its intents for the next sync. When a folder is fetched the service also reconciles the
+server's own tag keywords back into local assignments, clearing a pending intent once the server agrees.
+POP3 accounts skip all of this by design, since POP3 messages carry no keywords.
 
 Flag changes (read, starred, answered, forwarded) round-trip the same way, through the
 `message_flag_pending` intent table and the application `FlagSyncService`. A mark action writes the cache
 flag and its pending intent in one transaction (`MailStore.SetFlag`), then pushes to the server
-best-effort: a push that fails, offline or against a server that accepts the STORE and drops it, leaves
-the intent for every sync to replay (`FlushPending`, which re-resolves the message's current UID at push
-time). Before a sync saves fetched summaries it overlays each unconfirmed intent onto them
-(`ReconcileFetched`), so a fetch that still reports the old value, which Outlook.com does routinely
-because it applies flag STOREs lazily or sheds them, cannot regress a change the user just made; the
-intent is cleared only once a fetch shows the server agreeing. This is why viewing a message in the
+best-effort: a push that fails (offline; or against a server that accepts the STORE then drops it) leaves
+the intent for every sync to replay. `FlushPending` re-resolves each message's current UID at push time
+and pushes one batch per folder, flag and value through `MailActions.PushFlag`, clearing each intent the
+read-back on that connection settles. Before a sync saves fetched summaries it overlays each unconfirmed
+intent onto them (`ReconcileFetched`), so a fetch that still reports the old value, which Outlook.com does
+routinely because it applies flag STOREs lazily or sheds them, cannot regress a change the user just made;
+a fetch that shows the server agreeing clears the intent too. This is why viewing a message in the
 reader marks it read durably: without the guard, the IDLE-triggered inbox re-fetch would write the
 server's stale unseen flag straight back over the cache. POP3 accounts record no intents: their flags
 are purely local and the sync's `preserveFlags` carries them across fetches whole.
@@ -1073,14 +1079,21 @@ surface nothing on failure or when up to date; the manual check reports both.
 
 ## IMAP connections
 
-Every IMAP operation reaches the server through `Source.connect` and gives its connection back through
-`Source.release` (`internal/infrastructure/imap/source_auth.go`, `session.go`). What happens between the two is
-the whole of PigeonPost's connection policy, held in one place because a mail client that logs in too
-often gets its address blocked: StartMail did exactly that on 2026-10-07.
+Every IMAP read and action reaches the server through `Source.connect` and gives its connection back
+through `Source.release` (`internal/infrastructure/imap/source_auth.go`, `session.go`). What happens
+between the two is the whole of PigeonPost's connection policy, held in one place because a mail client
+that logs in too often gets its address blocked: StartMail did exactly that on 2026-10-07. Two paths
+stand outside it. The account wizard's credential check (`Source.Verify`) logs in and out on its own,
+since the account it checks does not exist yet. The IDLE watcher keeps its own long-lived connection per
+account, since it is waiting on the server and cannot share one.
 
-- **A sync is one session.** `MailSource.BeginSession` puts a session on the context; every operation of
-  that sync (the folder list, the flag and tag replays, every folder's fetch) shares one connection. A
-  full sync of 49 folders made about 51 logins before it.
+Each rule below is held by the tests named beside it, in `internal/infrastructure/imap` unless stated.
+
+- **A full account sync is one session.** `SyncAccount` opens one through `MailSource.BeginSession`;
+  every operation of that sync on that account (the folder list, the replays' pushes to it, every
+  folder's fetch) shares one connection. A full sync of StartMail's 49 folders made about 51 logins
+  before it. The lighter paths (`SyncFolder`, the inbox passes) open no session and rely on the parked
+  connection below. `TestFullSyncUnderASessionLogsInOnce`, `TestSessionEndsAndKeepsToItsAccount`.
 - **Between operations one connection per account is parked** (`parking.go`). `release` parks a
   connection rather than logging it out; the next operation for the same account, the same server, the
   same user and the same sign-in method takes it, after a NOOP proves it still answers within the dial
@@ -1088,25 +1101,39 @@ often gets its address blocked: StartMail did exactly that on 2026-10-07.
   3501 has a server keep one. Two operations at once each get a connection; when both finish one is
   parked and the other logged out, so the idle count never passes one. A session's connection is
   parked when the session ends, so a click after a sync costs no login.
+  `TestParkedConnectionIsReusedOnceItAnswers`, `TestSilentParkedConnectionIsReplacedAtTheCheckLimit`,
+  `TestParkedConnectionIsLoggedOutAtTheIdleLimit`, `TestEditedAccountDoesNotReuseTheOldServer`,
+  `TestASecondConcurrentConnectionIsLoggedOut`.
 - **A dead connection is never handed out.** The client library closes a connection whose reply it
   cannot decode; `connect` replaces a session's closed connection and the lot drops a closed one rather
   than parking it, so the fallback fetch and every later folder of the sync get a working connection.
+  `TestSessionReplacesAConnectionTheClientClosed`, `TestUnlentAndClosedConnectionsAreNotParked`,
+  `TestDroppedParkedConnectionIsReplaced`.
 - **Replays go one folder at a time.** Pending flag and tag intents are pushed as one batch per folder,
-  key and value (`MailActions.PushFlag`, `PushKeyword`), each over one connection; each is cleared as
-  soon as the read-back shows the server agrees. A keyword ($Forwarded, a tag) is cleared on an add only where
-  the SELECT's PERMANENTFLAGS says the server keeps it, since a session-only keyword would otherwise
-  clear the intent guarding a local tag.
-
+  key and value (`MailActions.PushFlag`, `PushKeyword`), each over one connection; each intent is cleared
+  as soon as the read-back on that connection shows the server agrees. A keyword ($Forwarded, a tag) is
+  settled on an add only where the SELECT's PERMANENTFLAGS lists `\*` or the keyword itself, since a
+  session-only keyword would otherwise clear the intent guarding a local tag; a removal is always
+  settled from the read-back. `TestPushFlagUsesOneConnectionAndAnswersWhatSettled`,
+  `TestPushFlagSettlesForwardedOnlyWhereTheServerKeepsIt`,
+  `TestPushKeywordSettlesNoAddWhereTheServerMayNotKeepIt`; in `internal/application`,
+  `TestFlagSyncFlushBatchesAFolderAndClearsWhatSettles` and
+  `TestFlushPendingBatchesAFolderAndClearsWhatSettles`.
 - **A folder synced before is refreshed from its listing** (`application/sync_incremental.go`). The sync
   asks for every message's UID, flags and tag keywords without headers (`MailSource.FetchListing`), then
-  fetches full summaries only for the UIDs it has not cached (`FetchMessagesByUID`); `domain.MergeListing`
-  gives cached messages the server's current flags and keywords and drops what the server no longer
-  lists. Fetching every summary on every sync was measured at up to 40 seconds for 410 messages against
-  Outlook.com, so a 54-folder account never finished one. The cache is trusted only under the UIDVALIDITY
-  the folder was settled with: a folder never settled, a renumbered one and POP3 are fetched in full.
+  fetches full summaries only for the UIDs it has not cached (`FetchMessagesByUID`, in chunks);
+  `domain.MergeListing` gives cached messages the server's current flags and keywords and drops what the
+  server no longer lists. Fetching every summary on every sync was measured at up to 40 seconds for 410
+  messages against Outlook.com, so a 54-folder account never finished one. The cache is trusted only
+  under the UIDVALIDITY the folder was settled with. A folder never settled is fetched in full, as is a
+  renumbered one (including one renumbered between the listing and the fetch) and every POP3 folder,
+  since POP3 reports no UIDVALIDITY. `TestFetchListingAsksForFlagsOnly`, `TestFetchMessagesByUIDFetchesOnlyThoseUIDs`; in
+  `internal/application`, `TestFetchFolderRefreshesASettledFolderFromItsListing` and
+  `TestFetchFolderFetchesInFullWhereTheCacheCannotBeTrusted`.
 
-The IDLE watcher keeps its own long-lived connection per account and is outside all of this: it is
-waiting on the server, so it cannot be shared.
+Every summary fetch, listing, folder list and replay push writes a start line and an end line to the
+run log through `traceStep` (`trace.go`): the account, the step, the folder, the time it took, the
+message count and the error. A stalled sync therefore leaves the step it stalled in on record.
 
 ## Errors
 
@@ -1123,9 +1150,10 @@ re-reads the open folder when a body cannot be read, so the row leaves the list 
 unusable. A message that is still cached and merely failed to fetch survives that re-read.
 
 `friendlyMailError` (`mailerrors.go`) translates seven cases and returns every other error unchanged so a
-genuine fault keeps its detail: a connectivity failure becomes the plain offline message, a mailbox with
-IMAP switched off becomes the message naming that setting, a server that takes the sign-in then refuses
-to accept mail becomes `errSMTPRefused`, an uncached message becomes the message-has-moved-on sentence,
+genuine fault keeps its detail: a connectivity failure becomes the plain offline message, a server that
+takes the sign-in then refuses an IMAP session becomes `errIMAPRefused` (which names the setting to check
+without claiming it is off), a server that takes the sign-in then refuses to accept mail becomes
+`errSMTPRefused`, an uncached message becomes the message-has-moved-on sentence,
 a server that declines the credential becomes `errSignInRefused`, a server that states it wants an
 application-specific password becomes `errAppPasswordRequired` and a reply the client cannot decode
 becomes `errUnreadableResponse`. `App.mailError` wraps it: where the translation replaces the original it
@@ -1139,7 +1167,16 @@ The sync bindings (`SyncAccount`, `SyncFolder`, `SyncAllInboxes`) are the except
 them. The front end calls `SyncFolder` after every move, on a timer and on opening a folder; it treats a
 failure as something the next sync reconciles, so it shows nothing and an untranslated error's detail
 reaches nobody. A Hotmail account's Sent folder stopped refreshing for six weeks that way with nothing in
-the log. `TestSyncMailErrorRecordsEveryFailureOnce` holds it.
+the log. `TestSyncMailErrorRecordsEveryFailureOnce` holds it. The new-mail notifier's own inbox passes record
+their failures through the same error log directly.
+
+Beside that error log sits the run log: `run.log` in the application's data folder, beside the database,
+kept by `internal/infrastructure/runlog`. `keepRunLog` in `main.go` opens it before anything else can
+fail. Each run appends a line naming when it started; a run that finds the file past 1 MiB starts it afresh.
+Every line written through Go's `log` package lands there, the IMAP progress lines above included. A
+windowed Windows program is started with no error output, so where the run has none its error output is
+pointed at the file as well and the Go runtime's crash report lands there; where it has one, the crash
+report is copied to the file. A run that cannot open the log carries on without one.
 
 The last three are worded to assert as little as the failure carries, which is what the recording above
 exists to compensate for and is better than needing it. A tagged refusal names no reason, so
@@ -1381,8 +1418,8 @@ than duplicates.
 (stdlib `encoding/csv`) for contacts, plus `ics` (emersion/go-ical) for calendar. Two contact codecs
 exist deliberately: vCard covers Thunderbird and single-contact Outlook; CSV covers Outlook's bulk
 contact export/import (Outlook exports the address book as CSV, not vCard; Thunderbird reads CSV too).
-The pure decode/encode logic lives in these packages and is unit-tested (between 92% and 97% each; see
-TESTING.md). They sit outside the 100% gate, which covers the domain and application layers only.
+The pure decode/encode logic lives in these packages and is unit-tested (between 93% and 98% each when
+last measured; see TESTING.md). They sit outside the 100% gate, which covers the domain and application layers only.
 
 **Automatic collection.** `ContactService.CollectAddresses` adds a minimal contact (the address as
 its display name) for each given address not already anywhere in the address book, case-insensitively
@@ -1394,8 +1431,9 @@ Contacts page. Collection is a side effect of sending, so it can never fail a se
 The `csv` package is split by concern because the two exporters agree on almost nothing: `mapping.go`
 holds the column-alias tables and the row-to-contact rules, `encoding.go` normalises input to UTF-8
 (neither exporter reliably writes it; a byte-order mark left in place binds to the first header
-and silently drops that column), `dates.go` normalises birthdays to the ISO form the editor accepts
-and `csv.go` orchestrates. Reconciling a re-import is deliberately NOT the codec's job: CSV carries no
+and silently drops that column), `delimiter.go` detects the field separator (a comma by default; a semicolon
+where Excel and Outlook write one on a decimal-comma locale; a tab), `dates.go` normalises birthdays to the ISO form
+the editor accepts and `csv.go` orchestrates. Reconciling a re-import is deliberately NOT the codec's job: CSV carries no
 stable per-contact id, so matching is a policy over the whole address book and lives in
 `ContactService.ImportContacts`, which matches on id, shared email address or (for a contact with no
 email) display name and merges through the
@@ -1624,17 +1662,26 @@ again, while a changed answer sends immediately.
 
 **New-mail notifications and IMAP IDLE.** New mail is surfaced the moment it arrives. A
 `runMailNotifier` goroutine in the composition root owns the flow: it primes a baseline first (an existing
-inbox is cached, not announced), then feeds two detection paths through one serialised `checkMail`, so a
-push and the backstop poll can never double-notify. `SyncInboxes` (application) refreshes every account's
-inbox and returns the messages whose id is not already cached, keyed on arrival rather than read state, so
-a message another client already marked read still counts while only a filter-rule read-on-arrival is
+inbox is cached, not announced), then feeds two detection paths through one serialised `checkMailWith`, so
+a push and the backstop poll can never double-notify. The poll (`checkMail`) runs `SyncInboxes`
+(application), which refreshes every account's inbox; an IDLE push (`checkAccountMail`) runs
+`SyncAccountInbox` for the pushing account alone, since syncing every account on one account's push would
+connect to every server whenever any of them announced mail (`TestSyncAccountInboxSyncsOnlyThatAccount`).
+Both return the messages whose id is not already cached, keyed on arrival rather than read state, so a
+message another client already marked read still counts while only a filter-rule read-on-arrival is
 silenced. A new message raises a desktop notification through the same `taskbar` `Tray` the reminders use,
 forced to show even when the window is focused because new mail has no in-window cue.
 
 Instant delivery is an IMAP IDLE watcher. `infrastructure/imap`'s `Watcher` holds a persistent,
-authenticated IDLE connection per IMAP account and invokes a callback the moment the server reports the
-mailbox changed, reconnecting with capped exponential backoff and reissuing the IDLE inside the server's
-timeout window; a server without the IDLE capability stops cleanly and is left to the poll. The watcher is
+authenticated IDLE connection per IMAP account and invokes a callback when the inbox grows and once at the
+start of each connection, so mail that arrived while it reconnected is caught. Growth is judged against the
+size the server last reported on that connection (set by the SELECT, raised by a larger EXISTS, lowered by
+each EXPUNGE), because a server may repeat an unchanged EXISTS on every IDLE; read as new mail, that made a
+mail check every few seconds and StartMail blocked the address for it on 2026-10-07
+(`TestWatchIgnoresAnUnchangedMailboxSize`, `TestMailboxSizeReadsOnlyGrowthAsArrival`). The watcher
+reconnects with capped exponential backoff (five seconds doubling to five minutes) and reissues the IDLE
+every 20 minutes, inside the server's timeout window; a server without the IDLE capability stops cleanly
+and is left to the poll. The watcher is
 injected into the facade behind a `MailWatcher` port, so the application layer keeps no IMAP dependency. A
 60-second poll is the backstop for a missed push and for POP3, which has no IDLE.
 
@@ -1688,7 +1735,7 @@ GPL-3.0 compatible.
 | Concern | Choice | Rationale |
 |---|---|---|
 | Shell | Wails v2 (WebView2/WebKit hosting React + TS) | Proven delivery lineage; single small binary. |
-| Backend | Go 1.25+ | Second first-class language; native cross-platform. The floor is the `go` directive in `go.mod`. |
+| Backend | Go | Second first-class language; native cross-platform. The minimum Go release is the `go` directive in `go.mod`. |
 | IMAP | emersion/go-imap (v2, IDLE) | Async push, mature. |
 | POP3 | small hand-rolled client | POP3 is a small protocol. |
 | SMTP send | emersion/go-smtp | Pairs with the suite. |

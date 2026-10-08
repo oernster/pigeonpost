@@ -24,7 +24,7 @@
           content="How PigeonPost handles mail: multiple accounts and a unified mailbox, writing and sending, templates and drafts, folders and tags, then reading."/>
     <meta name="twitter:image" content="https://pigeonpost.ink/screenshots/compose.png"/>
     <link rel="icon" type="image/png" href="pigeonpost.png"/>
-    <link rel="stylesheet" href="site.css?v=af211d11d9"/>
+    <link rel="stylesheet" href="site.css?v=be566e1a19"/>
 </head>
 <body>
 <div class="wrap">
@@ -59,18 +59,25 @@
                     <li>Multiple accounts, each a separate inbox, with send-as addresses. The accounts
                         dropdown carries each account's unread count; picking one opens its inbox,
                         including the account you are already in. Mail arriving on an account you are
-                        not in lights a second, outlined badge on the closed dropdown, counting only
-                        mail newer than your last visit there, so a standing backlog never lights
-                        it</li>
+                        not in lights a second, outlined badge on the closed dropdown. It lights only for
+                        an account holding unread mail newer than your last visit there, so a standing
+                        backlog never lights it, then shows those accounts' unread total</li>
                     <li>An optional unified mailbox that merges every inbox into one list, each row dotted
                         with its account's colour</li>
                     <li>Instant new mail over IMAP IDLE with a desktop notification, plus an unread badge
-                        on the taskbar on Windows</li>
+                        on the taskbar on Windows. A push checks only the account that sent it and only an
+                        inbox that has grown counts as new mail, so a server that repeats itself on the
+                        idle line does not set off a check every few seconds</li>
+                    <li>Gentle on your provider's sign-in limits: a full sync of an account signs in once
+                        and one idle connection per account is kept between your actions (opening,
+                        marking, moving), then closed after five minutes with nothing to do. That matters
+                        for providers that block a client which signs in too often</li>
                     <li>On Windows each of the three things PigeonPost announces has its own chime, so new
                         mail, a calendar reminder and a returning snoozed message are told apart by ear;
                         elsewhere the sound is the one your desktop theme chooses</li>
-                    <li>Registers as your system's default email app on Windows, macOS and Linux, so a
-                        mailto: link on a web page opens a new message here, ready addressed</li>
+                    <li>Registers for mailto: links on Windows, macOS and Linux; once you choose it as
+                        your default email app, a mailto: link on a web page opens a new message here,
+                        ready addressed</li>
                 </ul>
             </div>
             <div class="group">
@@ -84,7 +91,8 @@
                     <li>Start typing in To, Cc or Bcc and matching people from your contacts are
                         suggested; accepting one just inserts text, so you can still edit it freely;
                         the list flows on so the next address can be typed straight away</li>
-                    <li>Attach files or forward a message as an attachment</li>
+                    <li>Attach files or attach a whole message to a new one with Attach to new
+                        message</li>
                     <li>The compose window moves: drag it by its title bar to uncover the message you
                         are answering; every new message still opens centred</li>
                     <li>Send later from presets or an exact time; the message waits in the Outbox with
@@ -99,8 +107,8 @@
                     <li>A template carries its attachments as well as its subject and body, so inserting
                         one brings all three into the message at once. The files are stored rather than
                         pointed at, so a template still attaches what it promised after the original has
-                        been moved, renamed or deleted; the editor refuses a template heavier than a
-                        single message may carry while you are still looking at it</li>
+                        been moved, renamed or deleted; a template heavier than a single message may
+                        carry is refused when you save it, with the reason shown in the editor</li>
                     <li>Save a half-written message as a draft and pick it up later: a draft reopens
                         in the compose window with its recipients, subject, text and attached files as
                         you left them (only Bcc needs typing again) and finishing it replaces the
@@ -110,11 +118,15 @@
             <div class="group">
                 <h3>🗂️ Folders and tags</h3>
                 <ul>
-                    <li>Colour tags that sync across devices as IMAP keywords, plus read, star and junk marks</li>
+                    <li>Colour tags that sync across devices as IMAP keywords, plus read, star and junk marks.
+                        A read, star or tag change the server has not yet taken waits on your machine; the
+                        next sync sends them as one batch per folder and clears each once the server
+                        confirms it</li>
                     <li>Nested folders you create and reorganise by drag: the plus beside the Folders
                         heading makes one at the top level and New subfolder on a folder's right-click
                         menu makes one inside it; the arrangement you settle on
-                        is remembered per account and survives updates and reinstalls</li>
+                        is remembered per account and survives updates, plus any reinstall that keeps
+                        your data</li>
                     <li>Drag mail into a folder and it goes at once: the message leaves the list on the
                         drop rather than after the server has caught up, the folder that took it flashes
                         so you can see where it went; holding a drag near the edge of the folder
@@ -131,7 +143,7 @@
                 <ul>
                     <li>Message HTML renders faithfully in a sandboxed frame that keeps the sender's own
                         styling while running no scripts, with remote images and CSS backgrounds held back
-                        until you load them</li>
+                        until you load them (or tick Load images by default)</li>
                     <li>In the dark theme the reader darkens each part of a message by the background its
                         sender actually chose, so one that mixes a dark brand panel with a white footer
                         reads correctly throughout and photos and logos keep their true colour</li>
@@ -149,8 +161,8 @@
                         banner in the window you can click to open it and a desktop notification</li>
                     <li>Print a message through the system print dialog; remote images print only once
                         you have loaded them</li>
-                    <li>Help &gt; Guide names every picture the window draws, from the menus and controls
-                        along the top bar to each mark in the folder list; it states the rules the
+                    <li>Help &gt; Guide names the pictures along the top bar, in the folder list and in
+                        the strip at the foot of the window; it states the rules the
                         windows cannot state for themselves: what is held on your machine, what a
                         permanent delete means and what a snooze or a scheduled send needs from the app;
                         each section's heading holds at the top while that section is read</li>

@@ -15,7 +15,7 @@ How to set up, run, test, build and package PigeonPost from source.
 Platform build dependencies (C toolchains, Xcode tools on macOS, gcc/WebKit on Linux) are described by
 `wails doctor`. Run it once after installing the CLI:
 
-```
+```powershell
 wails doctor
 ```
 
@@ -23,9 +23,9 @@ Note: the Go backend's own code needs no CGO (pure-Go SQLite via modernc.org/sql
 the app builds without a C compiler. On macOS and Linux Wails binds to the system WebView through CGO,
 which is why those builds need the C toolchain `wails doctor` describes.
 
-## First run
+## Running from source
 
-```
+```powershell
 git clone https://github.com/oernster/pigeonpost
 cd pigeonpost
 wails dev
@@ -41,22 +41,32 @@ The app stores its data in a per-user directory:
 - Linux, running from source on the host: `~/.config/PigeonPost/pigeonpost.db` (the directory follows
   `XDG_CONFIG_HOME`, which the Flatpak sets to its own sandbox location)
 
-Beside the database sits `mail-errors.log`, holding the raw text of any mail error the interface
-replaced with a message of its own, one failure per line. It is created on the first such failure, so an
-installation that never has one never grows it. It rolls over at a quarter of a megabyte keeping one
-previous generation.
-
 Passwords are never stored there; they live in the OS keychain.
+
+### Where the logs live
+
+Two logs sit beside the database, in the same folder (`%APPDATA%\PigeonPost\` on Windows).
+
+- `run.log` is written by every run. It opens with a line naming when the run started, then holds every
+  line the Go core writes through its standard logger, a start and an end line for each folder listing, folder fetch and replayed
+  flag push against an IMAP server, plus the Go runtime's report of any crash. A windowed Windows program
+  has no error output of its own, so without this file those lines went nowhere. Once it is over 1 MB it
+  is started afresh at the next launch.
+- `mail-errors.log` holds the raw text of mail failures, one per line: every error the interface
+  replaced with a message of its own, every sync failure (translated or not), every failed background
+  mail check, every sent message whose copy could not be saved to Sent and every snooze that came due with
+  no message left to return. It is created on the first such failure, so an installation that never has one
+  never grows it. It rolls over at a quarter of a megabyte keeping one previous generation.
 
 ## Project layout
 
-```
+```text
 main.go + app.go + one binding file per feature surface (accounts, mail, folders, send, draft recovery, outbox, snooze, tags, rules, rules files, templates, calendar, CalDAV, contacts, scheduling, export, .eml files, updates, About) + the background goroutines (mailnotifier.go, alarmscheduler.go, outboxdispatcher.go, the snooze scheduler) + mailerrors.go (turns a mail server's own words into a message fit to read, recording the original through errlog) + dto.go + clock.go   composition root + Wails facade (package main)
 internal/domain/            pure value objects, no IO (100% test gate)
 internal/application/        use cases + port interfaces (100% test gate)
 internal/infrastructure/
     storage/                SQLite store (migrations, outbox with send-later holds, snooze state, rules, contacts, calendar, reminders, meeting scheduling, draft recovery, cached message attachments, CalDAV accounts, two-way calendar sync, folder display state, full-text search index)
-    imap/                   emersion go-imap source adapter (sync, bodies, draft append, IDLE watcher)
+    imap/                   emersion go-imap source adapter (sync from a UID and flags listing, bodies, draft append, batched flag and tag replay, IDLE watcher, one parked connection per account)
     pop3/                   hand-rolled POP3 client (download-to-inbox, local flags)
     smtp/                   emersion go-smtp transport
     mailrouter/             dispatches reads, verification and actions by account protocol
@@ -71,7 +81,8 @@ internal/infrastructure/
     oauth/                  Microsoft OAuth token flow (authorization code + PKCE, loopback redirect)
     remoteimage/            SSRF-guarded fetcher that inlines blocked remote images and CSS backgrounds on request
     update/                 GitHub latest-release source for the update check
-    errlog/                 raw text of a mail error the facade replaces with one fit to read
+    errlog/                 mail-errors.log: raw text of mail failures, including those the facade replaces with a message fit to read
+    runlog/                 run.log: each run's start line, log lines and crash reports
     keychain/               OS keychain vault
     taskbar/                Windows taskbar unread badge, tray icon and desktop notifications (no-op stub elsewhere)
     sound/                  synthesised notification chimes, one per announcement kind, played through winmm on Windows (no-op stub elsewhere)
@@ -89,21 +100,31 @@ docs/                       GitHub Pages landing site
 
 Run the app in development:
 
-```
+```powershell
 wails dev
 ```
 
 Regenerate the front-end bindings after changing an `App` method:
 
-```
+```powershell
 wails generate module
 ```
+
+Run the tests (see [TESTING.md](TESTING.md) for detail):
+
+```powershell
+go test ./...                    # Go suite
+./test.ps1                       # formatting, vet, Go suite and the coverage gate
+cd frontend; npx vitest run      # front-end suite (Vitest + jsdom)
+```
+
+## Generated assets
 
 Regenerate the derived image assets after changing any master: `pigeonpost.png` (the app icon) or
 `donate.png` (the donate button's artwork) at the repo root; or any PNG in `assets/` (the title-bar and
 folder-list glyphs):
 
-```
+```powershell
 go run ./tools/genicons
 ```
 
@@ -134,14 +155,6 @@ height is the shortest ink height among them, since artwork is only ever reduced
 is `File` at 360px of ink. Raising `--titlebar-glyph-size` means raising `glyphHeight` with it; 360px is
 the number it must stay under.
 
-Run the tests (see [TESTING.md](TESTING.md) for detail):
-
-```
-go test ./...                    # Go suite
-./test.ps1                       # formatting, vet, Go suite and the coverage gate
-cd frontend && npx vitest run    # front-end suite (Vitest + jsdom)
-```
-
 ## Building
 
 Each platform has one entry-point script at the repo root; each produces that platform's
@@ -151,7 +164,7 @@ distributable.
 
 Build just the application executable:
 
-```
+```powershell
 wails build
 ```
 
@@ -161,15 +174,24 @@ regenerating the icons and the site's asset links, so it can modify tracked file
 
 Build the application and the bespoke installer:
 
-```
+```powershell
 ./build.ps1
 ```
 
-`build.ps1` runs in order: generate icons, version the site's stylesheet and script links by content
-(`tools/stampassets`, which stops the build if a page links a file that is missing), `wails build` (the
-app), zip the built app as the
-installer payload, then `wails build` the installer under `installer/`, which embeds that payload. The
-installer is a Wails app so it shares the application's WebView and dark theme; it supports
+`build.ps1` runs in order:
+
+1. generate icons (`tools/genicons`);
+2. version the site's stylesheet and script links by content (`tools/stampassets`, which stops the
+   build if a page links a file that is missing);
+3. `wails build` the app;
+4. zip `build/bin` as `installer/payload.zip`;
+5. `wails build` the installer under `installer/`, which embeds that payload and is stamped with the
+   version read from `VERSION`;
+6. copy the setup program to `dist-installer/`;
+7. put the tiny empty-zip placeholder back in `installer/payload.zip`, so `go build ./...` keeps working
+   without a full build.
+
+The installer is a Wails app so it shares the application's WebView and dark theme; it supports
 install, repair, upgrade and uninstall, plus a launch-on-boot option.
 
 Outputs:
@@ -183,7 +205,7 @@ Outputs:
 Prerequisites: an arm64 Mac with the Xcode command line tools, Go and Homebrew; the script
 installs the Wails CLI, Node and `create-dmg` itself when they are missing.
 
-```
+```bash
 bash builddmg.sh
 ```
 
@@ -214,7 +236,7 @@ host with `wails generate module` before the tree is copied into the sandbox, si
 Wails CLI; the script stops with an install hint when it cannot find one. Node and WebKit come from the
 flatpak SDKs, as do the Go toolchain and Node used for the build itself.
 
-```
+```bash
 bash build_flatpak.sh
 ```
 
@@ -228,7 +250,7 @@ distributable bundle.
 
 Outputs: a user install (`flatpak run uk.codecrafter.PigeonPost`) and `pigeonpost.flatpak`.
 
-```
+```bash
 bash cleanup_flatpak.sh
 ```
 
@@ -266,6 +288,24 @@ The single source of truth for the version is the `VERSION` file at the repo roo
 it (embedded via `go:embed`); the Windows build stamps it into the installer, the macOS build stamps
 it into the app bundle's Info.plist and the flatpak build stamps it into the metainfo release entry.
 Do not hardcode a version anywhere else.
+
+## Cutting a release
+
+1. Set the new version in `VERSION` and commit it.
+2. Build each platform's distributable from that commit: `./build.ps1` on Windows, `bash builddmg.sh` on
+   an Apple Silicon Mac (notarized; never `ALLOW_UNNOTARIZED=1`) and `bash build_flatpak.sh` on Linux.
+3. Tag the commit `v` plus the contents of `VERSION`, matching the existing tags.
+4. Publish a GitHub release on that tag carrying the three files under exactly these names:
+   `PigeonPostSetup.exe`, `PigeonPost.dmg` and `pigeonpost.flatpak`. The site's download buttons link
+   `releases/latest/download/<name>`, so a renamed file breaks them.
+
+```powershell
+$version = (Get-Content VERSION).Trim()
+gh release create "v$version" dist-installer/PigeonPostSetup.exe PigeonPost.dmg pigeonpost.flatpak
+```
+
+Publish it as a full release. The in-app update check reads GitHub's latest-release endpoint, which never
+reports a draft or a prerelease, so neither of those prompts anyone to update.
 
 ## Licence
 

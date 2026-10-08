@@ -24,7 +24,7 @@
           content="PigeonPost filter rules: as many conditions as you need, a NOT switch for exclusions, a Now button for the mail you already have, plus export and import as readable JSON."/>
     <meta name="twitter:image" content="https://pigeonpost.ink/screenshots/compose.png"/>
     <link rel="icon" type="image/png" href="pigeonpost.png"/>
-    <link rel="stylesheet" href="site.css?v=af211d11d9"/>
+    <link rel="stylesheet" href="site.css?v=be566e1a19"/>
 </head>
 <body>
 <div class="wrap">
@@ -57,18 +57,24 @@
                 <h3>🧹 Filter rules</h3>
                 <ul>
                     <li>Filter rules that combine as many conditions as you need, matched on all or
-                        any of them, against the sender, the recipients, the subject, the sender's whole
-                        domain or every field at once, with case matching per condition.</li>
+                        any of them, against the sender, the To or Cc recipients or any recipient, the
+                        subject, the sender's whole domain or every field at once, with case matching per
+                        condition.</li>
                     <li>A rule can mark
                         read, flag, move to a folder of your choice or delete permanently, run on every
                         account or only the ones you pick and be reordered, switched off or set to stop
-                        later rules. Left to themselves they act on the Inbox and only on mail arriving
-                        after you write them, so adding one never reaches back over the mail you already
-                        have; a mailbox the server renumbers is taken as it stands rather than as new mail.
-                        One gap remains: mail another program moves into the Inbox arrives under a new
-                        number, so a rule treats it as new. Adding an account is the one exception: its first sync applies your rules'
-                        mark-read and flag actions to what its Inbox already holds, while their moves and
-                        deletions never touch that backlog</li>
+                        later rules. They act on the Inbox and only on mail the app has not seen before,
+                        so adding one never reaches back over the mail already on your machine; a mailbox
+                        the server renumbers is taken as it stands rather than as new mail. One gap
+                        remains: mail another program moves into the Inbox arrives under a new number, so
+                        a rule treats it as new.</li>
+                    <li>On an IMAP account a rule's mark-read and flag on arriving mail are made on your
+                        machine only, so the next sync brings back the server's own read and flag state;
+                        moves and deletions are carried out on the server. Applying a rule with Now
+                        (below) does send its marks to the server.</li>
+                    <li>Adding an account new to this installation is the one exception to arrival only:
+                        its first sync applies your rules' mark-read and flag actions to what its Inbox
+                        already holds, while their moves and deletions never touch that backlog</li>
                     <li>Filter rules and message templates each have their own button on the title bar,
                         so neither is buried in a menu</li>
                     <li>A NOT switch on each condition, so every comparison has its opposite: is not,
@@ -84,7 +90,7 @@
             <div class="group">
                 <h3>▶️ Applying and sharing rules</h3>
                 <ul>
-                    <li>A Now button on each rule applies it to the mail you already have, across every
+                    <li>A Now button on each rule applies it to the mail already on your machine, across every
                         folder of every account that rule covers. It shows you what the rule found first,
                         counting the stored messages it was checked against and the ones it would mark,
                         flag, move or delete, then acts only once you agree; a rule that would change
@@ -95,18 +101,20 @@
                         rather than leaving you guessing; Cancel stops one that is taking longer than
                         you want.</li>
                     <li>Stopping is not an undo: the report then tells you what had already been
-                        done, because that part really did happen. Either way you are told what actually
-                        happened, so a run the server partly refused names the part that landed</li>
+                        done, because that part really did happen. A run the server partly refuses
+                        shows the server's error in place of that report, so look over the folders it
+                        covered before running it again</li>
                     <li>Export your rules to a file and import them on another machine. The file is
                         readable JSON naming a move's destination as the account and mailbox path, so
                         you can open it, read it and hand-edit it.</li>
                     <li>An import tells you what the file
-                        holds before it writes anything: what arrives, what replaces a rule of the same
-                        name, what comes in switched off and which of them move or delete mail.</li>
+                        holds before it writes anything: how many rules arrive, how many replace a rule
+                        of the same name, which come in switched off and which move or delete mail.</li>
                     <li>A rule
-                        that cannot run here, because it names a folder or accounts this installation
-                        does not have, arrives switched off rather than silently doing nothing, so it
-                        works once that folder syncs or that account is added</li>
+                        that cannot run here, because it moves to a folder this installation does not
+                        have or names only accounts it does not have, arrives switched off rather than
+                        silently doing nothing, so it can work once that folder syncs or that account is
+                        added</li>
                 </ul>
             </div>
         </div>
