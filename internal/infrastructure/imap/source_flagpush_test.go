@@ -76,6 +76,28 @@ func TestPushFlagLeavesOutWhatTheServerStillReportsOtherwise(t *testing.T) {
 	}
 }
 
+// $Forwarded is a keyword, so an added one is settled only where the server keeps it, as a tag is; a
+// system flag such as \Seen is settled whatever PERMANENTFLAGS says (see the tests above, which send none).
+func TestPushFlagSettlesForwardedOnlyWhereTheServerKeepsIt(t *testing.T) {
+	t.Parallel()
+	for name, tc := range map[string]struct {
+		permanent []string
+		want      []string
+	}{
+		"no PERMANENTFLAGS": {permanent: nil, want: nil},
+		"wildcard":          {permanent: []string{`\Seen`, `\*`}, want: queuedUIDs()[1:]},
+	} {
+		host, port := listenFake(t, script{permanentFlags: tc.permanent})
+		settled, err := fakeSource().PushFlag(context.Background(), fakeAccount(t, host, port), fakeFolder(t), queuedUIDs(), domain.FlagForwarded, true)
+		if err != nil {
+			t.Fatalf("%s: PushFlag: %v", name, err)
+		}
+		if len(settled) != len(tc.want) || (len(tc.want) > 0 && !reflect.DeepEqual(settled, tc.want)) {
+			t.Errorf("%s: settled = %v, want %v", name, settled, tc.want)
+		}
+	}
+}
+
 // A flag with no server counterpart connects to nothing; neither does an empty batch.
 func TestPushFlagWithNothingToPushDoesNotConnect(t *testing.T) {
 	t.Parallel()

@@ -27,14 +27,15 @@ var serverFlags = map[domain.Flag]imap.Flag{
 // of its own and clear none of them unless the message's folder happened to be fetched; 14785 mark-read
 // intents in folders no background pass fetches became a login every few seconds for as long as
 // PigeonPost ran; StartMail blocked the address for it on 2026-10-07. A flag with no server
-// counterpart pushes nothing and settles nothing, without connecting. It satisfies
-// application.MailActions.
+// counterpart pushes nothing and settles nothing, without connecting. $Forwarded is a keyword rather
+// than a system flag, so it is settled only where the server keeps it, exactly as PushKeyword does. It
+// satisfies application.MailActions.
 func (s *Source) PushFlag(ctx context.Context, account domain.Account, folder domain.Folder, uids []string, flag domain.Flag, set bool) ([]string, error) {
 	serverFlag, ok := serverFlags[flag]
 	if !ok {
 		return nil, nil
 	}
-	return s.pushFlag(ctx, account, folder, uids, serverFlag, set, func(*imap.SelectData) bool { return true })
+	return s.pushFlag(ctx, account, folder, uids, serverFlag, set, settleableFor(serverFlag, set))
 }
 
 // PushKeyword is PushFlag for a tag keyword, the replay of pending tag intents. One difference: a server
@@ -46,9 +47,24 @@ func (s *Source) PushFlag(ctx context.Context, account domain.Account, folder do
 // the tag as before. A removal is always safe to settle. It satisfies application.MailActions.
 func (s *Source) PushKeyword(ctx context.Context, account domain.Account, folder domain.Folder, uids []string, keyword string, set bool) ([]string, error) {
 	serverFlag := imap.Flag(keyword)
-	return s.pushFlag(ctx, account, folder, uids, serverFlag, set, func(data *imap.SelectData) bool {
-		return !set || keeps(data.PermanentFlags, serverFlag)
-	})
+	return s.pushFlag(ctx, account, folder, uids, serverFlag, set, settleableFor(serverFlag, set))
+}
+
+// settleableFor answers when a push of flag can be settled from its read-back. A system flag (\Seen,
+// \Answered, \Flagged) always can: RFC 3501 defines them. A keyword ($Forwarded, a tag) can be held for
+// the session only, so an added one is settled only where the SELECT said the server keeps it; a
+// removal always can, since a keyword the server could not keep is absent anyway.
+func settleableFor(flag imap.Flag, set bool) func(*imap.SelectData) bool {
+	if isSystemFlag(flag) || !set {
+		return func(*imap.SelectData) bool { return true }
+	}
+	return func(data *imap.SelectData) bool { return keeps(data.PermanentFlags, flag) }
+}
+
+// isSystemFlag reports whether flag is one of IMAP's system flags, which all begin with a backslash; a
+// keyword never does.
+func isSystemFlag(flag imap.Flag) bool {
+	return len(flag) > 0 && flag[0] == '\\'
 }
 
 // keeps reports whether a PERMANENTFLAGS list says the server keeps the given keyword. go-imap reads a

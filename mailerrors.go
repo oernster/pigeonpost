@@ -151,6 +151,20 @@ func (a *App) mailError(err error) error {
 	return friendly
 }
 
+// syncMailError is mailError for the sync entry points; it records every failure, translated or not.
+// mailError leaves a pass-through error out of the log because its own detail reaches the reader; a
+// sync's does not. The front end calls SyncFolder after every move, on a timer and on opening a folder;
+// it treats each failure as something the next sync will reconcile, so it shows nothing. A
+// folder whose fetch failed for a reason with no wording therefore failed in silence: a Hotmail account's
+// 17,348-message Sent folder sat at 2026-08-28 for six weeks with nothing in mail-errors.log to say why.
+func (a *App) syncMailError(err error) error {
+	friendly := a.mailError(err)
+	if friendly != nil && friendly == err && a.mailErrors != nil {
+		a.mailErrors.Record(err)
+	}
+	return friendly
+}
+
 // recordLostSentCopies records every application.ErrSentCopyNotSaved in err and answers what is left. A
 // lost Sent copy belongs to a message that was delivered, so it must never reach the interface as a failed
 // send; recording it keeps it from vanishing as it used to. A replay joins its items' errors at the top

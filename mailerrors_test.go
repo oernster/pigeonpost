@@ -200,6 +200,28 @@ func TestMailErrorLeavesNilAlone(t *testing.T) {
 	}
 }
 
+// A sync's failure reaches nobody (its callers show nothing), so even one passed through unchanged is
+// recorded, once; a translated one is recorded once by mailError and not again; nil records nothing.
+func TestSyncMailErrorRecordsEveryFailureOnce(t *testing.T) {
+	t.Parallel()
+	spy := &recordingSpy{}
+	app := &App{mailErrors: spy}
+	raw := errors.New("imap: select \"Sent\": use of closed network connection")
+	if got := app.syncMailError(raw); got != raw {
+		t.Fatalf("syncMailError returned %v, want the error unchanged", got)
+	}
+	translated := fmt.Errorf("sync: %w", domain.ErrUnreadableResponse)
+	if got := app.syncMailError(translated); got != errUnreadableResponse {
+		t.Fatalf("syncMailError returned %v, want the translated message", got)
+	}
+	if got := app.syncMailError(nil); got != nil {
+		t.Fatalf("syncMailError(nil) = %v, want nil", got)
+	}
+	if len(spy.recorded) != 2 || spy.recorded[0] != raw || spy.recorded[1] != translated {
+		t.Fatalf("recorded %v, want the raw failure and the translated one, once each", spy.recorded)
+	}
+}
+
 // lostCopy is the error a delivered send answers when its Sent copy could not be saved.
 func lostCopy(account string) error {
 	return fmt.Errorf("%w for %s: boom", application.ErrSentCopyNotSaved, account)

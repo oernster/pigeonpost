@@ -33,6 +33,12 @@ type TokenProvider interface {
 // parking) and dials only when none does.
 func (s *Source) connect(ctx context.Context, account domain.Account) (*imapclient.Client, error) {
 	shared := sessionFor(ctx, account)
+	if shared != nil && shared.client != nil && isClosed(shared.client) {
+		// The client library closes a connection whose reply it cannot decode. Handing the session that
+		// dead connection again would fail the fallback fetch and every folder after it in the sync.
+		s.parking.giveBack(shared.client)
+		shared.client = nil
+	}
 	if shared != nil && shared.client != nil {
 		return shared.client, nil
 	}

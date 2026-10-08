@@ -354,15 +354,15 @@ func (a *App) GetMessageBody(messageID string) (MessageBodyDTO, error) {
 // it does nothing.
 func (a *App) SyncAccount(accountID string) error {
 	if err := a.folders.ReconcileSent(a.ctx, accountID); err != nil {
-		return a.mailError(err)
+		return a.syncMailError(err)
 	}
-	return a.mailError(a.sync.SyncAccount(a.ctx, accountID))
+	return a.syncMailError(a.sync.SyncAccount(a.ctx, accountID))
 }
 
 // SyncFolder refreshes a single folder's messages from the server, the light path used when a folder
 // is opened rather than syncing the whole account.
 func (a *App) SyncFolder(folderID string) error {
-	return a.mailError(a.sync.SyncFolder(a.ctx, folderID))
+	return a.syncMailError(a.sync.SyncFolder(a.ctx, folderID))
 }
 
 // SyncAllInboxes refreshes every account's inbox folders from their servers, the unified mailbox's
@@ -371,5 +371,5 @@ func (a *App) SyncFolder(folderID string) error {
 // sync caches what the user is already looking at.
 func (a *App) SyncAllInboxes() error {
 	_, err := a.sync.SyncInboxes(a.ctx)
-	return a.mailError(err)
+	return a.syncMailError(err)
 }

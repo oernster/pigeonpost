@@ -1071,6 +1071,35 @@ the outcome in `UpdateModal` (Download via the existing `OpenExternal` scheme al
 Version persisted in localStorage with the other presentation preferences, Later). Automatic checks
 surface nothing on failure or when up to date; the manual check reports both.
 
+## IMAP connections
+
+Every IMAP operation reaches the server through `Source.connect` and gives its connection back through
+`Source.release` (`internal/infrastructure/imap/source_auth.go`, `session.go`). What happens between the two is
+the whole of PigeonPost's connection policy, held in one place because a mail client that logs in too
+often gets its address blocked: StartMail did exactly that on 2026-10-07.
+
+- **A sync is one session.** `MailSource.BeginSession` puts a session on the context; every operation of
+  that sync (the folder list, the flag and tag replays, every folder's fetch) shares one connection. A
+  full sync of 49 folders made about 51 logins before it.
+- **Between operations one connection per account is parked** (`parking.go`). `release` parks a
+  connection rather than logging it out; the next operation for the same account, the same server, the
+  same user and the same sign-in method takes it, after a NOOP proves it still answers within the dial
+  timeout. A parked connection is logged out after five minutes idle, well inside the 30 minutes RFC
+  3501 has a server keep one. Two operations at once each get a connection; when both finish one is
+  parked and the other logged out, so the idle count never passes one. A session's connection is
+  parked when the session ends, so a click after a sync costs no login.
+- **A dead connection is never handed out.** The client library closes a connection whose reply it
+  cannot decode; `connect` replaces a session's closed connection and the lot drops a closed one rather
+  than parking it, so the fallback fetch and every later folder of the sync get a working connection.
+- **Replays go one folder at a time.** Pending flag and tag intents are pushed as one batch per folder,
+  key and value (`MailActions.PushFlag`, `PushKeyword`), each over one connection; each is cleared as
+  soon as the read-back shows the server agrees. A keyword ($Forwarded, a tag) is cleared on an add only where
+  the SELECT's PERMANENTFLAGS says the server keeps it, since a session-only keyword would otherwise
+  clear the intent guarding a local tag.
+
+The IDLE watcher keeps its own long-lived connection per account and is outside all of this: it is
+waiting on the server, so it cannot be shared.
+
 ## Errors
 
 Wrapped with `fmt.Errorf("...: %w", err)` and matched with `errors.Is` against sentinel errors. No
@@ -1096,6 +1125,13 @@ records the original through `errlog` first, because a message fit to read asser
 a cause is exactly when the evidence for it stops being available. An error passed through unchanged
 still carries its own detail, so it is not recorded and the log stays a list of the cases where something
 was hidden.
+
+The sync bindings (`SyncAccount`, `SyncFolder`, `SyncAllInboxes`) are the exception and go through
+`App.syncMailError`, which records every failure, translated or not. The premise above does not hold for
+them. The front end calls `SyncFolder` after every move, on a timer and on opening a folder; it treats a
+failure as something the next sync reconciles, so it shows nothing and an untranslated error's detail
+reaches nobody. A Hotmail account's Sent folder stopped refreshing for six weeks that way with nothing in
+the log. `TestSyncMailErrorRecordsEveryFailureOnce` holds it.
 
 The last three are worded to assert as little as the failure carries, which is what the recording above
 exists to compensate for and is better than needing it. A tagged refusal names no reason, so
