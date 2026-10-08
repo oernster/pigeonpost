@@ -20,14 +20,15 @@ func readMessage(t *testing.T, id, folderID string) domain.MessageSummary {
 	return m
 }
 
-// inboxFixture wires a sync service with one IMAP account whose inbox folder f1 is already cached, so
-// SyncInboxes treats it as an already-populated inbox rather than a first population.
+// inboxFixture wires a sync service with one IMAP account whose inbox folder f1 has had its baseline
+// pass, so SyncInboxes treats it as an established inbox rather than a first population.
 func inboxFixture(t *testing.T) (*fakeAccountStore, *fakeMailStore, *fakeMailSource, *fakeRuleStore, *SyncService) {
 	t.Helper()
 	accounts := newFakeAccountStore()
 	accounts.accounts["a1"] = testAccount(t, "a1")
 	mail := newFakeMailStore()
 	mail.folders["a1"] = []domain.Folder{testFolder(t, "f1", "a1", "INBOX")}
+	mail.baselined = map[string]bool{"f1": true}
 	source := &fakeMailSource{messagesByFolder: map[string][]domain.MessageSummary{}}
 	rules := &fakeRuleStore{}
 	return accounts, mail, source, rules, NewSyncService(accounts, mail, source, rules, &fakeTagSyncer{}, &fakeFlagSyncer{}, NewRuleExecutor(mail, &fakeMailActions{}))
@@ -95,6 +96,7 @@ func twoInboxFixture(t *testing.T) (*fakeMailStore, *SyncService) {
 	accounts, mail, source, _, svc := inboxFixture(t)
 	accounts.accounts["a2"] = testAccount(t, "a2")
 	mail.folders["a2"] = []domain.Folder{testFolder(t, "f2", "a2", "INBOX")}
+	mail.baselined["f2"] = true
 	source.messagesByFolder["f1"] = []domain.MessageSummary{testMessage(t, "m1", "f1")}
 	source.messagesByFolder["f2"] = []domain.MessageSummary{testMessage(t, "m2", "f2")}
 	return mail, svc
@@ -147,8 +149,8 @@ func TestSyncAccountInboxUnknownAccountSyncsNothing(t *testing.T) {
 }
 
 func TestSyncInboxesReportsMailIntoEmptyFolder(t *testing.T) {
-	// A message arriving into a folder with nothing cached is still reported: the poller establishes the
-	// baseline with a priming call, so an empty inbox does not silence its first real arrival.
+	// A message arriving into a baselined folder with nothing cached (an inbox kept at zero) is still
+	// reported: only a folder never baselined treats what it holds as a starting point.
 	_, mail, source, _, svc := inboxFixture(t)
 	source.messagesByFolder["f1"] = []domain.MessageSummary{testMessage(t, "m1", "f1")}
 	fresh, err := svc.SyncInboxes(context.Background())

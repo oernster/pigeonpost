@@ -55,21 +55,28 @@ func (s *SyncService) fetchFolder(ctx context.Context, account domain.Account, f
 }
 
 // knownFor returns the set of ids the rules and the arrival notice treat as already held. On a
-// renumbered folder that is everything just fetched, so nothing in it counts as an arrival: this is the
-// one place the rebaseline is decided, shared by every sync path.
-func (f folderFetch) knownFor(cached map[string]struct{}) map[string]struct{} {
-	if f.renumbered {
+// renumbered folder that is everything just fetched, so nothing in it counts as an arrival. The same
+// holds for a folder never baselined (see FolderBaselined): its first pass records a starting point,
+// so a newly added account's existing inbox is neither announced as new mail nor handed to the rules,
+// whichever pass (the front end's sync, an IDLE push or the poll) reaches it first. This is the one
+// place the rebaseline is decided, shared by every sync path.
+func (f folderFetch) knownFor(cached map[string]struct{}, baselined bool) map[string]struct{} {
+	if f.renumbered || !baselined {
 		return knownSetOf(f.messages)
 	}
 	return cached
 }
 
-// settleFolder records what a saved folder now stands for: its baseline mark, then the UIDVALIDITY its
-// cached UIDs belong to. Both run only after the save, so a failed save leaves the old value in place
-// and the next pass rebaselines again rather than reading the new UIDs as arrivals.
-func (s *SyncService) settleFolder(ctx context.Context, folder domain.Folder, validity uint32) error {
+// settleFolder records what a saved folder now stands for: its baseline mark, the pending intents for
+// the flags the rules set on its arrivals (see recordRuleMarks), then the UIDVALIDITY its cached UIDs
+// belong to. All run only after the save, so a failed save leaves the old value in place and the next
+// pass rebaselines again rather than reading the new UIDs as arrivals.
+func (s *SyncService) settleFolder(ctx context.Context, folder domain.Folder, validity uint32, marks []ruleMark) error {
 	if err := s.markBaselined(ctx, folder); err != nil {
 		return fmt.Errorf("mark baseline: %w", err)
+	}
+	if err := s.recordRuleMarks(ctx, marks); err != nil {
+		return fmt.Errorf("record rule flags: %w", err)
 	}
 	if validity == unknownUIDValidity {
 		return nil

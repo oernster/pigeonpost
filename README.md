@@ -238,7 +238,8 @@ crash.
 - **Notifications**: new mail raises a native desktop notification and updates a Windows taskbar badge.
   Each IMAP account is watched by a persistent IDLE connection with a 60-second poll backstop (and for
   POP3). A push from the server checks that account alone and only an inbox that has grown counts as new
-  mail. Mail already in an inbox when the app starts is not announced. On Windows PigeonPost sounds its own chimes rather than the
+  mail. Mail already in an inbox when the app starts is not announced; nor is mail already in the inbox
+  of an account added while the app runs, which only announces mail arriving after its first check. On Windows PigeonPost sounds its own chimes rather than the
   shell's default; each of the three things it announces has its own: new mail, a calendar reminder
   and a snoozed message coming back. They differ in how many notes sound and in their rhythm, so they
   are told apart by ear from each other and from every other app's notification; elsewhere the sound is

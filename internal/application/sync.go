@@ -114,7 +114,7 @@ func (s *SyncService) SyncAccount(ctx context.Context, accountID string) error {
 		// Filter rules act on arriving inbox mail: they set flags, move messages into another folder
 		// or destroy them outright. A rule that could not be carried out is reported after the save
 		// below, so what did work is still stored.
-		messages, ruleErr := s.applyRules(ctx, account, folder, fetch, rules)
+		messages, marks, ruleErr := s.applyRules(ctx, account, folder, fetch, rules)
 		messages, err = s.preserveFlags(ctx, account, folder, messages)
 		if err != nil {
 			return fmt.Errorf("sync: preserve flags for %q: %w", folder.Path(), err)
@@ -125,8 +125,9 @@ func (s *SyncService) SyncAccount(ctx context.Context, accountID string) error {
 		if err := s.mail.SaveMessages(ctx, folder.ID(), messages); err != nil {
 			return fmt.Errorf("sync: save messages for %q: %w", folder.Path(), err)
 		}
-		// Only now that the folder's contents are cached are its baseline and UIDVALIDITY established.
-		if err := s.settleFolder(ctx, folder, fetch.validity); err != nil {
+		// Only now that the folder's contents are cached are its baseline, UIDVALIDITY and the rules'
+		// marks established.
+		if err := s.settleFolder(ctx, folder, fetch.validity, marks); err != nil {
 			return fmt.Errorf("sync: settle %q: %w", folder.Path(), err)
 		}
 		if ruleErr != nil {
@@ -161,7 +162,7 @@ func (s *SyncService) SyncFolder(ctx context.Context, folderID string) error {
 		return fmt.Errorf("sync: fetch messages for %q: %w", folder.Path(), err)
 	}
 	s.reconcileTags(ctx, account, fetch.messages)
-	messages, ruleErr := s.applyRules(ctx, account, folder, fetch, rules)
+	messages, marks, ruleErr := s.applyRules(ctx, account, folder, fetch, rules)
 	messages, err = s.preserveFlags(ctx, account, folder, messages)
 	if err != nil {
 		return fmt.Errorf("sync: preserve flags for %q: %w", folder.Path(), err)
@@ -172,8 +173,9 @@ func (s *SyncService) SyncFolder(ctx context.Context, folderID string) error {
 	if err := s.mail.SaveMessages(ctx, folder.ID(), messages); err != nil {
 		return fmt.Errorf("sync: save messages for %q: %w", folder.Path(), err)
 	}
-	// Only now that the folder's contents are cached are its baseline and UIDVALIDITY established.
-	if err := s.settleFolder(ctx, folder, fetch.validity); err != nil {
+	// Only now that the folder's contents are cached are its baseline, UIDVALIDITY and the rules' marks
+	// established.
+	if err := s.settleFolder(ctx, folder, fetch.validity, marks); err != nil {
 		return fmt.Errorf("sync: settle %q: %w", folder.Path(), err)
 	}
 	if ruleErr != nil {
@@ -184,9 +186,10 @@ func (s *SyncService) SyncFolder(ctx context.Context, folderID string) error {
 
 // SyncInboxes fetches every account's inbox folders, saves what it finds and returns the messages that
 // are newly arrived (a message id not already cached) across all accounts, less any a filter rule marked
-// read on arrival (see refreshInbox), so the caller can raise a desktop notification. It does NOT suppress a first population: the caller establishes a
-// baseline with an initial priming call so it does not announce an existing inbox, which lets a genuinely
-// new message into a previously empty inbox still be reported. A per-account or per-folder failure is
+// read on arrival (see refreshInbox), so the caller can raise a desktop notification. An inbox never
+// baselined is a first population and announces nothing (see folderFetch.knownFor), so a newly added
+// account's existing mail is not reported whichever pass reaches it first; an inbox that has been
+// baselined and then emptied still reports its next genuine arrival. A per-account or per-folder failure is
 // skipped rather than failing the pass, so one unreachable account does not silence the others; every
 // one skipped is joined into the error, beside the arrivals the rest of the pass found, so a caller can
 // record a failure that would otherwise go unseen for as long as the account stays broken.
@@ -248,10 +251,14 @@ func (s *SyncService) syncInboxesOf(ctx context.Context, include func(domain.Acc
 // refreshInbox fetches one inbox folder, applies the filter rules, saves the messages and returns the
 // ones that are newly arrived (an id not already cached), excluding only those a filter rule marked read
 // on arrival. Read state otherwise does not gate the result, so a message another client already marked
-// read still counts. A message into an empty folder counts as new; the caller's baseline priming keeps an
-// initial sync from being announced.
+// read still counts. A message into an emptied folder counts as new; one never baselined announces
+// nothing on its first pass.
 func (s *SyncService) refreshInbox(ctx context.Context, account domain.Account, folder domain.Folder, rules []domain.Rule) ([]domain.MessageSummary, error) {
 	existing, err := s.mail.ListMessages(ctx, folder.ID())
+	if err != nil {
+		return nil, err
+	}
+	baselined, err := s.folderBaselined(ctx, folder)
 	if err != nil {
 		return nil, err
 	}
@@ -260,9 +267,9 @@ func (s *SyncService) refreshInbox(ctx context.Context, account domain.Account, 
 		return nil, err
 	}
 	fetched := fetch.messages
-	// On a renumbered inbox every fetched message counts as already held, so the rules act on none of it
-	// and none of it is announced as new mail.
-	known := fetch.knownFor(knownSetOf(existing))
+	// On an inbox never baselined or renumbered every fetched message counts as already held, so the
+	// rules act on none of it and none of it is announced as new mail.
+	known := fetch.knownFor(knownSetOf(existing), baselined)
 	// Align local tag assignments with the server keywords before the rules run (IMAP only). Best-effort.
 	s.reconcileTags(ctx, account, fetched)
 	// Record each message's read state as the server reports it, before local rules run. A message
@@ -275,7 +282,7 @@ func (s *SyncService) refreshInbox(ctx context.Context, account domain.Account, 
 	// Rules run here too, so mail arriving on the background pass is filtered exactly as it is on an
 	// explicit sync. A rule that could not be carried out is best-effort at this call site, in keeping
 	// with the rest of the pass: it must not silence the other accounts.
-	messages, _ := s.applyRulesKnown(ctx, account, folder, fetched, known, rules)
+	messages, marks, _ := s.applyRulesKnown(ctx, account, folder, fetched, known, baselined, rules)
 	if account.Protocol() == domain.ProtocolPOP3 {
 		messages = carryOverFlags(existing, messages)
 	}
@@ -285,10 +292,11 @@ func (s *SyncService) refreshInbox(ctx context.Context, account domain.Account, 
 	if err := s.mail.SaveMessages(ctx, folder.ID(), messages); err != nil {
 		return nil, err
 	}
-	// Only now that the folder's contents are cached are its baseline and UIDVALIDITY established.
-	// Best-effort here, in keeping with the rest of this pass: an unmarked folder simply gets another
-	// protected pass; an unrecorded UIDVALIDITY means another rebaseline.
-	_ = s.settleFolder(ctx, folder, fetch.validity)
+	// Only now that the folder's contents are cached are its baseline, UIDVALIDITY and the rules' marks
+	// established. Best-effort here, in keeping with the rest of this pass: an unmarked folder simply gets
+	// another protected pass; an unrecorded UIDVALIDITY means another rebaseline; an unrecorded mark stays
+	// local until the next sync brings the server's state back.
+	_ = s.settleFolder(ctx, folder, fetch.validity, marks)
 	var fresh []domain.MessageSummary
 	for _, m := range messages {
 		if _, seen := known[m.ID()]; seen {

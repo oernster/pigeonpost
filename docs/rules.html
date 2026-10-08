@@ -68,13 +68,13 @@
                         the server renumbers is taken as it stands rather than as new mail. One gap
                         remains: mail another program moves into the Inbox arrives under a new number, so
                         a rule treats it as new.</li>
-                    <li>On an IMAP account a rule's mark-read and flag on arriving mail are made on your
-                        machine only, so the next sync brings back the server's own read and flag state;
-                        moves and deletions are carried out on the server. Applying a rule with Now
-                        (below) does send its marks to the server.</li>
-                    <li>Adding an account new to this installation is the one exception to arrival only:
-                        its first sync applies your rules' mark-read and flag actions to what its Inbox
-                        already holds, while their moves and deletions never touch that backlog</li>
+                    <li>On an IMAP account a rule's mark-read and flag on arriving mail reach the server
+                        too: they show on your machine at once, the next sync sends them to the server and
+                        they stay in place until the server agrees. Moves and deletions are carried out on
+                        the server straight away. Applying a rule with Now (below) sends its marks to the
+                        server as well.</li>
+                    <li>Adding an account leaves what its Inbox already holds alone: the first look at it
+                        only records what is there, so your rules act on mail that arrives after that</li>
                     <li>Filter rules and message templates each have their own button on the title bar,
                         so neither is buried in a menu</li>
                     <li>A NOT switch on each condition, so every comparison has its opposite: is not,

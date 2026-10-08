@@ -79,6 +79,8 @@ func TestSyncAppliesRules(t *testing.T) {
 	source.messagesByFolder = map[string][]domain.MessageSummary{"f1": {msg}}
 	source.folders = []domain.Folder{testFolder(t, "f1", "a1", "INBOX")}
 	rules.rules = []domain.Rule{newMarkReadRule(t, "r1", "news@")}
+	// An established inbox: on one never baselined nothing counts as an arrival.
+	mail.baselined = map[string]bool{"f1": true}
 	_ = accounts
 
 	if err := svc.SyncAccount(context.Background(), "a1"); err != nil {
@@ -333,6 +335,8 @@ func TestSyncFolderAppliesRules(t *testing.T) {
 	}
 	source.messagesByFolder = map[string][]domain.MessageSummary{"f1": {msg}}
 	rules.rules = []domain.Rule{newMarkReadRule(t, "r1", "news@")}
+	// An established inbox: on one never baselined nothing counts as an arrival.
+	mail.baselined = map[string]bool{"f1": true}
 
 	if err := svc.SyncFolder(context.Background(), "f1"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
