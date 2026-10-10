@@ -8,7 +8,6 @@ package application
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/oernster/pigeonpost/internal/domain"
@@ -69,7 +68,7 @@ func (s *SchedulingService) sendCalendar(ctx context.Context, account domain.Acc
 		return fmt.Errorf("scheduling: build message: %w", err)
 	}
 	if err := s.transport.Send(ctx, account, msg); err != nil {
-		if errors.Is(err, domain.ErrOffline) {
+		if domain.IsRetryLater(err) {
 			return s.enqueue(ctx, account.ID(), msg)
 		}
 		return fmt.Errorf("scheduling: send %s: %w", method, err)

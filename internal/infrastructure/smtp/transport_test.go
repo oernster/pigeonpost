@@ -5,6 +5,8 @@ import (
 	"strings"
 	"testing"
 
+	gosmtp "github.com/emersion/go-smtp"
+
 	"github.com/oernster/pigeonpost/internal/domain"
 )
 
@@ -90,6 +92,33 @@ func TestAuthErrorLeavesAnOrdinaryFailureUnmarked(t *testing.T) {
 	}
 	if !strings.Contains(got.Error(), "password is incorrect") {
 		t.Errorf("the server's response was lost: %v", got)
+	}
+}
+
+// A 4xx reply to AUTH is the server saying "not now", not "not you": 421 is the service being unavailable
+// (RFC 5321) and 454 a temporary authentication failure (RFC 4954). Both are marked as the server being
+// down so the send waits in the Outbox, never as a refused credential. 432 is a 4xx too but asks for a
+// password change, so it must not be read as an outage; neither may a 535.
+func TestAuthErrorMarksATemporaryRefusalAsUnavailable(t *testing.T) {
+	t.Parallel()
+	for _, code := range []int{421, 454} {
+		server := &gosmtp.SMTPError{Code: code, Message: "Account is temporarily unavailable"}
+		got := authError(server)
+		if !errors.Is(got, domain.ErrServerUnavailable) {
+			t.Errorf("a %d was not marked as the server being down: %v", code, got)
+		}
+		if errors.Is(got, domain.ErrSignInRefused) {
+			t.Errorf("a %d was read as a refused credential: %v", code, got)
+		}
+		if !strings.Contains(got.Error(), "temporarily unavailable") {
+			t.Errorf("the server's response was lost: %v", got)
+		}
+	}
+	for _, code := range []int{432, 535} {
+		got := authError(&gosmtp.SMTPError{Code: code, Message: "no"})
+		if errors.Is(got, domain.ErrServerUnavailable) {
+			t.Errorf("a %d was read as an outage: %v", code, got)
+		}
 	}
 }
 

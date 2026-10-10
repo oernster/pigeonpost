@@ -2,7 +2,6 @@ package application
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/oernster/pigeonpost/internal/domain"
@@ -67,7 +66,7 @@ func (s *ComposeService) replayClaimed(ctx context.Context, item domain.OutboxIt
 		return replayDelivered, nil
 	}
 	outcome := replayFailed
-	if errors.Is(sendErr, domain.ErrOffline) {
+	if domain.IsRetryLater(sendErr) {
 		outcome = replayOffline
 		if err := onOffline(id); err != nil {
 			return replayAborted, err

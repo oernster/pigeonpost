@@ -124,6 +124,14 @@ var ErrSignInRefused = errors.New("server refused the sign-in")
 // temporarily unavailable." and the reader was told to check a password that was correct.
 var ErrServerUnavailable = errors.New("server is temporarily unavailable")
 
+// IsRetryLater reports whether err is a failure that a later attempt may not meet: the server could not
+// be reached; else it said it was temporarily unavailable. Work that fails this way waits in the Outbox for
+// the next replay; anything else is final. It is the one home for that judgement, so every queueing
+// path agrees on it.
+func IsRetryLater(err error) bool {
+	return err != nil && (errors.Is(err, ErrOffline) || errors.Is(err, ErrServerUnavailable))
+}
+
 // ErrAppPasswordRequired marks a sign-in the server refused with its own statement that an
 // application-specific password is wanted in place of the account password. It is raised only on those
 // words, so the message it selects reports what the server said rather than a cause guessed from a

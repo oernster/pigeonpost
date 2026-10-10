@@ -2,6 +2,7 @@ package domain
 
 import (
 	"errors"
+	"fmt"
 	"testing"
 )
 
@@ -27,6 +28,30 @@ func TestIsAppPasswordRequired(t *testing.T) {
 			t.Parallel()
 			if got := IsAppPasswordRequired(tc.err); got != tc.want {
 				t.Errorf("IsAppPasswordRequired(%v) = %v, want %v", tc.err, got, tc.want)
+			}
+		})
+	}
+}
+
+// A failure worth trying again later is one where the server could not be reached or said it was down;
+// anything else (a refusal, a fault) is final and must not sit in the Outbox retrying forever.
+func TestIsRetryLater(t *testing.T) {
+	t.Parallel()
+	cases := map[string]struct {
+		err  error
+		want bool
+	}{
+		"nothing went wrong":     {nil, false},
+		"unreachable":            {fmt.Errorf("smtp: dial: %w", ErrOffline), true},
+		"down behind the server": {fmt.Errorf("smtp: authenticate: %w", ErrServerUnavailable), true},
+		"a refused sign-in":      {fmt.Errorf("imap: login: %w", ErrSignInRefused), false},
+		"an unrelated failure":   {errors.New("smtp: send: 550 no such user"), false},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			if got := IsRetryLater(tc.err); got != tc.want {
+				t.Errorf("IsRetryLater(%v) = %v, want %v", tc.err, got, tc.want)
 			}
 		})
 	}

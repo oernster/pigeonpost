@@ -104,7 +104,7 @@ var errAppPasswordRequired = errors.New(
 //lint:ignore ST1005 user-facing message shown verbatim in the UI
 var errServerUnavailable = errors.New(
 	"The mail server says it is temporarily unavailable. This is a problem at the mail provider, not " +
-		"with this account; nothing needs changing. Mail will be checked again automatically.")
+		"with this account; nothing needs changing. PigeonPost will try again automatically.")
 
 // errUnreadableResponse is the message shown when the server sent a reply the mail client could not
 // decode. The reader saw the grammar production that ran out ("in body-type-1part: imapwire: expected " +

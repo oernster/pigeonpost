@@ -96,6 +96,11 @@ func (t *Transport) Send(ctx context.Context, account domain.Account, msg domain
 // own rather than three lines inside the send, so the marking can be tested without a mail server:
 // without that, the detector below could be right and never wired to anything.
 func authError(err error) error {
+	// A temporary reply is the server saying "not now", not "not you", so it is marked as the server
+	// being down; the send then waits in the Outbox rather than failing.
+	if isTemporaryRefusal(err) {
+		return fmt.Errorf("smtp: authenticate: %w", errors.Join(err, domain.ErrServerUnavailable))
+	}
 	if isSMTPRefused(err) {
 		return fmt.Errorf("smtp: authenticate: %w", errors.Join(err, domain.ErrSMTPRefused))
 	}
@@ -106,6 +111,23 @@ func authError(err error) error {
 		return fmt.Errorf("smtp: authenticate: %w", errors.Join(err, domain.ErrAppPasswordRequired, domain.ErrSignInRefused))
 	}
 	return fmt.Errorf("smtp: authenticate: %w", err)
+}
+
+// The replies to AUTH that mean the server cannot serve the request right now: the service being
+// unavailable (RFC 5321) and a temporary authentication failure (RFC 4954). They are named one by one
+// rather than taken as the whole 4xx class, because 432 is a 4xx too and asks for a password change.
+const (
+	replyServiceUnavailable = 421
+	replyTemporaryAuthFail  = 454
+)
+
+// isTemporaryRefusal reports whether err is a reply the server marks as temporary rather than final.
+func isTemporaryRefusal(err error) bool {
+	var reply *gosmtp.SMTPError
+	if !errors.As(err, &reply) {
+		return false
+	}
+	return reply.Code == replyServiceUnavailable || reply.Code == replyTemporaryAuthFail
 }
 
 // smtpRefusedResponse is the phrase the server uses when the mailbox will not accept mail from a client,

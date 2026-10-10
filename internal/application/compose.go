@@ -2,7 +2,6 @@ package application
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
 
@@ -119,8 +118,8 @@ func (s *ComposeService) ClearDraftRecovery(ctx context.Context) error {
 }
 
 // Send builds a validated message from the draft with the account's address as the sender, then hands
-// it to the transport. When the server is unreachable the message is queued in the outbox instead of
-// failing; Send returns nil, since the message will be delivered on the next replay. A delivered message
+// it to the transport. When the server is unreachable or says it is temporarily unavailable the message
+// is queued in the outbox instead of failing; Send returns nil, since the message will be delivered on the next replay. A delivered message
 // whose Sent copy could not be saved answers ErrSentCopyNotSaved, which is never a failed send.
 func (s *ComposeService) Send(ctx context.Context, accountID string, draft Draft) error {
 	account, msg, err := s.buildOutgoing(ctx, accountID, draft)
@@ -128,7 +127,7 @@ func (s *ComposeService) Send(ctx context.Context, accountID string, draft Draft
 		return err
 	}
 	if err := s.transport.Send(ctx, account, msg); err != nil {
-		if errors.Is(err, domain.ErrOffline) {
+		if domain.IsRetryLater(err) {
 			return s.enqueue(ctx, accountID, domain.OutboxSend, msg)
 		}
 		return fmt.Errorf("compose: send: %w", err)
@@ -224,7 +223,7 @@ func (s *ComposeService) SaveDraft(ctx context.Context, accountID string, draft 
 		return fmt.Errorf("compose: build draft: %w", err)
 	}
 	if err := s.drafts.SaveDraft(ctx, account, draftsPath, msg); err != nil {
-		if errors.Is(err, domain.ErrOffline) {
+		if domain.IsRetryLater(err) {
 			return s.enqueue(ctx, accountID, domain.OutboxDraft, msg)
 		}
 		return fmt.Errorf("compose: save draft: %w", err)
