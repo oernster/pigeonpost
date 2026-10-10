@@ -199,8 +199,8 @@ Encrypting it is parked.
   all of which need a C toolchain in the build.
 - **Gains:** the Windows build needs no C compiler.
 - **Costs:** anyone who can read the account's files can read the cached
-  mail and its search index. The site says so and points at the operating
-  system's disk encryption.
+  mail and its search index; the operating system's disk encryption is the
+  protection that applies.
 
 ### A record of the errors the interface hid
 
@@ -291,16 +291,22 @@ kept.
 ### Outgoing mail queues offline; other actions do not
 
 A send or a draft save that finds the server unreachable waits in a
-per-account Outbox (attachments included) and goes on the next sync. A send
-that can never succeed is kept and marked failed with its reason. Delete and
-move stay online actions; a connection gives up within seconds and says the
-app is offline in plain words.
+per-account Outbox (attachments included) and goes on the next sync. So does
+one the server answers by saying it is temporarily unavailable: that is a
+statement about the provider, not about the message or the account. A reply
+asking for a password change is not read that way, since waiting would never
+cure it. A send that can never succeed is kept and marked failed with its
+reason. Delete and move stay online actions; a connection gives up within
+seconds and says the app is offline in plain words.
 
 - **Rather than:** queueing every action; waiting on the operating
-  system's default timeout.
-- **Gains:** writing mail never depends on the network; a failed send never
-  vanishes without trace.
-- **Costs:** deleting and moving need a connection.
+  system's default timeout; failing a send the provider has said it cannot
+  take right now.
+- **Gains:** writing mail never depends on the network or on a provider's
+  outage; a failed send never vanishes without trace.
+- **Costs:** deleting and moving need a connection. A provider that keeps
+  saying it is unavailable leaves the message waiting in the Outbox rather
+  than reporting a failure.
 
 ### Read, star and tag changes held until the server agrees
 
@@ -458,8 +464,10 @@ message arrives and the paperclip is lost for the messages in that request.
 ### Server errors become sentences that claim no more than they know
 
 A mail failure the interface shows is translated: offline, refused sign-in,
-an app password asked for, a reply that cannot be read and a few others. A
-refused sign-in says it was refused rather than that the password is wrong.
+an app password asked for, a server saying it is temporarily unavailable, a
+reply that cannot be read and a few others. A refused sign-in says it was
+refused rather than that the password is wrong; an unavailable server is
+reported as a problem at the provider, never as one with the password.
 
 - **Rather than:** the server's own words; messages that assert a cause the
   failure does not carry.

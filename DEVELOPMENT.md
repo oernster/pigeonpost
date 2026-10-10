@@ -50,7 +50,7 @@ Two logs sit beside the database, in the same folder (`%APPDATA%\PigeonPost\` on
 - `run.log` is written by every run. It opens with a line naming when the run started, then holds every
   line the Go core writes through its standard logger, a start and an end line for each folder listing, folder fetch and replayed
   flag push against an IMAP server, plus the Go runtime's report of any crash. A windowed Windows program
-  has no error output of its own, so without this file those lines went nowhere. Once it is over 1 MB it
+  has no error output of its own, so without this file those lines went nowhere. Once it is over 1 MiB it
   is started afresh at the next launch.
 - `mail-errors.log` holds the raw text of mail failures, one per line: every error the interface
   replaced with a message of its own, every sync failure (translated or not), every failed background

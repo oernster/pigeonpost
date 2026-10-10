@@ -138,7 +138,8 @@ crash.
   outside the window) asks before discarding it. Send later schedules a message for a chosen moment (presets or an
   exact date and time); it waits in the Outbox with Cancel send (marked with a paperclip when it
   carries files) and leaves while the app is running or at the next launch after the chosen time. Sends made offline queue in a per-account outbox and deliver on the next
-  sync you run (the Sync button or F9), which sends what every account has queued.
+  sync you run (the Sync button or F9), which sends what every account has queued. A send the mail
+  server turns away by saying it is temporarily unavailable queues the same way rather than failing.
   URLs you type or paste go out as real links in any recipient's client and long lines are encoded so
   no mail server can fold and corrupt them in transit.
 - **Organise**: mark read/star, delete to Trash or purge, junk and not-junk (a wrongly junked message
@@ -287,7 +288,8 @@ crash.
   reported in a banner under the toolbar with its own dismiss control, so a stale error never lingers.
   A mail server's own words are not what you read there: a server that turns down a sign-in says so and
   points at the address and password, naming an app password where the server itself asked for one;
-  a reply the app cannot read says that rather than showing you the protocol. What the server actually
+  a server that says it is temporarily unavailable is reported as a problem at the mail provider rather
+  than with your password; a reply the app cannot read says that rather than showing you the protocol. What the server actually
   said is kept in `mail-errors.log` for a bug report. On Windows, closing the window while something is still
   open (a half-written message, say) surfaces the keep-in-tray-or-quit choice on top at once and warns that
   unsaved work may be lost, with Go back as the default so nothing is lost silently.
@@ -351,7 +353,7 @@ bash builddmg.sh              # the signed, notarized DMG (macOS, Apple Silicon)
 bash build_flatpak.sh         # build and install the Flatpak (Linux)
 ```
 
-## Supporting PigeonPost
+## Supporting the project
 
 PigeonPost is free and stays free. There is no paid tier, no licence key and nothing held back behind a
 donation. Donations support maintenance and continued development.

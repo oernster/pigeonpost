@@ -421,13 +421,18 @@ content (debounced, once the user has edited it) to a single-row local slot thro
 server; on the next launch the UI offers to restore it; sending, saving a server draft or discarding
 it clears the slot.
 
-Offline outbox: the SMTP, IMAP and POP3 adapters wrap a failed dial with the `ErrOffline` sentinel. When the
-compose use case sees `ErrOffline` from a send or a draft append, instead of failing it queues the
+Offline outbox: the SMTP, IMAP and POP3 adapters wrap a failed dial with the `ErrOffline` sentinel. A
+server that is reachable but says it cannot serve the request right now is marked `ErrServerUnavailable`
+instead: an IMAP login answered `NO [UNAVAILABLE]` (RFC 5530) and an SMTP AUTH reply of 421 or 454. SMTP
+432 is a temporary reply too but is left out deliberately, because it asks for a password change; it is
+named code by code rather than taken as the whole 4xx class for that reason. `domain.IsRetryLater` is the
+one home for the judgement that a failure may pass (either sentinel), so every queueing path agrees on it.
+When the compose use case sees such a failure from a send or a draft append, instead of failing it queues the
 operation through the `OutboxStore` port (the `outbox` table, which also carries Bcc and
 attachments so a queued message keeps them on replay) and returns success; the UI surfaces the
 queue as a per-account outbox folder where the waiting messages can be reviewed or cancelled. After the
 next successful sync the UI calls replay, which drains the queue oldest-first: each item is re-sent or
-re-appended, removed on success, left in place if still offline; one that can never succeed is kept but marked failed (its reason
+re-appended, removed on success, left in place if still offline or still unavailable; one that can never succeed is kept but marked failed (its reason
 shown in the Outbox and not retried). A replay claims an item before sending it: one conditional UPDATE moves
 it from queued to sending (schemaV59), so only one sender wins it, whether two replays race or a replay meets
 the send-later dispatcher. A cancel deletes only an unclaimed item and is told when it was too late; the claims a crashed run
@@ -452,7 +457,7 @@ send it early); once the hold elapses, a small dispatcher goroutine in the facad
 announces the change over the `outbox:changed` event. The Outbox shows the item with its send time
 (and a paperclip when the queued message carries files, read from the names `OutboxItemDTO` lists) and
 offers Cancel send, which reports whether the item was still queued so a cancel that lost the race is
-told so. A due item that finds the server unreachable has its hold cleared, degrading it to an ordinary
+told so. A due item that finds the server unreachable or unavailable has its hold cleared, degrading it to an ordinary
 offline-queued item for the next sync rather than being retried every tick; a hold outlasting an app
 restart sends on the next launch. A scheduled reply does not flag its original (a schedule cancelled
 days later must not have already marked it); the composer states the local-first constraint plainly: the
@@ -1149,11 +1154,13 @@ saying the message has moved on, so the reader is never shown the query that fai
 re-reads the open folder when a body cannot be read, so the row leaves the list instead of staying there
 unusable. A message that is still cached and merely failed to fetch survives that re-read.
 
-`friendlyMailError` (`mailerrors.go`) translates seven cases and returns every other error unchanged so a
+`friendlyMailError` (`mailerrors.go`) translates eight cases and returns every other error unchanged so a
 genuine fault keeps its detail: a connectivity failure becomes the plain offline message, a server that
 takes the sign-in then refuses an IMAP session becomes `errIMAPRefused` (which names the setting to check
 without claiming it is off), a server that takes the sign-in then refuses to accept mail becomes
-`errSMTPRefused`, an uncached message becomes the message-has-moved-on sentence,
+`errSMTPRefused`, an uncached message becomes the message-has-moved-on sentence, a server that says it
+is temporarily unavailable becomes `errServerUnavailable` (checked before either sign-in case, so an
+outage never sends the reader to a correct password),
 a server that declines the credential becomes `errSignInRefused`, a server that states it wants an
 application-specific password becomes `errAppPasswordRequired` and a reply the client cannot decode
 becomes `errUnreadableResponse`. `App.mailError` wraps it: where the translation replaces the original it
@@ -1178,8 +1185,10 @@ windowed Windows program is started with no error output, so where the run has n
 pointed at the file as well and the Go runtime's crash report lands there; where it has one, the crash
 report is copied to the file. A run that cannot open the log carries on without one.
 
-The last three are worded to assert as little as the failure carries, which is what the recording above
-exists to compensate for and is better than needing it. A tagged refusal names no reason, so
+The last four are worded to assert as little as the failure carries, which is what the recording above
+exists to compensate for and is better than needing it. `errServerUnavailable` reports only what the
+server itself stated: that it is down for now and that this is a problem at the provider rather than
+with the account. It adds only that PigeonPost will try again. A tagged refusal names no reason, so
 `errSignInRefused` says the sign-in was refused and points at the two fields worth checking rather than
 claiming the password is wrong: a mistyped password, an app password since revoked and a provider that
 has stopped taking plain passwords all arrive identically. `errAppPasswordRequired` is the one case where
@@ -1189,8 +1198,10 @@ cannot spell the phrase two ways. `errUnreadableResponse` asserts nothing at all
 failed rather than anything the reader owns.
 
 The marking happens where the library error is produced, never by reading text at the facade:
-`imap.markRefusal` reads a tagged NO off the client's own `*imap.Error`, `smtp.authError` does the
-equivalent for a refused submission and `imap.markUnreadable` labels a decode failure by the library's
+`imap.markRefusal` reads a tagged NO off the client's own `*imap.Error` (marking it unavailable rather
+than refused when it carries the `UNAVAILABLE` response code), `smtp.authError` does the
+equivalent for a refused submission, the SMTP transport marks an AUTH reply of 421 or 454 unavailable by
+its reply code and `imap.markUnreadable` labels a decode failure by the library's
 decoder prefix, that last being a string match only because the library raises no sentinel for it.
 
 The send surface reaches the translator through the same wrapper as every other binding. It did not
@@ -1610,7 +1621,7 @@ never emails and offers no resend or cancel. A recurring meeting is matched as i
 plus any overrides, keyed by UID and RECURRENCE-ID. Every scheduling send (`scheduling_send.go`) leaves
 the same record an ordinary composed message does: the shared `saveCopyToSent` helper appends a
 best-effort copy to the account's Sent mailbox (skipped for providers that save sent mail server-side),
-an unreachable server queues the message in the offline outbox for the compose dispatcher to replay
+an unreachable or unavailable server queues the message in the offline outbox for the compose dispatcher to replay
 (outbox rows persist the iMIP calendar part so the replayed message keeps its payload); a
 successful response marks the invite message answered. `Invitation` resolves an invite for display by
 overlaying attendee statuses from the stored calendar copy of the meeting, which is where `Respond`

@@ -99,6 +99,9 @@
                         are answering; every new message still opens centred</li>
                     <li>Send later from presets or an exact time; the message waits in the Outbox with
                         Cancel send (a paperclip shows when it carries files) and leaves while the app runs or at the next launch after that time</li>
+                    <li>A send the server cannot take right now, because it is unreachable or says it is
+                        temporarily unavailable, waits in the Outbox and goes at the next sync rather than
+                        failing</li>
                 </ul>
             </div>
             <div class="group">

@@ -34,7 +34,7 @@
             {"@type": "Question", "name": "What if I try it and want to go back?",
              "acceptedAnswer": {"@type": "Answer", "text": "Then you close it and nothing has changed. Your accounts were never moved, so they are still live in your old client. Your calendar and contacts export back out in standard files."}},
             {"@type": "Question", "name": "Does my Gmail or iCloud account work?",
-             "acceptedAnswer": {"@type": "Answer", "text": "Yes, through an app password. A wizard fills in the servers for Gmail, iCloud, Yahoo, Zoho, Fastmail and StartMail. A mail server that turns the IMAP sign-in down is reported in plain words rather than as the server's own reply, so offering an ordinary account password by mistake tells you what to do next. Microsoft accounts (Outlook.com, Hotmail) sign in through Microsoft OAuth."}},
+             "acceptedAnswer": {"@type": "Answer", "text": "Yes, through an app password. A wizard fills in the servers for Gmail, iCloud, Yahoo, Zoho, Fastmail and StartMail. A mail server that turns the IMAP sign-in down is reported in plain words rather than as the server's own reply, so offering an ordinary account password by mistake tells you what to do next. A server that says it is temporarily unavailable is reported as a problem at the provider instead, so a correct password is never blamed for an outage. Microsoft accounts (Outlook.com, Hotmail) sign in through Microsoft OAuth."}},
             {"@type": "Question", "name": "Does a Google Workspace work account function?",
              "acceptedAnswer": {"@type": "Answer", "text": "No. Workspace is OAuth-only, so an app password is refused by Google. Personal Gmail works with an app password."}},
             {"@type": "Question", "name": "Is my Microsoft password safe?",
@@ -46,7 +46,7 @@
             {"@type": "Question", "name": "It is one developer. What if it stops?",
              "acceptedAnswer": {"@type": "Answer", "text": "It is GPL-3.0 with the full source on GitHub, free to read, fork or continue. Your mail stays with your provider and your calendar and contacts live in standard files, so nothing is trapped."}},
             {"@type": "Question", "name": "Does it work offline?",
-             "acceptedAnswer": {"@type": "Answer", "text": "Yes. Cached mail reads with no connection. Anything you write offline queues in a per-account outbox and delivers at the next sync once you are back online."}},
+             "acceptedAnswer": {"@type": "Answer", "text": "Yes. Cached mail reads with no connection. A message you send, a draft you save or a reply to an invitation waits in a per-account outbox when the server cannot be reached; the same happens when the server says it is temporarily unavailable. It goes at the next sync once the server answers again."}},
             {"@type": "Question", "name": "Which platforms does it run on?",
              "acceptedAnswer": {"@type": "Answer", "text": "Windows, macOS (Apple Silicon) and Linux, each with its own native installer: a Windows setup program, a DMG and a Flatpak."}},
             {"@type": "Question", "name": "Will it choke on huge folders?",
@@ -158,7 +158,9 @@
                 <p class="a">Yes, through an app password. A wizard fills in the servers for Gmail, iCloud,
                     Yahoo, Zoho, Fastmail and StartMail. A mail server that turns the IMAP sign-in down is
                     reported in plain words rather than as the server's own reply, so offering an ordinary account
-                    password by mistake tells you what to do next.</p>
+                    password by mistake tells you what to do next. A server that says it is temporarily
+                    unavailable is reported as a problem at the provider instead, so a correct password
+                    is never blamed for an outage.</p>
             </div>
             <div class="item">
                 <p class="q">I use a Google Workspace account for work.</p>
@@ -193,8 +195,10 @@
             </div>
             <div class="item">
                 <p class="q">Does it work offline?</p>
-                <p class="a">Yes. Cached mail reads with no connection. Anything you write offline queues in
-                    a per-account outbox and delivers at the next sync once you are back online.</p>
+                <p class="a">Yes. Cached mail reads with no connection. A message you send, a draft you save
+                    or a reply to an invitation waits in a per-account outbox when the server cannot be
+                    reached; the same happens when the server says it is temporarily unavailable. It goes
+                    at the next sync once the server answers again.</p>
             </div>
             <div class="item">
                 <p class="q">Which platforms?</p>
