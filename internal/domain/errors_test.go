@@ -32,15 +32,18 @@ func TestIsAppPasswordRequired(t *testing.T) {
 	}
 }
 
-// The three sentinels the mail adapters raise are distinct values, so a caller matching one never
-// matches another by accident. An app-password refusal is the one case that deliberately carries two.
+// The sentinels the mail adapters raise are distinct values, so a caller matching one never matches
+// another by accident. An app-password refusal is the one case that deliberately carries two.
 func TestMailSentinelsAreDistinct(t *testing.T) {
 	t.Parallel()
-	for _, sentinel := range []error{ErrSignInRefused, ErrAppPasswordRequired, ErrUnreadableResponse} {
+	for _, sentinel := range []error{ErrSignInRefused, ErrAppPasswordRequired, ErrUnreadableResponse, ErrServerUnavailable} {
 		for _, other := range []error{ErrOffline, ErrIMAPRefused, ErrSMTPRefused} {
 			if errors.Is(sentinel, other) {
 				t.Errorf("%v matches %v, so one refusal would be read as another", sentinel, other)
 			}
 		}
+	}
+	if errors.Is(ErrServerUnavailable, ErrSignInRefused) {
+		t.Error("an unavailable server matches a refused sign-in, so an outage would be read as a bad password")
 	}
 }

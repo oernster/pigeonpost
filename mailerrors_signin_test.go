@@ -51,6 +51,27 @@ func TestFriendlyMailErrorTranslatesAnAppPasswordRefusal(t *testing.T) {
 	}
 }
 
+// A server that answers the sign-in with UNAVAILABLE is down behind its front door. The reader must not
+// be sent to change a password that is correct; they are told it is the server and that it will retry.
+func TestFriendlyMailErrorTranslatesAnUnavailableServer(t *testing.T) {
+	t.Parallel()
+	wrapped := fmt.Errorf("sync: inbox of %q: %w", "a@example.com",
+		fmt.Errorf("imap: login %q: %w", "a@example.com",
+			errors.Join(errors.New("imap: NO [UNAVAILABLE] Account is temporarily unavailable."), domain.ErrServerUnavailable)))
+	got := friendlyMailError(wrapped)
+	if !errors.Is(got, errServerUnavailable) {
+		t.Fatalf("an unavailable server was not translated, got %v", got)
+	}
+	if strings.Contains(strings.ToLower(got.Error()), "password") {
+		t.Fatalf("message %q sends the reader to a password that is not at fault", got.Error())
+	}
+	for _, want := range []string{"temporarily unavailable", "again"} {
+		if !strings.Contains(got.Error(), want) {
+			t.Fatalf("message %q does not say %q", got.Error(), want)
+		}
+	}
+}
+
 // The reply the client cannot decode is the failure that prompted all of this: the reader was shown the
 // grammar production that ran out. It becomes a sentence; it stays free of any cause.
 func TestFriendlyMailErrorTranslatesAnUnreadableReply(t *testing.T) {

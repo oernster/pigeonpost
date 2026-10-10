@@ -117,6 +117,13 @@ var ErrSMTPRefused = errors.New("server refused authenticated smtp submission")
 // refused after it.
 var ErrSignInRefused = errors.New("server refused the sign-in")
 
+// ErrServerUnavailable marks a server that answered with its own statement that it is temporarily unable
+// to serve the mailbox: the UNAVAILABLE response code of RFC 5530, a subsystem behind the server being
+// down. It is not a verdict on the credential, so it never travels with ErrSignInRefused. Measured on
+// 2026-10-10 during a provider outage, when a login was answered "NO [UNAVAILABLE] Account is
+// temporarily unavailable." and the reader was told to check a password that was correct.
+var ErrServerUnavailable = errors.New("server is temporarily unavailable")
+
 // ErrAppPasswordRequired marks a sign-in the server refused with its own statement that an
 // application-specific password is wanted in place of the account password. It is raised only on those
 // words, so the message it selects reports what the server said rather than a cause guessed from a

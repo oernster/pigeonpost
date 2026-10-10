@@ -96,6 +96,16 @@ var errAppPasswordRequired = errors.New(
 	"The mail server refused the sign-in and asked for an app password. Create one with your mail " +
 		"provider, then put it in Settings in place of the account password.")
 
+// errServerUnavailable is the message shown when the server answered the sign-in with its own statement
+// that it is temporarily unavailable. That is an outage at the provider, so the message sends nobody to
+// their password: on 2026-10-10 a provider outage reached the reader as errSignInRefused, which pointed
+// at a credential that was correct while the provider's own status page listed every service down.
+//
+//lint:ignore ST1005 user-facing message shown verbatim in the UI
+var errServerUnavailable = errors.New(
+	"The mail server says it is temporarily unavailable. This is a problem at the mail provider, not " +
+		"with this account; nothing needs changing. Mail will be checked again automatically.")
+
 // errUnreadableResponse is the message shown when the server sent a reply the mail client could not
 // decode. The reader saw the grammar production that ran out ("in body-type-1part: imapwire: expected " +
 // "'(', got N") until 2026-09-19, which reads as a broken application and offers nothing to act on.
@@ -211,6 +221,9 @@ func friendlyMailError(err error) error {
 	}
 	if err != nil && errors.Is(err, application.ErrMessageNotCached) {
 		return errMessageGone
+	}
+	if err != nil && errors.Is(err, domain.ErrServerUnavailable) {
+		return errServerUnavailable
 	}
 	// The narrower sign-in message first: where the server named the remedy, that is what the reader
 	// gets; the general refusal is the fallback behind it.

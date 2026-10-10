@@ -124,8 +124,9 @@ func authenticate(client *imapclient.Client, account domain.Account, secret stri
 // can replace the server's own words with a sentence the reader can act on. A tagged NO is the server
 // declining the credential; it carries no machine-readable reason, so the sentinel says only that it was
 // refused. A refusal whose text states that an application-specific password is wanted carries the
-// narrower sentinel as well, since there the server named the remedy itself. Anything else is returned
-// untouched, so a genuine fault keeps its detail.
+// narrower sentinel as well, since there the server named the remedy itself. A NO carrying the
+// UNAVAILABLE code is the server saying it is down, not that the credential is wrong, so it is marked as
+// that and never as a refusal. Anything else is returned untouched, so a genuine fault keeps its detail.
 func markRefusal(err error) error {
 	if err == nil {
 		return nil
@@ -133,6 +134,9 @@ func markRefusal(err error) error {
 	var status *imap.Error
 	if !errors.As(err, &status) || status.Type != imap.StatusResponseTypeNo {
 		return err
+	}
+	if status.Code == imap.ResponseCodeUnavailable {
+		return errors.Join(err, domain.ErrServerUnavailable)
 	}
 	if domain.IsAppPasswordRequired(err) {
 		return errors.Join(err, domain.ErrAppPasswordRequired, domain.ErrSignInRefused)

@@ -47,6 +47,25 @@ func TestVerifyMarksAnAppPasswordRefusal(t *testing.T) {
 	}
 }
 
+// A NO carrying the UNAVAILABLE code (RFC 5530) is the server saying a subsystem behind it is down, not
+// that the credential is wrong. Measured on 2026-10-10 during a StartMail outage: the login was answered
+// "NO [UNAVAILABLE] Account is temporarily unavailable." and the reader was told to check their password.
+func TestVerifyMarksAnUnavailableServerRatherThanARefusal(t *testing.T) {
+	t.Parallel()
+	host, port := listenFake(t, script{loginRefusal: "[UNAVAILABLE] Account is temporarily unavailable."})
+
+	err := fakeSource().Verify(context.Background(), fakeAccount(t, host, port), "secret")
+	if err == nil {
+		t.Fatal("an unavailable server was reported as success")
+	}
+	if !errors.Is(err, domain.ErrServerUnavailable) {
+		t.Fatalf("an unavailable server was not marked for the interface: %v", err)
+	}
+	if errors.Is(err, domain.ErrSignInRefused) {
+		t.Fatalf("an outage was read as a refused credential: %v", err)
+	}
+}
+
 // A sign-in that works is not marked, so nothing downstream reads a refusal into a healthy account.
 func TestVerifyLeavesAWorkingSignInUnmarked(t *testing.T) {
 	t.Parallel()
