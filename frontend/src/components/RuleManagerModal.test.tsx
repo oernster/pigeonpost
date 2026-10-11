@@ -159,7 +159,9 @@ describe('RuleManagerModal', () => {
         )
     })
 
-    it('marks an exclusion in the editor and gives it no or', async () => {
+    // The editor shows the two kinds of condition as two lists, the way the engine reads them, so no
+    // row has to carry a NOT switch whose word is printed whether it is on or off.
+    it('lists an exclusion under the exceptions rather than among the alternatives', async () => {
         renderModal([
             buildRule({
                 matchMode: 'any',
@@ -170,9 +172,30 @@ describe('RuleManagerModal', () => {
             }),
         ])
         fireEvent.click(screen.getByLabelText('Edit Newsletters'))
-        // The exclusion carries "and" on its own row; nothing claims it is an alternative.
-        expect(screen.getByTitle(/An exclusion always applies/)).toBeTruthy()
+        const sectionOf = (label: string) => screen.getByLabelText(label).closest('.rule-section')
+        const exceptions = screen.getByText('Except when it matches any of these').closest('.rule-section')
+        expect(sectionOf('Match text 2')).toBe(exceptions)
+        expect(sectionOf('Match text 1')).not.toBe(exceptions)
+        // One alternative and one exception join nothing, so no or is claimed anywhere.
         expect(screen.queryByText('or')).toBeNull()
+        expect(screen.queryByText('NOT')).toBeNull()
+    })
+
+    it('joins several exceptions with or whatever the match mode', async () => {
+        renderModal([
+            buildRule({
+                matchMode: 'all',
+                conditions: [
+                    {field: 'all', operator: 'contains', text: 'mediamonkey', caseSensitive: false, negate: true},
+                    {field: 'all', operator: 'contains', text: 'fiio', caseSensitive: false, negate: true},
+                ],
+            }),
+        ])
+        fireEvent.click(screen.getByLabelText('Edit Newsletters'))
+        expect(screen.getByText('or')).toBeTruthy()
+        expect(screen.queryByText('and')).toBeNull()
+        // With nothing left to match, the first list says what that means rather than sitting blank.
+        expect(screen.getByText(/No conditions, so every message counts/)).toBeTruthy()
     })
 
     // Export and import move a whole rule set between installations. The file dialogs live in Go, so
@@ -480,25 +503,52 @@ describe('RuleManagerModal', () => {
         expect(screen.queryByText('and')).toBeNull()
     })
 
-    // The NOT switch is what gives every comparison its opposite: "is not", "doesn't start with" and
-    // so on, rather than negation living inside one operator and being unavailable to the rest.
-    it('negates any comparison and carries the switch back on save', async () => {
+    // Moving a condition to the exceptions is what gives every comparison its opposite: "is not",
+    // "doesn't start with" and so on, rather than negation living inside one operator.
+    it('moves a condition to the exceptions and carries it back on save', async () => {
         renderModal([buildRule({
             conditions: [{field: 'subject', operator: 'endsWith', text: 'digest', caseSensitive: false, negate: false}],
         })])
         fireEvent.click(screen.getByLabelText('Edit Newsletters'))
 
-        const not = screen.getByLabelText('Not 1')
-        expect(not.getAttribute('aria-pressed')).toBe('false')
-        fireEvent.click(not)
-        expect(screen.getByLabelText('Not 1').getAttribute('aria-pressed')).toBe('true')
+        fireEvent.click(screen.getByLabelText('Move condition 1 to exceptions'))
+        expect(screen.getByLabelText('Move condition 1 to matches')).toBeTruthy()
 
         fireEvent.click(screen.getByText('Save rule'))
         await waitFor(() => expect(apiSpies.saveRule).toHaveBeenCalledTimes(1))
         const saved = apiSpies.saveRule.mock.calls[0][0].conditions[0]
         expect(saved.negate).toBe(true)
-        // The comparison itself is untouched: NOT reverses it rather than replacing it.
+        // The comparison itself is untouched: the move reverses it rather than replacing it.
         expect(saved.operator).toBe('endsWith')
+    })
+
+    // A rule saved before the negate flag spelled its exclusion as the notContains operator. Moving one
+    // back must clear both spellings; otherwise it would stay an exclusion while showing among the matches.
+    it('moves a retired notContains exclusion back to the matches as a plain contains', async () => {
+        renderModal([buildRule({
+            conditions: [{field: 'from', operator: 'notContains', text: 'news@', caseSensitive: false, negate: false}],
+        })])
+        fireEvent.click(screen.getByLabelText('Edit Newsletters'))
+
+        fireEvent.click(screen.getByLabelText('Move condition 1 to matches'))
+        fireEvent.click(screen.getByText('Save rule'))
+        await waitFor(() => expect(apiSpies.saveRule).toHaveBeenCalledTimes(1))
+        const saved = apiSpies.saveRule.mock.calls[0][0].conditions[0]
+        expect(saved.negate).toBe(false)
+        expect(saved.operator).toBe('contains')
+    })
+
+    it('adds an exception straight into the exceptions list', async () => {
+        renderModal([buildRule()])
+        fireEvent.click(screen.getByLabelText('Edit Newsletters'))
+        fireEvent.click(screen.getByText('+ Add exception'))
+        fireEvent.change(screen.getByLabelText('Match text 2'), {target: {value: 'fiio'}})
+
+        fireEvent.click(screen.getByText('Save rule'))
+        await waitFor(() => expect(apiSpies.saveRule).toHaveBeenCalledTimes(1))
+        const saved = apiSpies.saveRule.mock.calls[0][0].conditions
+        expect(saved[0].negate).toBe(false)
+        expect(saved[1]).toMatchObject({text: 'fiio', operator: 'contains', negate: true})
     })
 
     it('reads a negated comparison in words', async () => {

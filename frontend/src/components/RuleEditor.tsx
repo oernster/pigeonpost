@@ -1,13 +1,6 @@
-import {Fragment} from 'react'
-import {Rule, RuleCondition, RuleAction} from '../api'
-import {
-    ACTION_LABELS,
-    EMPTY_ACTION,
-    EMPTY_CONDITION,
-    FIELD_LABELS,
-    OPERATOR_LABELS,
-    isNegative,
-} from './ruleLabels'
+import {Rule, RuleAction} from '../api'
+import {ACTION_LABELS, EMPTY_ACTION} from './ruleLabels'
+import {RuleConditions} from './RuleConditions'
 
 // FolderChoice is one destination a move action can name: a concrete folder in one account, labelled
 // with its account so it is clear a move is account-specific.
@@ -57,32 +50,15 @@ export function RuleNameField({rule, onChange}: Pick<RuleEditorProps, 'rule' | '
 // actions taken when they match. It holds no state of its own; the modal owns the draft and this
 // renders it, so there is one place a rule can be in an inconsistent state.
 //
-// The layout is three labelled sections rather than one run of rows, because a rule reads as a
-// sentence (when this matches, do that, with these caveats) and the sections are that sentence's
-// clauses. Each condition and action is its own card so a long rule stays scannable.
+// The layout is labelled sections rather than one run of rows, because a rule reads as a sentence
+// (on these accounts, when this matches, except when that does, do this) and the sections are that
+// sentence's clauses. Each condition and action is its own card so a long rule stays scannable. The
+// two condition sections live in RuleConditions.
 //
 // The remove control is absent, not disabled, on the last remaining condition or action: a rule needs
 // at least one of each, so a cross there could never be clicked; a control that is permanently inert
 // reads as broken rather than as unavailable.
 export function RuleEditor({rule, folders, accounts, onChange}: RuleEditorProps) {
-    const setConditions = (conditions: RuleCondition[]) => onChange({...rule, conditions} as Rule)
-    // joiner is the word printed between the condition rows, taken from the match mode so the rule
-    // reads as the sentence it is: every line with the next; either line with the next.
-    const anyMode = rule.matchMode === 'any'
-    const joiner = anyMode ? 'or' : 'and'
-    // joinerFor answers what, if anything, is printed above the row at index. Under "all" every row
-    // after the first is joined with and. Under "any" an exclusion is not one of the alternatives (it
-    // always applies), so it takes no joiner and wears its own mark instead; a positive row takes the
-    // or only once there is an earlier positive for it to be an alternative to.
-    const joinerFor = (index: number): string => {
-        if (!anyMode) {
-            return index > 0 ? joiner : ''
-        }
-        if (isNegative(rule.conditions[index])) {
-            return ''
-        }
-        return rule.conditions.slice(0, index).some((c) => !isNegative(c)) ? joiner : ''
-    }
     const setActions = (actions: RuleAction[]) => onChange({...rule, actions} as Rule)
     const destroying = rule.actions.some((a) => a.kind === 'destroy')
 
@@ -147,134 +123,7 @@ export function RuleEditor({rule, folders, accounts, onChange}: RuleEditorProps)
                 </div>
             </section>
 
-            <section className="rule-section">
-                <div className="rule-section-head">
-                    <h3 className="rule-section-title">When a message matches</h3>
-                    <select
-                        className="rule-mode"
-                        aria-label="Match mode"
-                        value={rule.matchMode}
-                        onChange={(e) => onChange({...rule, matchMode: e.target.value} as Rule)}
-                    >
-                        <option value="any">any of these apply</option>
-                        <option value="all">all of these apply</option>
-                    </select>
-                </div>
-
-                {rule.conditions.map((condition, index) => (
-                    <Fragment key={`condition-${index}`}>
-                        {/* The joiner is spelled out between the rows rather than left to be inferred
-                            from the mode dropdown above them: reading a rule top to bottom is how
-                            anyone checks what it will do; "and" between two lines says it where the
-                            reader is already looking. It follows the mode, so the two cannot
-                            disagree. */}
-                        {joinerFor(index) !== '' && <div className="rule-joiner">{joinerFor(index)}</div>}
-                        <div className="rule-card">
-                            {anyMode && isNegative(condition) && (
-                                <span
-                                    className="rule-always"
-                                    title="An exclusion always applies: any of the other conditions, never this one."
-                                >
-                                    and
-                                </span>
-                            )}
-                            <button
-                                className={`rule-not${isNegative(condition) ? ' on' : ''}`}
-                                aria-label={`Not ${index + 1}`}
-                                aria-pressed={isNegative(condition)}
-                                title={
-                                    isNegative(condition)
-                                        ? 'Negated: this condition holds when the comparison does NOT'
-                                        : 'Negate this condition, so it holds when the comparison does not'
-                                }
-                                onClick={() =>
-                                    setConditions(
-                                        replaceAt(rule.conditions, index, {
-                                            ...condition,
-                                            // The retired notContains operator is rewritten on the way
-                                            // out, so a rule edited here never carries both spellings
-                                            // of a negation.
-                                            operator: condition.operator === 'notContains' ? 'contains' : condition.operator,
-                                            negate: !isNegative(condition),
-                                        }),
-                                    )
-                                }
-                            >
-                                NOT
-                            </button>
-                        <select
-                            className="rule-field"
-                            aria-label={`Field ${index + 1}`}
-                            value={condition.field}
-                            onChange={(e) =>
-                                setConditions(replaceAt(rule.conditions, index, {...condition, field: e.target.value}))
-                            }
-                        >
-                            {Object.entries(FIELD_LABELS).map(([value, label]) => (
-                                <option key={value} value={value}>{label}</option>
-                            ))}
-                        </select>
-                        <select
-                            className="rule-operator"
-                            aria-label={`Operator ${index + 1}`}
-                            value={condition.operator === 'notContains' ? 'contains' : condition.operator}
-                            onChange={(e) =>
-                                setConditions(replaceAt(rule.conditions, index, {...condition, operator: e.target.value}))
-                            }
-                        >
-                            {Object.entries(OPERATOR_LABELS).map(([value, label]) => (
-                                <option key={value} value={value}>{label}</option>
-                            ))}
-                        </select>
-                        <input
-                            className="tag-name-input rule-text"
-                            placeholder="text to match"
-                            aria-label={`Match text ${index + 1}`}
-                            value={condition.text}
-                            onChange={(e) =>
-                                setConditions(replaceAt(rule.conditions, index, {...condition, text: e.target.value}))
-                            }
-                        />
-                        <button
-                            className={`rule-case${condition.caseSensitive ? ' on' : ''}`}
-                            aria-label={`Match case ${index + 1}`}
-                            aria-pressed={condition.caseSensitive}
-                            title={
-                                condition.caseSensitive
-                                    ? 'Matching case: "Invoice" will not match "invoice"'
-                                    : 'Ignoring case: "Invoice" matches "invoice"'
-                            }
-                            onClick={() =>
-                                setConditions(
-                                    replaceAt(rule.conditions, index, {
-                                        ...condition,
-                                        caseSensitive: !condition.caseSensitive,
-                                    }),
-                                )
-                            }
-                        >
-                            Aa
-                        </button>
-                        {rule.conditions.length > 1 && (
-                            <button
-                                className="rule-remove"
-                                aria-label={`Remove condition ${index + 1}`}
-                                title="Remove this condition"
-                                onClick={() => setConditions(rule.conditions.filter((_, i) => i !== index))}
-                            >
-                                &times;
-                            </button>
-                        )}
-                        </div>
-                    </Fragment>
-                ))}
-                <button
-                    className="rule-add"
-                    onClick={() => setConditions([...rule.conditions, {...EMPTY_CONDITION}])}
-                >
-                    + Add condition
-                </button>
-            </section>
+            <RuleConditions rule={rule} onChange={onChange} />
 
             <section className="rule-section">
                 <div className="rule-section-head">

@@ -89,36 +89,31 @@
     color: var(--text-dim);
 }
 
-/* The mark on an exclusion under "any": it is not one of the alternatives, it always applies, so it
-   carries its own joining word inside the card rather than taking the "or" printed between the rest. */
-.rule-always {
-    padding: 2px 6px;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
+/* What an empty condition list says in place of its cards, so a blank section reads as a decision
+   rather than as something that failed to load. */
+.rule-empty {
+    margin: 0;
+    padding-left: 8px;
+    font-size: 13px;
     color: var(--text-dim);
 }
 
-/* The NOT switch on a condition row. It reads as a switch rather than as a word in a dropdown because
-   it is the one control that reverses what the row means; it applies to every comparison. */
-.rule-not {
-    padding: 4px 8px;
+/* The control that carries a condition across to the other list. It is an action rather than a state,
+   so it reads as a quiet button with a direction, never as a pressed switch. */
+.rule-move {
+    flex: 0 0 auto;
+    padding: 6px 8px;
     border: 1px solid var(--border);
     border-radius: 6px;
     background-color: var(--bg-elev-2);
     color: var(--text-dim);
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 0.08em;
+    white-space: nowrap;
     cursor: pointer;
 }
 
-.rule-not.on {
-    border-color: var(--danger);
-    color: var(--danger);
+.rule-move:enabled:hover {
+    border-color: var(--accent);
+    color: var(--text);
 }
 
 /* The one card that deletes mail is bordered in the danger colour, so the irreversible action is
