@@ -1016,6 +1016,13 @@ the accounts it covers; narrowing the scope clears a destination that falls outs
 that, a rule could name a folder it can never reach and the move would silently do nothing on every
 sync; clearing it instead blocks the save until a reachable folder is chosen.
 
+The editor lays the conditions out as the engine reads them: one list of what a message must match,
+combined by the match mode, then a second of exceptions, any one of which lets a message off
+(`RuleConditions.tsx`). A condition's list is its negation flag, so the move control on each row flips
+that flag in place and the stored rule keeps the shape it always had. A per-row NOT switch came first and
+is the thing to avoid: its word was printed whether it was on or off, so a plain condition read as a
+negated one and the screen showed one flat list where the engine applied two.
+
 **Moving a rule set between installations.** `RuleTransferService` is a separate use case from
 `RuleService` because the two answer different questions: one edits a rule on this machine, the other
 moves a set of them to another, where nothing local may be assumed. Its three methods are `Export`,

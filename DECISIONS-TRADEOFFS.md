@@ -506,19 +506,23 @@ been recorded as done.
   hand. Mail another program moves into the Inbox comes back under a new UID
   and counts as new (TECH_DEBT.md item 2).
 
-### Exclusions always count; a new rule narrows
+### Exceptions are a list of their own; a new rule narrows
 
-Each condition can be negated, which gives every comparison its opposite. A
-negated condition is an exclusion and is required whatever the match mode,
-while the plain conditions combine as the mode says. A new rule starts on
-"all of these" and the editor prints the joining word between rows.
+A rule holds the conditions a message must match; apart from them it holds
+its exceptions. The conditions combine as the match mode says; any one exception
+lets a message off whatever the mode. An exception takes any comparison,
+which gives every comparison its opposite. The editor shows the two as two
+lists, with a control on each row that moves it to the other. A new rule
+starts on "all of these" and the editor prints the joining word between rows.
 
 - **Rather than:** treating an exclusion as one more alternative, which
-  turned a rule for two senders into one that filed a whole mailbox.
-- **Gains:** "any of these, never those" can be written and means what it
-  says.
-- **Costs:** the match mode is no longer the whole story; the editor has to
-  show how rows combine.
+  turned a rule for two senders into one that filed a whole mailbox; a NOT
+  switch on each row, whose word showed whether it was on or off, so a plain
+  condition read as a negated one.
+- **Gains:** "any of these, never those" can be written and reads on screen
+  the way it runs.
+- **Costs:** the match mode governs the first list only; the exceptions
+  always read as any.
 
 ### A rule naming no account covers every account
 

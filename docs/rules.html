@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
     <title>PigeonPost filter rules: conditions, exclusions and sharing</title>
     <meta name="description"
-          content="PigeonPost filter rules: as many conditions as you need, a NOT switch for exclusions, a Now button for the mail you already have, plus export and import as readable JSON."/>
+          content="PigeonPost filter rules: as many conditions as you need, a list of exceptions that let a message off, a Now button for the mail you already have, plus export and import as readable JSON."/>
     <link rel="canonical" href="https://pigeonpost.ink/rules.html"/>
     <meta name="robots" content="index, follow"/>
     <meta name="author" content="Oliver Ernster"/>
@@ -15,13 +15,13 @@
     <meta property="og:url" content="https://pigeonpost.ink/rules.html"/>
     <meta property="og:title" content="PigeonPost filter rules: conditions, exclusions and sharing"/>
     <meta property="og:description"
-          content="PigeonPost filter rules: as many conditions as you need, a NOT switch for exclusions, a Now button for the mail you already have, plus export and import as readable JSON."/>
+          content="PigeonPost filter rules: as many conditions as you need, a list of exceptions that let a message off, a Now button for the mail you already have, plus export and import as readable JSON."/>
     <meta property="og:image" content="https://pigeonpost.ink/screenshots/compose.png"/>
     <meta property="og:locale" content="en_GB"/>
     <meta name="twitter:card" content="summary_large_image"/>
     <meta name="twitter:title" content="PigeonPost filter rules: conditions, exclusions and sharing"/>
     <meta name="twitter:description"
-          content="PigeonPost filter rules: as many conditions as you need, a NOT switch for exclusions, a Now button for the mail you already have, plus export and import as readable JSON."/>
+          content="PigeonPost filter rules: as many conditions as you need, a list of exceptions that let a message off, a Now button for the mail you already have, plus export and import as readable JSON."/>
     <meta name="twitter:image" content="https://pigeonpost.ink/screenshots/compose.png"/>
     <link rel="icon" type="image/png" href="pigeonpost.png"/>
     <link rel="stylesheet" href="site.css?v=be566e1a19"/>
@@ -79,13 +79,14 @@
                         only records what is there, so your rules act on mail that arrives after that</li>
                     <li>Filter rules and message templates each have their own button on the title bar,
                         so neither is buried in a menu</li>
-                    <li>A NOT switch on each condition, so every comparison has its opposite: is not,
-                        does not start with, does not end with, does not contain.</li>
-                    <li>A negated condition is
-                        an exclusion and a rule always applies it, so one rule says any of these, never
-                        those: keep filing the two shops you buy music from while excluding a sender you
-                        never want filed. The editor prints the joining word between the rows and marks
-                        an exclusion as one, so a rule reads as what it does rather than leaving you to
+                    <li>Beneath its conditions each rule keeps a second list, its exceptions. A message
+                        matching any one of them is left alone whatever else it matches, so one rule says
+                        any of these, never those: keep filing the two shops you buy music from while
+                        excluding a sender you never want filed.</li>
+                    <li>An exception takes any comparison, so every comparison has its opposite: is not,
+                        does not start with, does not end with, does not contain. A button on each row
+                        moves it between the conditions and the exceptions; the editor prints the joining
+                        word between the rows, so a rule reads as what it does rather than leaving you to
                         work it out</li>
                 </ul>
             </div>

@@ -15,10 +15,10 @@ export const FIELD_LABELS: Record<string, string> = {
     senderDomain: 'Sender domain',
 }
 
-// OPERATOR_LABELS are the comparisons a condition can make. Negation is not one of them: it is the
-// separate NOT switch on the row, so every comparison has its opposite rather than only "contains".
-// The retired notContains token is still read back from a rule written before that (the back end
-// folds it into contains with NOT set), so it needs no label here.
+// OPERATOR_LABELS are the comparisons a condition can make. Negation is not one of them: it is which
+// list the condition sits in (an exception is a negated condition), so every comparison has its
+// opposite rather than only "contains". The retired notContains token is still read back from a rule
+// written before that (the back end folds it into contains, negated), so it needs no label here.
 export const OPERATOR_LABELS: Record<string, string> = {
     contains: 'contains',
     equals: 'is',
@@ -26,7 +26,7 @@ export const OPERATOR_LABELS: Record<string, string> = {
     endsWith: 'ends with',
 }
 
-// NEGATED_OPERATOR_LABELS are the same comparisons as they read with NOT set, for the summary line.
+// NEGATED_OPERATOR_LABELS are the same comparisons as they read when negated, for the summary line.
 // They are written out rather than composed from a prefix, since English negates each of them
 // differently and "not is" is not a sentence.
 export const NEGATED_OPERATOR_LABELS: Record<string, string> = {
