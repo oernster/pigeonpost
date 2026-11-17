@@ -1,0 +1,973 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>What's new in PigeonPost: release history</title>
+    <meta name="description"
+          content="PigeonPost's release history, newest first: what each release changed in the email client and why it matters to you."/>
+    <link rel="canonical" href="https://pigeonpost.ink/whats-new.html"/>
+    <meta name="robots" content="index, follow"/>
+    <meta name="author" content="Oliver Ernster"/>
+    <meta name="theme-color" content="#16181d"/>
+    <meta property="og:type" content="website"/>
+    <meta property="og:site_name" content="PigeonPost"/>
+    <meta property="og:url" content="https://pigeonpost.ink/whats-new.html"/>
+    <meta property="og:title" content="What's new in PigeonPost: release history"/>
+    <meta property="og:description"
+          content="Every PigeonPost release, newest first: faster sync with fewer logins, outages named for what they are, safer calendar handling and much more."/>
+    <meta property="og:image" content="https://pigeonpost.ink/screenshots/add-account.png"/>
+    <meta property="og:locale" content="en_GB"/>
+    <meta name="twitter:card" content="summary_large_image"/>
+    <meta name="twitter:title" content="What's new in PigeonPost: release history"/>
+    <meta name="twitter:description"
+          content="Every PigeonPost release, newest first: faster sync with fewer logins, outages named for what they are, safer calendar handling and much more."/>
+    <meta name="twitter:image" content="https://pigeonpost.ink/screenshots/add-account.png"/>
+    <link rel="icon" type="image/png" href="pigeonpost.png"/>
+    <link rel="stylesheet" href="site.css?v=53cf159223"/>
+<script>window.goatcounter = {path: function (p) { return location.host + p }}</script>
+<script data-goatcounter="https://oernster.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
+</head>
+<body>
+<div class="wrap">
+    <header class="site">
+        <a class="logo" href="./">
+            <img src="pigeonpost.png" alt="PigeonPost"/>
+            <span>PigeonPost</span>
+        </a>
+        <nav class="nav">
+            <a href="switching.html">Switching</a>
+            <a href="features.html">Features</a>
+            <a href="why.html">Why</a>
+            <a href="https://github.com/oernster/pigeonpost">GitHub</a>
+            <a href="whats-new.html">What's New</a>
+            <a href="downloads.html">Download</a>
+        </nav>
+    </header>
+
+    <section class="page-hero">
+        <img class="mark" src="pigeonpost.png" alt="PigeonPost icon"/>
+        <div><span class="eyebrow">Changelog</span></div>
+        <h1>What's new</h1>
+        <p class="tagline">Recent releases have made PigeonPost lighter on your mail server and harder to
+            fool. A large mailbox now syncs in seconds over a single login; a provider outage is named as
+            one and mail sent during it waits in the Outbox. Before that, meeting invitations and
+            cancellations were tied to the people entitled to send them, a refused move stopped losing
+            the message and a reopened draft kept its attachments. The newest release redraws the compose
+            icon; the one before gave a rule's exceptions a list of their own.</p>
+    </section>
+
+    <section class="section" id="whats-new">
+        <div class="changelog">
+
+            <div class="group">
+                <div class="ver-tag">v2.15.3</div>
+                <h3>A new compose icon</h3>
+                <ul>
+                    <li>The pen on the compose button has been redrawn</li>
+                </ul>
+            </div>
+
+            <div class="group">
+                <div class="ver-tag">v2.15.2</div>
+                <h3>A rule's exceptions get a list of their own</h3>
+                <ul>
+                    <li>Each condition in the rule editor carried a NOT button that read NOT whether it was on
+                        or off; only its colour told them apart, so a plain condition looked negated</li>
+                    <li>The editor now shows a rule the way it runs: first what a message has to match, then
+                        under "Except when it matches any of these" the exceptions that let a message off</li>
+                    <li>A button on each row moves it to the other list; each list has its own add button.
+                        Nothing about how rules run has changed and every saved rule opens exactly as it
+                        was</li>
+                </ul>
+            </div>
+
+            <div class="group">
+                <div class="ver-tag">v2.15.1</div>
+                <h3>A provider outage no longer asks you to check your password</h3>
+                <ul>
+                    <li>When a mail server said the account was temporarily unavailable, PigeonPost sent you
+                        to check your address and password. The banner now says the problem is at the mail
+                        provider rather than with your account; mail is checked again automatically</li>
+                    <li>A message, a server draft or a meeting reply sent during such an outage now waits in
+                        the Outbox and goes once the server is back, instead of failing. A reply saying the
+                        password itself needs changing is still reported straight away</li>
+                </ul>
+            </div>
+
+            <div class="group">
+                <div class="ver-tag">v2.15.0</div>
+                <h3>Large mailboxes sync in seconds with far fewer logins</h3>
+                <ul>
+                    <li>A folder synced before is now refreshed from a short list of message numbers and
+                        flags; only new messages are downloaded in full. One account with 54 folders and
+                        about 47,000 messages never finished a sync before; it now syncs in about seven
+                        seconds</li>
+                    <li>A full sync uses one login; between actions one connection per account is reused for
+                        up to five minutes. Against StartMail, which had blocked an address for too many
+                        logins, the busiest minute fell from 13 new connections to 3</li>
+                    <li>Read marks, flags and tags waiting for the server go in one batch per folder and are
+                        cleared once confirmed, instead of piling up into thousands of logins</li>
+                    <li>New-mail activity checks only the account that announced it; only an inbox that has
+                        grown counts as new mail</li>
+                    <li>On an IMAP account a rule's mark read or flag now reaches the server and stays</li>
+                    <li>Adding an account (or adding back one you removed) no longer announces the mail
+                        already in its inbox as new or lets your rules act on it</li>
+                    <li>Failures that used to vanish are written to mail-errors.log; a new run.log records
+                        each sync step, holding no passwords or sign-in tokens</li>
+                </ul>
+            </div>
+
+            <div class="group">
+                <div class="ver-tag">v2.14.0</div>
+                <h3>Your calendar changes only for the right sender; a refused move keeps the message</h3>
+                <ul>
+                    <li>A mailed cancellation now changes your calendar only when it comes from the meeting's
+                        organiser; a reply changes only its own attendee's answer. Anything else leaves the
+                        meeting in place with the message unread</li>
+                    <li>Cancelling a series removes its moved occurrences too; cancelling one occurrence
+                        removes just that one</li>
+                    <li>On a server without the MOVE command a refused copy no longer removes the message
+                        anyway. Where a server cannot remove only the chosen messages, PigeonPost refuses
+                        the move and says so</li>
+                    <li>Permanent delete removes only the messages you chose</li>
+                    <li>A recurring event with one moved occurrence survives import and sync instead of
+                        losing the rest of its series</li>
+                    <li>Calendar files keep Outlook-style time zones, times with no zone, durations,
+                        reminders set from an event's end plus text in angle brackets. After the computer
+                        wakes, reminders for events already over are skipped</li>
+                    <li>A mailbox the server renumbers is not taken as new mail, so a delete rule cannot
+                        reach the backlog</li>
+                    <li>A queued message is sent exactly once; one the server accepted before the connection
+                        dropped counts as sent</li>
+                    <li>A partly accepted move or delete reports what the server took and keeps its
+                        undo</li>
+                    <li>Printing no longer fetches remote images you have not chosen to load</li>
+                    <li>Contacts import Outlook's vCard 2.1 cards, skip and count a card with no name and
+                        read CSV files separated by semicolons or tabs</li>
+                    <li>A compose holding only attachments asks before it is discarded; a rule's Now acts
+                        only on what its preview listed; a calendar server at an http:// address warns that
+                        the password travels unencrypted</li>
+                </ul>
+            </div>
+
+            <div class="group">
+                <div class="ver-tag">v2.13.0</div>
+                <h3>A reopened draft keeps its attachments</h3>
+                <ul>
+                    <li>Reopening a saved draft left its files behind, so sending or scheduling it could
+                        send the message without them. The files now come back with the draft</li>
+                    <li>If you sent or scheduled a reopened draft that carried attachments, check its copy in
+                        Sent: the files may need sending again</li>
+                    <li>The Outbox shows the paperclip on a waiting message that carries files</li>
+                    <li>Help &gt; Guide now names everything PigeonPost fetches beyond your mail: the version
+                        check, remote images you choose to load and Microsoft sign-in</li>
+                </ul>
+            </div>
+
+            <div class="group">
+                <div class="ver-tag">v2.12.0</div>
+                <h3>Invitations go out only from the meeting's organiser</h3>
+                <ul>
+                    <li>Editing a meeting someone else invited you to could email an invitation from your
+                        account to every other attendee. Invitations, updates and cancellations now go out
+                        only for meetings your account organises</li>
+                    <li>Other attendees' answers on a meeting you attend read "Not known" with a note on why,
+                        rather than a misleading "No response yet"</li>
+                    <li>Mail and filter rules each have a page of their own on this site</li>
+                </ul>
+            </div>
+
+            <div class="group">
+                <div class="ver-tag">v2.11.1</div>
+                <h3>A new donation page</h3>
+                <ul>
+                    <li>The Donate button opens a new PayPal page that suggests £5 and lets you give any
+                        amount you choose. Nothing else has changed</li>
+                </ul>
+            </div>
+
+            <div class="group">
+                <div class="ver-tag">v2.11.0</div>
+                <h3>An internal quality release</h3>
+                <ul>
+                    <li>Nothing you see or do changes. Every front-end source file bar the main window's is
+                        now within the size limit</li>
+                    <li>Refreshing the unread badges, once written out in eight places, has one home that
+                        every action calls</li>
+                    <li>The technical debt record holds nothing open</li>
+                </ul>
+            </div>
+
+            <div class="group">
+                <div class="ver-tag">v2.10.0</div>
+                <h3>Select all takes the whole folder</h3>
+                <ul>
+                    <li>In a folder of more than 200 messages Ctrl+A selected only what had loaded so far. It
+                        now fetches the rest of the folder first, then selects every message</li>
+                    <li>Starting PigeonPost no longer shows a reminder for a one-off meeting that has already
+                        begun</li>
+                    <li>Marking many messages read updates every unread badge at once; the server is told
+                        with one sign-in per folder rather than one per message</li>
+                </ul>
+            </div>
+
+            <div class="group">
+                <div class="ver-tag">v2.9.2</div>
+                <h3>A search that finds nothing can be cleared again</h3>
+                <ul>
+                    <li>With no results on screen the cross beside the search box did nothing; clicking into
+                        the box did nothing either. Both work again</li>
+                </ul>
+            </div>
+
+            <div class="group">
+                <div class="ver-tag">v2.9.1</div>
+                <h3>The month view fills its days again</h3>
+                <ul>
+                    <li>Each week of the month view had shrunk to a single line of text; every day is a full
+                        box again. The week and day views get their room back too</li>
+                </ul>
+            </div>
+
+            <div class="group">
+                <div class="ver-tag">v2.9.0</div>
+                <h3>Headers stay on screen while you read</h3>
+                <ul>
+                    <li>Only a message's body scrolls now; its tabs, toolbar, sender and subject stay in
+                        view. The thread view, the message popout and an attached email do the same</li>
+                    <li>Dialogs keep what you are editing in view while the rest scrolls: compose keeps its
+                        address and subject lines, an event its title, a rule its name</li>
+                    <li>Editing a contact, a contact group or a template opens a dialog of its own; a stray
+                        click beside it cannot throw away what you were typing</li>
+                </ul>
+            </div>
+
+            <div class="group">
+                <div class="ver-tag">v2.8.2</div>
+                <h3>Mail errors you can act on; one odd message no longer empties a mailbox</h3>
+                <ul>
+                    <li>A refused sign-in, a server asking for an app password and a reply the app cannot
+                        read are each said in plain words. The server's own words still go to the error
+                        log</li>
+                    <li>One message the mail library could not read ended a folder's whole fetch, most
+                        visibly emptying Gmail's All Mail. The fetch now asks again in a simpler form so every
+                        message arrives</li>
+                    <li>A sync that stops part way still shows the folders it did cache</li>
+                </ul>
+            </div>
+
+            <div class="group">
+                <div class="ver-tag">v2.8.1</div>
+                <h3>Repeating every two weeks is now findable</h3>
+                <ul>
+                    <li>The Repeat every box stands beside the Repeat list from the start, so an event that
+                        repeats every two weeks or every six months is plain to set</li>
+                    <li>A commercial licence for my own code is available for products that cannot take GPL
+                        terms; PigeonPost stays free under GPL-3.0</li>
+                    <li>This site's titles and descriptions fit a search result; the features page splits its
+                        Mail panel into seven</li>
+                </ul>
+            </div>
+
+            <div class="group">
+                <div class="ver-tag">v2.8.0</div>
+                <h3>A guide under Help</h3>
+                <ul>
+                    <li>Help &gt; Guide names every picture the window draws, using the app's own artwork,
+                        beside a line on what each one does</li>
+                    <li>It also states the rules the window cannot show for itself: your mail is read
+                        offline, a permanent delete is permanent, a rule acts on new mail unless you press
+                        Now. It ends with the keyboard</li>
+                    <li>The two working panes say "nothing here" in the same way at the same height; the bar,
+                        the tray and the folder labels share one left edge</li>
+                </ul>
+            </div>
+
+            <div class="group">
+                <div class="ver-tag">v2.7.0</div>
+                <h3>The application's icon moves to where it can be seen</h3>
+                <ul>
+                    <li>The icon now stands large and centred behind the message list and the reading pane,
+                        as a ground that never catches a click</li>
+                    <li>Every toolbar control and folder mark has been redrawn from new masters at one
+                        common height</li>
+                </ul>
+            </div>
+
+            <div class="group">
+                <div class="ver-tag">v2.6.1</div>
+                <h3>Clearing a search clears the reading pane</h3>
+                <ul>
+                    <li>A message opened from search results no longer lingers in the reading pane once the
+                        search is cleared</li>
+                </ul>
+            </div>
+
+            <div class="group">
+                <div class="ver-tag">v2.6.0</div>
+                <h3>Templates carry files; rule sets move between machines</h3>
+                <ul>
+                    <li>A refused send says something you can act on, including Microsoft refusing mail from
+                        an email app on a personal account</li>
+                    <li>A discarded message stays discarded instead of being offered for recovery at the next
+                        launch</li>
+                    <li>The window opens wide enough for its own title bar, so the app's mark no longer
+                        slides under the File button</li>
+                    <li>A message template holds attachments as well as the full formatting strip; templates
+                        and filter rules each gain a title bar button</li>
+                    <li>Filter rules export to readable JSON; an import says what it would change before
+                        applying it. A rule that cannot run here arrives switched off</li>
+                    <li>Every condition gains a NOT switch, so every comparison has its opposite; exclusions
+                        apply whatever the match mode</li>
+                    <li>A row whose message has moved on says so instead of showing a database error; cached
+                        messages no longer outlive a renamed folder</li>
+                </ul>
+            </div>
+
+            <div class="group">
+                <div class="ver-tag">v2.5.0</div>
+                <h3>Apply a filter rule to the mail you already have</h3>
+                <ul>
+                    <li>Each rule carries a Now button that applies it across every folder it covers, after
+                        showing you what it found</li>
+                    <li>A rule that deletes says plainly the deletion is permanent. A progress bar and Cancel
+                        cover long runs; the report says what really happened</li>
+                    <li>The close button no longer shrinks a maximised window</li>
+                </ul>
+            </div>
+
+            <div class="group">
+                <div class="ver-tag">v2.4.0</div>
+                <h3>Returning snoozes are announced; three sounds instead of one</h3>
+                <ul>
+                    <li>A snoozed message coming back raises a banner in the window that opens it when
+                        clicked, since a desktop notification can be suppressed from outside the app</li>
+                    <li>New mail, a calendar reminder and a returning snooze each have their own chime on
+                        Windows</li>
+                    <li>A reminder chimes even while the window is in front</li>
+                </ul>
+            </div>
+
+            <div class="group">
+                <div class="ver-tag">v2.3.0</div>
+                <h3>Send now sends</h3>
+                <ul>
+                    <li>The undo-send delay is gone: pressing Send hands the message to your mail server at
+                        once. Send later and sending offline are unchanged</li>
+                </ul>
+            </div>
+
+            <div class="group">
+                <div class="ver-tag">v2.2.0</div>
+                <h3>Drawn icons everywhere; deleting Gmail mail now deletes it</h3>
+                <ul>
+                    <li>Every emoji in the title bar and the folder list is replaced by drawn artwork that
+                        looks the same on every machine, each folder mark at one height</li>
+                    <li>The title bar is arranged around the app mark in the top left corner</li>
+                    <li>Adding a Microsoft account warns that IMAP may be switched off; a failure says what
+                        the server did without claiming a cause it cannot know</li>
+                    <li>A server error PigeonPost rewrites in plain words is kept as sent in
+                        mail-errors.log</li>
+                    <li>Deleting on Gmail sends the message to the Bin and empties it from there. All Mail is
+                        treated as the archive; reading a message marks it read under every label</li>
+                </ul>
+            </div>
+
+            <div class="group">
+                <div class="ver-tag">v2.1.1</div>
+                <h3>Clean pasted signatures; a signature for every new account</h3>
+                <ul>
+                    <li>Undo send defaulted to off on a machine that had never chosen a window; it now
+                        defaults to ten seconds as intended</li>
+                    <li>A pasted signature no longer arrives padded with blank lines</li>
+                    <li>Every account, Microsoft included, offers a signature and send-as addresses while it
+                        is being added</li>
+                </ul>
+            </div>
+
+            <div class="group">
+                <div class="ver-tag">v2.1.0</div>
+                <h3>A tray at the foot of the window</h3>
+                <ul>
+                    <li>A new tray matching the title bar holds a donate button that opens PayPal in your own
+                        browser; the app sends nothing</li>
+                    <li>Nothing is held back behind a donation: no paid tier, no licence key</li>
+                </ul>
+            </div>
+
+            <div class="group">
+                <div class="ver-tag">v2.0.0</div>
+                <h3>The calmer, plainer interface</h3>
+                <ul>
+                    <li>Clicking a conversation header opens the whole exchange from across the account's
+                        folders, oldest first; Ctrl+Shift+T does the same</li>
+                    <li>Conversation view is one switch over every part of threading</li>
+                    <li>The title bar reads left to right; Contacts and Calendar are icons. Reply, forward
+                        and Attach moved off the bar so Help fits on screen</li>
+                    <li>A folder's right-click menu gains New subfolder, Rename folder and Delete folder; its
+                        hover buttons no longer sit on the next folder's arrow</li>
+                    <li>Folder arrows and title bar icons are more than twice the size</li>
+                </ul>
+            </div>
+
+            <div class="group">
+                <div class="ver-tag">v1.17.0</div>
+                <h3>Reminders 4, 8 or 12 hours ahead</h3>
+                <ul>
+                    <li>Three new reminder leads fill the gap between 2 hours and 1 day before an event</li>
+                </ul>
+            </div>
+
+            <div class="group">
+                <div class="ver-tag">v1.16.0</div>
+                <h3>Saved drafts can be edited</h3>
+                <ul>
+                    <li>Opening a saved draft reopens it in the compose window; sending or saving it again
+                        replaces the stored copy. A Bcc has to be typed again</li>
+                    <li>The compose window can be dragged aside, never out of reach</li>
+                </ul>
+            </div>
+
+            <div class="group">
+                <div class="ver-tag">v1.15.1</div>
+                <h3>Rules run on mail arriving into an empty inbox</h3>
+                <ul>
+                    <li>A move or delete rule was skipped whenever its inbox happened to be empty as mail
+                        arrived. A folder's first sync is now recorded explicitly, so the two are no longer
+                        confused</li>
+                </ul>
+            </div>
+
+            <div class="group">
+                <div class="ver-tag">v1.15.0</div>
+                <h3>Filter rules become a real rule set</h3>
+                <ul>
+                    <li>A rule combines as many conditions as you need on all or any of them, across every
+                        field or From, To, Cc, any recipient, Subject or the sender's domain</li>
+                    <li>A rule can be limited to chosen accounts; each condition has its own match-case
+                        switch</li>
+                    <li>A rule can take several actions, now including move to a folder plus delete
+                        permanently</li>
+                    <li>Rules are ordered, can be switched off and can stop later rules running</li>
+                    <li>Rules act only on Inbox mail arriving after they exist; one that moves or destroys
+                        mail is confirmed when saved</li>
+                </ul>
+            </div>
+
+            <div class="group">
+                <div class="ver-tag">v1.14.1</div>
+                <h3>Drag while Shift is held; a notarised macOS build</h3>
+                <ul>
+                    <li>A Shift-selected range drags without letting go of Shift first</li>
+                    <li>The macOS disk image is notarised and stapled, so it opens cleanly on any Mac</li>
+                </ul>
+            </div>
+
+            <div class="group">
+                <div class="ver-tag">v1.14.0</div>
+                <h3>The app tells you when a newer release exists</h3>
+                <ul>
+                    <li>Shortly after launch and once a day, PigeonPost asks GitHub whether a newer release
+                        exists, offering the download for your platform, Skip This Version or Later</li>
+                    <li>The request carries nothing about you or your mail; Help &gt; Check for Updates runs
+                        the same check on demand</li>
+                </ul>
+            </div>
+
+            <div class="group">
+                <div class="ver-tag">v1.13.2</div>
+                <h3>Your folder layout survives updates</h3>
+                <ul>
+                    <li>Folder order and collapsed folders are kept in the PigeonPost database, so an update
+                        or a reinstall leaves your folder tree as you arranged it</li>
+                    <li>After ten idle seconds the app settles back on the Inbox, never interrupting a
+                        dialog, a text field or an open message</li>
+                    <li>Setup closes itself once it has launched the app</li>
+                </ul>
+            </div>
+
+            <div class="group">
+                <div class="ver-tag">v1.13.1</div>
+                <h3>The error banner can be dismissed</h3>
+                <ul>
+                    <li>The red banner reporting a failed action carries a dismiss control</li>
+                </ul>
+            </div>
+
+            <div class="group">
+                <div class="ver-tag">v1.13.0</div>
+                <h3>Dialog buttons stay within reach</h3>
+                <ul>
+                    <li>Every dialog with buttons keeps them pinned at its foot while the content above
+                        scrolls; eighteen dialogs changed</li>
+                    <li>A test fails the build if a dialog carries buttons without pinning them</li>
+                </ul>
+            </div>
+
+            <div class="group">
+                <div class="ver-tag">v1.12.0</div>
+                <h3>A new-mail cue for the accounts you are not in</h3>
+                <ul>
+                    <li>The closed accounts dropdown carries an outlined badge when another account has mail
+                        newer than your last visit</li>
+                    <li>The Windows download links the SmartScreen explainer</li>
+                </ul>
+            </div>
+
+            <div class="group">
+                <div class="ver-tag">v1.11.0</div>
+                <h3>Badges keep up with new mail</h3>
+                <ul>
+                    <li>New mail badges the folder it lands in straight away</li>
+                    <li>Picking an account always opens its inbox; the accounts dropdown works from the
+                        keyboard</li>
+                    <li>A late sync no longer puts the previous account's folders back in the sidebar</li>
+                </ul>
+            </div>
+
+            <div class="group">
+                <div class="ver-tag">v1.10.2</div>
+                <h3>Your accounts become a dropdown</h3>
+                <ul>
+                    <li>The accounts list is a single dropdown, giving the folders the sidebar; the account
+                        you were last in reopens at launch</li>
+                    <li>Carries the Shift-selection drag fix</li>
+                </ul>
+            </div>
+
+            <div class="group">
+                <div class="ver-tag">v1.10.1</div>
+                <h3>A Shift selection can be dragged</h3>
+                <ul>
+                    <li>A run of messages picked with Shift-click now drags into a folder</li>
+                </ul>
+            </div>
+
+            <div class="group">
+                <div class="ver-tag">v1.10.0</div>
+                <h3>Dragging mail answers straight away</h3>
+                <ul>
+                    <li>A dragged message leaves the list on drop and its new folder lights up twice; a
+                        refused move puts messages back where they were</li>
+                    <li>The folder list scrolls while you drag near its edges</li>
+                    <li>Attachments stay pinned at the foot of the reading pane however long the email</li>
+                    <li>The About and Licence panes read themselves, pausing whenever you take over</li>
+                    <li>Setup offers to launch PigeonPost from every screen</li>
+                </ul>
+            </div>
+
+            <div class="group">
+                <div class="ver-tag">v1.9.1</div>
+                <h3>Meetings you attend keep up with everyone's answers</h3>
+                <ul>
+                    <li>Statuses in an organiser's updated invitation fold into your copy as it arrives,
+                        never overwriting your own answer</li>
+                    <li>Setup gains a "Launch PigeonPost when setup finishes" tick</li>
+                    <li>The whole app speaks British English</li>
+                </ul>
+            </div>
+
+            <div class="group">
+                <div class="ver-tag">v1.9.0</div>
+                <h3>Answering an invitation leaves a proper trail</h3>
+                <ul>
+                    <li>Your reply is saved to Sent and the invitation gains the replied arrow; its card shows
+                        everyone's current response</li>
+                    <li>Answering while offline queues the reply in the Outbox instead of losing it</li>
+                    <li>Replies from unlisted addresses or covering a whole series land properly on meetings
+                        you organise</li>
+                </ul>
+            </div>
+
+            <div class="group">
+                <div class="ver-tag">v1.8.1</div>
+                <h3>Saving a meeting emails attendees only when they would see a change</h3>
+                <ul>
+                    <li>Nudging a reminder no longer sends everyone an update; the save button says which
+                        kind of save it will make</li>
+                </ul>
+            </div>
+
+            <div class="group">
+                <div class="ver-tag">v1.8.0</div>
+                <h3>Mixed light and dark emails read correctly in the dark theme</h3>
+                <ul>
+                    <li>The reader darkens only the parts of a message designed light, leaving a sender's
+                        dark panels as they made them</li>
+                    <li>Text meant to sit over a background image that has not loaded is corrected so it can
+                        be read</li>
+                    <li>Loading a message's images restores its background images too</li>
+                </ul>
+            </div>
+
+            <div class="group">
+                <div class="ver-tag">v1.7.3</div>
+                <h3>A notification sound of its own</h3>
+                <ul>
+                    <li>On Windows PigeonPost plays its own soft chime instead of the shell's default;
+                        macOS and Linux keep your desktop's sound</li>
+                </ul>
+            </div>
+
+            <div class="group">
+                <div class="ver-tag">v1.7.2</div>
+                <h3>A started message is never discarded silently</h3>
+                <ul>
+                    <li>Closing an edited compose by any route asks before throwing it away</li>
+                </ul>
+            </div>
+
+            <div class="group">
+                <div class="ver-tag">v1.7.1</div>
+                <h3>Recipient lists that flow</h3>
+                <ul>
+                    <li>Accepting a suggestion or typing a space after a complete address adds the separator
+                        for you</li>
+                    <li>The suggestion dropdown lays out cleanly, long names shortened with an ellipsis</li>
+                </ul>
+            </div>
+
+            <div class="group">
+                <div class="ver-tag">v1.7.0</div>
+                <h3>Contact suggestions plus a real date picker</h3>
+                <ul>
+                    <li>To, Cc and Bcc suggest addresses from your contacts as you type</li>
+                    <li>People you email become contacts automatically; a toggle turns it off</li>
+                    <li>The Contacts page is a wider grid of cards</li>
+                    <li>Every date field opens a themed month calendar</li>
+                    <li>Closing the window mid-task brings its question to the top and warns about unsaved
+                        work</li>
+                </ul>
+            </div>
+
+            <div class="group">
+                <div class="ver-tag">v1.6.0</div>
+                <h3>Images embed, files attach</h3>
+                <ul>
+                    <li>Pasting or dropping into compose embeds an image at the cursor or attaches any other
+                        file, keeping the original bytes</li>
+                    <li>Replies and forwards carry embedded images along; the 25 MB limit counts them</li>
+                </ul>
+            </div>
+
+            <div class="group">
+                <div class="ver-tag">v1.5.3</div>
+                <h3>Offline feels like a pause</h3>
+                <ul>
+                    <li>Offline actions give up within seconds instead of hanging, saying plainly that the
+                        mail server cannot be reached</li>
+                </ul>
+            </div>
+
+            <div class="group">
+                <div class="ver-tag">v1.5.2</div>
+                <h3>Compose opens ready to type</h3>
+                <ul>
+                    <li>The cursor starts in the message body instead of the To field</li>
+                    <li>This site split into five focused pages with a new Why page</li>
+                </ul>
+            </div>
+
+            <div class="group">
+                <div class="ver-tag">v1.5.1</div>
+                <h3>A sidebar that stays put</h3>
+                <ul>
+                    <li>The sidebar icon stays pinned while accounts and folders scroll beneath it</li>
+                    <li>This site says PigeonPost can be your default email app on every platform</li>
+                </ul>
+            </div>
+
+            <div class="group">
+                <div class="ver-tag">v1.5.0</div>
+                <h3>Contact import reconciles instead of duplicating</h3>
+                <ul>
+                    <li>An import matches existing contacts by id or email address, filling blanks without
+                        overwriting what you have</li>
+                    <li>CSV import reads Windows-1252, byte order marks and UTF-16</li>
+                    <li>Postal addresses, birthdays plus more phone columns are read from Thunderbird and
+                        Outlook files; CSV export writes them back</li>
+                    <li>The result names its source file, counting added and updated contacts apart</li>
+                </ul>
+            </div>
+
+            <div class="group">
+                <div class="ver-tag">v1.4.1</div>
+                <h3>Resizable panes</h3>
+                <ul>
+                    <li>Drag the dividers to resize the three panes; widths are remembered and a
+                        double-click restores the default</li>
+                </ul>
+            </div>
+
+            <div class="group">
+                <div class="ver-tag">v1.4.0</div>
+                <h3>Read marks that stick; a default mail app on macOS and Linux</h3>
+                <ul>
+                    <li>A collapsed folder shows the unread mail hidden in its subfolders</li>
+                    <li>Read and flag changes are replayed until the server confirms them, so Outlook.com no
+                        longer un-reads mail; they also work offline</li>
+                    <li>PigeonPost works as the default email app on macOS; the Linux Flatpak registers as a
+                        mailto handler</li>
+                    <li>The window title is just PigeonPost</li>
+                </ul>
+            </div>
+
+            <div class="group">
+                <div class="ver-tag">v1.3.1</div>
+                <h3>Links open on macOS and Linux</h3>
+                <ul>
+                    <li>Clicking a link or button in a message opens your browser on macOS and Linux; Print
+                        works there too</li>
+                    <li>Long click-tracking links open reliably on every platform</li>
+                </ul>
+            </div>
+
+            <div class="group">
+                <div class="ver-tag">v1.3.0</div>
+                <h3>Bare web addresses become links</h3>
+                <ul>
+                    <li>A plain-text address in a message is clickable; one you type is sent as a link</li>
+                    <li>Long lines are encoded so a link cannot break in transit</li>
+                    <li>A link standing alone on its line shows as a button</li>
+                </ul>
+            </div>
+
+            <div class="group">
+                <div class="ver-tag">v1.2.0</div>
+                <h3>Your default email app on Windows</h3>
+                <ul>
+                    <li>The installer registers PigeonPost for email links and offers to open Default
+                        apps</li>
+                    <li>A clicked email link opens a pre-filled compose window</li>
+                </ul>
+            </div>
+
+            <div class="group">
+                <div class="ver-tag">v1.1.0</div>
+                <h3>Undo, redo plus a full Edit menu</h3>
+                <ul>
+                    <li>Undo and redo cover delete, move, junk plus the read, star and tag toggles</li>
+                    <li>Cut, copy and paste work on messages as well as text, file-manager style</li>
+                    <li>More shortcuts, shown on every menu; Reply, Reply all and Forward gain Ctrl+R,
+                        Ctrl+Shift+R and Ctrl+L</li>
+                    <li>The licence itself now states the author-attribution requirement</li>
+                </ul>
+            </div>
+
+            <div class="group">
+                <div class="ver-tag">v1.0.1</div>
+                <h3>Not junk</h3>
+                <ul>
+                    <li>A message wrongly filed as spam moves back to the Inbox, telling the provider's spam
+                        filter as it goes</li>
+                    <li>This site gained search metadata, social cards plus a sitemap</li>
+                </ul>
+            </div>
+
+            <div class="group">
+                <div class="ver-tag">v1.0.0</div>
+                <h3>Ship it everywhere</h3>
+                <ul>
+                    <li>PigeonPost builds for Windows, macOS on Apple Silicon and Linux as a Flatpak</li>
+                    <li>Double-clicking a message opens it in its own window</li>
+                    <li>The compose formatting strip is a single Tab stop</li>
+                </ul>
+            </div>
+
+            <div class="group">
+                <div class="ver-tag">v0.16.0</div>
+                <h3>Snooze, send later and a unified mailbox</h3>
+                <ul>
+                    <li>Snooze hides a message until a moment you choose, entirely on your machine</li>
+                    <li>Send later holds a message in the Outbox until its time</li>
+                    <li>View &gt; Unified mailbox merges every account's inbox into one list</li>
+                    <li>Undo send holds a sent message for a few seconds</li>
+                    <li>A newly added account syncs as soon as it is saved</li>
+                </ul>
+            </div>
+
+            <div class="group">
+                <div class="ver-tag">v0.15.0</div>
+                <h3>Full-text search</h3>
+                <ul>
+                    <li>Search covers subject, sender, recipients, preview, attachment names plus the body of
+                        every message you have opened, offline</li>
+                    <li>Operators cover exact phrases, exclusions, sender, recipient, subject, filename,
+                        attachments, read state, folder, account and dates</li>
+                    <li>Results are ranked with matches highlighted; Ctrl+K jumps to the search box</li>
+                    <li>Larger, clearer type; email links wrapped across lines click through again</li>
+                </ul>
+            </div>
+
+            <div class="group">
+                <div class="ver-tag">v0.14.2</div>
+                <h3>Two-way CalDAV calendar sync</h3>
+                <ul>
+                    <li>Add a CalDAV account and sync its calendars both ways; a conflict keeps a safety copy
+                        of your edit</li>
+                    <li>Outlook events in Windows time zones import instead of vanishing</li>
+                    <li>The missing-attachment reminder ignores the quoted reply</li>
+                </ul>
+            </div>
+
+            <div class="group">
+                <div class="ver-tag">v0.14.1</div>
+                <h3>Multi-day events span the month view</h3>
+                <ul>
+                    <li>A multi-day event draws as one continuous bar across its days</li>
+                    <li>Account setup says outright which providers need an app password, linking to the page
+                        that makes one</li>
+                    <li>This site was rewritten for people leaving Thunderbird or Outlook</li>
+                </ul>
+            </div>
+
+            <div class="group">
+                <div class="ver-tag">v0.14.0</div>
+                <h3>Sync, render and scale</h3>
+                <ul>
+                    <li>Tags travel with your mail as IMAP keywords</li>
+                    <li>HTML email renders faithfully in a sandbox that runs no scripts and makes no remote
+                        requests; remote images load only when asked</li>
+                    <li>Print a single message</li>
+                    <li>Folders of tens of thousands of messages load page by page instead of freezing</li>
+                    <li>Contacts hold postal addresses plus a birthday</li>
+                    <li>A collapsed folder springs open while you drag over it; message templates and event
+                        categories arrive</li>
+                </ul>
+            </div>
+
+            <div class="group">
+                <div class="ver-tag">v0.13.0</div>
+                <h3>The front end decomposed</h3>
+                <ul>
+                    <li>An internal release: the front end was split into small, tested pieces with nothing
+                        changed on screen</li>
+                </ul>
+            </div>
+
+            <div class="group">
+                <div class="ver-tag">v0.12.0</div>
+                <h3>The back end paid down</h3>
+                <ul>
+                    <li>An internal release: duplicated code collapsed into one place, dead code removed;
+                        a latent IPv6 fault fixed along the way</li>
+                </ul>
+            </div>
+
+            <div class="group">
+                <div class="ver-tag">v0.11.0</div>
+                <h3>Folder management</h3>
+                <ul>
+                    <li>Each account syncs on its own, so a slow one no longer holds up the rest</li>
+                    <li>Each well-known folder resolves to one folder; stray Sent folders are merged</li>
+                    <li>Drag a folder to nest it, move it out or reorder it</li>
+                </ul>
+            </div>
+
+            <div class="group">
+                <div class="ver-tag">v0.10.0</div>
+                <h3>Microsoft, Gmail and Zoho</h3>
+                <ul>
+                    <li>Microsoft accounts sign in through Microsoft; Gmail and Zoho presets arrive</li>
+                    <li>An account can send from several addresses</li>
+                    <li>Bulk delete and move use one connection per folder</li>
+                    <li>PigeonPost opens .eml files on Windows; attachments gain Open and Save</li>
+                    <li>Full keyboard navigation with menu accelerators</li>
+                </ul>
+            </div>
+
+            <div class="group">
+                <div class="ver-tag">v0.9.0</div>
+                <h3>Signatures, attachments and conversations</h3>
+                <ul>
+                    <li>Each account carries its own rich-text signature</li>
+                    <li>Draft autosave offers your message back after a crash</li>
+                    <li>Received attachments can be saved, offline after the first open</li>
+                    <li>Conversation grouping, mark as junk, decoded subjects, an attachment paperclip plus
+                        date sorting</li>
+                </ul>
+            </div>
+
+            <div class="group">
+                <div class="ver-tag">v0.8.0</div>
+                <h3>Recurrence, reminders and invitations</h3>
+                <ul>
+                    <li>Recurring events in their own time zones</li>
+                    <li>Reminders with on-screen banners, caught up at launch</li>
+                    <li>A tray icon, minimise to tray and a single running instance</li>
+                    <li>Meeting invitations sent, received and answered</li>
+                    <li>New mail pushed by the server as it arrives</li>
+                    <li>Multi-select with bulk actions</li>
+                </ul>
+            </div>
+
+            <div class="group">
+                <div class="ver-tag">v0.7.0</div>
+                <h3>Contacts and calendar</h3>
+                <ul>
+                    <li>Contacts with vCard and CSV import and export</li>
+                    <li>A calendar with month, week and day views plus ICS import and export</li>
+                    <li>A round of interface polish</li>
+                </ul>
+            </div>
+
+            <div class="group">
+                <div class="ver-tag">v0.6.0</div>
+                <h3>POP3 support plus a polish pass</h3>
+                <ul>
+                    <li>POP3 accounts</li>
+                    <li>Rules gain more ways to match plus the To and Cc fields</li>
+                    <li>A reading pane toggle, a Mark submenu and unread badges</li>
+                    <li>A keyboard focus ring; the Outbox becomes a folder</li>
+                </ul>
+            </div>
+
+            <div class="group">
+                <div class="ver-tag">v0.5.0</div>
+                <h3>Organise the mailbox</h3>
+                <ul>
+                    <li>Create, rename and delete folders in a nested tree</li>
+                    <li>Move and copy messages; filter rules on arrival</li>
+                    <li>A right-click menu, a tabbed reader plus keyboard control of the list</li>
+                    <li>Bcc plus attachments up to 25 MB</li>
+                </ul>
+            </div>
+
+            <div class="group">
+                <div class="ver-tag">v0.4.0</div>
+                <h3>The first release</h3>
+                <ul>
+                    <li>A close cross on every dialog plus the brand mark on the empty window</li>
+                    <li>Also carries everything built before it: drafts, an offline outbox, reply all with
+                        remote images blocked; the account wizard, offline reading, safe HTML, tags, search
+                        plus rich-text compose; IMAP sync, SMTP send with passwords kept in the system
+                        keychain</li>
+                </ul>
+            </div>
+
+        </div>
+    </section>
+
+    <section class="section onward">
+        <div class="cta">
+            <a class="btn" href="https://github.com/oernster/pigeonpost/releases">View all releases on GitHub</a>
+        </div>
+    </section>
+
+    <footer class="site">
+        <span>PigeonPost by Oliver Ernster. Released under GPL-3.0; author attribution must be retained
+            in all copies and derivative works. This site counts page loads with <a href="https://www.goatcounter.com">GoatCounter</a>; the PigeonPost app itself sends no telemetry.</span>
+        <span>
+            <a href="./">Home</a>
+            &nbsp;·&nbsp;
+            <a href="https://github.com/oernster/pigeonpost">GitHub</a>
+            &nbsp;·&nbsp;
+            <a href="https://github.com/oernster/pigeonpost/releases">Releases</a>
+            &nbsp;·&nbsp;
+            <a href="https://ernster.dev">More of my work</a>
+        </span>
+    </footer>
+</div>
+</body>
+</html>

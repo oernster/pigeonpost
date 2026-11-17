@@ -440,6 +440,24 @@ table.compare td { color: var(--text-dim); }
     margin-bottom: 12px;
 }
 
+/* What's New: one card per release, newest first, in a single column so the history reads top to
+   bottom. Each card is a .group; the version above its headline is a pill in the accent colour. */
+.changelog {
+    display: grid;
+    gap: 16px;
+}
+
+.ver-tag {
+    display: inline-block;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--accent);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 3px 12px;
+    margin-bottom: 10px;
+}
+
 .stack {
     display: flex;
     flex-wrap: wrap;
