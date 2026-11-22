@@ -26,6 +26,9 @@ vi.mock('../api', async () => {
     return {...actual, api: buildApiStubs(actual, apiSpies as unknown as Record<string, unknown>, unstubbedCalls)}
 })
 
+// The send-time emoji pass reads ProseMirror state this file's fake editor does not have.
+vi.mock('../composeEmoji', () => import('../test/composeEmojiStub'))
+
 vi.mock('@tiptap/react', () => ({
     useEditor: () => ({
         isActive: () => false,

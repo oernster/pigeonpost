@@ -5,6 +5,8 @@ import {InviteCard} from './InviteCard'
 import {useRemoteImages} from '../hooks/useRemoteImages'
 import {useImagesShown} from '../hooks/useImagesShown'
 import {openLinkExternally} from '../openLink'
+import {translateEmoji} from '../emoji'
+import {useHoverProbe} from '../hooks/useHoverStatus'
 
 interface MessageBodyViewProps {
     // messageId identifies the message being rendered: it keys the remote-image reset and is what the
@@ -30,6 +32,9 @@ export function MessageBodyView({messageId, body, loading, snippet, autoLoadImag
     // screen too.
     const [imagesShown, showImages] = useImagesShown(messageId, autoLoadImages)
     const {renderedHtml, loadingImages, hasBlockedImages} = useRemoteImages(body?.html ?? '', imagesShown)
+    // A plain-text body reports the link or emoji under the pointer to the tray; an HTML body does the
+    // same from inside its frame.
+    const hoverProbe = useHoverProbe()
 
     if (loading) {
         return <p className="empty-body">Loading message…</p>
@@ -57,8 +62,10 @@ export function MessageBodyView({messageId, body, loading, snippet, autoLoadImag
         return (
             <>
                 {body.hasInvite && <InviteCard messageId={messageId}/>}
-                <pre className="reader-text">
-                    <LinkifiedText text={body.plain} onOpenLink={openLinkExternally}/>
+                <pre className="reader-text" {...hoverProbe}>
+                    {/* Emoticons and shortcodes are shown as emoji; only text standing on its own is
+                        translated, so a web address is never touched before it is linked. */}
+                    <LinkifiedText text={translateEmoji(body.plain)} onOpenLink={openLinkExternally}/>
                 </pre>
             </>
         )

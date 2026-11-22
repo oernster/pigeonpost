@@ -2,6 +2,10 @@ import {useEffect, useRef} from 'react'
 
 import {applyEmailColorTreatment} from './emailDarkMode'
 import {emailContentSecurityPolicyMeta} from '../emailContentPolicy'
+import {isOpenableHref} from '../hoverStatus'
+import {hoverStatusAt} from '../hoverProbe'
+import {translateEmojiInDocument} from '../emojiDocument'
+import {useHoverReport} from '../hooks/useHoverStatus'
 
 // The email renders on a paper surface with readable defaults. The message is pinned to the light colour
 // scheme (see FRAME_COLOR_SCHEME) so it always renders in the one design its author finished; the
@@ -49,9 +53,8 @@ const baseStyle =
 
 // The iframe is the security boundary. Its Content-Security-Policy lives in emailContentPolicy, shared with
 // the print frame so a printed message is held to exactly the reader's rules; see there for what it allows.
-
-// LINK_SCHEMES are the URL schemes a link inside the email may open externally; any other scheme is ignored.
-const LINK_SCHEMES = ['http:', 'https:', 'mailto:']
+// Which link schemes may open externally is hoverStatus's isOpenableHref, shared with the tray's reading of
+// a hovered link so the two can never disagree about whether a link opens.
 
 interface EmailHtmlFrameProps {
     // html is the already sanitised, image-parked-or-inlined message body the parent computed. When the reader
@@ -77,13 +80,6 @@ function buildFrameDocument(html: string): string {
         `<meta name="color-scheme" content="${FRAME_COLOR_SCHEME}">` +
         emailContentSecurityPolicyMeta +
         `<style>${baseStyle}</style></head><body>${html}</body></html>`
-}
-
-// isOpenableHref reports whether a link's href is one we open externally (http, https or mailto). Other
-// schemes (javascript:, data:, cid:, tel: and the rest) are ignored so a click cannot do anything unexpected.
-function isOpenableHref(href: string): boolean {
-    const scheme = href.trim().toLowerCase()
-    return LINK_SCHEMES.some((s) => scheme.startsWith(s))
 }
 
 // resizeToContent grows the iframe to its content height so the email has no inner scrollbar of its own; the
@@ -120,6 +116,10 @@ export function EmailHtmlFrame({html, dark, onOpenLink}: EmailHtmlFrameProps) {
     // binding effect (which would needlessly rebind on every parent render).
     const onOpenLinkRef = useRef(onOpenLink)
     onOpenLinkRef.current = onOpenLink
+    // The tray's reporter is held the same way, so the binding effect does not depend on it.
+    const report = useHoverReport()
+    const reportRef = useRef(report)
+    reportRef.current = report
 
     const doc = buildFrameDocument(html)
 
@@ -149,10 +149,21 @@ export function EmailHtmlFrame({html, dark, onOpenLink}: EmailHtmlFrameProps) {
             }
         }
 
+        // onMove tells the tray what is under the pointer: where a link really goes; else an emoji's name.
+        // The event's coordinates belong to the frame's own viewport, as do the boxes the probe measures.
+        const onMove = (event: MouseEvent) => {
+            const moved = event.target as Node | null
+            const owner = moved?.ownerDocument
+            if (owner) {
+                reportRef.current(hoverStatusAt(owner, event.target, event.clientX, event.clientY))
+            }
+        }
+
         const detach = () => {
             observer?.disconnect()
             observer = null
             boundDocument?.removeEventListener('click', onClick)
+            boundDocument?.removeEventListener('mousemove', onMove)
             boundDocument = null
         }
 
@@ -167,6 +178,10 @@ export function EmailHtmlFrame({html, dark, onOpenLink}: EmailHtmlFrameProps) {
             }
             boundDocument = contentDocument
             contentDocument.addEventListener('click', onClick)
+            contentDocument.addEventListener('mousemove', onMove)
+            // Emoticons and shortcodes are shown as emoji before the colour pass and the first paint. A
+            // second attach finds nothing left to translate, so it is a no-op like the colour pass.
+            translateEmojiInDocument(contentDocument)
             // Colour the message for the theme. This runs synchronously after the write, before the frame can
             // paint, so the reader never sees the untreated document flash. The treatment marks the document
             // it has walked, so the second attach an engine's load event triggers is a no-op rather than a
@@ -196,6 +211,7 @@ export function EmailHtmlFrame({html, dark, onOpenLink}: EmailHtmlFrameProps) {
         return () => {
             frame.removeEventListener('load', attach)
             detach()
+            reportRef.current(null)
         }
     }, [doc, dark])
 
@@ -208,6 +224,9 @@ export function EmailHtmlFrame({html, dark, onOpenLink}: EmailHtmlFrameProps) {
             // not in the frame's own document (see FRAME_COLOR_SCHEME).
             style={{colorScheme: FRAME_COLOR_SCHEME}}
             sandbox="allow-same-origin allow-scripts"
+            // Leaving the frame clears the tray: the element in the app's document receives mouseleave as
+            // the pointer crosses out of the frame's box.
+            onMouseLeave={() => report(null)}
         />
     )
 }

@@ -5,6 +5,8 @@ import StarterKit from '@tiptap/starter-kit'
 import Image from '@tiptap/extension-image'
 import {api, Template} from '../api'
 import {EDITOR_LINK_OPTIONS, EDITOR_PASTE_PROPS} from '../richText'
+import {EmojiInput} from '../composeEmoji'
+import {useHoverProbe} from '../hooks/useHoverStatus'
 import {DataAttachment} from '../composeIntake'
 import {useComposeIntake} from '../hooks/useComposeIntake'
 import {useContactPool} from '../hooks/useContactPool'
@@ -114,6 +116,8 @@ export function ComposeModal({accountId, senders, initial, canSaveDraft, onMarkR
     // intakeRef bridges the editor's paste and drop handlers to the latest intakeFiles, again because the
     // editor is built once while intakeFiles closes over per-render state.
     const intakeRef = useRef<(dt: DataTransfer | null) => boolean>(() => false)
+    // The body reports the link or emoji under the pointer to the tray, as a received message does.
+    const hoverProbe = useHoverProbe()
 
     const editor = useEditor({
         extensions: [
@@ -121,6 +125,8 @@ export function ComposeModal({accountId, senders, initial, canSaveDraft, onMarkR
             // allowBase64 keeps a pasted image's data: URI in the document; the backend lifts it into a
             // proper inline MIME part at send time.
             Image.configure({allowBase64: true}),
+            // Emoticons and shortcodes become emoji as they are typed (see composeEmoji).
+            EmojiInput,
         ],
         content: initial?.bodyHtml ?? '',
         // Initial focus is the top of the body, not the To field: a reply, reply-all or forward opens
@@ -301,7 +307,7 @@ export function ComposeModal({accountId, senders, initial, canSaveDraft, onMarkR
                 <div className="modal-body">
                 <ComposeToolbar tools={tools} toolbar={toolbar} templatePicker={templatePicker} templates={templates}
                                 insertTemplate={insertTemplate} link={link}/>
-                <EditorContent editor={editor} className="compose-editor"/>
+                <EditorContent editor={editor} className="compose-editor" {...hoverProbe}/>
 
                 <ComposeAttachments
                     attachments={attachments} messageAttachments={messageAttachments} intake={intake}

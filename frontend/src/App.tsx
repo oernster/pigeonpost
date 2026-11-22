@@ -15,6 +15,7 @@ import {ModalClose} from './components/ModalClose'
 import {useBackdropDismiss} from './components/useBackdropDismiss'
 import {TitleBar} from './components/TitleBar'
 import {BottomBar} from './components/BottomBar'
+import {HoverChannelContext, useHoverChannelOwner} from './hooks/useHoverStatus'
 import {WelcomeScreen} from './components/WelcomeScreen'
 import {SelectionSummary} from './components/SelectionSummary'
 import {DraftRecoveryDialog} from './components/DraftRecoveryDialog'
@@ -1097,6 +1098,8 @@ function App() {
     // Every destructive confirmation the main window owns, each built by the hook that owns the action.
     // App assembles the list but writes none of it, so a new destructive action adds a confirmation to
     // its own hook and one entry here rather than another block of dialog markup.
+    const hoverChannel = useHoverChannelOwner()
+
     const confirmations = [
         outboxConfirmation,
         deleteConfirmation,
@@ -1126,6 +1129,9 @@ function App() {
     })
 
     return (
+        // The hover channel carries what is under the pointer in a message (a link's real destination, an
+        // emoji's name) to the bottom tray; see useHoverStatus.
+        <HoverChannelContext.Provider value={hoverChannel}>
         <div className="app">
             <span
                 ref={neutralFocusRef}
@@ -1368,6 +1374,7 @@ function App() {
                 />
             )}
         </div>
+        </HoverChannelContext.Provider>
     )
 }
 

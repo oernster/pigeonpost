@@ -60,6 +60,12 @@ describe('MessageBodyView', () => {
         expect(container.querySelector('.reader-text')).toBeNull()
     })
 
+    it('shows a plain-text body with its emoticons as emoji and its addresses still linked', () => {
+        const {container} = renderBody({body: body({plain: 'Thanks :) see https://example.com/x:)y'})})
+        expect(container.querySelector('.reader-text')?.textContent).toBe('Thanks 🙂 see https://example.com/x:)y')
+        expect(container.querySelector('.reader-text a')?.getAttribute('href')).toBe('https://example.com/x:)y')
+    })
+
     it('falls back to the plain text when there is no html', () => {
         const {container} = renderBody({body: body({plain: 'the plain text'})})
         expect(container.querySelector('.reader-text')?.textContent).toContain('the plain text')

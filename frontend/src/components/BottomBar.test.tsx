@@ -2,8 +2,10 @@
 // The URL is asserted literally on purpose, so a typo in the payment address fails here rather than
 // sending a supporter to a page that is not Oliver's.
 import {afterEach, describe, expect, it, vi} from 'vitest'
-import {cleanup, fireEvent, render, screen} from '@testing-library/react'
+import {act, cleanup, fireEvent, render, screen} from '@testing-library/react'
 import {BottomBar} from './BottomBar'
+import {HoverChannelContext} from '../hooks/useHoverStatus'
+import {createHoverChannel, emojiStatus, linkStatus} from '../hoverStatus'
 import {spiesNotInApi, unstubbedNames} from '../test/apiMock'
 
 const apiSpies = vi.hoisted(() => ({openExternal: vi.fn()}))
@@ -41,6 +43,55 @@ describe('BottomBar', () => {
         render(<BottomBar/>)
         fireEvent.click(screen.getByLabelText('Donate to support PigeonPost'))
         expect(openExternal).toHaveBeenCalledWith('https://www.paypal.com/ncp/payment/Q2U2RRG5WV7YJ')
+    })
+})
+
+describe('BottomBar: hover readout', () => {
+    function renderWithChannel() {
+        const channel = createHoverChannel()
+        const {container} = render(
+            <HoverChannelContext.Provider value={channel}>
+                <BottomBar/>
+            </HoverChannelContext.Provider>,
+        )
+        const tray = container.querySelector('footer') as HTMLElement
+        const readout = screen.getByRole('status')
+        return {channel, tray, readout}
+    }
+
+    it('is empty and not raised while nothing is hovered', () => {
+        const {tray, readout} = renderWithChannel()
+        expect(readout).toBeEmptyDOMElement()
+        expect(tray).not.toHaveClass('bottombar-raised')
+    })
+
+    it('shows a link destination with the host in bold and raises the tray over a dialog', () => {
+        const {channel, tray, readout} = renderWithChannel()
+        act(() => channel.report(linkStatus('https://example.com/path', 'Read more')))
+        expect(readout).toHaveTextContent('https://example.com/path')
+        expect(readout.querySelector('strong')).toHaveTextContent(/^example\.com$/)
+        expect(tray).toHaveClass('bottombar-raised')
+        act(() => channel.report(null))
+        expect(readout).toBeEmptyDOMElement()
+        expect(tray).not.toHaveClass('bottombar-raised')
+    })
+
+    it('warns when the link text names a different site', () => {
+        const {channel, readout} = renderWithChannel()
+        act(() => channel.report(linkStatus('https://evil.test/', 'yourbank.com')))
+        expect(readout).toHaveTextContent('Link text shows yourbank.com but goes to https://evil.test/')
+    })
+
+    it('says when PigeonPost will not open a link', () => {
+        const {channel, readout} = renderWithChannel()
+        act(() => channel.report(linkStatus('javascript:alert(1)', 'Win')))
+        expect(readout).toHaveTextContent('PigeonPost will not open this link: javascript:alert(1)')
+    })
+
+    it('names a hovered emoji', () => {
+        const {channel, readout} = renderWithChannel()
+        act(() => channel.report(emojiStatus('🎉')))
+        expect(readout).toHaveTextContent('🎉 party popper')
     })
 })
 

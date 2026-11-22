@@ -6,6 +6,7 @@ import {formattingTools, signatureTools} from '../editorTools'
 import {useLinkEditor} from '../hooks/useLinkEditor'
 import {ToolButton} from './ToolButton'
 import {useToolbarNav} from '../hooks/useToolbarNav'
+import {useHoverProbe} from '../hooks/useHoverStatus'
 
 interface RichTextFieldProps {
     editor: Editor | null
@@ -25,6 +26,7 @@ export function RichTextField({editor, full}: RichTextFieldProps) {
     const link = useLinkEditor(editor, normaliseSigUrl)
     const tools = full === true ? formattingTools(editor, link.openLink) : signatureTools(editor, link.openLink)
     const toolbar = useToolbarNav(tools.length)
+    const hoverProbe = useHoverProbe()
     return (
         <>
             <div className="compose-toolbar" aria-label="Formatting" {...toolbar.toolbarProps}>
@@ -60,7 +62,7 @@ export function RichTextField({editor, full}: RichTextFieldProps) {
                     <button className="btn primary" onClick={link.applyLink}>Apply</button>
                 </div>
             )}
-            <EditorContent editor={editor} className="compose-editor signature-editor"/>
+            <EditorContent editor={editor} className="compose-editor signature-editor" {...hoverProbe}/>
         </>
     )
 }

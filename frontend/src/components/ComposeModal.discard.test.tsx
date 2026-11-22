@@ -37,6 +37,9 @@ const editorState = vi.hoisted(() => ({
     onUpdate: (() => {}) as () => void,
 }))
 
+// The send-time emoji pass reads ProseMirror state this file's fake editor does not have.
+vi.mock('../composeEmoji', () => import('../test/composeEmojiStub'))
+
 vi.mock('@tiptap/react', () => {
     const chain = () => {
         const c: Record<string, () => unknown> = {}

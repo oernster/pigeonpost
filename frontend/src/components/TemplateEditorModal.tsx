@@ -13,6 +13,7 @@ import {
     type TemplateEditorFile,
 } from '../templateFiles'
 import {EDITOR_LINK_OPTIONS, EDITOR_PASTE_PROPS} from '../richText'
+import {EmojiInput} from '../composeEmoji'
 import {ModalClose} from './ModalClose'
 import {RichTextField} from './RichTextField'
 
@@ -40,7 +41,7 @@ export function TemplateEditorModal({template, onSaved, onCancel}: TemplateEdito
 
     // The body is edited as rich text (HTML), matching the composer.
     const editor = useEditor({
-        extensions: [StarterKit.configure({link: EDITOR_LINK_OPTIONS})],
+        extensions: [StarterKit.configure({link: EDITOR_LINK_OPTIONS}), EmojiInput],
         content: template?.body ?? '',
         editorProps: EDITOR_PASTE_PROPS,
     })

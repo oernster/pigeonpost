@@ -35,6 +35,9 @@ vi.mock('../api', async () => {
 // without ProseMirror. insertContent is part of the chain here because the template path calls it.
 const editorSpies = vi.hoisted(() => ({inserted: [] as string[]}))
 
+// The send-time emoji pass reads ProseMirror state this file's fake editor does not have.
+vi.mock('../composeEmoji', () => import('../test/composeEmojiStub'))
+
 vi.mock('@tiptap/react', () => {
     const chain = () => {
         const c: Record<string, (arg?: unknown) => unknown> = {}

@@ -3,6 +3,7 @@ import {useEditor} from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import {Account, AccountSetupInput, Identity, api} from '../api'
 import {EDITOR_LINK_OPTIONS, EDITOR_PASTE_PROPS} from '../richText'
+import {EmojiInput} from '../composeEmoji'
 import {
     DEFAULT_IN_PORT,
     DEFAULT_IN_PORT_POP3,
@@ -56,7 +57,7 @@ export function useAccountForm(account: Account | null | undefined, onSaved: (em
     // The signature is edited as rich text (HTML), matching the composer. An empty editor is stored as ''
     // so a new message gets no signature block; a non-empty one is inserted above the quote on reply.
     const sigEditor = useEditor({
-        extensions: [StarterKit.configure({link: EDITOR_LINK_OPTIONS})],
+        extensions: [StarterKit.configure({link: EDITOR_LINK_OPTIONS}), EmojiInput],
         content: account?.signature ?? '',
         editorProps: EDITOR_PASTE_PROPS,
     })

@@ -91,6 +91,38 @@
     border-top: 1px solid var(--border);
 }
 
+/* While the tray has a hover reading it stands above an open dialog's backdrop (40) so the reading is
+   not dimmed with the window behind the dialog; it stays under the close choice and the pickers (60+),
+   which must surface above everything. */
+.bottombar-raised {
+    z-index: 45;
+}
+
+/* The hover readout takes the rest of the tray. One line, cut with an ellipsis at its far end: the start
+   of an address, which carries the host, is the part that must stay in view. */
+.hover-status {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+}
+
+.hover-status-text {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    color: var(--text-dim);
+}
+
+.hover-status-text strong {
+    color: var(--text);
+}
+
+.hover-status-warning {
+    color: var(--danger);
+    font-weight: 600;
+}
+
 .outbox-pill {
     align-self: center;
     background-color: var(--primary);

@@ -5,6 +5,8 @@ import {ModalClose} from './ModalClose'
 import {useBackdropDismiss} from './useBackdropDismiss'
 import {useRemoteImages} from '../hooks/useRemoteImages'
 import {openLinkExternally} from '../openLink'
+import {translateEmoji} from '../emoji'
+import {useHoverProbe} from '../hooks/useHoverStatus'
 
 interface EmailViewerModalProps {
     email: EmailView
@@ -25,6 +27,7 @@ export function EmailViewerModal({email, autoLoadImages, dark, onClose}: EmailVi
     const [imagesShown, setImagesShown] = useState(autoLoadImages)
     const rawHtml = email.html ?? ''
     const {renderedHtml, loadingImages, hasBlockedImages} = useRemoteImages(rawHtml, imagesShown)
+    const hoverProbe = useHoverProbe()
     return (
         <div className="modal-backdrop" {...dismiss}>
             <div
@@ -56,7 +59,9 @@ export function EmailViewerModal({email, autoLoadImages, dark, onClose}: EmailVi
                         <EmailHtmlFrame html={renderedHtml} dark={dark} onOpenLink={openLinkExternally}/>
                     </div>
                 ) : (
-                    <pre className="email-viewer-body reader-text">{email.plain || '(no content)'}</pre>
+                    <pre className="email-viewer-body reader-text" {...hoverProbe}>
+                        {email.plain ? translateEmoji(email.plain) : '(no content)'}
+                    </pre>
                 )}
             </div>
         </div>

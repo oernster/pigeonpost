@@ -12,11 +12,13 @@
   },
   "dependencies": {
     "@tanstack/react-virtual": "^3.14.5",
+    "@tiptap/core": "3.27.1",
     "@tiptap/extension-image": "^3.27.1",
     "@tiptap/extension-link": "^3.27.1",
     "@tiptap/pm": "^3.27.1",
     "@tiptap/react": "^3.27.1",
     "@tiptap/starter-kit": "^3.27.1",
+    "emojibase-data": "18.0.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },

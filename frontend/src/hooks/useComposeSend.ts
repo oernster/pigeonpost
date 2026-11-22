@@ -5,6 +5,7 @@ import {api, ComposeInput} from '../api'
 import {AUTO_COLLECT_KEY, collectableRecipients, shouldAutoCollect} from '../autoCollect'
 import {splitAddresses} from '../composeAddresses'
 import {bodyMentionsAttachment} from '../composeAttachment'
+import {translateTrailingEmoji} from '../composeEmoji'
 import type {ComposeInitial, MessageAttachment} from '../components/ComposeModal'
 import type {useComposeIntake} from './useComposeIntake'
 import type {useDraftAutosave} from './useDraftAutosave'
@@ -131,6 +132,11 @@ export function useComposeSend(deps: ComposeSendDeps) {
     }
 
     const send = async (at: Date | null) => {
+        // An emoticon left at the end of a line, with nothing typed after it to convert it, goes as its
+        // emoji like every other one (see composeEmoji).
+        if (editor) {
+            translateTrailingEmoji(editor)
+        }
         autosave.stopAutosave()
         setSending(true)
         setError('')
