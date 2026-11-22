@@ -77,7 +77,8 @@ read; where that message names a setting and the steps it asserts a cause, which
 log is the copy kept and a wrong reading can be seen for what it is. Some of the messages assert
 nothing: a refused sign-in says it was refused and points at the address and password rather than
 claiming which of them is at fault. Besides the errors that were replaced it records every sync failure,
-every failed background mail check and every sent message whose copy could not be saved to Sent. It is
+every failed background mail check, every sent message whose copy could not be saved to Sent and every
+snooze that came due with its message gone. It is
 created on the first failure. It holds mail server responses and the address they concern, so read it
 before attaching it to anything. `run.log` in the same folder shows when each run started, a line as each
 folder listing, folder fetch and flag replay against the server starts and ends and the report of any
@@ -108,8 +109,15 @@ crash.
   logos keeping their true colour. Text a sender coloured for a background image that has not loaded is
   corrected so it stays readable rather than disappearing into its own background. Bare web addresses in a message are clickable (opening in
   your browser, never inside the app), markdown-style `[label](url)` links show their label and a link
-  standing alone on its own line is presented as a button. Attachments save from the reader (cached for offline). Sync runs per account with its own
-  progress cue.
+  standing alone on its own line is presented as a button. Hovering a link shows where it really goes in
+  the tray at the foot of the window, with its site in bold, so it can be judged before it is clicked;
+  the same works over a link in the compose window, a signature or an attached email. A
+  link whose visible text names a different site says so in red; a link PigeonPost will not open (a
+  `javascript:` link, say) says that instead. A site name written with lookalike letters from another
+  alphabet shows in its `xn--` form, so it cannot pass for the real one. Emoticons and shortcodes such as
+  `:)` and `:tada:` show as their emoji while the stored message keeps what the sender wrote; hovering an
+  emoji names it. Attachments save from the reader (cached for offline). Sync runs per account with its
+  own progress cue.
 - **Compose**: TipTap rich text, To/Cc/Bcc, reply, reply-all and forward (Ctrl+R, Ctrl+Shift+R and
   Ctrl+L), file or message attachments
   (25 MB), reusable message templates, per-account signatures and server Drafts. A template carries a
@@ -141,7 +149,13 @@ crash.
   sync you run (the Sync button or F9), which sends what every account has queued. A send the mail
   server turns away by saying it is temporarily unavailable queues the same way rather than failing.
   URLs you type or paste go out as real links in any recipient's client and long lines are encoded so
-  no mail server can fold and corrupt them in transit.
+  no mail server can fold and corrupt them in transit. Emoticons and shortcodes become emoji as you type
+  in a message, a template or a signature: a face such as `:)` converts when the next space or
+  punctuation is typed (or Enter), a shortcode such as `:thumbsup:` as its closing colon is typed and
+  one left at the very end of a line when you send. Backspace straight after a conversion puts the text
+  back. Pasted text does not convert as it lands. Code and the quoted message in a reply stay as
+  written; so do faces that begin with a letter or a digit (`XP`, `8)`), which read as ordinary text
+  far more often than as faces.
 - **Organise**: mark read/star, delete to Trash or purge, junk and not-junk (a wrongly junked message
   moves back to the inbox with the server told the verdict), instant offline full-text search with
   operators (from:, to:, has:attachment, dates and more) and colour tags
@@ -197,8 +211,9 @@ crash.
   against and how many it would mark, flag, move or delete) and acts only once you agree; a rule that would
   change nothing says so instead. A progress bar counts folders while it checks and messages while it
   applies, each knowing its total before it starts; Cancel stops it. Stopping is not an undo: the
-  report then tells you what had already been done, because that part really did happen. Afterwards it
-  reports what actually happened either way, so a run the server partly refused names the part that landed.
+  report then tells you what had already been done, because that part really did happen. A run the
+  server partly refuses shows the server's error in place of that report, so look over the folders it
+  covered before running it again.
   A rule set moves between installations through a file: Export writes every rule as readable JSON and
   Import reads one back. The file carries nothing local to the machine that wrote it, so a rule keeps no
   id and no position while a move names its destination as the account plus the mailbox path rather than
@@ -360,8 +375,9 @@ bash build_flatpak.sh         # build and install the Flatpak (Linux)
 PigeonPost is free and stays free. There is no paid tier, no licence key and nothing held back behind a
 donation. Donations support maintenance and continued development.
 
-A tray at the foot of the window carries a donate button at its left. It opens a PayPal payment page
-in your browser; the app itself sends nothing and asks for nothing.
+A tray at the foot of the window carries a donate button at its left; the rest of the tray shows where
+a hovered link goes. The button opens a PayPal payment page in your browser; the app itself sends
+nothing and asks for nothing.
 
 <a href="https://www.paypal.com/ncp/payment/Q2U2RRG5WV7YJ"><img src="docs/donate.png" alt="Donate to PigeonPost" width="120"></a>
 

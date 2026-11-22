@@ -7,7 +7,7 @@ How to set up, run, test, build and package PigeonPost from source.
 | Tool | Version | Notes |
 |---|---|---|
 | Go | 1.25 or newer | The floor is the `go` directive in `go.mod`; the build was verified on Go 1.26. |
-| Node.js | 20.19, 22.13 or 24 and newer | The floor is the front-end test runner's (jsdom); Node 24 verified. Ships with npm. |
+| Node.js | 20.19, 22.13 or 24 and newer | The floor is the front-end test runner's (jsdom); Node 24 and Node 26 verified. Ships with npm. |
 | Wails CLI | v2.12 | `go install github.com/wailsapp/wails/v2/cmd/wails@latest` |
 | WebView2 runtime | current | Pre-installed on Windows 11. Wails uses the system WebView. |
 | PowerShell | 7+ | For `build.ps1` and `test.ps1` on Windows. |
@@ -150,7 +150,7 @@ ARCHITECTURE.md). Dropping a new PNG into `assets/` is enough to generate it; na
 what puts it on screen.
 
 The masters differ in size and need not match: most carry roughly 1254px on their longest side, while
-`File`, `compose` and `mail` are still the original 512px drawings. What actually bounds the generated
+`File` and `mail` are still the original 512px drawings. What actually bounds the generated
 height is the shortest ink height among them, since artwork is only ever reduced and never enlarged. That
 is `File` at 360px of ink. Raising `--titlebar-glyph-size` means raising `glyphHeight` with it; 360px is
 the number it must stay under.

@@ -178,6 +178,34 @@ https and mailto addresses are handed over.
 - **Gains:** a message cannot steer the app to a file or any other scheme.
 - **Costs:** none recorded.
 
+### A hovered link shows where it really goes
+
+Hovering a link in a message writes its real destination in the tray at the
+foot of the window, with the host in bold. When the link's text names a
+different site the tray says so first; a link the app will not open is
+labelled as one. While it holds a reading the tray rises above an open
+dialog's dimming.
+
+- **Rather than:** a tooltip at the pointer; a confirmation before every link
+  opens.
+- **Gains:** a link can be judged before it is clicked, with nothing extra to
+  dismiss; the reading and the click share one rule about which links open.
+- **Costs:** the reading sits at the edge of the window, away from the
+  pointer; a long address is cut at its far end.
+
+### The same site means the same host or one inside the other
+
+The warning compares the host a link's text names with the host it goes to.
+A leading www is set aside and a subdomain of either counts as the same site.
+No list of public suffixes is consulted.
+
+- **Rather than:** the public suffix list, which would have to ship with the
+  app and be kept current.
+- **Gains:** no data to keep; mail that writes a domain over a link to its
+  own subdomain is not flagged.
+- **Costs:** text naming a shared hosting domain over a link to someone's
+  site on it reads as the same site, so no warning shows.
+
 ### An update check that names nobody
 
 Shortly after launch and once a day while it runs, the app asks GitHub for
@@ -287,6 +315,8 @@ kept.
   each.
 - **Costs:** a connection stays open for up to five minutes after use; a
   kept connection can have died, which costs one check before a fresh dial.
+  Apart from these, each IMAP account holds one more connection open for as
+  long as the app runs, watching the Inbox for new mail.
 
 ### Outgoing mail queues offline; other actions do not
 
@@ -506,13 +536,13 @@ been recorded as done.
   hand. Mail another program moves into the Inbox comes back under a new UID
   and counts as new (TECH_DEBT.md item 2).
 
-### Exceptions are a list of their own; a new rule narrows
+### Exceptions shown as a list of their own; a new rule narrows
 
-A rule holds the conditions a message must match; apart from them it holds
-its exceptions. The conditions combine as the match mode says; any one exception
-lets a message off whatever the mode. An exception takes any comparison,
-which gives every comparison its opposite. The editor shows the two as two
-lists, with a control on each row that moves it to the other. A new rule
+A rule holds one list of conditions. Each is either one a message must match
+or an exception, which is any comparison turned around, so every comparison
+has its opposite. The conditions combine as the match mode says; any one
+exception lets a message off whatever the mode. The editor shows the two kinds
+as two lists, with a control on each row that moves it to the other. A new rule
 starts on "all of these" and the editor prints the joining word between rows.
 
 - **Rather than:** treating an exclusion as one more alternative, which
@@ -635,6 +665,20 @@ already in the address book is added as a minimal contact. A setting on the Cont
 - **Rather than:** an address book filled only by hand.
 - **Gains:** suggestions in the address fields grow from use.
 - **Costs:** the address book gathers contacts the user may not want.
+
+### A typed face converts on the next keystroke
+
+An emoticon typed in a message, a template or a signature converts when the
+following space or punctuation is typed. Enter converts one just before the
+caret; in a message, one left at the end of a line converts at send. A
+shortcode converts on its closing colon. Backspace straight after a
+conversion puts the text back. Nothing converts inside code or a quoted
+reply.
+
+- **Rather than:** converting the moment a face is complete.
+- **Gains:** ":p" can still begin ":path" and ":D" can still begin ":Done".
+- **Costs:** a face at the end of a line shows as text until Enter or the
+  send; shortcodes and emoticons convert at different moments.
 
 ## Calendar and contacts
 
@@ -829,6 +873,43 @@ chooses.
   files.
 - **Gains:** an alert can be told apart by ear; no audio file to ship.
 - **Costs:** none recorded.
+
+### Emoji in received mail are shown, not stored
+
+Emoticons and shortcodes in a received message are drawn as emoji when it is
+shown. The stored message, a reply's quote and a forward keep what the sender
+wrote. Code and preformatted text are left as written and no attribute is
+touched, so a link cannot change.
+
+- **Rather than:** rewriting the message in the cache.
+- **Gains:** the sender's text survives untouched; a link or image address
+  can never be altered.
+- **Costs:** a printed message keeps the text forms.
+
+### Only faces that start with a symbol, standing on their own
+
+The Unicode data lists emoticons such as XP, xo, 8) and D:. Only one that
+starts with a symbol is acted on; the simple faces also gain the nosed
+spelling people commonly type. A face converts only at the start of the text
+or after whitespace and only when followed by whitespace, sentence
+punctuation or the end. An unknown shortcode is left alone.
+
+- **Rather than:** every emoticon the data lists, matched wherever it
+  appears.
+- **Gains:** "Windows XP", a signed-off "xo", a numbered "8)", "Plan D:", a
+  web address and a time such as 10:30:45 all stay as written.
+- **Costs:** a face written with a letter or a digit first never converts,
+  nor does one typed straight after a word.
+
+### Emoji names and forms from the Unicode data
+
+The names, emoticons and shortcodes come from a published package of the
+Unicode CLDR data rather than a table kept by hand.
+
+- **Rather than:** a hand-written table.
+- **Gains:** a new Unicode release arrives by updating the package; hovering
+  any emoji gives its standard name.
+- **Costs:** a dependency bundled into the app.
 
 ## Building and installing
 

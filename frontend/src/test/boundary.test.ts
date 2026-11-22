@@ -17,6 +17,7 @@ const PURE_MODULES = [
     'calendarModel', 'replyDraft', 'categories', 'caldavAccount', 'unified', 'schedule', 'snooze', 'toolbarNav',
     'undoStack', 'editClipboard', 'paneLayout', 'datePicker', 'emailColors', 'pastedHtml', 'templateFiles',
     'composeAttachment', 'confirmations', 'dragScroll', 'optimisticList', 'autoScroll', 'draftEdit', 'modalDrag',
+    'emoji', 'emojiDocument', 'hoverStatus', 'hoverProbe', 'composeEmoji',
 ]
 
 // The raw source of every src/*.ts, read at build time by Vite (no node:fs, so the frontend

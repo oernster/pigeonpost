@@ -88,7 +88,7 @@ export const guideSections: GuideSection[] = [
             },
             {
                 title: 'A message is shown, never run.',
-                text: 'HTML renders in a sandboxed frame that keeps the styling the sender wrote while running no scripts and fetching nothing remote. Remote images stay blocked until you load them, per message or through the View menu; links open in your browser rather than inside the app.',
+                text: 'HTML renders in a sandboxed frame that keeps the styling the sender wrote while running no scripts and fetching nothing remote. Remote images stay blocked until you load them, per message or through the View menu; links open in your browser rather than inside the app. Hovering a link shows where it really goes in the tray at the foot of the window, with a warning when its text names a different site, so it can be judged before it is clicked.',
             },
             {
                 title: 'Delete permanently means exactly that.',

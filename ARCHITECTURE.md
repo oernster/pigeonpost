@@ -15,7 +15,7 @@ the outbound list), not by convention.
 | Application never imports infrastructure or wails | `TestApplicationDoesNotImportInfrastructure` |
 | No Go source file exceeds the module-size limit (test files excepted by design) | `TestNoFileExceedsLineLimit` |
 | Only the composition root (package `main` at the repo root) may import both application and infrastructure | `TestCompositionRootIsWhitelisted` |
-| Only the packages on the documented outbound list may import a package that opens a connection: `imap`, `pop3`, `smtp` and `caldav` (your own servers), `oauth` (Microsoft sign-in), `remoteimage` (images you choose to load) and `update` (the GitHub releases check); `main.go` may import one only to build the sign-in client it hands on. Format-only packages such as `net/url` and `net/mail` are allowed anywhere | `TestOnlyTheListedPackagesReachTheNetwork`, `TestEveryNetworkExemptionExists`, `TestNetworkPackageRecognitionIsExact` |
+| Only the packages on the documented outbound list may import a package that opens a connection: `imap`, `pop3`, `smtp` and `caldav` (your own servers), `oauth` (Microsoft sign-in), `remoteimage` (images you choose to load) and `update` (the GitHub releases check); `main.go` may import one only to build the sign-in client it hands on. Format-only packages such as `net/url` and `net/mail` are exempt from the outbound list; the domain still may not import them, since `TestDomainIsPure` refuses every `net` package there | `TestOnlyTheListedPackagesReachTheNetwork`, `TestEveryNetworkExemptionExists`, `TestNetworkPackageRecognitionIsExact` |
 | The front end makes no request of its own: no `fetch`, `XMLHttpRequest`, `WebSocket`, `EventSource` or `sendBeacon` in `frontend/src` | `TestTheFrontEndMakesNoRequestOfItsOwn`, `TestFrontEndRequestRecognition` |
 
 ## Layers
@@ -206,7 +206,10 @@ Read a message body:
    HTML when present (links open in the external browser via the
    facade, never the app's own webview) and falls back to the plain text otherwise; the plain-text view
    applies the same linkify rules through the `LinkifiedText` component, including the solo-line button
-   presentation, themed via the app's accent tokens.
+   presentation, themed via the app's accent tokens. The plain-text view and the attached-email viewer
+   pass the body through `translateEmoji` (`emoji.ts`) before drawing it and wear the same pointer probe
+   (`useHoverProbe`) as the frame below, so a link or emoji under the pointer reads out in the tray there
+   too.
 3. The sanitised HTML renders inside a sandboxed iframe (`EmailHtmlFrame`) rather than the app's own
    document: the frame is `sandbox="allow-same-origin allow-scripts"` (popups, top navigation, forms and
    downloads all stay blocked) under a strict content-security-policy (`default-src 'none'`, images and
@@ -218,7 +221,15 @@ Read a message body:
    dead on macOS and Linux. The parent also writes the frame's document itself
    (`contentDocument.open()/write()/close()` rather than the `srcdoc` attribute), because WebKit does not
    reliably fire the iframe load event for `srcdoc`, which left listeners bound to the dead initial
-   document. Loading the parked images routes through a server-side proxy: the application
+   document. Beside the click handler the frame binds a `mousemove` listener that passes the frame's
+   document to `hoverStatusAt` (`hoverProbe.ts`); the reading reaches the bottom tray through the hover
+   channel `App` owns (`useHoverStatus`) and leaving the frame clears it. The click handler and the tray
+   read one scheme list, `isOpenableHref` in `hoverStatus.ts`, so the tray never calls a link openable
+   that the click handler would ignore. Before the colour pass the same attach step runs
+   `translateEmojiInDocument` (`emojiDocument.ts`), which rewrites emoticons and shortcodes in the
+   document's text nodes as emoji. It is display only: attributes are never touched, text inside code,
+   pre, kbd, samp, style, script and textarea is left as written and the cached body, a reply's quote and
+   a forward keep what the sender wrote. Loading the parked images routes through a server-side proxy: the application
    `RemoteImageService` over the `remoteimage` resolver fetches each blocked image and inlines it as a
    `data:` URI, sidestepping the CORP/CORS rules that would otherwise stop the iframe embedding it by URL.
    The fetch is SSRF-guarded by a `net.Dialer.Control` hook that checks the real post-DNS connect IP and
@@ -357,6 +368,15 @@ through `StarterKit.configure({link})` rather than a second Link extension besid
 name twice makes TipTap keep only one of the two configurations, which can silently discard
 `openOnClick: false`.
 
+The same three surfaces carry the `EmojiInput` TipTap extension (`composeEmoji.ts`) and the hover probe.
+An emoticon converts once the character after it is typed, a shortcode on its closing colon and Enter
+converts one just before the caret; each conversion is an undoable input rule. Nothing converts inside
+code or a quoted message. An emoticon at the very end of a line has nothing typed after it, so
+`useComposeSend` runs `translateTrailingEmoji` over the body before a send or a scheduled send; Save draft
+does not. The emoji tables come from the `emojibase-data` package (Unicode CLDR names, emoticons and
+GitHub shortcodes); only an emoticon that starts with a symbol is acted on and a token must stand on its
+own, preceded by whitespace, so a web address is never touched.
+
 Recipient autocomplete: the To, Cc and Bcc fields suggest matching addresses from the address book
 as an address fragment is typed. The matching, ranking and text-splicing logic is the gated pure
 `recipientSuggest` module; the shared suggestion pool loads lazily through the contacts use case on
@@ -440,7 +460,8 @@ left behind go back to the queue when the dispatcher starts. A send counts as de
 accepts DATA, whatever QUIT then answers. A replayed send keeps the same best-effort Sent copy a direct send leaves. The
 queue covers outgoing mail only; delete and move remain online-only by design, while flag changes are
 replayed through their own intent table (below). IMAP and POP3 dials are bounded by a 10-second timeout
-(DNS plus the TCP and TLS handshake), so an action taken while offline fails within seconds rather than
+covering DNS and the TCP connect (on an implicit-TLS port the TLS handshake falls inside it too, while a
+STARTTLS upgrade happens after the dial and is not bounded by it), so an action taken while offline fails within seconds rather than
 blocking on the operating system's default wait; SMTP relies on go-smtp's own 30-second dial timeout. Because the online-only actions cannot be queued, their `ErrOffline` is translated
 once at the Wails facade into a plain, user-facing message (the technical dial detail never reaches the
 interface); a batched action carries an offline flag alongside its error so the front end shows that
@@ -1238,8 +1259,12 @@ in `app_actions.go` still return the raw error, as do the meeting sends in `sche
   root whitelist and the outbound list.
 - The React front end has its own Vitest and jsdom suite: a coverage gate on the pure logic modules, a
   structural boundary test that keeps them pure and a module-size test holding the same 400-line limit
-  the Go guard holds, with `App.tsx`, the one module over it, exempt by decision and held at its recorded
-  ceiling. Two further
+  the Go guard holds, with `App.tsx`, the one module over it, exempt by decision and held under the
+  ceiling recorded for it. The boundary test names 42 pure modules; the coverage gate in `vite.config.ts`
+  lists 36 of them, leaving out `tz`, `folderPaths`, `threads`, `outbox`, `tagColours` and `categories`.
+  `src/test/setup.ts` points `localStorage` and `sessionStorage` at jsdom's storage, because Node 25 and
+  later define Web Storage getters of their own that answer undefined without a flag; the suite then runs
+  on any Node version. Two further
   structural tests read source rather than behaviour: one holds every dialog's action row and scrolling
   body, the other holds the stylesheets' hover gating, the pane watermark's stacking, pointer and
   token declarations, the empty-list line's pointer gate, the leading line the two bars and the sidebar labels share (see Styles below)
@@ -1255,8 +1280,9 @@ cascade is unchanged. The split is by concern, not by component, because shared 
 
 Rule for new styles: add a file under `frontend/src/styles/` and `@import` it from `App.css` in the right
 place. Keep `App.css` a manifest (its header comment and `@import` lines only); never inline component rules back into it or let a
-per-component file own a shared global. Split a concern file over ~500 lines again at a top-level comment
-boundary, keeping the import order intact.
+per-component file own a shared global. A concern file past ~500 lines is due a split at a top-level
+comment boundary, keeping the import order intact; four currently are (`tags-and-pickers.css`,
+`calendar.css`, `base-and-panes.css` and `list-rows.css`).
 
 A `:hover` rule on a class worn by a button must also require `:enabled`;
 `frontend/src/styles/stylesheets.test.ts` fails the suite when one does not. It reads the stylesheets
@@ -1358,7 +1384,12 @@ only what genuinely differs: the rule moves from the bottom edge to the top and 
 pins the bar down on a screen whose body does not take the spare height itself (the welcome screen;
 `.panes` already holds it there with its own `flex: 1`). Its one control is the donate button, which
 hands the payment page to the browser through the same `OpenExternal` scheme allowlist every link in
-a message takes, so the app makes no request of its own.
+a message takes, so the app makes no request of its own. The rest of the bar is the hover readout
+(`HoverReadout`): a hovered link's real destination with its host in bold, a warning first when the
+link's visible text names a different site and a refusal for a scheme PigeonPost will not open; else the
+name of a hovered emoji. While it has a reading the tray takes `.bottombar-raised` (`z-index: 45`), above an
+open dialog's backdrop (40) yet below the close choice and the pickers (60 and over), so a link hovered in
+the compose window or a popped-out message reads at full contrast.
 
 A control at that corner needs its tooltip flipped. The shared `[data-tip]` tip opens downwards and
 centred, which is right everywhere above the fold and wrong in both axes here: measured against a
@@ -1700,7 +1731,8 @@ mail check every few seconds and StartMail blocked the address for it on 2026-10
 reconnects with capped exponential backoff (five seconds doubling to five minutes) and reissues the IDLE
 every 20 minutes, inside the server's timeout window; a server without the IDLE capability stops cleanly
 and is left to the poll. The watcher is
-injected into the facade behind a `MailWatcher` port, so the application layer keeps no IMAP dependency. A
+injected into the facade behind the `MailWatcher` interface declared in `app.go` (not one of the
+application ports), so the application layer keeps no IMAP dependency. A
 60-second poll is the backstop for a missed push and for POP3, which has no IDLE.
 
 The watcher set is kept in step with the accounts, so an account added after launch gets instant push
@@ -1758,6 +1790,7 @@ GPL-3.0 compatible.
 | POP3 | small hand-rolled client | POP3 is a small protocol. |
 | SMTP send | emersion/go-smtp | Pairs with the suite. |
 | MIME parse/build | emersion/go-message | Production-tested in real clients. |
+| Emoji data | emojibase-data (Unicode CLDR) | Names, emoticons and shortcodes come from the package rather than a hand-typed list; MIT licensed. |
 | SASL | emersion/go-sasl | SASL PLAIN for SMTP AUTH. |
 | Calendar ICS | emersion/go-ical | RFC 5545 round-trip (Thunderbird and Outlook). |
 | Contacts vCard | emersion/go-vcard | vCard 3/4 round-trip. |

@@ -83,7 +83,7 @@ documented here.
 | `internal/infrastructure/taskbar` | unit on the pure label formatting and the balloon-suppression rule, plus a source scan holding the chime call in `Notify` rather than in the balloon; Win32 overlay excluded | none |
 | `internal/infrastructure/sound` | unit on the three chimes' synthesis and WAV encoding, including that they are scored with different note counts and render to different audio; the winmm playback call excluded | none |
 | `internal/installer` | unit on payload extraction and paths | temp dir |
-| `main` (the Wails facade) | unit on its pure helpers only: mailto parsing, attachment decoding and the encoding that hands a reopened draft's files back to the composer (round-tripped through the decoder), the Outbox row mapping, the mail-error translations with their recording of the error each replaces, the sync entry points recording every failure once, a lost Sent copy recorded rather than reported as a failed send, the resurfaced-snooze notification text with its wire mapping, the rule-backfill error summariser, plus the DTO wire shape; two source scans hold the send and account-setup surfaces to routing their errors through the translator | none |
+| `main` (the Wails facade) | unit on its pure helpers only: mailto parsing, attachment decoding and the encoding that hands a reopened draft's files back to the composer (round-tripped through the decoder), the Outbox row mapping, the mail-error translations with their recording of the error each replaces, the sync entry points recording every failure once, a lost Sent copy recorded rather than reported as a failed send, the resurfaced-snooze notification text with its wire mapping, the rule-backfill error summariser, the reminder filter that skips occurrences a sleep left behind, the outbox recovery's logging, the count of a partly refused bulk action, plus the DTO wire shape; two source scans hold the send and account-setup surfaces to routing their errors through the translator | none |
 | `tests/structural` | AST scan of the source tree | file reads |
 
 ## Coverage floors
@@ -230,7 +230,8 @@ rules, not review conventions:
 
 `tests/structural/network_test.go` holds the outbound list the same way: only the seven packages it
 names (the mail and calendar protocols, Microsoft sign-in, remote images and the update check) may
-import a package that opens a connection and the front end may make no request of its own. A new way
+import a package that opens a connection, plus `main.go`, which only builds the sign-in package's HTTP
+client; the front end may make no request of its own. A new way
 out of the machine therefore fails the suite until it is named there. It reads source, so a request
 Wails or its web view makes on its own account is outside what it can see.
 
@@ -252,7 +253,8 @@ npx vitest run --coverage   # enforce the pure-module coverage gate
   `autoCollect`, `datePicker`, `accountProviders`, `templateFiles`, `sidebarDnd`, `calendarModel`, `replyDraft`,
   `caldavAccount`, `unified`, `schedule`, `snooze`, `toolbarNav`, `pastedHtml`, `confirmations`,
   `undoStack`, `editClipboard`, `paneLayout`, `emailColors`, `dragScroll`, `optimisticList`,
-  `autoScroll`, `draftEdit`, `modalDrag`)
+  `autoScroll`, `draftEdit`, `modalDrag`, `emoji`, `emojiDocument`, `hoverStatus`, `hoverProbe`,
+  `composeEmoji`)
   carry a v8 coverage gate at 100% lines, functions, statements and branches, listed in `vite.config.ts`
   under `coverage.include`. Hooks and components are tested but not gated: a React hook fuses logic with
   framework plumbing, so a blanket 100% there buys brittle tests, not correctness.
@@ -268,7 +270,7 @@ npx vitest run --coverage   # enforce the pure-module coverage gate
   one module still over the limit from before it existed (`App.tsx`) is named in an exemption list that
   may only shrink; a file
   exempt while no longer over the limit fails, so an entry cannot outlive the debt it records. `App.tsx` is
-  kept there by decision, held at its ceiling; TECH_DEBT.md records why. Test files are outside the limit by design. All four rules were
+  kept there by decision, held under the ceiling recorded for it; TECH_DEBT.md records why. Test files are outside the limit by design. All four rules were
   verified by planting a violation against each.
 - **Stylesheet test.** `src/styles/stylesheets.test.ts` holds ten rules the stylesheets state about
   themselves. The first: a `:hover` rule on a class worn by a button must also require `:enabled`. The
@@ -325,6 +327,18 @@ npx vitest run --coverage   # enforce the pure-module coverage gate
   line above and two below. The synthetic paste is what makes this testable at all: jsdom has no
   clipboard and no `ClipboardEvent`, so the suite stubs the constructor and calls the view's own
   `pasteHTML`.
+- **Emoji conversion runs a real editor.** `composeEmoji.test.ts` builds a TipTap editor with the
+  extension and types into it one character at a time through ProseMirror's own text-input hook, the way
+  a keystroke arrives, so the input rules, Backspace undo, Enter and the send-time pass are exercised as
+  they run in the app. The compose window's own tests replace the module with
+  `src/test/composeEmojiStub.ts`, since their editor is a fake with no document for the pass to read.
+- **The hover probe is fed its geometry.** jsdom has no caret-from-point lookup and lays nothing out, so
+  `hoverProbe.test.ts` supplies the caret each pointer position would give and the box each emoji would
+  be drawn in. Whether a real engine answers those the same way was checked in a browser rather than
+  here.
+- **Storage on Node 25 and later.** Node 25 added a `localStorage` of its own that answers undefined
+  without a storage file and hides jsdom's, which failed every test that touches storage. The setup file
+  points both storage names at jsdom's, so the suite needs no flag on any Node version.
 - **Time and frames are driven, never waited on.** The drag auto-scroll and the self-reading help panes
   both run on a clock, so their tests replace it: `useDragAutoScroll.test.tsx` stubs
   `requestAnimationFrame` with a queue it steps one frame at a time; `useAutoScroll.test.tsx` uses
