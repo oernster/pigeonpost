@@ -2,6 +2,19 @@
 // rest) on Vitest's expect, so component tests added later can assert against the rendered DOM.
 import '@testing-library/jest-dom/vitest'
 
+// Node 25 and later ship a Web Storage of their own: localStorage and sessionStorage are getters on the
+// global object that answer undefined without --localstorage-file. jsdom's window is that same
+// global object, so the getters shadow jsdom's working storage and every test touching it failed
+// (measured on Node 26.13.0: 203 failures reading getItem/clear of undefined). Vitest keeps the jsdom
+// instance on the jsdom global; pointing both names at its storage gives every test the browser's
+// storage on any Node version, with no flag for whoever runs the suite to remember.
+const jsdomWindow = (globalThis as {jsdom?: {window: Window}}).jsdom?.window
+if (jsdomWindow) {
+    for (const name of ['localStorage', 'sessionStorage'] as const) {
+        Object.defineProperty(globalThis, name, {configurable: true, enumerable: true, value: jsdomWindow[name]})
+    }
+}
+
 // The message list is virtualised with @tanstack/react-virtual, which sizes the scroll viewport and each
 // row from offsetHeight (see virtual-core's getRect and measureElement) and scrolls the container with
 // scrollTo. jsdom runs no layout, so offsetHeight is 0 (which would collapse the virtual window and render
