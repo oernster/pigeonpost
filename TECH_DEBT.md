@@ -2,7 +2,7 @@
 
 A standing reference to the project's outstanding technical debt. It records what is still open, weighs whether each item is worth doing and gives the rationale. Every item is a behaviour-preserving internal refactor or a known gap in what the app keeps that has been ruled to be recorded here rather than fixed now: nothing here proposes reverting a feature or changing any UI or UX behaviour that already works. Scope is the whole repository (the Go core plus the React front end), read against the documented design and the structural tests.
 
-Two items are open.
+Five items are open.
 
 ## 1. vCard fields outside the contact model are dropped on import
 
@@ -11,6 +11,18 @@ A Thunderbird vCard 4.0 export loses NICKNAME, URL, PHOTO and CATEGORIES on impo
 ## 2. Mail another client moves into the Inbox counts as an arrival
 
 An arrival is a message id not yet in the cache and the id is the folder plus the server's UID. A move made in PigeonPost files the message into the destination's cache under the UID the server reports (COPYUID); a mailbox the server renumbers is rebaselined through UIDVALIDITY, so neither is mistaken for new mail. A move made by another program is neither: the message reaches the Inbox under a new UID that the cache has never held, so the next sync reads it as new and an unattended rule acts on it, a delete-permanently rule included. The README, the Rules page and the Guide state the gap. Closing it needs an identity that survives a move: IMAP OBJECTID with EMAILID (RFC 8474) where the server offers it, Gmail's `X-GM-MSGID` (which the mail library cannot carry today, see the first entry under "Looks like debt") or a weaker match on the Message-ID header within the account. Blocked on choosing between those, since each changes what counts as the same message across the cache.
+
+## 3. A link whose scheme is written in capitals does nothing when clicked
+
+`App.OpenExternal` (`about.go`) allows a link only when it starts with `http://`, `https://` or `mailto:` exactly as written, so `HTTPS://example.com` is dropped without a word. The front end disagrees with it: `isOpenableHref` (`frontend/src/hoverStatus.ts`) lowercases the scheme before checking, so the message frame forwards the click and the bottom tray reads the link as one that opens. Schemes are case-insensitive (RFC 3986 section 3.1), so the front end is right and the Go check is the stricter of the two. The fix is to compare a lowercased copy of the scheme in `OpenExternal` while passing the URL on unchanged, with a test for a capitalised scheme. It predates the link readout; the readout made the disagreement visible.
+
+## 4. A partly refused rule run reports only the error
+
+When an Apply to existing mail run is refused for part of its work, `App.RunRuleBackfill` (`rulesapi.go`) returns the counts of what did land together with the error describing the rest. A Wails binding that returns a value and a non-nil error rejects its promise, so the counts never reach the front end: `RuleBackfill.tsx` catches the rejection, shows the error and refreshes the mailbox, without any figure for what was done. Two comments say otherwise: the one above `RunRuleBackfill` and the one above `run` in `RuleBackfill.tsx` both describe the partial counts being shown. The README describes what the code does. There are two ways out: correct the comments to match or carry the counts to the front end (for example inside the DTO with the error summary as a field rather than a rejection) so the report can say what landed. Which of the two is a behaviour decision, so it is recorded rather than made.
+
+## 5. Four stylesheets are past the split guideline
+
+ARCHITECTURE.md says a concern file under `frontend/src/styles/` past about 500 lines is due a split at a top-level comment boundary. Four are: `tags-and-pickers.css` (622 lines), `calendar.css` (611), `base-and-panes.css` (578, up from 546 with the link readout's rules) and `list-rows.css` (519). Nothing enforces the figure: `loc.test.ts` covers TypeScript modules, not stylesheets. A split is behaviour-preserving as long as each new file is imported from `App.css` at the position its rules held, since the cascade depends on that order. Left for now because the files are still each one concern; worth doing before any of them grows further or as part of a move to enforce the figure in a test.
 
 The sections below are the standing record of what was weighed and deliberately left alone, so the same ground is not covered again. They carry no numbers, because a number here means an open item and a numbered heading that was not one made this file read as three open items when it held one.
 
