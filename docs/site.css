@@ -500,3 +500,7 @@ footer.site a { color: var(--text-dim); }
     .hero h1 { font-size: 34px; }
     .nav a { margin: 0 14px 0 0; }
 }
+
+/* site-chrome-guard: a link in the top bar or footer never breaks inside itself; rows wrap
+   whole links instead and no bar is held to a fixed height. */
+footer a { white-space: nowrap; }
